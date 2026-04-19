@@ -4516,6 +4516,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleReplaySession(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseClick':
+      handleCDPMouseClick(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
+    case 'cdpMouseClickAndHold':
+      handleCDPMouseClickAndHold(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
+    case 'cdpMouseDrag':
+      handleCDPMouseDrag(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
+    case 'cdpMouseDragVariableSpeed':
+      handleCDPMouseDragVariableSpeed(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
+    case 'cdpMouseWheel':
+      handleCDPMouseWheel(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -9905,6 +9925,397 @@ async function handleCDPInsertText(request, sender, sendResponse) {
       error: error.message,
       method: 'cdp'
     });
+  }
+}
+
+/**
+ * Handle CDP-based mouse click at viewport coordinates.
+ * Uses Chrome DevTools Protocol Input.dispatchMouseEvent for precise click delivery.
+ * @param {Object} request - { x, y, shiftKey, ctrlKey, altKey }
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCDPMouseClick(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y, shiftKey, ctrlKey, altKey } = request;
+
+  if (!tabId) {
+    sendResponse({ success: false, error: 'No tab ID available' });
+    return;
+  }
+
+  // T-181-01: Validate coordinates are finite numbers
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    sendResponse({ success: false, error: 'x and y must be finite numbers' });
+    return;
+  }
+
+  let debuggerAttached = false;
+
+  try {
+    automationLogger.logActionExecution(null, 'cdpMouseClick', 'start', { tabId, x, y });
+
+    // If KeyboardEmulator has the debugger attached to this tab, detach it first
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpMouseClick: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    // Try to attach debugger; if "already attached" error, force-detach and retry
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpMouseClick: stale debugger detected, force-detaching and retrying', { tabId });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+    debuggerAttached = true;
+
+    const modifiers = (altKey ? 1 : 0) | (ctrlKey ? 2 : 0) | (shiftKey ? 8 : 0);
+
+    // Mouse pressed
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x, y, button: 'left', clickCount: 1, modifiers
+    });
+
+    // Mouse released
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x, y, button: 'left', clickCount: 1, modifiers
+    });
+
+    await chrome.debugger.detach({ tabId });
+    debuggerAttached = false;
+
+    automationLogger.logActionExecution(null, 'cdpMouseClick', 'complete', { success: true, tabId, x, y });
+    sendResponse({ success: true, x, y });
+
+  } catch (error) {
+    automationLogger.logActionExecution(null, 'cdpMouseClick', 'complete', { success: false, tabId, error: error.message });
+    if (debuggerAttached) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+    }
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Handle CDP-based mouse click and hold at viewport coordinates.
+ * Presses mouse button, waits for holdMs, then releases.
+ * @param {Object} request - { x, y, holdMs }
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCDPMouseClickAndHold(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y } = request;
+  const holdMs = request.holdMs || 5000;
+
+  if (!tabId) {
+    sendResponse({ success: false, error: 'No tab ID available' });
+    return;
+  }
+
+  // T-181-01: Validate coordinates are finite numbers
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    sendResponse({ success: false, error: 'x and y must be finite numbers' });
+    return;
+  }
+
+  let debuggerAttached = false;
+
+  try {
+    automationLogger.logActionExecution(null, 'cdpMouseClickAndHold', 'start', { tabId, x, y, holdMs });
+
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpMouseClickAndHold: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpMouseClickAndHold: stale debugger detected, force-detaching and retrying', { tabId });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+    debuggerAttached = true;
+
+    // Mouse pressed
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x, y, button: 'left', clickCount: 1
+    });
+
+    // Hold for specified duration
+    await new Promise(r => setTimeout(r, holdMs));
+
+    // Mouse released
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+    });
+
+    await chrome.debugger.detach({ tabId });
+    debuggerAttached = false;
+
+    automationLogger.logActionExecution(null, 'cdpMouseClickAndHold', 'complete', { success: true, tabId, x, y, holdMs });
+    sendResponse({ success: true, x, y, holdMs });
+
+  } catch (error) {
+    automationLogger.logActionExecution(null, 'cdpMouseClickAndHold', 'complete', { success: false, tabId, error: error.message });
+    if (debuggerAttached) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+    }
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Handle CDP-based mouse drag from start to end coordinates.
+ * Presses at start, moves in steps with linear interpolation, releases at end.
+ * @param {Object} request - { startX, startY, endX, endY, steps, stepDelayMs, shiftKey, ctrlKey, altKey }
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCDPMouseDrag(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { startX, startY, endX, endY, shiftKey, ctrlKey, altKey } = request;
+  const steps = request.steps || 10;
+  const stepDelayMs = request.stepDelayMs || 20;
+
+  if (!tabId) {
+    sendResponse({ success: false, error: 'No tab ID available' });
+    return;
+  }
+
+  // T-181-01: Validate coordinates are finite numbers
+  if (!Number.isFinite(startX) || !Number.isFinite(startY) ||
+      !Number.isFinite(endX) || !Number.isFinite(endY)) {
+    sendResponse({ success: false, error: 'All coordinates must be finite numbers' });
+    return;
+  }
+
+  let debuggerAttached = false;
+
+  try {
+    automationLogger.logActionExecution(null, 'cdpMouseDrag', 'start', { tabId, startX, startY, endX, endY, steps });
+
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpMouseDrag: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpMouseDrag: stale debugger detected, force-detaching and retrying', { tabId });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+    debuggerAttached = true;
+
+    const modifiers = (altKey ? 1 : 0) | (ctrlKey ? 2 : 0) | (shiftKey ? 8 : 0);
+
+    // Mouse pressed at start position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1, modifiers
+    });
+
+    // Move in steps with linear interpolation
+    for (let i = 1; i <= steps; i++) {
+      const progress = i / steps;
+      const currentX = startX + (endX - startX) * progress;
+      const currentY = startY + (endY - startY) * progress;
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: currentX, y: currentY, button: 'left', modifiers
+      });
+      if (i < steps) {
+        await new Promise(r => setTimeout(r, stepDelayMs));
+      }
+    }
+
+    // Mouse released at end position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1, modifiers
+    });
+
+    await chrome.debugger.detach({ tabId });
+    debuggerAttached = false;
+
+    automationLogger.logActionExecution(null, 'cdpMouseDrag', 'complete', { success: true, tabId, startX, startY, endX, endY, steps });
+    sendResponse({ success: true, startX, startY, endX, endY, steps });
+
+  } catch (error) {
+    automationLogger.logActionExecution(null, 'cdpMouseDrag', 'complete', { success: false, tabId, error: error.message });
+    if (debuggerAttached) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+    }
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Handle CDP-based mouse drag with variable speed between steps.
+ * Same as drag but delay per step is randomized between minDelayMs and maxDelayMs.
+ * @param {Object} request - { startX, startY, endX, endY, steps, minDelayMs, maxDelayMs }
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCDPMouseDragVariableSpeed(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { startX, startY, endX, endY } = request;
+  const steps = request.steps || 20;
+  const minDelayMs = request.minDelayMs || 5;
+  const maxDelayMs = request.maxDelayMs || 40;
+
+  if (!tabId) {
+    sendResponse({ success: false, error: 'No tab ID available' });
+    return;
+  }
+
+  // T-181-01: Validate coordinates are finite numbers
+  if (!Number.isFinite(startX) || !Number.isFinite(startY) ||
+      !Number.isFinite(endX) || !Number.isFinite(endY)) {
+    sendResponse({ success: false, error: 'All coordinates must be finite numbers' });
+    return;
+  }
+
+  let debuggerAttached = false;
+
+  try {
+    automationLogger.logActionExecution(null, 'cdpMouseDragVariableSpeed', 'start', { tabId, startX, startY, endX, endY, steps });
+
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpMouseDragVariableSpeed: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpMouseDragVariableSpeed: stale debugger detected, force-detaching and retrying', { tabId });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+    debuggerAttached = true;
+
+    // Mouse pressed at start position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1
+    });
+
+    // Move in steps with variable-speed delays
+    for (let i = 1; i <= steps; i++) {
+      const progress = i / steps;
+      const currentX = startX + (endX - startX) * progress;
+      const currentY = startY + (endY - startY) * progress;
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: currentX, y: currentY, button: 'left'
+      });
+      if (i < steps) {
+        const delay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+
+    // Mouse released at end position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1
+    });
+
+    await chrome.debugger.detach({ tabId });
+    debuggerAttached = false;
+
+    automationLogger.logActionExecution(null, 'cdpMouseDragVariableSpeed', 'complete', { success: true, tabId, startX, startY, endX, endY, steps });
+    sendResponse({ success: true, startX, startY, endX, endY, steps });
+
+  } catch (error) {
+    automationLogger.logActionExecution(null, 'cdpMouseDragVariableSpeed', 'complete', { success: false, tabId, error: error.message });
+    if (debuggerAttached) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+    }
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Handle CDP-based mouse wheel event at viewport coordinates.
+ * Dispatches a mouseWheel event with specified delta values.
+ * @param {Object} request - { x, y, deltaX, deltaY }
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCDPMouseWheel(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y } = request;
+  const deltaX = request.deltaX || 0;
+  const deltaY = (typeof request.deltaY === 'number') ? request.deltaY : -120;
+
+  if (!tabId) {
+    sendResponse({ success: false, error: 'No tab ID available' });
+    return;
+  }
+
+  // T-181-01: Validate coordinates are finite numbers
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    sendResponse({ success: false, error: 'x and y must be finite numbers' });
+    return;
+  }
+
+  let debuggerAttached = false;
+
+  try {
+    automationLogger.logActionExecution(null, 'cdpMouseWheel', 'start', { tabId, x, y, deltaX, deltaY });
+
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpMouseWheel: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpMouseWheel: stale debugger detected, force-detaching and retrying', { tabId });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+    debuggerAttached = true;
+
+    // Dispatch mouseWheel event
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x, y, deltaX, deltaY
+    });
+
+    await chrome.debugger.detach({ tabId });
+    debuggerAttached = false;
+
+    automationLogger.logActionExecution(null, 'cdpMouseWheel', 'complete', { success: true, tabId, x, y, deltaX, deltaY });
+    sendResponse({ success: true, x, y, deltaX, deltaY });
+
+  } catch (error) {
+    automationLogger.logActionExecution(null, 'cdpMouseWheel', 'complete', { success: false, tabId, error: error.message });
+    if (debuggerAttached) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+    }
+    sendResponse({ success: false, error: error.message });
   }
 }
 
