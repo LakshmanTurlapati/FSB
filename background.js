@@ -4500,6 +4500,70 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleReplaySession(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    // ==========================================
+    // DOM Stream forwarding (content -> dashboard via WebSocket)
+    // ==========================================
+
+    case 'domStreamSnapshot':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-snapshot', request.snapshot || {});
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamMutations':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-mutations', {
+          mutations: request.mutations || [],
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamScroll':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-scroll', {
+          scrollX: request.scrollX || 0,
+          scrollY: request.scrollY || 0,
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamOverlay':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-overlay', {
+          glow: request.glow || null,
+          progress: request.progress || null,
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamDialog':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-dialog', {
+          dialog: request.dialog || {}
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamReady':
+      // Content script stream module loaded -- acknowledge receipt.
+      // If a dashboard is connected, notify so it can issue dash:dom-stream-start.
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-ready', { tabId: sender.tab ? sender.tab.id : null });
+      }
+      sendResponse({ success: true });
+      break;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
