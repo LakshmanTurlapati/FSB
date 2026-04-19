@@ -616,6 +616,61 @@ function broadcastDashboardProgress(session) {
 }
 
 /**
+ * Returns a recovery snapshot of the current or recently-completed dashboard task.
+ * Called by ws-client.js _sendStateSnapshot (line 327) and _handleStopTask (line 768)
+ * via typeof guard. Priority: running task first, then recently completed (60s TTL).
+ *
+ * @returns {Object|null} Recovery snapshot or null if no dashboard task state available
+ */
+function _getDashboardTaskRecoverySnapshot() {
+  // 1. Check for a running dashboard task first
+  if (typeof activeSessions !== 'undefined') {
+    var running = null;
+    activeSessions.forEach(function(s) {
+      if (s._isDashboardTask && s.status === 'running') running = s;
+    });
+    if (running) {
+      var progress = calculateProgress(running);
+      return {
+        taskRunId: running._dashboardTaskRunId || '',
+        taskStatus: 'running',
+        task: running.task || '',
+        progress: progress.progressPercent,
+        phase: running.lastTurnResult ? 'acting' : 'thinking',
+        eta: progress.estimatedTimeRemaining || null,
+        elapsed: Date.now() - (running.startTime || Date.now()),
+        action: running._lastActionSummary || 'Working...',
+        lastAction: running._lastActionSummary || '',
+        summary: '',
+        error: '',
+        stopped: false,
+        tabId: typeof running.tabId === 'number' ? running.tabId : null,
+        taskSource: 'snapshot',
+        updatedAt: Date.now()
+      };
+    }
+  }
+
+  // 2. Check for a recently completed dashboard task (retained for 60 seconds)
+  if (_lastDashboardTaskResult && _lastDashboardTaskResultTime) {
+    var age = Date.now() - _lastDashboardTaskResultTime;
+    if (age < 60000) {
+      // Return the stored completion payload with taskSource overridden to 'snapshot'
+      return Object.assign({}, _lastDashboardTaskResult, {
+        taskSource: 'snapshot',
+        updatedAt: _lastDashboardTaskResultTime
+      });
+    } else {
+      // Expired -- clear it
+      _lastDashboardTaskResult = null;
+      _lastDashboardTaskResultTime = 0;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Summarize a task description into a short label using the AI provider.
  * Non-blocking -- returns null on failure. Skips tasks already short enough.
  * @param {string} taskText - Original task description
