@@ -475,6 +475,8 @@ function getPublicTools() {
  * Build a minimal system prompt for the agent loop.
  * Per D-05/D-06/D-07: ~1-2KB, no site guides, no conversation history instructions.
  *
+ * Verified Phase 183: includes task, pageUrl, CRITICAL RULES (narration-only, execute_js escape hatch)
+ *
  * @param {string} task - The user's task description
  * @param {string} pageUrl - Current page URL
  * @returns {string} System prompt string

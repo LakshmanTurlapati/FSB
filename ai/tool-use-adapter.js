@@ -1,6 +1,8 @@
 /**
  * Provider Format Adapter for FSB Tool Use
  *
+ * Verified Phase 183: formatToolsForProvider, parseToolCalls, isToolCallResponse correct for all 4 provider families
+ *
  * Translates between canonical tool definitions (from tool-definitions.js)
  * and the native tool_use message format for each AI provider.
  *
