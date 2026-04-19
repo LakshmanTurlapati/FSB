@@ -148,6 +148,22 @@ importScripts('agents/agent-scheduler.js');
 importScripts('agents/agent-executor.js');
 importScripts('agents/server-sync.js');
 
+// Agent loop engine modules (Phase 181: re-enable modular agent loop per D-01, D-02)
+importScripts('ai/engine-config.js');
+importScripts('ai/cost-tracker.js');
+importScripts('ai/transcript-store.js');
+importScripts('ai/hook-pipeline.js');
+importScripts('ai/turn-result.js');
+importScripts('ai/action-history.js');
+importScripts('ai/session-schema.js');
+importScripts('ai/permission-context.js');
+importScripts('ai/hooks/safety-hooks.js');
+importScripts('ai/hooks/permission-hook.js');
+importScripts('ai/hooks/progress-hook.js');
+importScripts('ai/tool-use-adapter.js');
+importScripts('ai/tool-executor.js');
+importScripts('ai/agent-loop.js');
+
 // Memory layer modules
 importScripts('lib/memory/memory-schemas.js');
 importScripts('lib/memory/memory-storage.js');
