@@ -4783,7 +4783,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           endSessionOverlays,
           cleanupSession,
           startKeepAlive,
-          executeCDPToolDirect: null,
+          executeCDPToolDirect: executeCDPToolDirect,
           handleDataTool: null,
           resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
           hooks: reactivationHooks,
@@ -5098,7 +5098,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       endSessionOverlays,
       cleanupSession,
       startKeepAlive,
-      executeCDPToolDirect: null,
+      executeCDPToolDirect: executeCDPToolDirect,
       handleDataTool: null,
       resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
       hooks: sessionHooks,
@@ -5252,7 +5252,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         endSessionOverlays,
         cleanupSession,
         startKeepAlive,
-        executeCDPToolDirect: null,
+        executeCDPToolDirect: executeCDPToolDirect,
         handleDataTool: null,
         resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
         hooks: agentTaskHooks,
@@ -10402,6 +10402,380 @@ async function handleCDPMouseWheel(request, sender, sendResponse) {
       try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
     }
     sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Direct CDP tool dispatcher for tool-executor.js CDP routing.
+ *
+ * Called from agent-loop.js via the cdpHandler wrapper:
+ *   executeCDPToolDirect({ tool: cdpVerb, params: params }, tabId)
+ *
+ * Routes each _cdpVerb from tool-definitions.js to the corresponding
+ * chrome.debugger CDP commands. Returns a Promise with structured result.
+ *
+ * Unlike the handleCDP* message-handler functions (which use sendResponse
+ * callbacks), this function uses async/await with direct return values.
+ *
+ * @param {Object} request - { tool: string (cdpVerb), params: Object }
+ * @param {number} tabId - Chrome tab ID to execute against
+ * @returns {Promise<Object>} { success, method, error?, ... }
+ */
+async function executeCDPToolDirect(request, tabId) {
+  const { tool: verb, params } = request;
+
+  if (!tabId) {
+    return { success: false, error: 'No tab ID available' };
+  }
+
+  // Helper: attach debugger with force-detach retry on conflict
+  async function attachDebugger() {
+    // If KeyboardEmulator has the debugger attached to this tab, detach it first
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('executeCDPToolDirect: detaching KeyboardEmulator debugger before attaching', { tabId, verb });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('executeCDPToolDirect: stale debugger detected, force-detaching and retrying', { tabId, verb });
+        try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
+  }
+
+  switch (verb) {
+
+    // -----------------------------------------------------------------
+    // cdpClickAt: mousePressed + mouseReleased at (x, y) with modifiers
+    // -----------------------------------------------------------------
+    case 'cdpClickAt': {
+      const { x, y, shiftKey, ctrlKey, altKey } = params || {};
+      // T-182-01: Validate coordinates are finite numbers
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return { success: false, error: 'cdpClickAt: x and y must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpClickAt', 'start', { tabId, x, y });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        const modifiers = (altKey ? 1 : 0) | (ctrlKey ? 2 : 0) | (shiftKey ? 8 : 0);
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x, y, button: 'left', clickCount: 1, modifiers
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x, y, button: 'left', clickCount: 1, modifiers
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpClickAt', 'complete', { success: true, tabId, x, y });
+        return { success: true, method: 'cdp_direct', x, y };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpClickAt', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpClickAndHold: mousePressed, wait holdMs, mouseReleased
+    // -----------------------------------------------------------------
+    case 'cdpClickAndHold': {
+      const { x, y } = params || {};
+      const holdMs = (params && params.holdMs) || 5000;
+      // T-182-01: Validate coordinates
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return { success: false, error: 'cdpClickAndHold: x and y must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpClickAndHold', 'start', { tabId, x, y, holdMs });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x, y, button: 'left', clickCount: 1
+        });
+        await new Promise(r => setTimeout(r, holdMs));
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpClickAndHold', 'complete', { success: true, tabId, x, y, holdMs });
+        return { success: true, method: 'cdp_direct', x, y, holdMs };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpClickAndHold', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpDrag: mousePressed at start, mouseMoved steps, mouseReleased at end
+    // -----------------------------------------------------------------
+    case 'cdpDrag': {
+      const { startX, startY, endX, endY, shiftKey, ctrlKey, altKey } = params || {};
+      const steps = (params && params.steps) || 10;
+      const stepDelayMs = (params && params.stepDelayMs) || 20;
+      // T-182-01: Validate coordinates
+      if (!Number.isFinite(startX) || !Number.isFinite(startY) ||
+          !Number.isFinite(endX) || !Number.isFinite(endY)) {
+        return { success: false, error: 'cdpDrag: all coordinates must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpDrag', 'start', { tabId, startX, startY, endX, endY, steps });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        const modifiers = (altKey ? 1 : 0) | (ctrlKey ? 2 : 0) | (shiftKey ? 8 : 0);
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1, modifiers
+        });
+        for (let i = 1; i <= steps; i++) {
+          const progress = i / steps;
+          const currentX = startX + (endX - startX) * progress;
+          const currentY = startY + (endY - startY) * progress;
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: currentX, y: currentY, button: 'left', modifiers
+          });
+          if (i < steps) {
+            await new Promise(r => setTimeout(r, stepDelayMs));
+          }
+        }
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1, modifiers
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpDrag', 'complete', { success: true, tabId, startX, startY, endX, endY, steps });
+        return { success: true, method: 'cdp_direct', startX, startY, endX, endY, steps };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpDrag', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpDragVariableSpeed: same as cdpDrag but randomized step delays
+    // -----------------------------------------------------------------
+    case 'cdpDragVariableSpeed': {
+      const { startX, startY, endX, endY } = params || {};
+      const steps = (params && params.steps) || 20;
+      const minDelayMs = (params && params.minDelayMs) || 5;
+      const maxDelayMs = (params && params.maxDelayMs) || 40;
+      // T-182-01: Validate coordinates
+      if (!Number.isFinite(startX) || !Number.isFinite(startY) ||
+          !Number.isFinite(endX) || !Number.isFinite(endY)) {
+        return { success: false, error: 'cdpDragVariableSpeed: all coordinates must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpDragVariableSpeed', 'start', { tabId, startX, startY, endX, endY, steps });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1
+        });
+        for (let i = 1; i <= steps; i++) {
+          const progress = i / steps;
+          const currentX = startX + (endX - startX) * progress;
+          const currentY = startY + (endY - startY) * progress;
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: currentX, y: currentY, button: 'left'
+          });
+          if (i < steps) {
+            const delay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+            await new Promise(r => setTimeout(r, delay));
+          }
+        }
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpDragVariableSpeed', 'complete', { success: true, tabId, startX, startY, endX, endY, steps });
+        return { success: true, method: 'cdp_direct', startX, startY, endX, endY, steps };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpDragVariableSpeed', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpScrollAt: mouseWheel event at (x, y) with deltaX/deltaY
+    // -----------------------------------------------------------------
+    case 'cdpScrollAt': {
+      const { x, y } = params || {};
+      const deltaX = (params && params.deltaX) || 0;
+      const deltaY = (params && typeof params.deltaY === 'number') ? params.deltaY : -120;
+      // T-182-01: Validate coordinates
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return { success: false, error: 'cdpScrollAt: x and y must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpScrollAt', 'start', { tabId, x, y, deltaX, deltaY });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseWheel', x, y, deltaX, deltaY
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpScrollAt', 'complete', { success: true, tabId, x, y, deltaX, deltaY });
+        return { success: true, method: 'cdp_direct', x, y, deltaX, deltaY };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpScrollAt', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpInsertText: Input.insertText with optional clearFirst
+    // -----------------------------------------------------------------
+    case 'cdpInsertText': {
+      const { text, clearFirst } = params || {};
+      if (!text) {
+        return { success: false, error: 'cdpInsertText: no text provided' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpInsertText', 'start', { tabId, textLength: text.length });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        if (clearFirst) {
+          const isMac = (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Macintosh')) ||
+                        (typeof navigator !== 'undefined' && navigator.platform?.includes('Mac'));
+          const selectAllModifier = isMac ? 4 : 2;
+
+          // Select all
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+            type: 'keyDown', modifiers: selectAllModifier, key: 'a', code: 'KeyA'
+          });
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+            type: 'keyUp', modifiers: selectAllModifier, key: 'a', code: 'KeyA'
+          });
+          await new Promise(r => setTimeout(r, 200));
+
+          // Delete selected
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Backspace', code: 'Backspace'
+          });
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Backspace', code: 'Backspace'
+          });
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpInsertText', 'complete', { success: true, tabId, textLength: text.length });
+        return { success: true, method: 'cdp_direct', text, length: text.length };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpInsertText', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // cdpDoubleClickAt: two rapid clicks with clickCount=2 on second
+    // -----------------------------------------------------------------
+    case 'cdpDoubleClickAt': {
+      const { x, y } = params || {};
+      // T-182-01: Validate coordinates
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return { success: false, error: 'cdpDoubleClickAt: x and y must be finite numbers' };
+      }
+      let debuggerAttached = false;
+      try {
+        automationLogger.logActionExecution(null, 'cdpDoubleClickAt', 'start', { tabId, x, y });
+        await attachDebugger();
+        debuggerAttached = true;
+
+        // First click
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x, y, button: 'left', clickCount: 1
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+        });
+
+        // Second click with clickCount=2
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x, y, button: 'left', clickCount: 2
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x, y, button: 'left', clickCount: 2
+        });
+
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached = false;
+
+        automationLogger.logActionExecution(null, 'cdpDoubleClickAt', 'complete', { success: true, tabId, x, y });
+        return { success: true, method: 'cdp_direct', x, y };
+      } catch (error) {
+        automationLogger.logActionExecution(null, 'cdpDoubleClickAt', 'complete', { success: false, tabId, error: error.message });
+        return { success: false, error: error.message };
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Unknown verb
+    // -----------------------------------------------------------------
+    default:
+      return { success: false, error: `Unknown CDP verb: ${verb}` };
   }
 }
 
