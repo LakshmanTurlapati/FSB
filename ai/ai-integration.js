@@ -823,6 +823,9 @@ class AIIntegration {
    * @param {Object} domState - Current DOM state
    * @param {Object} context - Automation context with last action result
    * @returns {string} Minimal update prompt
+   *
+   * Verified Phase 183 AICOM-05: Continuation includes page URL/title, DOM elements, change info,
+   * last action result, stuck warnings, completion signals, and format reminders.
    */
   buildMinimalUpdate(domState, context) {
     let update = `Page state after your action:

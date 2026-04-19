@@ -1795,6 +1795,8 @@ async function runAgentIteration(sessionId, options) {
     if (!session.lastAiReasoning) session.lastAiReasoning = null; // Reset if not set by report_progress
 
     // m. Format tool results into messages and push to history
+    // Verified Phase 183 AICOM-05: Continuation includes tool results (with DOM from snapshots), stuck recovery hints.
+    // Tool results carry JSON.stringify(tr.result) via formatToolResult; stuck hints injected at step n below.
     for (var ti = 0; ti < toolResults.length; ti++) {
       var tr = toolResults[ti];
       var resultMsg = _formatToolResult(
