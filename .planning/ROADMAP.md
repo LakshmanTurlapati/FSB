@@ -49,9 +49,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 181-01-PLAN.md -- Add importScripts for agent-loop ecosystem and restore CDP mouse message handlers
-- [ ] 181-02-PLAN.md -- Create session hooks and rewire handleStartAutomation to use runAgentLoop
-- [ ] 181-03-PLAN.md -- Verify integration and human-verify extension loads correctly
+- [x] 181-01-PLAN.md -- Add importScripts for agent-loop ecosystem and restore CDP mouse message handlers
+- [x] 181-02-PLAN.md -- Create session hooks and rewire handleStartAutomation to use runAgentLoop
+- [x] 181-03-PLAN.md -- Verify integration and human-verify extension loads correctly
 
 ### Phase 182: Tool Execution Repair
 **Goal**: Every registered tool dispatches correctly and returns structured results the AI can act on
@@ -63,7 +63,11 @@ Plans:
   3. Each tool execution returns a result object with success/failure status, what changed, and enough context for the AI to decide the next step
   4. When the primary selector fails, the selector resolver tries ID, data attributes, ARIA, CSS class, and coordinate fallbacks in order
   5. After each action, verification checks whether the expected effect occurred (element state change, navigation, DOM mutation)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [x] 182-01-PLAN.md -- Fix CDP tool routing gap and verify all 49 tools dispatch through unified executor
+- [x] 182-02-PLAN.md -- Verify selector resolution fallback chain and action verification pipeline
 
 ### Phase 183: AI Communication Repair
 **Goal**: The AI receives correct prompts, responds with valid tool_use blocks, and conversation history stays within budget
@@ -75,7 +79,12 @@ Plans:
   3. When the AI responds with a tool_use content block, the parser extracts the tool name and parameters into an executable action object
   4. Conversation history compresses to stay under the token budget by sliding-window trimming old turns while preserving the system prompt and recent context
   5. Continuation prompts after each tool execution include the updated DOM snapshot, the tool result, and any recovery hints from stuck detection
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 183-01-PLAN.md -- Delete dead code from universal-provider.js and verify tool_use path (prompt, formatting, parsing)
+- [ ] 183-02-PLAN.md -- Sync CLI_COMMAND_TABLE, apply max_tokens xAI fix, verify restored CLI pipeline
+- [ ] 183-03-PLAN.md -- Verify conversation history compression and continuation prompts in both paths
 
 ### Phase 184: DOM Analysis Repair
 **Goal**: The AI receives accurate, focused page snapshots that enable correct element targeting
@@ -107,9 +116,9 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 180. Pipeline Audit & Regression Inventory | 3/3 | Complete    | 2026-04-18 |
-| 181. Agent Loop Repair | 0/3 | Not started | - |
-| 182. Tool Execution Repair | 0/TBD | Not started | - |
-| 183. AI Communication Repair | 0/TBD | Not started | - |
+| 181. Agent Loop Repair | 3/3 | Complete    | 2026-04-19 |
+| 182. Tool Execution Repair | 2/2 | Complete    | 2026-04-19 |
+| 183. AI Communication Repair | 0/3 | Not started | - |
 | 184. DOM Analysis Repair | 0/TBD | Not started | - |
 | 185. End-to-End Validation | 0/TBD | Not started | - |
 
