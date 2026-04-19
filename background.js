@@ -557,6 +557,49 @@ function formatETA(ms) {
 }
 
 /**
+ * Broadcast task progress to connected dashboard clients via WebSocket.
+ * Called per iteration and after terminal outcomes for dashboard-originated tasks.
+ * Only sends ext:task-progress for running sessions -- terminal state forwarding
+ * (ext:task-complete) is handled separately in Plan 02.
+ *
+ * @param {Object} session - Active automation session object
+ */
+function broadcastDashboardProgress(session) {
+  // Guard: WebSocket must exist and be connected
+  if (typeof fsbWebSocket === 'undefined' || !fsbWebSocket || !fsbWebSocket.connected) {
+    return;
+  }
+  // Guard: Only broadcast for dashboard-originated tasks
+  if (!session._isDashboardTask) {
+    return;
+  }
+  var progress = calculateProgress(session);
+  var isTerminal = session.status === 'completed' || session.status === 'failed' ||
+    session.status === 'stopped' || session.status === 'no_progress' ||
+    session.status === 'max_iterations' || session.status === 'timeout' ||
+    session.status === 'error';
+  // Do NOT send ext:task-complete here -- that is handled by Plan 02
+  // via automationComplete interception. This function ONLY sends
+  // ext:task-progress for running sessions.
+  if (isTerminal) {
+    return;
+  }
+  fsbWebSocket.send('ext:task-progress', {
+    progress: progress.progressPercent,
+    phase: session.lastTurnResult ? 'acting' : 'thinking',
+    eta: progress.estimatedTimeRemaining || null,
+    elapsed: Date.now() - (session.startTime || Date.now()),
+    action: session._lastActionSummary || session.lastAiReasoning || 'Working...',
+    iteration: session.iterationCount || 0,
+    maxIterations: session.maxIterations || 20,
+    taskRunId: session._dashboardTaskRunId || '',
+    task: session.task || '',
+    taskSource: 'live',
+    updatedAt: Date.now()
+  });
+}
+
+/**
  * Summarize a task description into a short label using the AI provider.
  * Non-blocking -- returns null on failure. Skips tasks already short enough.
  * @param {string} taskText - Original task description
@@ -4649,7 +4692,7 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
-  const { task, tabId, conversationId } = request;
+  const { task, tabId, conversationId, source } = request;
 
   try {
     // Get the target tab ID (may be updated by smart tab management below)
@@ -4841,6 +4884,12 @@ async function handleStartAutomation(request, sender, sendResponse) {
     };
 
     activeSessions.set(sessionId, sessionData);
+
+    // Tag dashboard-originated sessions for progress broadcasting and correlation
+    if (source === 'dashboard') {
+      sessionData._isDashboardTask = true;
+      sessionData._dashboardTaskRunId = 'run_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    }
 
     // Multi-site orchestration: detect multi-company career task
     if (typeof extractCompaniesFromTask === 'function') {
@@ -7423,6 +7472,9 @@ async function startAutomationLoop(sessionId) {
     taskSummary: session.taskSummary || null
   });
 
+  // Broadcast progress to dashboard for dashboard-originated tasks
+  broadcastDashboardProgress(session);
+
   // Fallback: clean up overlays on previous tab if a tab switch occurred
   if (session.previousTabId && session.previousTabId !== session.tabId) {
     sendSessionStatus(session.previousTabId, { phase: 'ended', reason: 'tab_switch' });
@@ -9417,6 +9469,9 @@ async function startAutomationLoop(sessionId) {
       // Dynamic delay based on stuck counter - optimized for speed
       // FSB TIMING: Log iteration end
       automationLogger.logTiming(sessionId, 'LOOP', 'iteration_end', Date.now() - iterationStart, { iteration: session.iterationCount });
+
+      // Post-iteration progress broadcast to dashboard (after actions executed)
+      broadcastDashboardProgress(session);
 
       const delay = session.stuckCounter > 0 ?
         Math.min(1000 * Math.pow(1.5, session.stuckCounter), 10000) : // Exponential backoff up to 10s
