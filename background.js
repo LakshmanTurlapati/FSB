@@ -4681,12 +4681,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'automationComplete': {
       // Forward task completion to dashboard via WebSocket (per D-03, D-04)
-      // notifySidepanel in agent-loop.js sends this chrome.runtime.sendMessage.
-      // Other listeners (sidepanel, popup) also receive it -- do NOT return true or prevent propagation.
       if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
         var completedSessionId = request.sessionId;
         var completedSession = activeSessions.get(completedSessionId);
-        // Only forward for dashboard-originated tasks (per Pitfall 14)
         if (completedSession && completedSession._isDashboardTask) {
           var outcomeStr = request.outcome || 'success';
           var taskStatus = outcomeStr === 'error' ? 'failed' : outcomeStr;
@@ -4694,7 +4691,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           var actionCount = Array.isArray(completedSession.actionHistory) ? completedSession.actionHistory.length : 0;
           var elapsedMs = Date.now() - (completedSession.startTime || Date.now());
 
-          // Build payload -- async for tab info
           (async function() {
             var tabInfo = null;
             try {
@@ -4727,15 +4723,75 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             };
             fsbWebSocket.send('ext:task-complete', taskCompletePayload);
 
-            // Store for recovery snapshot (per D-07, Pitfall 10)
             _lastDashboardTaskResult = taskCompletePayload;
             _lastDashboardTaskResultTime = Date.now();
           })();
         }
       }
-      // Do NOT break with sendResponse or return true -- let other listeners handle normally
       break;
     }
+
+    // ==========================================
+    // DOM Stream forwarding (content -> dashboard via WebSocket)
+    // ==========================================
+
+    case 'domStreamSnapshot':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-snapshot', request.snapshot || {});
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamMutations':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-mutations', {
+          mutations: request.mutations || [],
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamScroll':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-scroll', {
+          scrollX: request.scrollX || 0,
+          scrollY: request.scrollY || 0,
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamOverlay':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-overlay', {
+          glow: request.glow || null,
+          progress: request.progress || null,
+          streamSessionId: request.streamSessionId || '',
+          snapshotId: request.snapshotId || 0
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamDialog':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-dialog', {
+          dialog: request.dialog || {}
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamReady':
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        fsbWebSocket.send('ext:dom-ready', { tabId: sender.tab ? sender.tab.id : null });
+      }
+      sendResponse({ success: true });
+      break;
 
     default:
       sendResponse({ error: 'Unknown action' });
