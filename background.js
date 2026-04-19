@@ -966,6 +966,47 @@ function isSessionTerminating(sessionId) {
 }
 
 /**
+ * Create a HookPipeline for a new automation session.
+ * Wires safety breaker hooks, permission hooks, and progress hooks
+ * into the agent loop lifecycle events.
+ *
+ * @param {string} sessionId - Session identifier
+ * @returns {HookPipeline} Configured hook pipeline
+ */
+function createSessionHooks(sessionId) {
+  const pipeline = new HookPipeline();
+
+  // Safety breaker hook: checks cost, time, and iteration limits before each iteration
+  // checkSafetyBreakers is defined in agent-loop.js, loaded via importScripts
+  if (typeof createSafetyBreakerHook === 'function') {
+    const safetyHook = createSafetyBreakerHook(checkSafetyBreakers);
+    pipeline.register(LIFECYCLE_EVENTS.BEFORE_ITERATION, safetyHook);
+  }
+
+  // Progress hook: sends iteration progress to content script overlay
+  if (typeof createToolProgressHook === 'function') {
+    const progressHook = createToolProgressHook(function(tabId, statusData) {
+      sendSessionStatus(tabId, statusData);
+    });
+    pipeline.register(LIFECYCLE_EVENTS.AFTER_TOOL_EXECUTION, progressHook);
+  }
+
+  // Permission hook: pre-checks tool permissions before execution
+  if (typeof createPermissionHook === 'function' && typeof PermissionContext === 'function') {
+    try {
+      const permCtx = new PermissionContext();
+      const permHook = createPermissionHook(permCtx);
+      pipeline.register(LIFECYCLE_EVENTS.BEFORE_TOOL_EXECUTION, permHook);
+    } catch (_e) {
+      // PermissionContext may not be fully configured -- skip gracefully
+      automationLogger.debug('Permission hook skipped', { sessionId, reason: _e.message });
+    }
+  }
+
+  return pipeline;
+}
+
+/**
  * Reactivate an idle session for a follow-up command.
  * Resets per-command counters while preserving cumulative state (actionHistory, AI history).
  * @param {Object} session - The session object from activeSessions
