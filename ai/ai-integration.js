@@ -829,6 +829,9 @@ class AIIntegration {
    * @param {Object} domState - Current DOM state
    * @param {Object} context - Automation context with last action result
    * @returns {string} Minimal update prompt
+   *
+   * Verified Phase 183 AICOM-05: Continuation includes page URL/title, DOM elements, change info,
+   * last action result, stuck warnings, completion signals, and format reminders.
    */
   buildMinimalUpdate(domState, context) {
     let update = `Page state after your action:
@@ -1090,6 +1093,10 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
   /**
    * Manage conversation history size to prevent unbounded growth
    * Keeps system message + last N turns
+   *
+   * Verified Phase 183 AICOM-04: CLI history trims at PROMPT_CHAR_LIMIT=200000 (buildPrompt 3-stage),
+   * keeps 3 recent turn pairs (rawTurnsToKeep=3 -> 6 messages). Called by updateConversationHistory
+   * after every turn to prevent unbounded growth.
    */
   trimConversationHistory() {
     const rawKeepCount = this.rawTurnsToKeep * 2; // message pairs to keep raw
