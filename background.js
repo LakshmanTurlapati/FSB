@@ -1163,6 +1163,10 @@ async function restoreConversationSessions() {
 // Store for active automation sessions
 let activeSessions = new Map();
 
+// Last dashboard task completion result (retained for recovery snapshot)
+var _lastDashboardTaskResult = null;
+var _lastDashboardTaskResultTime = 0;
+
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
@@ -4619,6 +4623,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'cdpMouseWheel':
       handleCDPMouseWheel(request, sender, sendResponse);
       return true; // Will respond asynchronously
+
+    case 'automationComplete': {
+      // Forward task completion to dashboard via WebSocket (per D-03, D-04)
+      // notifySidepanel in agent-loop.js sends this chrome.runtime.sendMessage.
+      // Other listeners (sidepanel, popup) also receive it -- do NOT return true or prevent propagation.
+      if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
+        var completedSessionId = request.sessionId;
+        var completedSession = activeSessions.get(completedSessionId);
+        // Only forward for dashboard-originated tasks (per Pitfall 14)
+        if (completedSession && completedSession._isDashboardTask) {
+          var outcomeStr = request.outcome || 'success';
+          var taskStatus = outcomeStr === 'error' ? 'failed' : outcomeStr;
+          var completionSuccess = outcomeStr === 'success';
+          var actionCount = Array.isArray(completedSession.actionHistory) ? completedSession.actionHistory.length : 0;
+          var elapsedMs = Date.now() - (completedSession.startTime || Date.now());
+
+          // Build payload -- async for tab info
+          (async function() {
+            var tabInfo = null;
+            try {
+              if (typeof completedSession.tabId === 'number') {
+                tabInfo = await chrome.tabs.get(completedSession.tabId);
+              }
+            } catch (_e) { /* tab may be closed */ }
+
+            var taskCompletePayload = {
+              success: completionSuccess,
+              summary: request.result || '',
+              elapsed: elapsedMs,
+              taskRunId: completedSession._dashboardTaskRunId || '',
+              task: completedSession.task || request.task || '',
+              taskStatus: taskStatus,
+              progress: completionSuccess ? 100 : (calculateProgress(completedSession).progressPercent || 0),
+              phase: 'complete',
+              action: '',
+              lastAction: completedSession._lastActionSummary || '',
+              actionCount: actionCount,
+              totalCost: completedSession.totalCost || (completedSession.agentState ? completedSession.agentState.totalCost : 0) || 0,
+              finalUrl: tabInfo ? tabInfo.url : (completedSession.lastUrl || ''),
+              pageTitle: tabInfo ? tabInfo.title : '',
+              taskSource: 'live',
+              updatedAt: Date.now(),
+              stopped: !!request.stopped,
+              error: request.error || null,
+              blocker: request.blocker || null,
+              nextStep: request.nextStep || null
+            };
+            fsbWebSocket.send('ext:task-complete', taskCompletePayload);
+
+            // Store for recovery snapshot (per D-07, Pitfall 10)
+            _lastDashboardTaskResult = taskCompletePayload;
+            _lastDashboardTaskResultTime = Date.now();
+          })();
+        }
+      }
+      // Do NOT break with sendResponse or return true -- let other listeners handle normally
+      break;
+    }
 
     default:
       sendResponse({ error: 'Unknown action' });
