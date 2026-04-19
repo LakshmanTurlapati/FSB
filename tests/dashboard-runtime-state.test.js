@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const runtimeState = require('../showcase/legacy-vanilla/js/dashboard-runtime-state.js');
+const runtimeState = require('../showcase/js/dashboard-runtime-state.js');
 
 let passed = 0;
 let failed = 0;
@@ -149,7 +149,7 @@ assertEqual(timedOutTask.shouldFail, true, 'timed-out recovery requests failure'
 
 console.log('\n--- source contracts ---');
 
-const dashboardSource = fs.readFileSync(path.join(__dirname, '../showcase/legacy-vanilla/js/dashboard.js'), 'utf8');
+const dashboardSource = fs.readFileSync(path.join(__dirname, '../showcase/js/dashboard.js'), 'utf8');
 const backgroundSource = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
 const wsClientSource = fs.readFileSync(path.join(__dirname, '../ws/ws-client.js'), 'utf8');
 
