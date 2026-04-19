@@ -1577,6 +1577,17 @@ const tools = {
   // Click an element
   click: async (params) => {
     const startTime = Date.now();
+
+    // Explicit error when called with neither selector nor text (TE-04)
+    if (!params.selector && !params.selectors && !params.text && !params.coordinates && !params.ref) {
+      return {
+        success: false,
+        hadEffect: false,
+        error: 'click requires either a "selector", "text", "ref", or "coordinates" parameter. Provide a CSS selector from get_dom_snapshot or text content to find and click.',
+        tool: 'click'
+      };
+    }
+
     const selectorTried = params.selector;
     let coordinatesUsed = null;
     let coordinateSource = null;
