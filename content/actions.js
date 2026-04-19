@@ -1577,6 +1577,17 @@ const tools = {
   // Click an element
   click: async (params) => {
     const startTime = Date.now();
+
+    // Explicit error when called with neither selector nor text (TE-04)
+    if (!params.selector && !params.selectors && !params.text && !params.coordinates && !params.ref) {
+      return {
+        success: false,
+        hadEffect: false,
+        error: 'click requires either a "selector", "text", "ref", or "coordinates" parameter. Provide a CSS selector from get_dom_snapshot or text content to find and click.',
+        tool: 'click'
+      };
+    }
+
     const selectorTried = params.selector;
     let coordinatesUsed = null;
     let coordinateSource = null;
@@ -2456,6 +2467,7 @@ const tools = {
                 typed: params.text,
                 method: 'gdocs_formatted_clipboard_paste',
                 pressedEnter: !!params.pressEnter,
+                hadEffect: true,
                 note: 'Google Docs -- markdown converted to HTML, pasted via clipboard for rich formatting'
               };
             }
@@ -2496,6 +2508,7 @@ const tools = {
             typed: params.text,
             method: 'canvas_editor_cdp',
             pressedEnter: !!params.pressEnter,
+            hadEffect: true,
             note: 'Canvas-based editor -- CDP insertion used, DOM validation skipped'
           };
         } catch (cdpError) {
@@ -2590,6 +2603,7 @@ const tools = {
               method: editorResult.method,
               pressedEnter: !!params.pressEnter,
               clickedFirst: !shouldSkipClick,
+              hadEffect: true,
               editorType: codeEditorInfo.type,
               elementInfo: {
                 tag: element.tagName,
@@ -2639,6 +2653,7 @@ const tools = {
             method: 'cdp_code_editor',
             pressedEnter: !!params.pressEnter,
             clickedFirst: !shouldSkipClick,
+            hadEffect: true,
             editorType: codeEditorInfo.type,
             elementInfo: {
               tag: element.tagName,
@@ -2908,6 +2923,7 @@ const tools = {
             method: 'recipient_chip',
             pressedEnter: !!params.pressEnter,
             clickedFirst: !shouldSkipClick,
+            hadEffect: true,
             note: chipEl ? 'recipient_chip_confirmed' : 'field_cleared_after_tab',
             elementInfo: {
               tag: element.tagName,
@@ -2928,6 +2944,7 @@ const tools = {
             method: 'standard',
             pressedEnter: !!params.pressEnter,
             clickedFirst: !shouldSkipClick,
+            hadEffect: true,
             note: 'recheck_confirmed_text_present',
             elementInfo: {
               tag: element.tagName,
@@ -2970,6 +2987,7 @@ const tools = {
               method: cdpCanvasEditor ? 'cdp_fallback_canvas' : 'cdp_fallback',
               pressedEnter: !!params.pressEnter,
               clickedFirst: !shouldSkipClick,
+              hadEffect: true,
               note: cdpCanvasEditor ? 'Canvas-based editor -- DOM validation skipped, CDP trusted' : undefined,
               elementInfo: {
                 tag: element.tagName,
