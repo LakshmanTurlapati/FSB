@@ -4303,6 +4303,13 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         // FSB TIMING: Track build request time
         const buildStart = Date.now();
         const requestBody = await this.provider.buildRequest(prompt, {});
+        // AL-13/XS-06 fix: Ensure max_tokens is set to prevent xAI defaulting to
+        // a tight internal limit (~87 tokens/iter) that truncates tool responses.
+        // The tool_use path (agent-loop.js callProviderWithTools) sets max_tokens: 4096.
+        // The CLI path must match to prevent truncated responses.
+        if (!requestBody.max_tokens) {
+          requestBody.max_tokens = 4096;
+        }
         automationLogger.logTiming(this.currentSessionId, 'LLM', 'build_request', Date.now() - buildStart);
 
         // FSB TIMING: Track send request time (main API latency)
@@ -4360,7 +4367,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.1,
-      max_tokens: 4000
+      // Phase 183: Aligned with agent-loop.js callProviderWithTools (4096 for xAI compatibility)
+      max_tokens: 4096
     };
     
     try {
