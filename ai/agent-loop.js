@@ -1274,6 +1274,8 @@ async function runAgentIteration(sessionId, options) {
     var providerInstance = session.providerConfig.providerInstance;
 
     // f2. Compact history via TranscriptStore if available (CTX-03)
+    // Verified Phase 183 AICOM-04: TranscriptStore compresses at 80% of 128K budget, keeps 5 recent tool_results.
+    // Compact runs BEFORE callProviderWithTools (line ~1308) so the token budget is respected on every API call.
     if (_al_TranscriptStore) {
       var _ts = new _al_TranscriptStore({
         tokenBudget: _al_SESSION_DEFAULTS.tokenBudget || 128000,

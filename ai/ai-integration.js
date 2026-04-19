@@ -1084,6 +1084,10 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
   /**
    * Manage conversation history size to prevent unbounded growth
    * Keeps system message + last N turns
+   *
+   * Verified Phase 183 AICOM-04: CLI history trims at PROMPT_CHAR_LIMIT=200000 (buildPrompt 3-stage),
+   * keeps 3 recent turn pairs (rawTurnsToKeep=3 -> 6 messages). Called by updateConversationHistory
+   * after every turn to prevent unbounded growth.
    */
   trimConversationHistory() {
     const rawKeepCount = this.rawTurnsToKeep * 2; // message pairs to keep raw
