@@ -15,6 +15,7 @@ const PROMPT_CHAR_LIMIT = 200000;
 // CLI Command Reference Table -- replaces JSON TOOL_DOCUMENTATION (Phase 17)
 // Derived from COMMAND_REGISTRY in cli-parser.js. Used in system prompt.
 // Compact table format grouped by category with per-command examples.
+// Verified Phase 183: CLI_COMMAND_TABLE synced with TOOL_REGISTRY (execute_js added, click text param added)
 const CLI_COMMAND_TABLE = `
 TOOL SELECTION GUIDE -- choose the right interaction method:
 | Interaction Type | When to Use | Key Tools |
@@ -41,7 +42,7 @@ NAVIGATION:
 ELEMENT INTERACTION:
 | Verb | Args | Description | Example |
 |------|------|-------------|---------|
-| click | ref | Click element | click e5 |
+| click | ref [--text "visible text"] | Click element by ref or visible text | click e5 |
 | clicksearchresult | ref | Click search result link | clicksearchresult e3 |
 | rightclick | ref | Right-click element | rightclick e5 |
 | doubleclick | ref | Double-click element | doubleclick e5 |
@@ -148,6 +149,11 @@ TEXT SELECTION & FILE TOOLS:
 |------|------|-------------|---------|
 | selecttextrange | ref startOffset endOffset | Select text by character offsets within element | selecttextrange e12 5 20 |
 | dropfile | ref "fileName" ["content"] ["mimeType"] | Simulate file drop on dropzone element | dropfile e8 "report.pdf" |
+
+ESCAPE HATCH:
+| Verb | Args | Description | Example |
+|------|------|-------------|---------|
+| executejs | "code" | Execute JavaScript in page context (MAIN world). LAST RESORT when standard tools fail on obscured/zero-dimension elements | executejs "document.querySelector('.btn').click()" |
 `;
 
 /**
