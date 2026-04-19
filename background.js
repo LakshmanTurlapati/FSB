@@ -4774,7 +4774,21 @@ async function handleStartAutomation(request, sender, sendResponse) {
           automationLogger.debug('Could not reset DOM state for follow-up', { sessionId, error: e.message });
         }
 
-        startAutomationLoop(sessionId);
+        const reactivationHooks = createSessionHooks(sessionId);
+        runAgentLoop(sessionId, {
+          activeSessions,
+          persistSession,
+          sendSessionStatus,
+          broadcastDashboardProgress: typeof broadcastDashboardProgress === 'function' ? broadcastDashboardProgress : function() {},
+          endSessionOverlays,
+          cleanupSession,
+          startKeepAlive,
+          executeCDPToolDirect: null,
+          handleDataTool: null,
+          resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
+          hooks: reactivationHooks,
+          emitter: null
+        });
         return;
       }
     }
@@ -5074,8 +5088,22 @@ async function handleStartAutomation(request, sender, sendResponse) {
       automationLogger.debug('Could not reset DOM state', { sessionId, error: e.message });
     }
 
-    // Start the automation loop
-    startAutomationLoop(sessionId);
+    // Start the modular agent loop (Phase 181, D-01/D-02)
+    const sessionHooks = createSessionHooks(sessionId);
+    runAgentLoop(sessionId, {
+      activeSessions,
+      persistSession,
+      sendSessionStatus,
+      broadcastDashboardProgress: typeof broadcastDashboardProgress === 'function' ? broadcastDashboardProgress : function() {},
+      endSessionOverlays,
+      cleanupSession,
+      startKeepAlive,
+      executeCDPToolDirect: null,
+      handleDataTool: null,
+      resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
+      hooks: sessionHooks,
+      emitter: null
+    });
 
   } catch (error) {
     automationLogger.error('Error starting automation', { error: error.message, isChromePage: error.isChromePage || false });
@@ -5214,8 +5242,22 @@ async function executeAutomationTask(tabId, task, options = {}) {
       // Store timeout for cleanup
       sessionData._safetyTimeout = safetyTimeout;
 
-      // Start the automation loop
-      startAutomationLoop(sessionId);
+      // Start the modular agent loop (Phase 181, D-01/D-02)
+      const agentTaskHooks = createSessionHooks(sessionId);
+      runAgentLoop(sessionId, {
+        activeSessions,
+        persistSession,
+        sendSessionStatus,
+        broadcastDashboardProgress: typeof broadcastDashboardProgress === 'function' ? broadcastDashboardProgress : function() {},
+        endSessionOverlays,
+        cleanupSession,
+        startKeepAlive,
+        executeCDPToolDirect: null,
+        handleDataTool: null,
+        resolveAuthWall: typeof resolveAuthWall === 'function' ? resolveAuthWall : null,
+        hooks: agentTaskHooks,
+        emitter: null
+      });
 
     } catch (error) {
       resolve({
@@ -7469,7 +7511,10 @@ async function handleBackgroundAction(action, session) {
 }
 
 /**
- * Main automation loop that executes AI-generated actions iteratively
+ * LEGACY: Pre-v0.9.24 monolithic automation loop.
+ * Replaced by runAgentLoop from ai/agent-loop.js (Phase 181, D-01/D-02).
+ * Kept as unreachable fallback per D-03. No code paths call this function.
+ * @deprecated Use runAgentLoop via handleStartAutomation instead.
  * @param {string} sessionId - The unique session identifier
  * @returns {Promise<void>}
  */
