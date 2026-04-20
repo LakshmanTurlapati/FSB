@@ -27,7 +27,11 @@ export type MCPMessageType =
   | 'mcp:delete-agent'        // Delete an agent permanently
   | 'mcp:toggle-agent'        // Enable/disable an agent
   | 'mcp:get-agent-stats'     // Get aggregate agent statistics
-  | 'mcp:get-agent-history';  // Get run history for an agent
+  | 'mcp:get-agent-history'   // Get run history for an agent
+  | 'mcp:list-credentials'   // Vault: list saved credentials (domain+username only)
+  | 'mcp:fill-credential'    // Vault: autofill login form (password stays in extension)
+  | 'mcp:list-payments'      // Vault: list payment methods (last4+brand only)
+  | 'mcp:use-payment-method'; // Vault: fill checkout with confirmation gate
 
 // Messages FROM extension TO MCP server (responses)
 export interface MCPResponse {

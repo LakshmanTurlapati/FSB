@@ -242,6 +242,19 @@ class MCPBridgeClient {
       case 'mcp:get-agent-history':
         return this._handleAgentAction('getAgentHistory', payload);
 
+      // Vault tools (Phase 195) -- secrets never cross WebSocket
+      case 'mcp:list-credentials':
+        return this._handleListCredentials();
+
+      case 'mcp:fill-credential':
+        return this._handleFillCredential(payload);
+
+      case 'mcp:list-payments':
+        return this._handleListPayments();
+
+      case 'mcp:use-payment-method':
+        return this._handleUsePaymentMethod(payload);
+
       default:
         throw new Error('Unknown MCP message type: ' + type);
     }
@@ -586,6 +599,127 @@ class MCPBridgeClient {
       ...payload,
     });
     return response || {};
+  }
+
+  // --------------------------------------------------------------------------
+  // Vault handlers (Phase 195) -- secrets never leave the extension
+  // --------------------------------------------------------------------------
+
+  async _handleListCredentials() {
+    const response = await this._dispatchToBackground({ action: 'getAllCredentials' });
+    if (!response || !response.success) {
+      return { success: false, error: response?.error || 'Failed to list credentials' };
+    }
+    // Strip passwords -- return domain + username only (MCP-01)
+    const credentials = (response.credentials || []).map(c => ({
+      domain: c.domain,
+      username: c.username,
+    }));
+    return { success: true, credentials };
+  }
+
+  async _handleFillCredential(payload) {
+    const { domain } = payload;
+    if (!domain) return { success: false, error: 'domain is required' };
+
+    const tab = await this._getActiveTab();
+    if (!tab?.id) return { success: false, error: 'No active tab' };
+
+    // Lookup credential in vault (stays in extension)
+    const credResponse = await this._dispatchToBackground({
+      action: 'getFullCredential',
+      domain,
+    });
+    if (!credResponse?.success || !credResponse.credential) {
+      return { success: false, error: 'No credential found for ' + domain };
+    }
+
+    // Send fill command to content script -- password travels bg->content only (MCP-02)
+    const result = await this._sendToContentScript(tab.id, {
+      action: 'executeAction',
+      tool: 'fillCredentialFields',
+      params: {
+        username: credResponse.credential.username,
+        password: credResponse.credential.password,
+      },
+    });
+    return result || { success: false, error: 'Fill failed' };
+  }
+
+  async _handleListPayments() {
+    const response = await this._dispatchToBackground({ action: 'getAllPaymentMethods' });
+    if (!response || !response.success) {
+      return { success: false, error: response?.error || 'Failed to list payment methods' };
+    }
+    // Return masked metadata only -- no full card or CVV (MCP-03)
+    const paymentMethods = (response.paymentMethods || []).map(pm => ({
+      id: pm.id,
+      cardBrand: pm.cardBrand,
+      last4: pm.last4,
+      cardholderName: pm.cardholderName,
+      expiryMonth: pm.expiryMonth,
+      expiryYearLast2: pm.expiryYearLast2,
+    }));
+    return { success: true, paymentMethods };
+  }
+
+  async _handleUsePaymentMethod(payload) {
+    const { paymentMethodId } = payload;
+    if (!paymentMethodId) return { success: false, error: 'paymentMethodId is required' };
+
+    const tab = await this._getActiveTab();
+    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+
+    // Derive merchant domain from active tab (MCP-04: not from MCP payload)
+    let merchantDomain;
+    try {
+      merchantDomain = new URL(tab.url).hostname;
+    } catch {
+      merchantDomain = tab.url;
+    }
+
+    // Lookup full payment method in vault (stays in extension)
+    const pmResponse = await this._dispatchToBackground({
+      action: 'getFullPaymentMethod',
+      id: paymentMethodId,
+    });
+    if (!pmResponse?.success || !pmResponse.paymentMethod) {
+      return { success: false, error: 'Payment method not found' };
+    }
+    const pm = pmResponse.paymentMethod;
+
+    // Confirmation gate: send to sidepanel for user approval (MCP-04)
+    const confirmResult = await this._dispatchToBackground({
+      action: 'paymentFillConfirmation',
+      paymentMethodId,
+      cardBrand: pm.cardBrand || 'unknown',
+      last4: pm.last4 || (pm.cardNumber ? pm.cardNumber.slice(-4) : '****'),
+      merchantDomain,
+    });
+    if (!confirmResult?.approved) {
+      return { success: false, error: 'User declined payment fill' };
+    }
+
+    // Fill payment fields on the active tab -- full card data travels bg->content only
+    const result = await this._sendToContentScript(tab.id, {
+      action: 'executeAction',
+      tool: 'fillPaymentFields',
+      params: {
+        cardNumber: pm.cardNumber,
+        expiryMonth: pm.expiryMonth,
+        expiryYear: pm.expiryYear,
+        cvv: pm.cvv,
+        cardholderName: pm.cardholderName,
+        billingName: pm.billingName,
+        addressLine1: pm.addressLine1,
+        addressLine2: pm.addressLine2,
+        city: pm.city,
+        stateRegion: pm.stateRegion,
+        postalCode: pm.postalCode,
+        country: pm.country,
+      },
+    });
+    return result || { success: false, error: 'Payment fill failed' };
   }
 }
 
