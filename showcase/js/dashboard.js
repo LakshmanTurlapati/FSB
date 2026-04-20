@@ -978,10 +978,8 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = '';
         if (taskAction) taskAction.style.display = 'none';
-        // Render success info
-        var elapsed = data.elapsed || (Date.now() - taskStartTime);
-        if (taskSuccessStatus) taskSuccessStatus.innerHTML = '\u2713 Complete \u00b7 Completed in ' + formatDuration(elapsed);
-        if (taskResultText) taskResultText.textContent = data.summary || '';
+        // Render structured result card
+        renderResultCard(taskSuccessView, data, true);
         // Show next-task input
         disableAllTaskInputs(false);
         if (taskInputNext) { taskInputNext.value = ''; }
@@ -1001,14 +999,8 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = '';
         if (taskAction) taskAction.style.display = 'none';
-        // Render failure info with elapsed time
-        var failedElapsed = data.elapsed || (taskStartTime ? Date.now() - taskStartTime : 0);
-        if (taskFailedStatus) {
-          var statusText = '\u2717 Failed';
-          if (failedElapsed > 0) statusText += ' \u00b7 ' + formatDuration(failedElapsed);
-          taskFailedStatus.innerHTML = statusText;
-        }
-        if (taskErrorText) taskErrorText.textContent = data.error || 'Task could not be completed';
+        // Render structured result card for failure
+        renderResultCard(taskFailedView, data, false);
         // Show retry + next-task input
         disableAllTaskInputs(false);
         if (taskInputRetry) { taskInputRetry.value = ''; }
@@ -1017,6 +1009,73 @@
         renderTaskRecoveryStatus('', '');
         break;
     }
+  }
+
+  /**
+   * Renders a structured result card inside the given container.
+   * Used for both success and failed/stopped task completion states.
+   * Displays: status badge, elapsed time, action count, cost, final URL, and summary/error.
+   */
+  function renderResultCard(container, data, isSuccess) {
+    if (!container) return;
+    // Find or create the result card div
+    var card = container.querySelector('.dash-result-card');
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'dash-result-card';
+      // Insert as first child (before the input-again row)
+      var firstInput = container.querySelector('.dash-task-input-again');
+      if (firstInput) {
+        container.insertBefore(card, firstInput);
+      } else {
+        container.appendChild(card);
+      }
+    }
+
+    var taskStatus = data.taskStatus || (isSuccess ? 'success' : 'failed');
+    var badgeClass = 'dash-result-badge-' + taskStatus;
+    var badgeLabels = { success: 'Success', partial: 'Partial', failed: 'Failed', stopped: 'Stopped' };
+    var badgeLabel = badgeLabels[taskStatus] || taskStatus;
+
+    var elapsed = data.elapsed || 0;
+    var actionCount = data.actionCount || 0;
+    var totalCost = data.totalCost || 0;
+    var finalUrl = data.finalUrl || '';
+    var pageTitle = data.pageTitle || '';
+    var summary = data.summary || '';
+    var error = data.error || '';
+
+    var html = '<div class="dash-result-card-header">';
+    html += '<span class="dash-result-badge ' + badgeClass + '">' + escapeHtml(badgeLabel) + '</span>';
+    html += '<span class="dash-result-elapsed">' + formatDuration(elapsed) + '</span>';
+    html += '</div>';
+
+    // Metrics row
+    html += '<div class="dash-result-metrics">';
+    html += '<div class="dash-result-metric"><span class="dash-result-metric-val">' + actionCount + '</span><span class="dash-result-metric-label">Actions</span></div>';
+    html += '<div class="dash-result-metric"><span class="dash-result-metric-val">$' + totalCost.toFixed(4) + '</span><span class="dash-result-metric-label">Cost</span></div>';
+    if (finalUrl) {
+      var displayUrl = finalUrl.length > 50 ? finalUrl.substring(0, 50) + '...' : finalUrl;
+      html += '<div class="dash-result-metric dash-result-metric-url"><span class="dash-result-metric-val"><a href="' + escapeAttr(finalUrl) + '" target="_blank" rel="noopener" title="' + escapeAttr(finalUrl) + '">' + escapeHtml(displayUrl) + '</a></span><span class="dash-result-metric-label">Final URL</span></div>';
+    }
+    html += '</div>';
+
+    // AI summary or error message
+    if (isSuccess && summary) {
+      html += '<div class="dash-result-summary">' + escapeHtml(summary) + '</div>';
+    } else if (!isSuccess && error) {
+      html += '<div class="dash-result-error">' + escapeHtml(error) + '</div>';
+    }
+
+    card.innerHTML = html;
+
+    // Hide the old status/text elements (they are now replaced by the card)
+    var oldStatus = container.querySelector('.dash-task-status');
+    var oldResult = container.querySelector('.dash-task-result');
+    var oldError = container.querySelector('.dash-task-error');
+    if (oldStatus) oldStatus.style.display = 'none';
+    if (oldResult) oldResult.style.display = 'none';
+    if (oldError) oldError.style.display = 'none';
   }
 
   // [FSB Field Audit] Consumer: remote dashboard progress display
@@ -1094,7 +1153,12 @@
     if (payload.success) {
       setTaskState('success', {
         summary: payload.summary || '',
-        elapsed: payload.elapsed || 0
+        elapsed: payload.elapsed || 0,
+        actionCount: payload.actionCount || 0,
+        totalCost: payload.totalCost || 0,
+        finalUrl: payload.finalUrl || '',
+        pageTitle: payload.pageTitle || '',
+        taskStatus: payload.taskStatus || 'success'
       });
     } else if (payload.stopped) {
       // User-initiated stop (per D-06): show "Stopped by user" + last action context
@@ -1105,12 +1169,22 @@
       }
       setTaskState('failed', {
         error: stopMsg,
-        elapsed: payload.elapsed || 0
+        elapsed: payload.elapsed || 0,
+        actionCount: payload.actionCount || 0,
+        totalCost: payload.totalCost || 0,
+        finalUrl: payload.finalUrl || '',
+        pageTitle: payload.pageTitle || '',
+        taskStatus: 'stopped'
       });
     } else {
       setTaskState('failed', {
         error: payload.error || 'Task could not be completed',
-        elapsed: payload.elapsed || 0
+        elapsed: payload.elapsed || 0,
+        actionCount: payload.actionCount || 0,
+        totalCost: payload.totalCost || 0,
+        finalUrl: payload.finalUrl || '',
+        pageTitle: payload.pageTitle || '',
+        taskStatus: payload.taskStatus || 'failed'
       });
     }
 
@@ -1150,7 +1224,12 @@
       markTaskRunCompleted(getTaskRunId(snapshot));
       setTaskState('success', {
         summary: snapshot.summary || '',
-        elapsed: snapshot.elapsed || 0
+        elapsed: snapshot.elapsed || 0,
+        actionCount: snapshot.actionCount || 0,
+        totalCost: snapshot.totalCost || 0,
+        finalUrl: snapshot.finalUrl || '',
+        pageTitle: snapshot.pageTitle || '',
+        taskStatus: snapshot.taskStatus || 'success'
       });
       return;
     }
@@ -1162,7 +1241,12 @@
       if (stoppedAction) stoppedMessage += ' -- was: ' + stoppedAction;
       setTaskState('failed', {
         error: stoppedMessage,
-        elapsed: snapshot.elapsed || 0
+        elapsed: snapshot.elapsed || 0,
+        actionCount: snapshot.actionCount || 0,
+        totalCost: snapshot.totalCost || 0,
+        finalUrl: snapshot.finalUrl || '',
+        pageTitle: snapshot.pageTitle || '',
+        taskStatus: 'stopped'
       });
       return;
     }
@@ -1171,7 +1255,12 @@
       markTaskRunCompleted(getTaskRunId(snapshot));
       setTaskState('failed', {
         error: snapshot.error || 'Task could not be completed',
-        elapsed: snapshot.elapsed || 0
+        elapsed: snapshot.elapsed || 0,
+        actionCount: snapshot.actionCount || 0,
+        totalCost: snapshot.totalCost || 0,
+        finalUrl: snapshot.finalUrl || '',
+        pageTitle: snapshot.pageTitle || '',
+        taskStatus: snapshot.taskStatus || 'failed'
       });
     }
   }

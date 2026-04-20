@@ -720,6 +720,124 @@
   to { opacity: 1; }
 }
 
+/* --- Result Card --- */
+.dash-result-card {
+  background: color-mix(in srgb, var(--bg-card) 90%, white 10%);
+  border: 1px solid var(--fsb-border-subtle);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.dash-result-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.dash-result-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dash-result-badge-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.dash-result-badge-partial {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.dash-result-badge-failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.dash-result-badge-stopped {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.dash-result-elapsed {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.dash-result-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.dash-result-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-result-metric-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.dash-result-metric-val a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.dash-result-metric-val a:hover {
+  text-decoration: underline;
+}
+
+.dash-result-metric-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dash-result-metric-url {
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-result-metric-url .dash-result-metric-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-result-summary {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding-top: 10px;
+  border-top: 1px solid var(--fsb-border-subtle);
+}
+
+.dash-result-error {
+  font-size: 0.9rem;
+  color: #ef4444;
+  line-height: 1.5;
+  padding-top: 10px;
+  border-top: 1px solid var(--fsb-border-subtle);
+}
+
 /* --- Toggle Switch --- */
 .dash-toggle {
   position: relative;
