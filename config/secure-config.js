@@ -50,7 +50,7 @@ class SecureConfig {
           const decrypted = await this.decrypt(value, masterPassword);
           this.decryptedValues.set(key, decrypted);
         } catch (error) {
-          console.error(`Failed to decrypt ${key}:`, error);
+          console.error('Failed to decrypt config key:', error.message);
         }
       }
     }
@@ -601,7 +601,7 @@ class SecureConfig {
       const decrypted = await this.decrypt(stored[exactKey], ready.sessionKey);
       return this._normalizeCredentialRecord(normalizedDomain, JSON.parse(decrypted));
     } catch (error) {
-      console.error('Failed to decrypt credential for', normalizedDomain, error);
+      console.error('Failed to decrypt credential:', error.message);
       return null;
     }
   }
@@ -658,7 +658,7 @@ class SecureConfig {
             updatedAt: cred.updatedAt
           });
         } catch (error) {
-          console.error('Failed to decrypt credential:', key, error);
+          console.error('Failed to decrypt credential entry:', error.message);
         }
       }
     }
@@ -1002,7 +1002,7 @@ class SecureConfig {
       const decrypted = await this.decrypt(stored[storageKey], sessionKey);
       return this._normalizePaymentMethodRecord(paymentId, JSON.parse(decrypted));
     } catch (error) {
-      console.error('Failed to decrypt payment method:', paymentId, error);
+      console.error('Failed to decrypt payment method:', error.message);
       return null;
     }
   }
@@ -1070,7 +1070,7 @@ class SecureConfig {
         );
         paymentMethods.push(this.buildPaymentMethodMetadata(record));
       } catch (error) {
-        console.error('Failed to decrypt payment method metadata:', key, error);
+        console.error('Failed to decrypt payment method entry:', error.message);
       }
     }
 

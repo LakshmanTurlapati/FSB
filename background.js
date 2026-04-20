@@ -6685,7 +6685,8 @@ function createDOMHash(domState) {
 async function handleMultiTabAction(action, currentTabId) {
   const { tool, params } = action;
 
-  automationLogger.logActionExecution(null, tool, 'start', { params, currentTabId });
+  const SENSITIVE_TOOLS_MT = new Set(['fillCredentialFields', 'fillPaymentFields']);
+  automationLogger.logActionExecution(null, tool, 'start', { params: SENSITIVE_TOOLS_MT.has(tool) ? '***' : params, currentTabId });
 
   return new Promise((resolve) => {
     const mockSender = { tab: { id: currentTabId } };
@@ -8570,7 +8571,7 @@ async function startAutomationLoop(sessionId) {
         const loginFields = extractLoginFields(domResponse.structuredDOM);
         const fillResult = await fillCredentialsOnPage(session.tabId, loginDomain, domResponse.structuredDOM);
 
-        automationLogger.debug('Auto-fill result', { sessionId, success: fillResult?.success, filledUsername: fillResult?.filledUsername, filledPassword: fillResult?.filledPassword, usernameVerified: fillResult?.usernameVerified, passwordVerified: fillResult?.passwordVerified });
+        automationLogger.debug('Auto-fill result', { sessionId, success: fillResult?.success, filledUsername: fillResult?.filledUsername, filledPassword: fillResult?.filledPassword ? '***' : false, usernameVerified: fillResult?.usernameVerified, passwordVerified: fillResult?.passwordVerified });
 
         if (fillResult?.success) {
           session._loginHandledForUrl.push(currentUrl);
@@ -9095,7 +9096,10 @@ async function startAutomationLoop(sessionId) {
           continue;
         }
 
-        automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
+        // Redact sensitive tool params to prevent credential/payment data in logs
+        const SENSITIVE_TOOLS = new Set(['fillCredentialFields', 'fillPaymentFields']);
+        const safeParams = SENSITIVE_TOOLS.has(action.tool) ? '***' : action.params;
+        automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: safeParams });
         const actionStartTime = Date.now();
 
         // Debug mode: Log action execution
