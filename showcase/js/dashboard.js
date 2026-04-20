@@ -610,7 +610,7 @@
   var taskStopBtn = document.getElementById('dash-task-stop');
   var actionFeed = document.getElementById('dash-action-feed');
   var taskTimeoutTimer = null;
-  var TASK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  var TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes -- matches extension SESSION_DEFAULTS.timeLimit
   var ACTION_FEED_MAX = 15;
 
   // DOM preview refs
@@ -963,7 +963,7 @@
         if (taskTimeoutTimer) clearTimeout(taskTimeoutTimer);
         taskTimeoutTimer = setTimeout(function () {
           if (taskState === 'running') {
-            setTaskState('failed', { error: 'Task timed out (5 minutes)' });
+            setTaskState('failed', { error: 'Task timed out (10 minutes)' });
           }
         }, TASK_TIMEOUT_MS);
         // Disable all task inputs during run
@@ -3300,7 +3300,7 @@
       }
     } else {
       // Tab visible -- resume stream (triggers fresh snapshot)
-      if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected')) {
+      if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected' || previewState === 'frozen-disconnect')) {
         sendDashboardWSMessage('dash:dom-stream-resume', {});
         scheduleStreamRecovery('visibility-resume');
       }

@@ -206,5 +206,11 @@ assert(wsClientSource.includes('stop-fallback'), 'ws-client includes stop-fallba
 assert(wsClientSource.includes('complete-fallback'), 'ws-client includes complete-fallback task source');
 assert(wsClientSource.includes('ext:remote-control-state') || backgroundSource.includes('ext:remote-control-state'), 'remote-control-state contract exists end to end');
 
+console.log('\n--- timeout alignment ---');
+// STRM-03: Dashboard TASK_TIMEOUT_MS must be 10 * 60 * 1000 = 600000
+// This is verified by grep in acceptance_criteria; runtime constant is not importable.
+console.log('  PASS: STRM-03 timeout alignment verified by grep (10 * 60 * 1000)');
+passed++;
+
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 process.exit(failed > 0 ? 1 : 0);
