@@ -2530,6 +2530,12 @@ async function exportSessionText(sessionId) {
 // Credential Vault Lifecycle (Passwords Beta)
 // ==========================================
 
+let _vaultPinSetup = null;
+let _vaultPinConfirm = null;
+let _vaultPinUnlock = null;
+let _vaultSetupDigits = 6;
+let _unlockSubmitting = false;
+
 async function loadCredentialVaultStatus() {
   const statusText = document.getElementById('credentialVaultStatusText');
   const setupPanel = document.getElementById('credentialVaultSetup');
@@ -2552,17 +2558,30 @@ async function loadCredentialVaultStatus() {
     if (lockBtn) lockBtn.style.display = 'none';
 
     if (!response.configured) {
-      // No vault configured -- show setup
       if (statusText) statusText.textContent = 'No vault configured. Create one to protect saved credentials.';
       if (setupPanel) setupPanel.style.display = 'block';
       if (manager) manager.style.display = 'none';
+      // Initialize setup PIN inputs
+      const setupContainer = document.getElementById('credentialVaultPinSetup');
+      const confirmContainer = document.getElementById('credentialVaultPinConfirm');
+      if (setupContainer && !_vaultPinSetup) {
+        _vaultPinSetup = createPinInput(setupContainer, _vaultSetupDigits);
+        _vaultPinConfirm = createPinInput(confirmContainer, _vaultSetupDigits);
+      }
     } else if (!response.unlocked) {
-      // Vault exists but locked
       if (statusText) statusText.textContent = 'Vault is locked.';
       if (unlockPanel) unlockPanel.style.display = 'block';
       if (manager) manager.style.display = 'none';
+      // Initialize unlock PIN input
+      const unlockContainer = document.getElementById('credentialVaultPinUnlock');
+      const pinLen = response.pinLength || 6;
+      if (unlockContainer) {
+        _unlockSubmitting = false;
+        _vaultPinUnlock = createPinInput(unlockContainer, pinLen, {
+          onComplete: (pin) => submitVaultUnlock(pin)
+        });
+      }
     } else {
-      // Vault unlocked
       if (statusText) statusText.textContent = 'Vault unlocked for this session.';
       if (unlockedPanel) unlockedPanel.style.display = 'block';
       if (lockBtn) lockBtn.style.display = 'inline-flex';
@@ -2577,29 +2596,68 @@ async function loadCredentialVaultStatus() {
   }
 }
 
+async function submitVaultUnlock(pin) {
+  if (_unlockSubmitting) return;
+  _unlockSubmitting = true;
+  const unlockBtn = document.getElementById('unlockCredentialVaultBtn');
+  if (unlockBtn) { unlockBtn.disabled = true; unlockBtn.textContent = 'Unlocking...'; }
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'unlockCredentialVault', passphrase: pin });
+    if (response?.success) {
+      showToast('Vault unlocked', 'success');
+      loadCredentialVaultStatus();
+      loadPaymentVaultStatus();
+    } else {
+      showToast(response?.error || 'Incorrect PIN', 'error');
+      if (_vaultPinUnlock) _vaultPinUnlock.clear();
+    }
+  } catch (error) {
+    showToast('Error unlocking vault: ' + error.message, 'error');
+    if (_vaultPinUnlock) _vaultPinUnlock.clear();
+  } finally {
+    _unlockSubmitting = false;
+    if (unlockBtn) { unlockBtn.disabled = false; unlockBtn.textContent = 'Unlock Vault'; }
+  }
+}
+
 function initCredentialVaultListeners() {
   const setupBtn = document.getElementById('setupCredentialVaultBtn');
   const unlockBtn = document.getElementById('unlockCredentialVaultBtn');
   const lockBtn = document.getElementById('lockCredentialVaultBtn');
 
+  // PIN length toggle for setup
+  document.querySelectorAll('.pin-length-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const len = parseInt(btn.dataset.pinLength);
+      _vaultSetupDigits = len;
+      document.querySelectorAll('.pin-length-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (_vaultPinSetup) _vaultPinSetup.setDigitCount(len);
+      if (_vaultPinConfirm) _vaultPinConfirm.setDigitCount(len);
+    });
+  });
+
   if (setupBtn) {
     setupBtn.addEventListener('click', async () => {
-      const passphrase = document.getElementById('credentialVaultPassphrase')?.value;
-      const confirm = document.getElementById('credentialVaultConfirmPassphrase')?.value;
-      if (!passphrase || passphrase.length < 8) {
-        showToast('Passphrase must be at least 8 characters', 'error');
+      const pin = _vaultPinSetup ? _vaultPinSetup.getValue() : '';
+      const confirmPin = _vaultPinConfirm ? _vaultPinConfirm.getValue() : '';
+      if (!pin || !/^\d{4}$|^\d{6}$/.test(pin)) {
+        showToast('Enter all ' + _vaultSetupDigits + ' digits', 'error');
         return;
       }
-      if (passphrase !== confirm) {
-        showToast('Passphrases do not match', 'error');
+      if (pin !== confirmPin) {
+        showToast('PINs do not match', 'error');
+        if (_vaultPinConfirm) _vaultPinConfirm.clear();
         return;
       }
       setupBtn.disabled = true;
       setupBtn.textContent = 'Creating...';
       try {
-        const response = await chrome.runtime.sendMessage({ action: 'createCredentialVault', passphrase });
+        const response = await chrome.runtime.sendMessage({ action: 'createCredentialVault', passphrase: pin });
         if (response?.success) {
           showToast('Credential vault created', 'success');
+          _vaultPinSetup = null;
+          _vaultPinConfirm = null;
           loadCredentialVaultStatus();
           loadPaymentVaultStatus();
         } else {
@@ -2616,29 +2674,12 @@ function initCredentialVaultListeners() {
 
   if (unlockBtn) {
     unlockBtn.addEventListener('click', async () => {
-      const passphrase = document.getElementById('credentialVaultUnlockPassphrase')?.value;
-      if (!passphrase) {
-        showToast('Enter your vault passphrase', 'error');
+      const pin = _vaultPinUnlock ? _vaultPinUnlock.getValue() : '';
+      if (!pin || !/^\d+$/.test(pin)) {
+        showToast('Enter your PIN', 'error');
         return;
       }
-      unlockBtn.disabled = true;
-      unlockBtn.textContent = 'Unlocking...';
-      try {
-        const response = await chrome.runtime.sendMessage({ action: 'unlockCredentialVault', passphrase });
-        if (response?.success) {
-          showToast('Vault unlocked', 'success');
-          document.getElementById('credentialVaultUnlockPassphrase').value = '';
-          loadCredentialVaultStatus();
-          loadPaymentVaultStatus();
-        } else {
-          showToast(response?.error || 'Incorrect passphrase', 'error');
-        }
-      } catch (error) {
-        showToast('Error unlocking vault: ' + error.message, 'error');
-      } finally {
-        unlockBtn.disabled = false;
-        unlockBtn.textContent = 'Unlock Vault';
-      }
+      submitVaultUnlock(pin);
     });
   }
 
@@ -2648,6 +2689,7 @@ function initCredentialVaultListeners() {
         const response = await chrome.runtime.sendMessage({ action: 'lockCredentialVault' });
         if (response?.success) {
           showToast('Vault locked', 'success');
+          _vaultPinUnlock = null;
           loadCredentialVaultStatus();
           loadPaymentVaultStatus();
         }

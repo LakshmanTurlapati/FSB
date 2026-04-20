@@ -2133,6 +2133,69 @@ body {
   line-height: 1.6;
 }
 
+/* PIN Input */
+.pin-input-container {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.pin-digit {
+  width: 48px;
+  height: 56px;
+  text-align: center;
+  font-size: 24px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+  -webkit-text-security: disc;
+}
+
+.pin-digit:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--fsb-focus-ring);
+}
+
+.pin-digit.filled {
+  border-color: var(--primary-color);
+}
+
+.pin-length-toggle {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.pin-length-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
+}
+
+.pin-length-btn.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.pin-label {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+}
+
 .credentials-toolbar {
   display: flex;
   align-items: center;

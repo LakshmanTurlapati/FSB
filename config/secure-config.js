@@ -361,7 +361,8 @@ class SecureConfig {
 
     return {
       configured: !!config,
-      unlocked: !!(config && sessionKey)
+      unlocked: !!(config && sessionKey),
+      pinLength: config?.pinLength || null
     };
   }
 
@@ -435,8 +436,8 @@ class SecureConfig {
   }
 
   async createCredentialVault(passphrase) {
-    if (!passphrase || passphrase.length < 8) {
-      return { success: false, errorCode: 'weak_passphrase', error: 'Credential vault passphrase must be at least 8 characters' };
+    if (!passphrase || !/^\d{4}$|^\d{6}$/.test(passphrase)) {
+      return { success: false, errorCode: 'invalid_pin', error: 'PIN must be exactly 4 or 6 digits' };
     }
 
     const existing = await this.getCredentialVaultConfig();
@@ -451,9 +452,10 @@ class SecureConfig {
 
     await chrome.storage.local.set({
       [SecureConfig.CREDENTIAL_VAULT_CONFIG_KEY]: {
-        version: 1,
+        version: 2,
         salt: saltBase64,
         verifier,
+        pinLength: passphrase.length,
         createdAt: Date.now()
       }
     });

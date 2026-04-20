@@ -1,20 +1,16 @@
-// Unlock script for secure configuration
+// Unlock script for credential vault PIN entry
 
-const passwordInput = document.getElementById('password');
-const rememberCheckbox = document.getElementById('remember');
 const unlockBtn = document.getElementById('unlockBtn');
 const errorMsg = document.getElementById('errorMsg');
-const unlockForm = document.getElementById('unlockForm');
 const setupLink = document.getElementById('setupLink');
+const pinContainer = document.getElementById('pinContainer');
 
-// Handle form submission
-unlockForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+let pinInput = null;
+let submitting = false;
 
-  const password = passwordInput.value;
-  if (!password) return;
-
-  // Disable form while processing
+async function submitUnlock(pin) {
+  if (submitting) return;
+  submitting = true;
   unlockBtn.disabled = true;
   unlockBtn.textContent = 'Unlocking...';
   errorMsg.style.display = 'none';
@@ -22,46 +18,65 @@ unlockForm.addEventListener('submit', async (e) => {
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'unlockCredentialVault',
-      passphrase: password
+      passphrase: pin
     });
 
     if (response && response.success) {
-      // Vault unlocked successfully in background -- close popup
       window.close();
     } else {
-      // Show error from background
       const msg = (response && response.error) || 'Unlock failed';
       errorMsg.textContent = msg.includes('not configured')
         ? 'No vault configured. Please run setup first.'
-        : msg.includes('passphrase') ? 'Incorrect password' : msg;
+        : 'Incorrect PIN';
       errorMsg.style.display = 'block';
-      unlockBtn.disabled = false;
-      unlockBtn.textContent = 'Unlock';
-      passwordInput.value = '';
-      passwordInput.focus();
+      if (pinInput) pinInput.clear();
     }
   } catch (error) {
     errorMsg.textContent = 'Communication error. Please try again.';
     errorMsg.style.display = 'block';
+    if (pinInput) pinInput.clear();
+  } finally {
+    submitting = false;
     unlockBtn.disabled = false;
     unlockBtn.textContent = 'Unlock';
-    passwordInput.value = '';
-    passwordInput.focus();
   }
+}
+
+// Button fallback (auto-submit fires on last digit)
+unlockBtn.addEventListener('click', () => {
+  if (!pinInput) return;
+  const pin = pinInput.getValue();
+  if (!pin || !/^\d+$/.test(pin)) return;
+  submitUnlock(pin);
 });
 
-// Handle setup link
+// Setup link
 setupLink.addEventListener('click', (e) => {
   e.preventDefault();
   chrome.runtime.openOptionsPage();
 });
 
-// Check if already unlocked
+// Initialize: query vault status for PIN length, then render
 chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' }).then(response => {
   if (response && response.unlocked) {
     window.close();
+    return;
   }
+  if (response && response.configured) {
+    const pinLen = response.pinLength || 6;
+    pinInput = createPinInput(pinContainer, pinLen, {
+      onComplete: (pin) => submitUnlock(pin)
+    });
+    pinInput.focus();
+  } else {
+    // No vault configured
+    errorMsg.textContent = 'No vault configured. Please run setup first.';
+    errorMsg.style.display = 'block';
+  }
+}).catch(() => {
+  // Fallback: render 6-digit input
+  pinInput = createPinInput(pinContainer, 6, {
+    onComplete: (pin) => submitUnlock(pin)
+  });
+  pinInput.focus();
 });
-
-// Focus password input
-passwordInput.focus();

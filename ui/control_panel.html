@@ -1105,23 +1105,22 @@
             </div>
 
             <div id="credentialVaultSetup" class="credential-vault-state" style="display: none;">
-              <div class="form-group">
-                <label for="credentialVaultPassphrase">Create Vault Passphrase</label>
-                <input type="password" id="credentialVaultPassphrase" placeholder="At least 8 characters" class="form-input">
+              <p class="pin-label">Choose PIN length</p>
+              <div class="pin-length-toggle">
+                <button class="pin-length-btn" data-pin-length="4">4 digits</button>
+                <button class="pin-length-btn active" data-pin-length="6">6 digits</button>
               </div>
-              <div class="form-group">
-                <label for="credentialVaultConfirmPassphrase">Confirm Passphrase</label>
-                <input type="password" id="credentialVaultConfirmPassphrase" placeholder="Re-enter passphrase" class="form-input">
-              </div>
-              <p class="credential-vault-helper">Saved passwords are inaccessible until this vault is unlocked. Existing legacy credentials will be migrated automatically.</p>
+              <p class="pin-label">Enter PIN</p>
+              <div id="credentialVaultPinSetup"></div>
+              <p class="pin-label">Confirm PIN</p>
+              <div id="credentialVaultPinConfirm"></div>
+              <p class="credential-vault-helper">Choose a PIN to protect saved credentials. Existing legacy credentials will be migrated automatically.</p>
               <button id="setupCredentialVaultBtn" class="save-btn primary">Set Up Vault</button>
             </div>
 
             <div id="credentialVaultUnlock" class="credential-vault-state" style="display: none;">
-              <div class="form-group">
-                <label for="credentialVaultUnlockPassphrase">Unlock Vault</label>
-                <input type="password" id="credentialVaultUnlockPassphrase" placeholder="Enter your vault passphrase" class="form-input">
-              </div>
+              <p class="pin-label">Enter your PIN to unlock</p>
+              <div id="credentialVaultPinUnlock"></div>
               <p id="credentialVaultUnlockHint" class="credential-vault-helper">Unlock to view, edit, autofill, or save passwords.</p>
               <button id="unlockCredentialVaultBtn" class="save-btn primary">Unlock Vault</button>
             </div>
@@ -1545,6 +1544,7 @@
   <!-- Site guides viewer (must be after all guide scripts) -->
   <script src="site-guides-viewer.js"></script>
   <script src="lib/qrcode-generator.min.js"></script>
+  <script src="pin-input.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
