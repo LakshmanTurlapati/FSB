@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.30
-milestone_name: MCP Platform Install Flags
-status: executing
-stopped_at: Phase 999.1 context gathered
-last_updated: "2026-04-18T14:32:34.153Z"
-last_activity: 2026-04-18 -- Phase 999.1 execution started
+milestone: v0.9.33
+milestone_name: Dashboard Task Results & Stream Quality
+status: complete
+stopped_at: Milestone shipped
+last_updated: "2026-04-20T12:40:00.000Z"
+last_activity: 2026-04-20
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 6
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -21,31 +21,35 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 999.1 — MCP Tool Gaps & Click Heuristics
+**Current focus:** Milestone complete -- no active work
 
 ## Current Position
 
-Phase: 999.1 (MCP Tool Gaps & Click Heuristics) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 999.1
-Last activity: 2026-04-18 -- Phase 999.1 execution started
+Phase: All complete
+Plan: All complete
+Status: v0.9.33 shipped
+Last activity: 2026-04-20
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
-**Recent Trend (from v0.9.29):**
-
-- Last 5 plans: stable execution, mostly sub-10min
-- Trend: Stable
+**v0.9.33 Milestone Summary:**
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
-| 173 | P01 | 4 min | 2 tasks | 26 files |
-| 173 | P02 | 4 min | 2 tasks | 11 files |
-| 173 | P03 | 4 min | 2 tasks | 5 files |
-| 173 | P04 | 10 min | 2 tasks | 15 files |
-| 173 | P05 | 2 min | 2 tasks | 3 files |
+| 186 | P01 | ~4 min | 2 tasks | canonical surface |
+| 187 | P01-P02 | ~8 min | 4 tasks | lifecycle bridge |
+| 188 | P01 | ~4 min | 2 tasks | DOM stream forwarding |
+| 189 | P01 | ~4 min | 2 tasks | result UI |
+| 190 | P01 | ~4 min | 2 tasks | stream quality |
+
+**Post-milestone fixes:**
+- Sidepanel completion message rendering (literal \n)
+- Dashboard metrics all-zeros (missing provider param in BackgroundAnalytics)
+- Angular dashboard port (Phase 189/190 features were vanilla-only)
+- Agent-loop analytics bridge to BackgroundAnalytics (control panel metrics)
+- Page title "ShowcaseAngular" -> "FSB"
 
 ## Accumulated Context
 
@@ -54,22 +58,22 @@ Progress: [░░░░░░░░░░] 0%
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v0.9.30]: Pivot from Angular migration continuation to MCP installation ergonomics.
-- [v0.9.30]: 10 platforms targeted for auto-config flags; ChatGPT Desktop (UI-only) and Perplexity (no MCP) are out of scope.
-- [v0.9.30]: 3 new zero-dep dependencies: smol-toml (TOML), yaml (YAML), strip-json-comments (JSONC).
-- [v0.9.30]: Platform registry map pattern -- each platform described as data, single ConfigWriter handles all formats.
+- [v0.9.33]: Angular dashboard is the production surface (served via Docker, deployed to full-selfbrowsing.com)
+- [v0.9.33]: Vanilla JS dashboard is dev fallback only
+- [v0.9.33]: agent-loop.js must bridge to BackgroundAnalytics -- CostTracker is session-only, not persistent
+- [v0.9.33]: Dynamic DOM elements in Angular need :host ::ng-deep for styling (no _ngcontent attribute)
 
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Final local rerun of the off-screen dashboard refresh smoke (accepted debt from v0.9.27) remains a pre-release reminder.
+- MCP background-routed tools (navigate, run_task, get_logs, etc.) fail with chrome.runtime.sendMessage self-dispatch issue -- needs investigation.
 
 ### Blockers/Concerns
 
-- No active blockers for v0.9.30.
+- No active blockers.
 
 ## Session Continuity
 
-Last session: 2026-04-18T10:24:22.558Z
-Stopped at: Phase 999.1 context gathered
-Resume file: .planning/phases/999.1-mcp-tool-gaps-click-heuristics/999.1-CONTEXT.md
+Last session: 2026-04-20T12:40:00.000Z
+Stopped at: Milestone v0.9.33 complete and shipped
+Resume file: None
