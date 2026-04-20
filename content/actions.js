@@ -5680,6 +5680,145 @@ const tools = {
     }
   };
 
+  // =========================================================================
+  // VAULT FILL: fillCredentialFields -- fill login form using classified inputs
+  // Uses FSB.inferElementPurpose to detect credential-input fields by role/intent.
+  // Params: { username, password } -- decrypted values from background vault lookup.
+  // Returns: { success, filled, fieldsFound } or { success: false, error }.
+  // =========================================================================
+  tools.fillCredentialFields = async (params) => {
+    const { username, password } = params;
+    if (!username && !password) {
+      return { success: false, error: 'No credentials provided' };
+    }
+
+    // Find all visible input fields on the page
+    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])'));
+    let usernameField = null;
+    let passwordField = null;
+
+    for (const input of inputs) {
+      if (!input.offsetParent && input.type !== 'password') continue; // skip invisible (except password which may be in visible form)
+      const classification = FSB.inferElementPurpose(input);
+      if (!classification) continue;
+
+      if (classification.role === 'credential-input' && classification.intent === 'username' && !usernameField) {
+        usernameField = input;
+      } else if (classification.role === 'credential-input' && classification.intent === 'password' && !passwordField) {
+        passwordField = input;
+      } else if (classification.role === 'contact-input' && classification.intent === 'email' && !usernameField) {
+        // Email fields often serve as username on login forms
+        usernameField = input;
+      }
+    }
+
+    const filled = [];
+
+    if (usernameField && username) {
+      usernameField.focus();
+      usernameField.value = username;
+      usernameField.dispatchEvent(new Event('input', { bubbles: true }));
+      usernameField.dispatchEvent(new Event('change', { bubbles: true }));
+      filled.push('username');
+    }
+
+    if (passwordField && password) {
+      passwordField.focus();
+      passwordField.value = password;
+      passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+      passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+      filled.push('password');
+    }
+
+    if (filled.length === 0) {
+      return { success: false, error: 'No login fields detected on this page' };
+    }
+
+    return { success: true, filled, fieldsFound: { username: !!usernameField, password: !!passwordField } };
+  };
+
+  // =========================================================================
+  // VAULT FILL: fillPaymentFields -- fill checkout form using classified inputs
+  // Uses FSB.inferElementPurpose to detect payment-input fields by role/intent.
+  // Params: { cardNumber, cvv, expiryMonth, expiryYear, cardholderName, billingAddress }
+  //   billingAddress: { line1, line2, city, region, postalCode, country }
+  // Returns: { success, filled, totalFieldsDetected } or { success: false, error }.
+  // =========================================================================
+  tools.fillPaymentFields = async (params) => {
+    const { cardNumber, cvv, expiryMonth, expiryYear, cardholderName, billingAddress } = params;
+
+    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select'));
+    const fieldMap = {}; // intent -> element
+
+    for (const input of inputs) {
+      if (!input.offsetParent) continue; // skip invisible
+      const classification = FSB.inferElementPurpose(input);
+      if (!classification || classification.role !== 'payment-input') continue;
+      // Only take the first match per intent
+      if (!fieldMap[classification.intent]) {
+        fieldMap[classification.intent] = input;
+      }
+    }
+
+    const filled = [];
+
+    function fillField(element, value) {
+      if (!element || !value) return false;
+      element.focus();
+      if (element.tagName === 'SELECT') {
+        // For select elements, find matching option
+        const options = Array.from(element.options);
+        const match = options.find(o => o.value === value || o.textContent.trim() === value);
+        if (match) {
+          element.value = match.value;
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+        return false;
+      }
+      element.value = value;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+
+    // Fill card number
+    if (fillField(fieldMap['cc-number'], cardNumber)) filled.push('cc-number');
+
+    // Fill CVV/CVC
+    if (fillField(fieldMap['cc-csc'], cvv)) filled.push('cc-csc');
+
+    // Fill expiry -- handle combined and split fields
+    if (fieldMap['cc-exp'] && expiryMonth && expiryYear) {
+      // Combined MM/YY field
+      const expValue = String(expiryMonth).padStart(2, '0') + '/' + String(expiryYear).slice(-2);
+      if (fillField(fieldMap['cc-exp'], expValue)) filled.push('cc-exp');
+    } else {
+      if (fillField(fieldMap['cc-exp-month'], String(expiryMonth).padStart(2, '0'))) filled.push('cc-exp-month');
+      if (fillField(fieldMap['cc-exp-year'], expiryYear)) filled.push('cc-exp-year');
+    }
+
+    // Fill cardholder name
+    if (fillField(fieldMap['cc-name'], cardholderName)) filled.push('cc-name');
+
+    // Fill billing address fields
+    if (billingAddress) {
+      if (fillField(fieldMap['billing-address-line1'], billingAddress.line1)) filled.push('billing-address-line1');
+      if (fillField(fieldMap['billing-address-line2'], billingAddress.line2)) filled.push('billing-address-line2');
+      if (fillField(fieldMap['billing-city'], billingAddress.city)) filled.push('billing-city');
+      if (fillField(fieldMap['billing-region'], billingAddress.region)) filled.push('billing-region');
+      if (fillField(fieldMap['billing-postal-code'], billingAddress.postalCode)) filled.push('billing-postal-code');
+      if (fillField(fieldMap['billing-country'], billingAddress.country)) filled.push('billing-country');
+      if (fillField(fieldMap['billing-name'], cardholderName)) filled.push('billing-name');
+    }
+
+    if (filled.length === 0) {
+      return { success: false, error: 'No payment fields detected on this page' };
+    }
+
+    return { success: true, filled, totalFieldsDetected: Object.keys(fieldMap).length };
+  };
+
   FSB.clickAtCoordinates = clickAtCoordinates;
   FSB.captureActionState = captureActionState;
   FSB.EXPECTED_EFFECTS = EXPECTED_EFFECTS;
