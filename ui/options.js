@@ -80,7 +80,12 @@ function initializeDashboard() {
   
   // Initialize sections
   initializeSections();
-  
+
+  // Initialize credential vault UI
+  loadCredentialVaultStatus();
+  loadPaymentVaultStatus();
+  initCredentialVaultListeners();
+
   // Check API connection
   checkApiConnection();
   
@@ -2522,6 +2527,174 @@ async function exportSessionText(sessionId) {
 }
 
 // ==========================================
+// Credential Vault Lifecycle (Passwords Beta)
+// ==========================================
+
+async function loadCredentialVaultStatus() {
+  const statusText = document.getElementById('credentialVaultStatusText');
+  const setupPanel = document.getElementById('credentialVaultSetup');
+  const unlockPanel = document.getElementById('credentialVaultUnlock');
+  const unlockedPanel = document.getElementById('credentialVaultUnlocked');
+  const lockBtn = document.getElementById('lockCredentialVaultBtn');
+  const manager = document.getElementById('credentialsManager');
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' });
+    if (!response) {
+      if (statusText) statusText.textContent = 'Unable to reach vault service';
+      return;
+    }
+
+    // Hide all state panels first
+    if (setupPanel) setupPanel.style.display = 'none';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+
+    if (!response.configured) {
+      // No vault configured -- show setup
+      if (statusText) statusText.textContent = 'No vault configured. Create one to protect saved credentials.';
+      if (setupPanel) setupPanel.style.display = 'block';
+      if (manager) manager.style.display = 'none';
+    } else if (!response.unlocked) {
+      // Vault exists but locked
+      if (statusText) statusText.textContent = 'Vault is locked.';
+      if (unlockPanel) unlockPanel.style.display = 'block';
+      if (manager) manager.style.display = 'none';
+    } else {
+      // Vault unlocked
+      if (statusText) statusText.textContent = 'Vault unlocked for this session.';
+      if (unlockedPanel) unlockedPanel.style.display = 'block';
+      if (lockBtn) lockBtn.style.display = 'inline-flex';
+      if (manager) {
+        manager.style.display = 'block';
+        loadCredentials();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to check vault status:', error);
+    if (statusText) statusText.textContent = 'Error checking vault status.';
+  }
+}
+
+function initCredentialVaultListeners() {
+  const setupBtn = document.getElementById('setupCredentialVaultBtn');
+  const unlockBtn = document.getElementById('unlockCredentialVaultBtn');
+  const lockBtn = document.getElementById('lockCredentialVaultBtn');
+
+  if (setupBtn) {
+    setupBtn.addEventListener('click', async () => {
+      const passphrase = document.getElementById('credentialVaultPassphrase')?.value;
+      const confirm = document.getElementById('credentialVaultConfirmPassphrase')?.value;
+      if (!passphrase || passphrase.length < 8) {
+        showToast('Passphrase must be at least 8 characters', 'error');
+        return;
+      }
+      if (passphrase !== confirm) {
+        showToast('Passphrases do not match', 'error');
+        return;
+      }
+      setupBtn.disabled = true;
+      setupBtn.textContent = 'Creating...';
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'createCredentialVault', passphrase });
+        if (response?.success) {
+          showToast('Credential vault created', 'success');
+          loadCredentialVaultStatus();
+          loadPaymentVaultStatus();
+        } else {
+          showToast(response?.error || 'Failed to create vault', 'error');
+        }
+      } catch (error) {
+        showToast('Error creating vault: ' + error.message, 'error');
+      } finally {
+        setupBtn.disabled = false;
+        setupBtn.textContent = 'Set Up Vault';
+      }
+    });
+  }
+
+  if (unlockBtn) {
+    unlockBtn.addEventListener('click', async () => {
+      const passphrase = document.getElementById('credentialVaultUnlockPassphrase')?.value;
+      if (!passphrase) {
+        showToast('Enter your vault passphrase', 'error');
+        return;
+      }
+      unlockBtn.disabled = true;
+      unlockBtn.textContent = 'Unlocking...';
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'unlockCredentialVault', passphrase });
+        if (response?.success) {
+          showToast('Vault unlocked', 'success');
+          document.getElementById('credentialVaultUnlockPassphrase').value = '';
+          loadCredentialVaultStatus();
+          loadPaymentVaultStatus();
+        } else {
+          showToast(response?.error || 'Incorrect passphrase', 'error');
+        }
+      } catch (error) {
+        showToast('Error unlocking vault: ' + error.message, 'error');
+      } finally {
+        unlockBtn.disabled = false;
+        unlockBtn.textContent = 'Unlock Vault';
+      }
+    });
+  }
+
+  if (lockBtn) {
+    lockBtn.addEventListener('click', async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'lockCredentialVault' });
+        if (response?.success) {
+          showToast('Vault locked', 'success');
+          loadCredentialVaultStatus();
+          loadPaymentVaultStatus();
+        }
+      } catch (error) {
+        showToast('Error locking vault: ' + error.message, 'error');
+      }
+    });
+  }
+}
+
+async function loadPaymentVaultStatus() {
+  const statusText = document.getElementById('paymentMethodsStatusText');
+  const blockedPanel = document.getElementById('paymentMethodsBlocked');
+  const unlockPanel = document.getElementById('paymentMethodsUnlock');
+  const unlockedPanel = document.getElementById('paymentMethodsUnlocked');
+  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
+  const paymentManager = document.getElementById('paymentMethodsManager');
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' });
+    if (!response) {
+      if (statusText) statusText.textContent = 'Unable to reach vault service';
+      return;
+    }
+
+    // Hide all state panels first
+    if (blockedPanel) blockedPanel.style.display = 'none';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+    if (paymentManager) paymentManager.style.display = 'none';
+
+    if (!response.configured || !response.unlocked) {
+      // Vault not configured or locked -- payment methods are blocked
+      if (statusText) statusText.textContent = 'Unlock the credential vault first.';
+      if (blockedPanel) blockedPanel.style.display = 'block';
+    } else {
+      // Vault unlocked -- payment methods available (handlers wired in Phase 192)
+      if (statusText) statusText.textContent = 'Payment methods available (coming soon).';
+    }
+  } catch (error) {
+    console.error('Failed to check payment vault status:', error);
+    if (statusText) statusText.textContent = 'Error checking payment status.';
+  }
+}
+
+// ==========================================
 // Credential Manager Functions (Passwords Beta)
 // ==========================================
 
@@ -2540,9 +2713,12 @@ function updateCaptchaSolverVisibility(enabled) {
 function updateCredentialsManagerVisibility(enabled) {
   const manager = document.getElementById('credentialsManager');
   if (manager) {
-    manager.style.display = enabled ? 'block' : 'none';
+    // Only show manager if vault is unlocked (vault status drives visibility now)
     if (enabled) {
-      loadCredentials();
+      loadCredentialVaultStatus();
+      loadPaymentVaultStatus();
+    } else {
+      manager.style.display = 'none';
     }
   }
 }
