@@ -608,8 +608,10 @@
   var taskInputRetry = document.getElementById('dash-task-input-retry');
   var taskSubmitRetry = document.getElementById('dash-task-submit-retry');
   var taskStopBtn = document.getElementById('dash-task-stop');
+  var actionFeed = document.getElementById('dash-action-feed');
   var taskTimeoutTimer = null;
   var TASK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  var ACTION_FEED_MAX = 15;
 
   // DOM preview refs
   var previewContainer = document.getElementById('dash-preview');
@@ -932,6 +934,7 @@
         if (taskSubmitBtn) taskSubmitBtn.disabled = false;
         // Reset progress bar
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
+        if (actionFeed) actionFeed.innerHTML = '';
         hideSaveAsAgent();
         if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
         renderTaskRecoveryStatus('', '');
@@ -946,6 +949,7 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = 'Running for 0s';
         if (taskAction) { taskAction.textContent = 'Working...'; taskAction.style.display = ''; }
+        if (actionFeed) { actionFeed.innerHTML = ''; actionFeed.style.display = ''; }
         if (taskStopBtn) taskStopBtn.style.display = '';
         // Start elapsed timer
         taskElapsedTimer = setInterval(function () {
@@ -978,6 +982,7 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = '';
         if (taskAction) taskAction.style.display = 'none';
+        if (actionFeed) actionFeed.style.display = 'none';
         // Render structured result card
         renderResultCard(taskSuccessView, data, true);
         // Show next-task input
@@ -999,6 +1004,7 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = '';
         if (taskAction) taskAction.style.display = 'none';
+        if (actionFeed) actionFeed.style.display = 'none';
         // Render structured result card for failure
         renderResultCard(taskFailedView, data, false);
         // Show retry + next-task input
@@ -1122,6 +1128,27 @@
       taskAction.style.display = '';
       taskAction.textContent = payload.action;
       lastProgressAction = payload.action;
+    }
+    // Append to scrolling action feed
+    if (actionFeed && payload.action) {
+      var entry = document.createElement('div');
+      entry.className = 'dash-action-feed-entry';
+      var ts = document.createElement('span');
+      ts.className = 'dash-action-feed-ts';
+      var now = new Date();
+      ts.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+      var txt = document.createElement('span');
+      txt.className = 'dash-action-feed-text';
+      txt.textContent = payload.action;
+      entry.appendChild(ts);
+      entry.appendChild(txt);
+      actionFeed.appendChild(entry);
+      // Trim to max entries
+      while (actionFeed.children.length > ACTION_FEED_MAX) {
+        actionFeed.removeChild(actionFeed.firstChild);
+      }
+      // Auto-scroll to bottom
+      actionFeed.scrollTop = actionFeed.scrollHeight;
     }
     renderTaskRecoveryStatus(getTaskRunId(payload), payload.taskSource || '');
   }
