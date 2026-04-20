@@ -64,8 +64,8 @@ Plans:
   4. Payment field detection correctly identifies card number, CVV, expiry, cardholder name, and billing address inputs on checkout pages
 **Plans:** 2 plans
 Plans:
-- [ ] 194-01-PLAN.md -- Tool registry entries + content script fill handlers
-- [ ] 194-02-PLAN.md -- Background executor wiring + sidepanel confirmation dialog
+- [x] 194-01-PLAN.md -- Tool registry entries + content script fill handlers
+- [x] 194-02-PLAN.md -- Background executor wiring + sidepanel confirmation dialog
 
 ### Phase 195: MCP Tools & Security Boundary
 **Goal**: MCP clients can trigger credential and payment fills without ever receiving raw secrets
@@ -89,18 +89,30 @@ Plans:
   3. Browser console.log/warn/error calls from vault and payment code paths produce only redacted output
 **Plans**: TBD
 
+### Phase 197: MCP Security Boundary Fixes
+**Goal**: MCP payment confirmation works end-to-end and credential fills derive domain from active tab
+**Depends on**: Phase 195, Phase 196
+**Requirements**: MCP-04, SEC-02, SEC-01
+**Gap Closure**: Closes gaps from v0.9.34-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. MCP use_payment_method shows sidepanel confirmation dialog and waits for user approval/denial before proceeding with fill
+  2. MCP fill_credential derives the lookup domain from the active tab URL, not from the MCP request payload
+  3. Content script logging path (content/messaging.js) cannot emit raw credential or payment params even if logger is activated
+**Plans**: TBD
+
 ## Progress
 
-**Execution Order:** 191 -> 192 -> 193 -> 194 (after 192+193) -> 195 (after 194) -> 196 (after 195)
+**Execution Order:** 191 -> 192 -> 193 -> 194 (after 192+193) -> 195 (after 194) -> 196 (after 195) -> 197 (after 196)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 191. Vault Unlock Fix & Bootstrap Rehydration | 2/2 | Complete    | 2026-04-20 |
 | 192. Payment Method Backend Wiring | 1/1 | Complete    | 2026-04-20 |
 | 193. Payment Management UI | 2/2 | Complete    | 2026-04-20 |
-| 194. Autopilot Tools & Confirmation Dialog | 0/2 | Not started | - |
-| 195. MCP Tools & Security Boundary | 0/? | Not started | - |
-| 196. Logging Audit & Hardening Pass | 0/? | Not started | - |
+| 194. Autopilot Tools & Confirmation Dialog | 2/2 | Complete    | 2026-04-20 |
+| 195. MCP Tools & Security Boundary | 0/0 | Complete    | 2026-04-20 |
+| 196. Logging Audit & Hardening Pass | 0/0 | Complete    | 2026-04-20 |
+| 197. MCP Security Boundary Fixes | 0/0 | Pending     | -- |
 
 ## Previous Milestones
 
