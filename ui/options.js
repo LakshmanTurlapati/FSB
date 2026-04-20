@@ -3092,6 +3092,10 @@ function initializeCredentialManager() {
     if (sectionId === 'memory') {
       loadMemoryDashboard();
     }
+    // Refresh payment vault status when switching to payments section
+    if (sectionId === 'payments') {
+      loadPaymentVaultStatus();
+    }
   };
 }
 
@@ -3253,6 +3257,51 @@ function initializePaymentManager() {
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       filterPaymentMethods(e.target.value);
+    });
+  }
+
+  // Add Card button
+  const addBtn = document.getElementById('addPaymentMethodBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => showPaymentMethodModal('add'));
+  }
+
+  // Modal buttons (Save, Cancel, Close, Backdrop)
+  const pmModalSave = document.getElementById('paymentMethodModalSave');
+  const pmModalCancel = document.getElementById('paymentMethodModalCancel');
+  const pmModalClose = document.getElementById('paymentMethodModalClose');
+  const pmModalBackdrop = document.querySelector('#paymentMethodModal .credential-modal-backdrop');
+
+  if (pmModalSave) pmModalSave.addEventListener('click', savePaymentMethodFromModal);
+  if (pmModalCancel) pmModalCancel.addEventListener('click', hidePaymentMethodModal);
+  if (pmModalClose) pmModalClose.addEventListener('click', hidePaymentMethodModal);
+  if (pmModalBackdrop) pmModalBackdrop.addEventListener('click', hidePaymentMethodModal);
+
+  // CVV visibility toggle
+  const toggleCvv = document.getElementById('togglePaymentMethodCvv');
+  if (toggleCvv) {
+    toggleCvv.addEventListener('click', () => {
+      const cvvField = document.getElementById('paymentMethodCvv');
+      if (cvvField) {
+        const isPassword = cvvField.type === 'password';
+        cvvField.type = isPassword ? 'text' : 'password';
+        const icon = toggleCvv.querySelector('i');
+        if (icon) icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+      }
+    });
+  }
+
+  // Real-time brand detection on card number input
+  const cardNumInput = document.getElementById('paymentMethodCardNumber');
+  if (cardNumInput) {
+    cardNumInput.addEventListener('input', (e) => {
+      const brand = detectPaymentCardBrand(e.target.value);
+      const brandEl = document.getElementById('paymentMethodCardBrand');
+      const brandLabels = { visa: 'Visa', mastercard: 'MC', amex: 'Amex', discover: 'Discover', unknown: 'Unknown' };
+      if (brandEl) {
+        brandEl.textContent = brandLabels[brand] || 'Unknown';
+        brandEl.className = 'payment-card-brand ' + brand;
+      }
     });
   }
 
