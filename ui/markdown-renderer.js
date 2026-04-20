@@ -197,8 +197,32 @@ const FSBMarkdown = (() => {
     }
   }
 
+  // Convert literal \n and \t escape sequences to real characters
+  function normalizeEscapes(text) {
+    if (!text || typeof text !== 'string') return text;
+    return text
+      .replace(/\\\\n/g, '\x00BSLASH_N\x00')
+      .replace(/\\\\t/g, '\x00BSLASH_T\x00')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\x00BSLASH_N\x00/g, '\\n')
+      .replace(/\x00BSLASH_T\x00/g, '\\t');
+  }
+
+  // HTML-escape plain text and convert newlines to <br>
+  function plainTextToHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/\n/g, '<br>');
+  }
+
   function applyToElement(el, text) {
-    const result = render(text);
+    const normalized = normalizeEscapes(text);
+    const result = render(normalized);
     if (result) {
       el.innerHTML = result.html;
       el.classList.add('md-rendered');
@@ -240,7 +264,7 @@ const FSBMarkdown = (() => {
         });
       }
     } else {
-      el.textContent = text;
+      el.innerHTML = plainTextToHtml(normalized);
     }
   }
 

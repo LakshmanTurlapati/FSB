@@ -3262,7 +3262,7 @@ class BackgroundAnalytics {
     return inputCost + outputCost;
   }
   
-  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation', provider = '') {
     try {
       // Ensure initialization is complete
       if (!this.initialized) {
