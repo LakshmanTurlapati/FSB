@@ -3338,16 +3338,234 @@ function filterPaymentMethods(query) {
   });
 }
 
-// Placeholder for payment method modal (wired in 193-02)
-function showPaymentMethodModal(mode, id) {
-  // Will be implemented in the next plan
-  console.log('showPaymentMethodModal:', mode, id);
+// ==========================================
+// Payment Method Modal & Validation (193-02)
+// ==========================================
+
+// Client-side card brand detection (mirrors secure-config.js logic)
+function detectPaymentCardBrand(cardNumber) {
+  const digits = String(cardNumber || '').replace(/\D/g, '');
+  if (!digits) return 'unknown';
+  if (/^4/.test(digits)) return 'visa';
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'mastercard';
+  if (/^3[47]/.test(digits)) return 'amex';
+  if (/^(6011|65|64[4-9])/.test(digits)) return 'discover';
+  return 'unknown';
 }
 
-// Placeholder for payment method delete (wired in 193-02)
-function deletePaymentMethodConfirm(id) {
-  // Will be implemented in the next plan
-  console.log('deletePaymentMethodConfirm:', id);
+// Luhn algorithm for card number validation
+function isValidPaymentCardNumber(cardNumber) {
+  const digits = String(cardNumber || '').replace(/\D/g, '');
+  if (!/^\d{12,19}$/.test(digits)) return false;
+  let sum = 0, shouldDouble = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = Number(digits[i]);
+    if (shouldDouble) { digit *= 2; if (digit > 9) digit -= 9; }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+// Validate expiry is a future date
+function isValidPaymentExpiry(month, year) {
+  const m = parseInt(month, 10);
+  const y = String(year).length === 2 ? 2000 + parseInt(year, 10) : parseInt(year, 10);
+  if (!m || m < 1 || m > 12 || !y) return false;
+  const now = new Date();
+  if (y < now.getFullYear()) return false;
+  if (y === now.getFullYear() && m < now.getMonth() + 1) return false;
+  return true;
+}
+
+// Payment modal state
+let paymentModalMode = 'add'; // 'add' or 'edit'
+let paymentEditingId = null;
+
+// Show the payment method modal (add or edit mode)
+async function showPaymentMethodModal(mode, id) {
+  paymentModalMode = mode || 'add';
+  paymentEditingId = id || null;
+
+  const modal = document.getElementById('paymentMethodModal');
+  const title = document.getElementById('paymentMethodModalTitle');
+  const brandEl = document.getElementById('paymentMethodCardBrand');
+  const cardNumInput = document.getElementById('paymentMethodCardNumber');
+
+  if (title) title.textContent = mode === 'edit' ? 'Edit Payment Method' : 'Add Payment Method';
+
+  // Clear all form fields
+  const fieldIds = [
+    'paymentMethodNickname', 'paymentMethodCardholderName', 'paymentMethodCardNumber',
+    'paymentMethodExpiryYear', 'paymentMethodCvv',
+    'paymentMethodBillingName', 'paymentMethodAddressLine1', 'paymentMethodAddressLine2',
+    'paymentMethodCity', 'paymentMethodStateRegion', 'paymentMethodPostalCode', 'paymentMethodCountry'
+  ];
+  fieldIds.forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.value = '';
+  });
+
+  // Reset expiry month dropdown
+  const expiryMonthEl = document.getElementById('paymentMethodExpiryMonth');
+  if (expiryMonthEl) expiryMonthEl.value = '';
+
+  // Reset brand badge
+  if (brandEl) {
+    brandEl.textContent = 'Unknown';
+    brandEl.className = 'payment-card-brand unknown';
+  }
+
+  if (mode === 'edit' && id) {
+    // Disable card number field in edit mode (immutable)
+    if (cardNumInput) {
+      cardNumInput.disabled = true;
+      cardNumInput.placeholder = '(cannot change card number)';
+    }
+
+    // Fetch full card data to pre-fill
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getFullPaymentMethod', id });
+      if (response && response.success && response.paymentMethod) {
+        const pm = response.paymentMethod;
+        const setField = (fid, val) => {
+          const el = document.getElementById(fid);
+          if (el && val != null) el.value = val;
+        };
+        setField('paymentMethodNickname', pm.nickname);
+        setField('paymentMethodCardholderName', pm.cardholderName);
+        setField('paymentMethodCardNumber', pm.cardNumber);
+        setField('paymentMethodExpiryYear', pm.expiryYear);
+        setField('paymentMethodCvv', pm.cvv);
+        setField('paymentMethodBillingName', pm.billingName);
+        setField('paymentMethodAddressLine1', pm.addressLine1);
+        setField('paymentMethodAddressLine2', pm.addressLine2);
+        setField('paymentMethodCity', pm.city);
+        setField('paymentMethodStateRegion', pm.stateRegion);
+        setField('paymentMethodPostalCode', pm.postalCode);
+        setField('paymentMethodCountry', pm.country);
+        if (expiryMonthEl && pm.expiryMonth) expiryMonthEl.value = pm.expiryMonth;
+
+        // Set brand badge from stored data
+        if (brandEl && pm.cardBrand) {
+          const brandLabels = { visa: 'Visa', mastercard: 'MC', amex: 'Amex', discover: 'Discover', unknown: 'Unknown' };
+          brandEl.textContent = brandLabels[pm.cardBrand] || 'Unknown';
+          brandEl.className = 'payment-card-brand ' + (pm.cardBrand || 'unknown');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load payment method for editing:', error);
+    }
+  } else {
+    // Add mode: enable card number field
+    if (cardNumInput) {
+      cardNumInput.disabled = false;
+      cardNumInput.placeholder = '1234 5678 9012 3456';
+    }
+  }
+
+  // Show modal
+  if (modal) modal.classList.remove('hidden');
+}
+
+// Hide the payment method modal and reset state
+function hidePaymentMethodModal() {
+  const modal = document.getElementById('paymentMethodModal');
+  if (modal) modal.classList.add('hidden');
+  paymentModalMode = 'add';
+  paymentEditingId = null;
+
+  // Clear sensitive fields on close (T-193-04 mitigation)
+  const cvvField = document.getElementById('paymentMethodCvv');
+  if (cvvField) cvvField.value = '';
+  const cardNumField = document.getElementById('paymentMethodCardNumber');
+  if (cardNumField) cardNumField.value = '';
+}
+
+// Save or update payment method from modal data
+async function savePaymentMethodFromModal() {
+  const nickname = document.getElementById('paymentMethodNickname')?.value?.trim() || '';
+  const cardholderName = document.getElementById('paymentMethodCardholderName')?.value?.trim() || '';
+  const cardNumber = document.getElementById('paymentMethodCardNumber')?.value?.trim() || '';
+  const expiryMonth = document.getElementById('paymentMethodExpiryMonth')?.value || '';
+  const expiryYear = document.getElementById('paymentMethodExpiryYear')?.value?.trim() || '';
+  const cvv = document.getElementById('paymentMethodCvv')?.value?.trim() || '';
+  const billingName = document.getElementById('paymentMethodBillingName')?.value?.trim() || '';
+  const addressLine1 = document.getElementById('paymentMethodAddressLine1')?.value?.trim() || '';
+  const addressLine2 = document.getElementById('paymentMethodAddressLine2')?.value?.trim() || '';
+  const city = document.getElementById('paymentMethodCity')?.value?.trim() || '';
+  const stateRegion = document.getElementById('paymentMethodStateRegion')?.value?.trim() || '';
+  const postalCode = document.getElementById('paymentMethodPostalCode')?.value?.trim() || '';
+  const country = document.getElementById('paymentMethodCountry')?.value?.trim() || '';
+
+  // Validate required fields
+  if (paymentModalMode === 'add') {
+    if (!cardholderName || !cardNumber || !expiryMonth || !expiryYear || !cvv || !billingName || !addressLine1 || !city || !stateRegion || !postalCode || !country) {
+      showToast('All fields except Nickname and Address Line 2 are required', 'error');
+      return;
+    }
+    // Validate card number with Luhn algorithm
+    if (!isValidPaymentCardNumber(cardNumber)) {
+      showToast('Invalid card number', 'error');
+      return;
+    }
+    // Validate expiry date is in the future
+    if (!isValidPaymentExpiry(expiryMonth, expiryYear)) {
+      showToast('Card is expired or expiry is invalid', 'error');
+      return;
+    }
+  } else {
+    // Edit mode: only non-card fields are required
+    if (!cardholderName || !billingName || !addressLine1 || !city || !stateRegion || !postalCode || !country) {
+      showToast('All fields except Nickname and Address Line 2 are required', 'error');
+      return;
+    }
+  }
+
+  try {
+    let response;
+    if (paymentModalMode === 'edit' && paymentEditingId) {
+      // Update: only send mutable fields
+      response = await chrome.runtime.sendMessage({
+        action: 'updatePaymentMethod',
+        id: paymentEditingId,
+        updates: { cardholderName, nickname, billingName, addressLine1, addressLine2, city, stateRegion, postalCode, country }
+      });
+    } else {
+      // Create new payment method
+      response = await chrome.runtime.sendMessage({
+        action: 'savePaymentMethod',
+        data: { cardNumber, expiryMonth, expiryYear, cvv, cardholderName, nickname, billingName, addressLine1, addressLine2, city, stateRegion, postalCode, country }
+      });
+    }
+
+    if (response && response.success) {
+      showToast(paymentModalMode === 'edit' ? 'Payment method updated' : 'Payment method saved', 'success');
+      hidePaymentMethodModal();
+      loadPaymentMethods();
+    } else {
+      showToast('Failed: ' + (response?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    showToast('Error saving payment method: ' + error.message, 'error');
+  }
+}
+
+// Delete payment method with confirmation
+async function deletePaymentMethodConfirm(id) {
+  if (!confirm('Delete this payment method? This cannot be undone.')) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'deletePaymentMethod', id });
+    if (response && response.success) {
+      showToast('Payment method deleted', 'success');
+      loadPaymentMethods();
+    } else {
+      showToast('Failed to delete: ' + (response?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    showToast('Error deleting payment method: ' + error.message, 'error');
+  }
 }
 
 // Initialize payment manager after DOM is ready
