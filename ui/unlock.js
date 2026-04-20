@@ -10,63 +10,41 @@ const setupLink = document.getElementById('setupLink');
 // Handle form submission
 unlockForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  
+
   const password = passwordInput.value;
   if (!password) return;
-  
+
   // Disable form while processing
   unlockBtn.disabled = true;
   unlockBtn.textContent = 'Unlocking...';
   errorMsg.style.display = 'none';
-  
+
   try {
-    // Try to decrypt with the provided password
-    const testKey = await chrome.storage.local.get('apiKey');
-    
-    if (testKey.apiKey) {
-      // Import secure config
-      const { secureConfig } = await import('../config/secure-config.js');
-      
-      // Try to decrypt a test value
-      await secureConfig.decrypt(testKey.apiKey, password);
-      
-      // Success - initialize secure config
-      await secureConfig.initialize(password);
-      
-      // Store in session if requested
-      if (rememberCheckbox.checked) {
-        await chrome.storage.session.set({ 
-          masterPassword: password,
-          unlockTime: Date.now()
-        });
-      }
-      
-      // Send unlock message to background
-      chrome.runtime.sendMessage({ 
-        action: 'unlock',
-        password: password,
-        remember: rememberCheckbox.checked
-      });
-      
-      // Close the unlock window
+    const response = await chrome.runtime.sendMessage({
+      action: 'unlockCredentialVault',
+      passphrase: password
+    });
+
+    if (response && response.success) {
+      // Vault unlocked successfully in background -- close popup
       window.close();
-      
     } else {
-      throw new Error('No encrypted configuration found. Please run setup first.');
+      // Show error from background
+      const msg = (response && response.error) || 'Unlock failed';
+      errorMsg.textContent = msg.includes('not configured')
+        ? 'No vault configured. Please run setup first.'
+        : msg.includes('passphrase') ? 'Incorrect password' : msg;
+      errorMsg.style.display = 'block';
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = 'Unlock';
+      passwordInput.value = '';
+      passwordInput.focus();
     }
-    
   } catch (error) {
-    // Show error
-    errorMsg.textContent = error.message.includes('decrypt') 
-      ? 'Incorrect password' 
-      : error.message;
+    errorMsg.textContent = 'Communication error. Please try again.';
     errorMsg.style.display = 'block';
-    
-    // Re-enable form
     unlockBtn.disabled = false;
     unlockBtn.textContent = 'Unlock';
-    
-    // Clear password
     passwordInput.value = '';
     passwordInput.focus();
   }
@@ -79,9 +57,8 @@ setupLink.addEventListener('click', (e) => {
 });
 
 // Check if already unlocked
-chrome.storage.session.get('masterPassword', (data) => {
-  if (data.masterPassword) {
-    // Already unlocked in this session
+chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' }).then(response => {
+  if (response && response.unlocked) {
     window.close();
   }
 });
