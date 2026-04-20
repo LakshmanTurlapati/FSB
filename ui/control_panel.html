@@ -1240,8 +1240,8 @@
 
             <div id="paymentMethodsUnlock" class="credential-vault-state" style="display: none;">
               <div class="form-group">
-                <label for="paymentMethodsUnlockPassphrase">Unlock Saved Payment Methods</label>
-                <input type="password" id="paymentMethodsUnlockPassphrase" placeholder="Re-enter your vault passphrase" class="form-input">
+                <label>Enter your vault PIN to unlock payment methods</label>
+                <div id="paymentMethodsPinUnlock"></div>
               </div>
               <p class="credential-vault-helper">Saved cards use the same encrypted vault but require a separate unlock before checkout fills in this browser session.</p>
               <button id="unlockPaymentMethodsBtn" class="save-btn primary">Unlock Saved Payment Methods</button>
@@ -1542,6 +1542,7 @@
   <script src="../site-guides/productivity/jira.js"></script>
   <script src="../site-guides/productivity/airtable.js"></script>
   <!-- Site guides viewer (must be after all guide scripts) -->
+  <script src="pin-input.js"></script>
   <script src="site-guides-viewer.js"></script>
   <script src="lib/qrcode-generator.min.js"></script>
   <script src="pin-input.js"></script>

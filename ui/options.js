@@ -3102,6 +3102,170 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
+// Payment Manager Functions (Payments Beta)
+// ==========================================
+
+// Payment vault state
+let _paymentPinUnlock = null;
+let _paymentUnlockSubmitting = false;
+
+// Load payment vault status and render appropriate UI state
+async function loadPaymentVaultStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getPaymentVaultStatus' });
+    if (!response) return;
+
+    const statusText = document.getElementById('paymentMethodsStatusText');
+    const blockedPanel = document.getElementById('paymentMethodsBlocked');
+    const unlockPanel = document.getElementById('paymentMethodsUnlock');
+    const unlockedPanel = document.getElementById('paymentMethodsUnlocked');
+    const lockBtn = document.getElementById('lockPaymentMethodsBtn');
+    const paymentManager = document.getElementById('paymentMethodsManager');
+
+    // Hide all states initially
+    if (blockedPanel) blockedPanel.style.display = 'none';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+    if (paymentManager) paymentManager.style.display = 'none';
+
+    if (!response.configured) {
+      // Vault not configured -- direct user to Passwords section
+      if (statusText) statusText.textContent = 'Configure a vault PIN in Passwords first.';
+      if (blockedPanel) blockedPanel.style.display = 'block';
+    } else if (!response.paymentUnlocked) {
+      // Vault configured but payment methods locked -- show PIN unlock
+      if (statusText) statusText.textContent = 'Payment methods are locked.';
+      if (unlockPanel) unlockPanel.style.display = 'block';
+
+      // Fetch pinLength and create PIN input
+      const vaultStatus = await chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' });
+      const pinLength = (vaultStatus && vaultStatus.pinLength) || 6;
+      const container = document.getElementById('paymentMethodsPinUnlock');
+
+      if (container && !_paymentPinUnlock) {
+        _paymentPinUnlock = createPinInput(container, pinLength, {
+          onComplete: (pin) => submitPaymentUnlock(pin)
+        });
+      }
+    } else {
+      // Fully unlocked
+      if (statusText) statusText.textContent = 'Payment methods are unlocked.';
+      if (unlockedPanel) unlockedPanel.style.display = 'block';
+      if (lockBtn) lockBtn.style.display = 'inline-flex';
+      if (paymentManager) paymentManager.style.display = 'block';
+      loadPaymentMethods();
+    }
+  } catch (error) {
+    console.error('Error loading payment vault status:', error);
+  }
+}
+
+// Submit payment unlock with PIN
+async function submitPaymentUnlock(pin) {
+  if (_paymentUnlockSubmitting) return;
+  _paymentUnlockSubmitting = true;
+
+  const unlockBtn = document.getElementById('unlockPaymentMethodsBtn');
+  const originalText = unlockBtn ? unlockBtn.textContent : '';
+  if (unlockBtn) {
+    unlockBtn.disabled = true;
+    unlockBtn.textContent = 'Unlocking...';
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'unlockPaymentMethods',
+      passphrase: pin
+    });
+
+    if (response && response.success) {
+      showToast('Payment methods unlocked', 'success');
+      _paymentPinUnlock = null;
+      loadPaymentVaultStatus();
+    } else {
+      showToast(response?.error || 'Incorrect PIN', 'error');
+      if (_paymentPinUnlock) _paymentPinUnlock.clear();
+    }
+  } catch (error) {
+    showToast('Error unlocking payment methods: ' + error.message, 'error');
+    if (_paymentPinUnlock) _paymentPinUnlock.clear();
+  } finally {
+    _paymentUnlockSubmitting = false;
+    if (unlockBtn) {
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = originalText;
+    }
+  }
+}
+
+// Initialize payment manager event listeners
+function initializePaymentManager() {
+  // Lock button
+  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'lockPaymentMethods' });
+        if (response && response.success) {
+          showToast('Payment methods locked', 'success');
+          _paymentPinUnlock = null;
+          loadPaymentVaultStatus();
+        } else {
+          showToast('Failed to lock payment methods', 'error');
+        }
+      } catch (error) {
+        showToast('Error locking payment methods: ' + error.message, 'error');
+      }
+    });
+  }
+
+  // Unlock button (manual trigger when PIN is typed but not auto-submitted)
+  const unlockBtn = document.getElementById('unlockPaymentMethodsBtn');
+  if (unlockBtn) {
+    unlockBtn.addEventListener('click', () => {
+      if (!_paymentPinUnlock) return;
+      const pin = _paymentPinUnlock.getValue();
+      if (!pin || !/^\d+$/.test(pin)) {
+        showToast('Please enter your numeric PIN', 'error');
+        return;
+      }
+      submitPaymentUnlock(pin);
+    });
+  }
+
+  // Payment card list event delegation
+  const paymentList = document.getElementById('paymentMethodsList');
+  if (paymentList) {
+    paymentList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-payment-action]');
+      if (!btn) return;
+      const action = btn.dataset.paymentAction;
+      const id = btn.dataset.paymentId;
+      if (!id) return;
+      if (action === 'edit') showPaymentMethodModal('edit', id);
+      else if (action === 'delete') deletePaymentMethodConfirm(id);
+    });
+  }
+
+  // Payment search filter
+  const searchInput = document.getElementById('paymentMethodSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterPaymentMethods(e.target.value);
+    });
+  }
+
+  // Load vault status on init
+  loadPaymentVaultStatus();
+}
+
+// Initialize payment manager after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initializePaymentManager, 250);
+});
+
+// ==========================================
 // Site Explorer Functions
 // ==========================================
 
