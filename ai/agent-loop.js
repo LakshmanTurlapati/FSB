@@ -1358,6 +1358,27 @@ async function runAgentIteration(sessionId, options) {
     }
     session.iterationCount = iterNum;
 
+    // h1b. Track usage in BackgroundAnalytics (control panel dashboard).
+    //
+    // IMPORTANT: This is the ONLY place that feeds the extension's control panel
+    // metrics (Total Tokens, Total Cost, Requests, Success Rate). The CostTracker
+    // above only accumulates per-session totals for the automation result -- it does
+    // NOT write to BackgroundAnalytics. If this call is removed or bypassed, the
+    // control panel dashboard will show all zeros.
+    //
+    // History: v0.9.32 re-enabled agent-loop.js as the main automation path,
+    // bypassing ai-integration.js where trackUsage was previously called.
+    // This left BackgroundAnalytics empty until this bridge was added.
+    //
+    // initializeAnalytics() is defined in background.js (loaded before agent-loop.js
+    // via importScripts). It returns the singleton BackgroundAnalytics instance.
+    if (typeof initializeAnalytics === 'function') {
+      try {
+        var bgAnalytics = initializeAnalytics();
+        bgAnalytics.trackUsage(model, inputTokens, outputTokens, true, 'automation', providerKey);
+      } catch (_trackErr) { /* non-critical -- dashboard display should not break automation */ }
+    }
+
     // h2. Emit afterApiResponse hook
     if (hooks) {
       await hooks.emit(_al_LIFECYCLE_EVENTS.AFTER_API_RESPONSE, {
