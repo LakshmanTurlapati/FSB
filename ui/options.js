@@ -3260,6 +3260,96 @@ function initializePaymentManager() {
   loadPaymentVaultStatus();
 }
 
+// Load and display all payment methods
+async function loadPaymentMethods() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getAllPaymentMethods' });
+
+    if (!response || !response.success) {
+      console.error('Failed to load payment methods:', response?.error);
+      return;
+    }
+
+    const paymentMethods = response.paymentMethods || [];
+    const listEl = document.getElementById('paymentMethodsList');
+    const emptyEl = document.getElementById('paymentMethodsEmpty');
+
+    if (paymentMethods.length === 0) {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    if (listEl) {
+      listEl.innerHTML = paymentMethods.map(pm => renderPaymentCard(pm)).join('');
+    }
+  } catch (error) {
+    console.error('Error loading payment methods:', error);
+  }
+}
+
+// Render a single payment card entry
+function renderPaymentCard(pm) {
+  const brandLabels = {
+    visa: 'Visa',
+    mastercard: 'MC',
+    amex: 'Amex',
+    discover: 'Discover',
+    diners: 'Diners',
+    jcb: 'JCB',
+    unknown: 'Card'
+  };
+  const brandLabel = brandLabels[pm.cardBrand] || brandLabels.unknown;
+
+  return `
+    <div class="credential-card payment-card" data-payment-id="${escapeHtml(pm.id)}">
+      <div class="credential-card-icon">
+        <span class="payment-card-brand ${escapeHtml(pm.cardBrand)}">${escapeHtml(brandLabel)}</span>
+      </div>
+      <div class="credential-card-info">
+        <div class="credential-card-domain">${escapeHtml(pm.nickname || pm.cardholderName || 'Card')}</div>
+        <div class="credential-card-username">${escapeHtml(pm.maskedNumber)} -- Exp ${escapeHtml(String(pm.expiryMonth))}/${escapeHtml(String(pm.expiryYearLast2))}</div>
+      </div>
+      <div class="credential-card-actions">
+        <button class="credential-action-btn" data-payment-action="edit" data-payment-id="${escapeHtml(pm.id)}" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="credential-action-btn delete" data-payment-action="delete" data-payment-id="${escapeHtml(pm.id)}" title="Delete">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Filter payment methods by search query
+function filterPaymentMethods(query) {
+  const cards = document.querySelectorAll('.payment-card');
+  const lowerQuery = query.toLowerCase();
+
+  cards.forEach(card => {
+    const name = card.querySelector('.credential-card-domain')?.textContent || '';
+    const details = card.querySelector('.credential-card-username')?.textContent || '';
+    const matches = name.toLowerCase().includes(lowerQuery) ||
+                    details.toLowerCase().includes(lowerQuery);
+    card.style.display = matches ? 'flex' : 'none';
+  });
+}
+
+// Placeholder for payment method modal (wired in 193-02)
+function showPaymentMethodModal(mode, id) {
+  // Will be implemented in the next plan
+  console.log('showPaymentMethodModal:', mode, id);
+}
+
+// Placeholder for payment method delete (wired in 193-02)
+function deletePaymentMethodConfirm(id) {
+  // Will be implemented in the next plan
+  console.log('deletePaymentMethodConfirm:', id);
+}
+
 // Initialize payment manager after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initializePaymentManager, 250);
