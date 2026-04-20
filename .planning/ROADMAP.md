@@ -50,8 +50,8 @@ Plans:
   4. Options page shows lock/unlock toggle for the payment vault with visual state feedback
 **Plans:** 2 plans
 Plans:
-- [ ] 193-01-PLAN.md -- Payment vault unlock/lock with PIN input + card list rendering
-- [ ] 193-02-PLAN.md -- Add/edit modal with validation + delete flow
+- [x] 193-01-PLAN.md -- Payment vault unlock/lock with PIN input + card list rendering
+- [x] 193-02-PLAN.md -- Add/edit modal with validation + delete flow
 
 ### Phase 194: Autopilot Tools & Confirmation Dialog
 **Goal**: AI autopilot can fill credentials and payment methods into forms with user confirmation for payments
@@ -62,8 +62,10 @@ Plans:
   2. AI autopilot invokes fill_payment_method on a checkout page and a sidepanel dialog appears showing card brand, last 4, and merchant domain before any fill occurs
   3. User approving the confirmation dialog causes payment fields to fill; declining aborts
   4. Payment field detection correctly identifies card number, CVV, expiry, cardholder name, and billing address inputs on checkout pages
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 2 plans
+Plans:
+- [ ] 194-01-PLAN.md -- Tool registry entries + content script fill handlers
+- [ ] 194-02-PLAN.md -- Background executor wiring + sidepanel confirmation dialog
 
 ### Phase 195: MCP Tools & Security Boundary
 **Goal**: MCP clients can trigger credential and payment fills without ever receiving raw secrets
@@ -95,8 +97,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 191. Vault Unlock Fix & Bootstrap Rehydration | 2/2 | Complete    | 2026-04-20 |
 | 192. Payment Method Backend Wiring | 1/1 | Complete    | 2026-04-20 |
-| 193. Payment Management UI | 0/2 | Not started | - |
-| 194. Autopilot Tools & Confirmation Dialog | 0/? | Not started | - |
+| 193. Payment Management UI | 2/2 | Complete    | 2026-04-20 |
+| 194. Autopilot Tools & Confirmation Dialog | 0/2 | Not started | - |
 | 195. MCP Tools & Security Boundary | 0/? | Not started | - |
 | 196. Logging Audit & Hardening Pass | 0/? | Not started | - |
 
