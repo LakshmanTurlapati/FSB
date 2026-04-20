@@ -1,97 +1,100 @@
 # Roadmap: FSB (Full Self-Browsing)
 
-## Active Milestone: None (v0.9.33 shipped)
+## Active Milestone: v0.9.34 Vault, Payments & Secure MCP Access
 
 ## Phases
 
-- [x] **Phase 186: Canonical Surface Determination** - Designate one dashboard.js as canonical, delete legacy-vanilla duplicate
-- [x] **Phase 187: Task Lifecycle Bridge** - Wire task completions and per-iteration progress from extension to dashboard via WebSocket
-- [x] **Phase 188: DOM Stream Forwarding Bridge** - Add 6 missing case handlers to forward domStream messages to dashboard
-- [x] **Phase 189: Dashboard Result UI** - Structured result card, live action feed, AI summary display
-- [x] **Phase 190: Stream Quality & Resilience** - Disconnect freeze, auto-restart, timeout alignment, completion freeze
+- [ ] **Phase 191: Vault Unlock Fix & Bootstrap Rehydration** - Fix broken vault unlock propagation and eager session key rehydration on SW restart
+- [ ] **Phase 192: Payment Method Backend Wiring** - Wire all 5 payment message handlers with separate unlock gate
+- [ ] **Phase 193: Payment Management UI** - Options page card CRUD with masked display, validation, and vault lock/unlock
+- [ ] **Phase 194: Autopilot Tools & Confirmation Dialog** - fill_credential, fill_payment_method tools with sidepanel payment confirmation
+- [ ] **Phase 195: MCP Tools & Security Boundary** - 4 MCP vault tools in isolated vault.ts with domain derivation from active tab
+- [ ] **Phase 196: Logging Audit & Hardening Pass** - Verify no secrets leak through any log path
 
 ## Phase Details
 
-### Phase 186: Canonical Surface Determination
-**Goal**: One dashboard.js is the single source of truth, tests target it
-**Depends on**: Nothing (first phase)
-**Requirements**: SURF-01, SURF-02
+### Phase 191: Vault Unlock Fix & Bootstrap Rehydration
+**Goal**: Users can unlock the credential vault and have it remain usable across service worker restarts
+**Depends on**: Nothing (first phase -- root blocker)
+**Requirements**: VAULT-01, VAULT-02, VAULT-03
 **Success Criteria** (what must be TRUE):
-  1. Exactly one dashboard.js file is designated canonical (other archived/deleted)
-  2. Test suite exercises the canonical dashboard file, not the non-canonical one
-  3. A developer can identify which dashboard.js to modify within 10 seconds
-**Plans:** 1 plan
-
-Plans:
-- [x] 186-01-PLAN.md -- Copy missing JS to canonical dir, delete legacy-vanilla, fix test imports
-
-### Phase 187: Task Lifecycle Bridge
-**Goal**: Task completions, failures, and per-iteration progress reach the dashboard
-**Depends on**: Phase 186
-**Requirements**: PIPE-02, PIPE-03, PIPE-04
-**Success Criteria** (what must be TRUE):
-  1. Dashboard receives ext:task-complete with status, summary, action count, cost, final URL, page title
-  2. Each agent-loop iteration sends ext:task-progress with current action and iteration count
-  3. broadcastDashboardProgress forwards progress to connected dashboard clients via fsbWebSocket
-  4. After WebSocket reconnect mid-task, dashboard receives recovery snapshot with current/recent task state
+  1. User clicks unlock in the vault popup, enters master password, and the vault becomes accessible in background.js immediately
+  2. User can create a new vault, lock it, and check its status through extension messaging without errors
+  3. After Chrome kills and restarts the service worker, vault operations succeed without requiring re-unlock (session key rehydrates from chrome.storage.session)
 **Plans:** 2 plans
-
 Plans:
-- [x] 187-01-PLAN.md -- Implement broadcastDashboardProgress and tag dashboard sessions
-- [x] 187-02-PLAN.md -- Wire automationComplete interception and recovery snapshot
+- [ ] 191-01-PLAN.md -- Wire vault lifecycle message handlers + fix unlock popup action
+- [ ] 191-02-PLAN.md -- Eager session key rehydration at SW startup
 
-### Phase 188: DOM Stream Forwarding Bridge
-**Goal**: Live DOM preview data flows from content script through background.js to dashboard
-**Depends on**: Phase 186
-**Requirements**: PIPE-01
+### Phase 192: Payment Method Backend Wiring
+**Goal**: Payment method CRUD operations work end-to-end through extension messaging with proper access control
+**Depends on**: Phase 191
+**Requirements**: PAY-01, PAY-02, PAY-03, PAY-04
 **Success Criteria** (what must be TRUE):
-  1. Snapshot, mutation, scroll, overlay, dialog messages each have a case handler forwarding to fsbWebSocket
-  2. Dashboard DOM preview iframe renders current page content when task is running
-  3. domStreamReady message is handled (not dropped by default case)
-**Plans:** 1 plan
+  1. User can save a complete payment method (card number, expiry, CVV, name, billing address) via message passing and retrieve it later
+  2. Listing payment methods returns only masked data (last 4 digits, brand, cardholder name) -- never full card number or CVV
+  3. User can update cardholder name or billing address, and delete a payment method entirely
+  4. Payment operations require their own unlock gate separate from the credential vault unlock
+**Plans**: TBD
 
-Plans:
-- [x] 188-01-PLAN.md -- Add 6 domStream case handlers forwarding to ext:dom-* via fsbWebSocket
-
-### Phase 189: Dashboard Result UI
-**Goal**: Users see structured task results and live action feedback on the dashboard
-**Depends on**: Phase 187, Phase 188
-**Requirements**: DRES-01, DRES-02, DRES-03
+### Phase 193: Payment Management UI
+**Goal**: Users can manage payment methods visually from the options page
+**Depends on**: Phase 192
+**Requirements**: PAYUI-01, PAYUI-02, PAYUI-03, PAYUI-04
 **Success Criteria** (what must be TRUE):
-  1. Completed task displays result card with status badge, action count, elapsed time, cost, final URL
-  2. Scrolling mini-log shows recent actions during execution
-  3. Result card includes AI-generated summary text
-  4. Failed/partial tasks show distinct status badge
-**Plans:** 1 plan
+  1. Options page displays saved cards with masked numbers (xxxx-xxxx-xxxx-1234) and brand icons (Visa/MC/Amex)
+  2. Add-card modal validates card number (Luhn check), expiry (future date), and auto-detects brand from BIN prefix
+  3. User can edit cardholder name/billing and delete cards from the options page
+  4. Options page shows lock/unlock toggle for the payment vault with visual state feedback
+**Plans**: TBD
+**UI hint**: yes
 
-Plans:
-- [x] 189-01-PLAN.md -- Structured result card, scrolling action feed, AI summary rendering
-
-### Phase 190: Stream Quality & Resilience
-**Goal**: DOM preview stream handles disconnects, reconnects, timeouts, and completion gracefully
-**Depends on**: Phase 188
-**Requirements**: STRM-01, STRM-02, STRM-03, STRM-04
+### Phase 194: Autopilot Tools & Confirmation Dialog
+**Goal**: AI autopilot can fill credentials and payment methods into forms with user confirmation for payments
+**Depends on**: Phase 192, Phase 193
+**Requirements**: AUTO-01, AUTO-02, AUTO-03, AUTO-04
 **Success Criteria** (what must be TRUE):
-  1. DOM preview freezes on last frame when WebSocket disconnects (does not clear)
-  2. DOM stream auto-restarts after WebSocket reconnection
-  3. Dashboard timeout matches extension safety limit (10 minutes)
-  4. Preview freezes on task completion showing final page state
-**Plans:** 1 plan
+  1. AI autopilot invokes fill_credential on a login page and the correct username/password are filled without user confirmation
+  2. AI autopilot invokes fill_payment_method on a checkout page and a sidepanel dialog appears showing card brand, last 4, and merchant domain before any fill occurs
+  3. User approving the confirmation dialog causes payment fields to fill; declining aborts
+  4. Payment field detection correctly identifies card number, CVV, expiry, cardholder name, and billing address inputs on checkout pages
+**Plans**: TBD
+**UI hint**: yes
 
-Plans:
-- [x] 190-01-PLAN.md -- Preview freeze overlays, reconnect auto-restart, timeout alignment to 10 min
+### Phase 195: MCP Tools & Security Boundary
+**Goal**: MCP clients can trigger credential and payment fills without ever receiving raw secrets
+**Depends on**: Phase 194
+**Requirements**: MCP-01, MCP-02, MCP-03, MCP-04, SEC-02, SEC-03
+**Success Criteria** (what must be TRUE):
+  1. MCP list_credentials returns domain + username pairs only -- password field is never present in the response
+  2. MCP fill_credential triggers autofill on the active tab's login form -- password travels background.js to content script only, never over WebSocket
+  3. MCP list_payment_methods returns last 4 + brand only -- full card data never present in response
+  4. MCP use_payment_method shows terminal confirmation prompt before fill executes; fill domain is derived from chrome.tabs.get, not from the MCP request payload
+  5. MCP vault tools live in a dedicated vault.ts file, not auto-registered through the shared TOOL_REGISTRY path
+**Plans**: TBD
+
+### Phase 196: Logging Audit & Hardening Pass
+**Goal**: No sensitive data appears in any log output across the entire system
+**Depends on**: Phase 195
+**Requirements**: SEC-01
+**Success Criteria** (what must be TRUE):
+  1. automationLogger never logs passwords, full card numbers, or CVV values (redacted to "***" or last-4)
+  2. MCP bridge WebSocket messages contain no raw credentials or full card data in any direction
+  3. Browser console.log/warn/error calls from vault and payment code paths produce only redacted output
+**Plans**: TBD
 
 ## Progress
 
-**Execution Order:** 186 -> 187 + 188 (parallel) -> 189 (after both) -> 190 (after 188)
+**Execution Order:** 191 -> 192 -> 193 -> 194 (after 192+193) -> 195 (after 194) -> 196 (after 195)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 186. Canonical Surface Determination | 1/1 | Complete | 2026-04-19 |
-| 187. Task Lifecycle Bridge | 2/2 | Complete | 2026-04-19 |
-| 188. DOM Stream Forwarding Bridge | 1/1 | Complete | 2026-04-19 |
-| 189. Dashboard Result UI | 1/1 | Complete | 2026-04-20 |
-| 190. Stream Quality & Resilience | 1/1 | Complete | 2026-04-20 |
+| 191. Vault Unlock Fix & Bootstrap Rehydration | 0/2 | Not started | - |
+| 192. Payment Method Backend Wiring | 0/? | Not started | - |
+| 193. Payment Management UI | 0/? | Not started | - |
+| 194. Autopilot Tools & Confirmation Dialog | 0/? | Not started | - |
+| 195. MCP Tools & Security Boundary | 0/? | Not started | - |
+| 196. Logging Audit & Hardening Pass | 0/? | Not started | - |
 
 ## Previous Milestones
 
