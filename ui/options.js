@@ -2709,7 +2709,7 @@ async function loadPaymentVaultStatus() {
   const paymentManager = document.getElementById('paymentMethodsManager');
 
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getCredentialVaultStatus' });
+    const response = await chrome.runtime.sendMessage({ action: 'getPaymentVaultStatus' });
     if (!response) {
       if (statusText) statusText.textContent = 'Unable to reach vault service';
       return;
@@ -2723,12 +2723,18 @@ async function loadPaymentVaultStatus() {
     if (paymentManager) paymentManager.style.display = 'none';
 
     if (!response.configured || !response.unlocked) {
-      // Vault not configured or locked -- payment methods are blocked
+      // Credential vault not configured or locked -- payment methods blocked
       if (statusText) statusText.textContent = 'Unlock the credential vault first.';
       if (blockedPanel) blockedPanel.style.display = 'block';
+    } else if (!response.paymentUnlocked) {
+      // Credential vault unlocked but payment access locked
+      if (statusText) statusText.textContent = 'Payment methods are locked.';
+      if (unlockPanel) unlockPanel.style.display = 'block';
     } else {
-      // Vault unlocked -- payment methods available (handlers wired in Phase 192)
-      if (statusText) statusText.textContent = 'Payment methods available (coming soon).';
+      // Payment methods fully unlocked
+      if (statusText) statusText.textContent = 'Payment methods unlocked for this session.';
+      if (unlockedPanel) unlockedPanel.style.display = 'block';
+      if (lockBtn) lockBtn.style.display = 'inline-flex';
     }
   } catch (error) {
     console.error('Failed to check payment vault status:', error);

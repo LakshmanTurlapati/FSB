@@ -23,8 +23,8 @@
   3. After Chrome kills and restarts the service worker, vault operations succeed without requiring re-unlock (session key rehydrates from chrome.storage.session)
 **Plans:** 2 plans
 Plans:
-- [ ] 191-01-PLAN.md -- Wire vault lifecycle message handlers + fix unlock popup action
-- [ ] 191-02-PLAN.md -- Eager session key rehydration at SW startup
+- [x] 191-01-PLAN.md -- Wire vault lifecycle message handlers + fix unlock popup action
+- [x] 191-02-PLAN.md -- Eager session key rehydration at SW startup
 
 ### Phase 192: Payment Method Backend Wiring
 **Goal**: Payment method CRUD operations work end-to-end through extension messaging with proper access control
@@ -35,7 +35,9 @@ Plans:
   2. Listing payment methods returns only masked data (last 4 digits, brand, cardholder name) -- never full card number or CVV
   3. User can update cardholder name or billing address, and delete a payment method entirely
   4. Payment operations require their own unlock gate separate from the credential vault unlock
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 192-01-PLAN.md -- Wire 8 payment message handlers (5 CRUD + 3 access gate)
 
 ### Phase 193: Payment Management UI
 **Goal**: Users can manage payment methods visually from the options page
@@ -89,8 +91,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 191. Vault Unlock Fix & Bootstrap Rehydration | 0/2 | Not started | - |
-| 192. Payment Method Backend Wiring | 0/? | Not started | - |
+| 191. Vault Unlock Fix & Bootstrap Rehydration | 2/2 | Complete    | 2026-04-20 |
+| 192. Payment Method Backend Wiring | 0/1 | Not started | - |
 | 193. Payment Management UI | 0/? | Not started | - |
 | 194. Autopilot Tools & Confirmation Dialog | 0/? | Not started | - |
 | 195. MCP Tools & Security Boundary | 0/? | Not started | - |

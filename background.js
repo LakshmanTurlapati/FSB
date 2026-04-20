@@ -4412,6 +4412,96 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    // Payment method CRUD actions (Phase 192)
+    case 'savePaymentMethod':
+      (async () => {
+        try {
+          const result = await secureConfig.savePaymentMethod(request.data);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAllPaymentMethods':
+      (async () => {
+        try {
+          const methods = await secureConfig.getAllPaymentMethods();
+          sendResponse({ success: true, paymentMethods: methods });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getFullPaymentMethod':
+      (async () => {
+        try {
+          const method = await secureConfig.getFullPaymentMethod(request.id);
+          sendResponse({ success: true, paymentMethod: method });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'updatePaymentMethod':
+      (async () => {
+        try {
+          const result = await secureConfig.updatePaymentMethod(request.id, request.updates);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'deletePaymentMethod':
+      (async () => {
+        try {
+          const result = await secureConfig.deletePaymentMethod(request.id);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    // Payment access gate actions (Phase 192)
+    case 'unlockPaymentMethods':
+      (async () => {
+        try {
+          const result = await secureConfig.unlockPaymentMethods(request.passphrase);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'lockPaymentMethods':
+      (async () => {
+        try {
+          const result = await secureConfig.lockPaymentMethods();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getPaymentVaultStatus':
+      (async () => {
+        try {
+          const result = await secureConfig.getPaymentVaultStatus();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
     // SM-22: Site map retrieval for AI context injection
     case 'getSiteMap':
       (async () => {
