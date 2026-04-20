@@ -4,11 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+      - 'mcp-v*'
   workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: mcp-server
@@ -21,6 +24,35 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - run: npm ci
-      - run: npm publish --access public
+      - run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "version=$(node -p 'require("./package.json").version')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "fsb-mcp-server v${{ steps.version.outputs.version }}"
+          body: |
+            ## Install / Update
+
+            ```bash
+            npx -y fsb-mcp-server@${{ steps.version.outputs.version }}
+            ```
+
+            Or install globally:
+            ```bash
+            npm i -g fsb-mcp-server@${{ steps.version.outputs.version }}
+            ```
+
+            Install into MCP clients:
+            ```bash
+            npx fsb-mcp-server install --all
+            ```
+          generate_release_notes: true
