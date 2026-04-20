@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-20T08:15:51.638Z",
+  "phase": "post-milestone",
+  "phase_name": "v0.9.33 complete - pre-verification",
+  "phase_dir": ".planning/",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Fix sidepanel completion message rendering (literal \\n)", "status": "done", "commit": "3c9a813"},
+    {"id": 2, "name": "Fix dashboard metrics all-zeros (missing provider param)", "status": "done", "commit": "3c9a813"},
+    {"id": 3, "name": "Reinstall FSB MCP server (user scope, v0.5.2)", "status": "done", "commit": null}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "Push 21 local commits to origin/main", "status": "not_started"},
+    {"id": 5, "name": "Verify showcase dashboard deployment after push", "status": "not_started"},
+    {"id": 6, "name": "Run /gsd-verify-work or /gsd-complete-milestone for v0.9.33", "status": "not_started"},
+    {"id": 7, "name": "Update ROADMAP.md to mark phases 189/190 as Complete", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Fix literal \\n in markdown-renderer.js via normalizeEscapes + plainTextToHtml helpers", "rationale": "AI returns escaped newlines; markdown detector cant match patterns without real newlines", "phase": "post-190"},
+    {"decision": "Fix BackgroundAnalytics.trackUsage missing provider param", "rationale": "Undeclared provider variable caused ReferenceError on every call, preventing saveData from running", "phase": "post-190"}
+  ],
+  "uncommitted_files": [".planning/ROADMAP.md", ".planning/STATE.md", ".mcp.json"],
+  "next_action": "Push local commits to origin/main, verify showcase deployment, then run /gsd-complete-milestone",
+  "context_notes": "All 5 milestone phases (186-190) are executed with summaries. Two post-milestone bugs were fixed and committed. ROADMAP.md and STATE.md have local edits that should be committed. 20+ commits ahead of origin/main including all v0.9.33 work."
+}
