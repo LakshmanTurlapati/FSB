@@ -1393,6 +1393,22 @@ restoreSessionsFromStorage().catch(err => {
   console.warn('FSB: Failed to restore sessions on wake:', err);
 });
 
+// Eagerly rehydrate vault session key on service worker startup (Phase 191 - VAULT-03)
+// chrome.storage.session survives SW restarts but the in-memory SecureConfig fields reset to null.
+// Calling these methods loads persisted keys back into memory so vault operations work
+// without requiring re-unlock after Chrome kills the idle service worker.
+(async () => {
+  try {
+    const sessionKey = await secureConfig._loadCredentialSessionKey();
+    await secureConfig._loadPaymentAccessState();
+    if (sessionKey) {
+      console.log('[FSB] Vault session key rehydrated from chrome.storage.session');
+    }
+  } catch (err) {
+    console.warn('[FSB] Failed to rehydrate vault session on wake:', err.message || err);
+  }
+})();
+
 // Periodic cleanup of stale sessions (every 5 minutes)
 setInterval(async () => {
   const now = Date.now();
