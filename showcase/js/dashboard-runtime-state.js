@@ -90,6 +90,34 @@
       };
     }
 
+    if (previewState === 'frozen-disconnect') {
+      return {
+        chipLabel: 'disconnected',
+        chipTone: 'blocked',
+        detailText: 'Stream disconnected -- showing last frame',
+        showIframe: true,
+        showLoading: false,
+        showDisconnected: false,
+        showFrozenOverlay: true,
+        frozenLabel: 'Disconnected',
+        frozenType: 'frozen-disconnect'
+      };
+    }
+
+    if (previewState === 'frozen-complete') {
+      return {
+        chipLabel: 'complete',
+        chipTone: 'streaming',
+        detailText: 'Task finished -- showing final page',
+        showIframe: true,
+        showLoading: false,
+        showDisconnected: false,
+        showFrozenOverlay: true,
+        frozenLabel: 'Task Complete',
+        frozenType: 'frozen-complete'
+      };
+    }
+
     if (previewState === 'disconnected') {
       return {
         chipLabel: 'disconnected',

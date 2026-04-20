@@ -64,6 +64,36 @@ const pausedPreview = runtimeState.derivePreviewSurface({
 assertEqual(pausedPreview.chipLabel, 'paused', 'paused preview shows paused chip');
 assertEqual(pausedPreview.showIframe, true, 'paused preview keeps iframe visible');
 
+// frozen-disconnect state
+const frozenDisconnect = runtimeState.derivePreviewSurface({
+  previewState: 'frozen-disconnect',
+  lastRecoveredStreamState: '',
+  previewNotReadyReason: '',
+  streamToggleOn: true,
+  previewResyncPending: false,
+  hasLiveSnapshot: true
+});
+assertEqual(frozenDisconnect.showIframe, true, 'frozen-disconnect keeps iframe visible');
+assertEqual(frozenDisconnect.showFrozenOverlay, true, 'frozen-disconnect shows frozen overlay');
+assertEqual(frozenDisconnect.frozenLabel, 'Disconnected', 'frozen-disconnect shows Disconnected label');
+assertEqual(frozenDisconnect.chipLabel, 'disconnected', 'frozen-disconnect chip says disconnected');
+assertEqual(frozenDisconnect.showDisconnected, false, 'frozen-disconnect hides standard disconnected overlay');
+
+// frozen-complete state
+const frozenComplete = runtimeState.derivePreviewSurface({
+  previewState: 'frozen-complete',
+  lastRecoveredStreamState: '',
+  previewNotReadyReason: '',
+  streamToggleOn: true,
+  previewResyncPending: false,
+  hasLiveSnapshot: true
+});
+assertEqual(frozenComplete.showIframe, true, 'frozen-complete keeps iframe visible');
+assertEqual(frozenComplete.showFrozenOverlay, true, 'frozen-complete shows frozen overlay');
+assertEqual(frozenComplete.frozenLabel, 'Task Complete', 'frozen-complete shows Task Complete label');
+assertEqual(frozenComplete.chipLabel, 'complete', 'frozen-complete chip says complete');
+assertEqual(frozenComplete.showDisconnected, false, 'frozen-complete hides standard disconnected overlay');
+
 console.log('\n--- remote control surface ---');
 
 const blockedRemote = runtimeState.deriveRemoteControlSurface({

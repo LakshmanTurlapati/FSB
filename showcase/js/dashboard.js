@@ -49,7 +49,7 @@
   var agentRunningId = null;        // agentId currently running via Run Now
 
   // DOM preview state
-  var previewState = 'hidden'; // 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error'
+  var previewState = 'hidden'; // 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'frozen-disconnect' | 'frozen-complete' | 'error'
   var previewLayoutMode = 'inline'; // 'inline' | 'maximized' | 'pip' | 'fullscreen'
   var previewScale = 1;
   var previewHideTimer = null;
@@ -622,6 +622,8 @@
   var previewStatus = document.getElementById('dash-preview-status');
   var previewRcState = document.getElementById('dash-preview-rc-state');
   var previewDisconnected = document.getElementById('dash-preview-disconnected');
+  var previewFrozenOverlay = document.getElementById('dash-preview-frozen-overlay');
+  var previewFrozenLabel = previewFrozenOverlay ? previewFrozenOverlay.querySelector('.dash-preview-frozen-label') : null;
   var previewError = document.getElementById('dash-preview-error');
   var previewDialog = document.getElementById('dash-preview-dialog');
   var previewDialogType = document.getElementById('dash-preview-dialog-type');
@@ -1213,6 +1215,11 @@
         pageTitle: payload.pageTitle || '',
         taskStatus: payload.taskStatus || 'failed'
       });
+    }
+
+    // Per D-06/D-07: Freeze preview on final page state with "Task Complete" badge
+    if (previewState === 'streaming' || previewState === 'frozen-disconnect') {
+      setPreviewState('frozen-complete');
     }
 
     // Reset last progress action for next task
@@ -2419,6 +2426,12 @@
   function scheduleStreamRecovery(trigger) {
     var requestStatusSent = sendDashboardWSMessage('dash:request-status', { trigger: trigger });
 
+    // Do not restart stream after task completion -- user wants to see final page state
+    if (previewState === 'frozen-complete') {
+      clearPendingStreamRecovery();
+      return;
+    }
+
     if (!streamToggleOn) {
       clearPendingStreamRecovery();
       updatePreviewTooltip();
@@ -2525,6 +2538,7 @@
     if (previewDialog) previewDialog.style.display = 'none';
     if (previewStatus) { previewStatus.style.display = 'none'; previewStatus.className = 'dash-preview-status'; }
     if (previewDisconnected) previewDisconnected.style.display = 'none';
+    if (previewFrozenOverlay) previewFrozenOverlay.style.display = 'none';
     if (previewError) previewError.style.display = 'none';
     renderStateChip(previewRcState, 'dash-preview-rc-state', '', '');
 
@@ -2553,10 +2567,17 @@
           previewDisconnected.style.display = 'flex';
           setPreviewDisconnectedText(previewSurface.detailText);
         }
+        if (previewFrozenOverlay && previewSurface.showFrozenOverlay) {
+          previewFrozenOverlay.style.display = 'flex';
+          if (previewFrozenLabel) {
+            previewFrozenLabel.textContent = previewSurface.frozenLabel || 'Frozen';
+            previewFrozenLabel.className = 'dash-preview-frozen-label ' + (previewSurface.frozenType || '');
+          }
+        }
         renderStateChip(previewStatus, 'dash-preview-status', previewSurface.chipLabel, previewSurface.chipTone);
         break;
     }
-    if (newState !== 'streaming' && remoteControlOn) {
+    if (newState !== 'streaming' && newState !== 'frozen-disconnect' && newState !== 'frozen-complete' && remoteControlOn) {
       setRemoteControl(false, { silent: newState !== 'paused', source: 'preview-state' });
     }
     renderRemoteControlState(lastRemoteControlState, { skipToggleSync: true });
@@ -3431,7 +3452,9 @@
         setTaskRecoveryPending(true, 'ws-disconnected');
       }
       updateTaskOfflineState();
-      if (previewState === 'streaming' || previewState === 'loading') {
+      if (previewState === 'streaming') {
+        setPreviewState('frozen-disconnect');
+      } else if (previewState === 'loading') {
         setPreviewState('disconnected');
       }
       scheduleWSReconnect();
