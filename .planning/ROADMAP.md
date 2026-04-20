@@ -37,7 +37,7 @@ Plans:
   4. Payment operations require their own unlock gate separate from the credential vault unlock
 **Plans:** 1 plan
 Plans:
-- [ ] 192-01-PLAN.md -- Wire 8 payment message handlers (5 CRUD + 3 access gate)
+- [x] 192-01-PLAN.md -- Wire 8 payment message handlers (5 CRUD + 3 access gate)
 
 ### Phase 193: Payment Management UI
 **Goal**: Users can manage payment methods visually from the options page
@@ -48,8 +48,10 @@ Plans:
   2. Add-card modal validates card number (Luhn check), expiry (future date), and auto-detects brand from BIN prefix
   3. User can edit cardholder name/billing and delete cards from the options page
   4. Options page shows lock/unlock toggle for the payment vault with visual state feedback
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 2 plans
+Plans:
+- [ ] 193-01-PLAN.md -- Payment vault unlock/lock with PIN input + card list rendering
+- [ ] 193-02-PLAN.md -- Add/edit modal with validation + delete flow
 
 ### Phase 194: Autopilot Tools & Confirmation Dialog
 **Goal**: AI autopilot can fill credentials and payment methods into forms with user confirmation for payments
@@ -92,8 +94,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 191. Vault Unlock Fix & Bootstrap Rehydration | 2/2 | Complete    | 2026-04-20 |
-| 192. Payment Method Backend Wiring | 0/1 | Not started | - |
-| 193. Payment Management UI | 0/? | Not started | - |
+| 192. Payment Method Backend Wiring | 1/1 | Complete    | 2026-04-20 |
+| 193. Payment Management UI | 0/2 | Not started | - |
 | 194. Autopilot Tools & Confirmation Dialog | 0/? | Not started | - |
 | 195. MCP Tools & Security Boundary | 0/? | Not started | - |
 | 196. Logging Audit & Hardening Pass | 0/? | Not started | - |
