@@ -1513,3 +1513,114 @@ body[data-sidepanel-view="history"] .author-footer {
     max-width: 180px;
   }
 }
+
+/* Payment fill confirmation overlay */
+.payment-fill-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.payment-fill-confirm-overlay.hidden {
+  display: none;
+}
+
+.payment-fill-confirm-card {
+  background: var(--bg-secondary, #1e1e2e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.payment-fill-confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  margin-bottom: 16px;
+}
+
+.payment-fill-confirm-header i {
+  color: var(--accent-color, #7c5cff);
+  font-size: 18px;
+}
+
+.payment-fill-confirm-body {
+  margin-bottom: 20px;
+}
+
+.payment-fill-confirm-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.payment-fill-confirm-brand {
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 14px;
+}
+
+.payment-fill-confirm-last4 {
+  color: var(--text-secondary, #888);
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.payment-fill-confirm-domain {
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.payment-fill-confirm-note {
+  color: var(--text-tertiary, #666);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.payment-fill-confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.payment-fill-confirm-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.payment-fill-confirm-btn:hover {
+  opacity: 0.85;
+}
+
+.payment-fill-confirm-btn.allow {
+  background: var(--accent-color, #7c5cff);
+  color: #fff;
+}
+
+.payment-fill-confirm-btn.deny {
+  background: var(--bg-tertiary, #2a2a3e);
+  color: var(--text-secondary, #888);
+  border: 1px solid var(--border-color, #333);
+}

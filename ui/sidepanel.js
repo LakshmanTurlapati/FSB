@@ -1239,6 +1239,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       return;
 
+    case 'paymentFillConfirmation':
+      showPaymentFillConfirmation(request);
+      break;
+
     case 'sessionStateEvent':
       if (request.sessionId !== currentSessionId) break;
       switch (request.eventType) {
@@ -1560,6 +1564,64 @@ function showPaymentPrompt(domain, paymentPrompt) {
   }
 }
 
+
+/**
+ * Show payment fill confirmation overlay.
+ * Called when AI autopilot invokes fill_payment_method -- background sends confirmation
+ * request with card brand, last 4, and merchant domain. User must approve or deny.
+ */
+function showPaymentFillConfirmation(data) {
+  const overlay = document.getElementById('paymentFillConfirmOverlay');
+  if (!overlay) return;
+
+  const brandLabelMap = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'AmEx',
+    discover: 'Discover',
+    diners: 'Diners',
+    jcb: 'JCB'
+  };
+
+  const brandEl = document.getElementById('pfcBrand');
+  const last4El = document.getElementById('pfcLast4');
+  const domainEl = document.getElementById('pfcDomain');
+
+  if (brandEl) brandEl.textContent = brandLabelMap[data.cardBrand] || data.cardBrand || 'Card';
+  if (last4El) last4El.textContent = '****' + (data.last4 || '****');
+  if (domainEl) domainEl.textContent = 'on ' + (data.merchantDomain || 'this page');
+
+  overlay.classList.remove('hidden');
+
+  // Wire Allow button
+  const allowBtn = document.getElementById('pfcAllow');
+  const denyBtn = document.getElementById('pfcDeny');
+
+  function cleanup() {
+    overlay.classList.add('hidden');
+    if (allowBtn) allowBtn.removeEventListener('click', onAllow);
+    if (denyBtn) denyBtn.removeEventListener('click', onDeny);
+  }
+
+  function onAllow() {
+    cleanup();
+    chrome.runtime.sendMessage({
+      action: 'paymentFillApproved',
+      paymentMethodId: data.paymentMethodId
+    }).catch(() => {});
+  }
+
+  function onDeny() {
+    cleanup();
+    chrome.runtime.sendMessage({
+      action: 'paymentFillDenied',
+      paymentMethodId: data.paymentMethodId
+    }).catch(() => {});
+  }
+
+  if (allowBtn) allowBtn.addEventListener('click', onAllow);
+  if (denyBtn) denyBtn.addEventListener('click', onDeny);
+}
 
 // Handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {
