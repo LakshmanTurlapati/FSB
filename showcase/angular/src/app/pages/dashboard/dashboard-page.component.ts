@@ -19,6 +19,9 @@ interface PreviewSurface {
   showIframe: boolean;
   showLoading: boolean;
   showDisconnected: boolean;
+  showFrozenOverlay?: boolean;
+  frozenLabel?: string;
+  frozenType?: string;
 }
 
 interface RemoteControlSurface {
@@ -49,7 +52,7 @@ interface TransportDiagnostics {
 }
 
 type TaskState = 'idle' | 'running' | 'success' | 'failed';
-type PreviewState = 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error' | 'paused';
+type PreviewState = 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error' | 'paused' | 'frozen-disconnect' | 'frozen-complete';
 type PreviewLayoutMode = 'inline' | 'maximized' | 'pip' | 'fullscreen';
 
 @Component({
@@ -68,7 +71,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private readonly SESSION_KEY = 'fsb_dashboard_session';
   private readonly SESSION_EXPIRES_KEY = 'fsb_dashboard_expires';
   private readonly POLL_INTERVAL = 30000;
-  private readonly TASK_TIMEOUT_MS = 5 * 60 * 1000;
+  private readonly TASK_TIMEOUT_MS = 10 * 60 * 1000;
   private readonly TASK_RECOVERY_DEADLINE_MS = 20000;
   private readonly TASK_RECOVERY_WAIT_TEXT = 'Waiting for task recovery...';
   private readonly TASK_RECOVERY_TIMEOUT_TEXT = 'Task recovery timed out';
@@ -220,6 +223,12 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private previewRcBtn!: HTMLElement | null;
   private remoteOverlay!: HTMLElement | null;
   private previewFsExit!: HTMLElement | null;
+  private previewFrozenOverlay!: HTMLElement | null;
+  private previewFrozenLabel!: HTMLElement | null;
+
+  // Action feed DOM refs
+  private actionFeed!: HTMLElement | null;
+  private readonly ACTION_FEED_MAX = 15;
 
   // Agent management DOM refs
   private newAgentBtn!: HTMLElement | null;
@@ -393,6 +402,9 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.previewRcBtn = this.el('dash-preview-rc-btn');
     this.remoteOverlay = this.el('dash-remote-overlay');
     this.previewFsExit = this.el('dash-preview-fs-exit');
+    this.previewFrozenOverlay = this.el('dash-preview-frozen-overlay');
+    this.previewFrozenLabel = this.previewFrozenOverlay ? this.previewFrozenOverlay.querySelector('.dash-preview-frozen-label') : null;
+    this.actionFeed = this.el('dash-action-feed');
 
     this.newAgentBtn = this.el('dash-new-agent-btn');
     this.agentContainer = this.el('dash-agent-container');
@@ -1192,6 +1204,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     if (this.taskProgressView) this.taskProgressView.style.display = 'none';
     if (this.taskSuccessView) this.taskSuccessView.style.display = 'none';
     if (this.taskFailedView) this.taskFailedView.style.display = 'none';
+    // Clear action feed on state transition (Phase 189)
+    if (this.actionFeed && newState !== 'running') { this.actionFeed.innerHTML = ''; }
 
     switch (newState) {
       case 'idle':
@@ -1225,7 +1239,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
         if (this.taskTimeoutTimer) clearTimeout(this.taskTimeoutTimer);
         this.taskTimeoutTimer = setTimeout(() => {
           if (this.taskState === 'running') {
-            this.setTaskState('failed', { error: 'Task timed out (5 minutes)' });
+            this.setTaskState('failed', { error: 'Task timed out (10 minutes)' });
           }
         }, this.TASK_TIMEOUT_MS);
         this.disableAllTaskInputs(true);
@@ -1245,8 +1259,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
         if (this.taskAction) this.taskAction.style.display = 'none';
         {
           const elapsed = data.elapsed || (Date.now() - this.taskStartTime);
-          if (this.taskSuccessStatus) this.taskSuccessStatus.innerHTML = '\u2713 Complete \u00b7 Completed in ' + this.formatDuration(elapsed);
-          if (this.taskResultText) this.taskResultText.textContent = data.summary || '';
+          data.elapsed = elapsed;
+          this.renderResultCard(this.taskSuccessView, data, true);
         }
         this.disableAllTaskInputs(false);
         if (this.taskInputNext) this.taskInputNext.value = '';
@@ -1265,12 +1279,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
         if (this.taskAction) this.taskAction.style.display = 'none';
         {
           const failedElapsed = data.elapsed || (this.taskStartTime ? Date.now() - this.taskStartTime : 0);
-          if (this.taskFailedStatus) {
-            let statusText = '\u2717 Failed';
-            if (failedElapsed > 0) statusText += ' \u00b7 ' + this.formatDuration(failedElapsed);
-            this.taskFailedStatus.innerHTML = statusText;
-          }
-          if (this.taskErrorText) this.taskErrorText.textContent = data.error || 'Task could not be completed';
+          data.elapsed = failedElapsed;
+          this.renderResultCard(this.taskFailedView, data, false);
         }
         this.disableAllTaskInputs(false);
         if (this.taskInputRetry) this.taskInputRetry.value = '';
@@ -1317,6 +1327,25 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       this.taskAction.textContent = payload.action;
       this.lastProgressAction = payload.action;
     }
+    // Action feed: append timestamped entry (Phase 189)
+    if (this.actionFeed && payload.action) {
+      const entry = document.createElement('div');
+      entry.className = 'dash-action-feed-entry';
+      const ts = document.createElement('span');
+      ts.className = 'dash-action-feed-ts';
+      const now = new Date();
+      ts.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+      const txt = document.createElement('span');
+      txt.className = 'dash-action-feed-text';
+      txt.textContent = payload.action;
+      entry.appendChild(ts);
+      entry.appendChild(txt);
+      this.actionFeed.appendChild(entry);
+      while (this.actionFeed.children.length > this.ACTION_FEED_MAX) {
+        this.actionFeed.removeChild(this.actionFeed.firstChild!);
+      }
+      this.actionFeed.scrollTop = this.actionFeed.scrollHeight;
+    }
     this.renderTaskRecoveryStatus(this.getTaskRunId(payload), payload.taskSource || '');
   }
 
@@ -1341,15 +1370,35 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.maybeClearTaskRecoveryFromPayload(payload);
     this.markTaskRunCompleted(this.getTaskRunId(payload));
 
+    // Freeze preview on final page state (Phase 190: STRM-01/STRM-04)
+    if (this.previewState === 'streaming' || this.previewState === 'frozen-disconnect') {
+      this.setPreviewState('frozen-complete');
+    }
+
+    const resultData = {
+      summary: payload.summary || '',
+      elapsed: payload.elapsed || 0,
+      actionCount: payload.actionCount || 0,
+      totalCost: payload.totalCost || 0,
+      finalUrl: payload.finalUrl || '',
+      pageTitle: payload.pageTitle || '',
+      taskStatus: payload.taskStatus || '',
+      error: '',
+    };
+
     if (payload.success) {
-      this.setTaskState('success', { summary: payload.summary || '', elapsed: payload.elapsed || 0 });
+      this.setTaskState('success', resultData);
     } else if (payload.stopped) {
       let stopMsg = 'Stopped by user';
       const actionContext = payload.lastAction || this.lastProgressAction;
       if (actionContext) stopMsg += ' -- was: ' + actionContext;
-      this.setTaskState('failed', { error: stopMsg, elapsed: payload.elapsed || 0 });
+      resultData.error = stopMsg;
+      resultData.taskStatus = resultData.taskStatus || 'stopped';
+      this.setTaskState('failed', resultData);
     } else {
-      this.setTaskState('failed', { error: payload.error || 'Task could not be completed', elapsed: payload.elapsed || 0 });
+      resultData.error = payload.error || 'Task could not be completed';
+      resultData.taskStatus = resultData.taskStatus || 'failed';
+      this.setTaskState('failed', resultData);
     }
     this.lastProgressAction = '';
   }
@@ -2344,7 +2393,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
 
   private scheduleStreamRecovery(trigger: string): void {
     this.sendDashboardWSMessage('dash:request-status', { trigger });
-    if (!this.streamToggleOn) {
+    if (!this.streamToggleOn || this.previewState === 'frozen-complete') {
       this.clearPendingStreamRecovery();
       this.updatePreviewTooltip();
       return;
@@ -2420,6 +2469,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     if (this.previewStatus) { this.previewStatus.style.display = 'none'; this.previewStatus.className = 'dash-preview-status'; }
     if (this.previewDisconnected) this.previewDisconnected.style.display = 'none';
     if (this.previewError) this.previewError.style.display = 'none';
+    if (this.previewFrozenOverlay) this.previewFrozenOverlay.style.display = 'none';
     this.renderStateChip(this.previewRcState, 'dash-preview-rc-state', '', '');
 
     switch (newState) {
@@ -2444,11 +2494,18 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
           this.previewDisconnected.style.display = 'flex';
           this.setPreviewDisconnectedText(previewSurface.detailText);
         }
+        if (this.previewFrozenOverlay && previewSurface.showFrozenOverlay) {
+          this.previewFrozenOverlay.style.display = 'flex';
+          if (this.previewFrozenLabel) {
+            this.previewFrozenLabel.textContent = previewSurface.frozenLabel || 'Frozen';
+            this.previewFrozenLabel.className = 'dash-preview-frozen-label ' + (previewSurface.frozenType || '');
+          }
+        }
         this.renderStateChip(this.previewStatus, 'dash-preview-status', previewSurface.chipLabel, previewSurface.chipTone);
         break;
       }
     }
-    if (newState !== 'streaming' && this.remoteControlOn) {
+    if (newState !== 'streaming' && newState !== 'frozen-disconnect' && newState !== 'frozen-complete' && this.remoteControlOn) {
       this.setRemoteControl(false, { silent: newState !== 'paused', source: 'preview-state' });
     }
     this.renderRemoteControlState(this.lastRemoteControlState, { skipToggleSync: true });
@@ -2973,7 +3030,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       this.setWsState('disconnected');
       if (this.taskState === 'running') this.setTaskRecoveryPending(true, 'ws-disconnected');
       this.updateTaskOfflineState();
-      if (this.previewState === 'streaming' || this.previewState === 'loading') this.setPreviewState('disconnected');
+      if (this.previewState === 'streaming') this.setPreviewState('frozen-disconnect');
+      else if (this.previewState === 'loading') this.setPreviewState('disconnected');
       this.scheduleWSReconnect();
     };
 
@@ -3190,6 +3248,58 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
              ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return isoStr; }
+  }
+
+  private renderResultCard(container: HTMLElement | null, data: any, isSuccess: boolean): void {
+    if (!container) return;
+    let card = container.querySelector('.dash-result-card') as HTMLElement | null;
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'dash-result-card';
+      const firstInput = container.querySelector('.dash-task-input-again');
+      if (firstInput) { container.insertBefore(card, firstInput); } else { container.appendChild(card); }
+    }
+
+    const taskStatus = data.taskStatus || (isSuccess ? 'success' : 'failed');
+    const badgeClass = 'dash-result-badge-' + taskStatus;
+    const badgeLabels: Record<string, string> = { success: 'Success', partial: 'Partial', failed: 'Failed', stopped: 'Stopped' };
+    const badgeLabel = badgeLabels[taskStatus] || taskStatus;
+
+    const elapsed = data.elapsed || 0;
+    const actionCount = data.actionCount || 0;
+    const totalCost = data.totalCost || 0;
+    const finalUrl = data.finalUrl || '';
+    const summary = data.summary || '';
+    const error = data.error || '';
+
+    let html = '<div class="dash-result-card-header">';
+    html += '<span class="dash-result-badge ' + badgeClass + '">' + this.escapeHtml(badgeLabel) + '</span>';
+    html += '<span class="dash-result-elapsed">' + this.formatDuration(elapsed) + '</span>';
+    html += '</div>';
+
+    html += '<div class="dash-result-metrics">';
+    html += '<div class="dash-result-metric"><span class="dash-result-metric-val">' + actionCount + '</span><span class="dash-result-metric-label">Actions</span></div>';
+    html += '<div class="dash-result-metric"><span class="dash-result-metric-val">$' + totalCost.toFixed(4) + '</span><span class="dash-result-metric-label">Cost</span></div>';
+    if (finalUrl) {
+      const displayUrl = finalUrl.length > 50 ? finalUrl.substring(0, 50) + '...' : finalUrl;
+      html += '<div class="dash-result-metric dash-result-metric-url"><span class="dash-result-metric-val"><a href="' + this.escapeHtml(finalUrl) + '" target="_blank" rel="noopener" title="' + this.escapeHtml(finalUrl) + '">' + this.escapeHtml(displayUrl) + '</a></span><span class="dash-result-metric-label">Final URL</span></div>';
+    }
+    html += '</div>';
+
+    if (isSuccess && summary) {
+      html += '<div class="dash-result-summary">' + this.escapeHtml(summary) + '</div>';
+    } else if (!isSuccess && error) {
+      html += '<div class="dash-result-error">' + this.escapeHtml(error) + '</div>';
+    }
+
+    card.innerHTML = html;
+
+    const oldStatus = container.querySelector('.dash-task-status') as HTMLElement | null;
+    const oldResult = container.querySelector('.dash-task-result') as HTMLElement | null;
+    const oldError = container.querySelector('.dash-task-error') as HTMLElement | null;
+    if (oldStatus) oldStatus.style.display = 'none';
+    if (oldResult) oldResult.style.display = 'none';
+    if (oldError) oldError.style.display = 'none';
   }
 
   private formatDuration(ms: number): string {

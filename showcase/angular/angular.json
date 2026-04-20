@@ -41,6 +41,11 @@
                 "glob": "**/*",
                 "input": "../assets",
                 "output": "assets"
+              },
+              {
+                "glob": "dashboard-runtime-state.js",
+                "input": "../js",
+                "output": "assets"
               }
             ],
             "styles": [
