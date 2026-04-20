@@ -4351,6 +4351,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    // Vault lifecycle actions (Phase 191)
+    case 'createCredentialVault':
+      (async () => {
+        try {
+          const result = await secureConfig.createCredentialVault(request.passphrase);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'unlockCredentialVault':
+      (async () => {
+        try {
+          const result = await secureConfig.unlockCredentialVault(request.passphrase);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'lockCredentialVault':
+      (async () => {
+        try {
+          const result = await secureConfig.lockCredentialVault();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getCredentialVaultStatus':
+      (async () => {
+        try {
+          const result = await secureConfig.getCredentialVaultStatus();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
     // SM-22: Site map retrieval for AI context injection
     case 'getSiteMap':
       (async () => {
