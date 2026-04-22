@@ -16,10 +16,10 @@ Requirements for making FSB MCP install-once, reconnect reliably, diagnose its o
 
 ### Tool Routing
 
-- [ ] **ROUTE-01**: MCP background-routed browser tools (`navigate`, `go_back`, `go_forward`, `refresh`, `open_tab`, `switch_tab`) execute through a direct internal dispatcher with verified verb mapping.
-- [ ] **ROUTE-02**: MCP autopilot and observability tools (`run_task`, `stop_task`, `get_task_status`, `get_logs`, `list_sessions`, memory/session reads) do not depend on fragile `chrome.runtime.sendMessage` self-dispatch.
-- [ ] **ROUTE-03**: Restricted-tab MCP recovery returns accurate next actions for blank/new-tab pages versus non-routable browser-internal pages.
-- [ ] **ROUTE-04**: MCP routing regression tests assert executable route contracts rather than only checking for string mentions in source files.
+- [x] **ROUTE-01**: MCP background-routed browser tools (`navigate`, `go_back`, `go_forward`, `refresh`, `open_tab`, `switch_tab`) execute through a direct internal dispatcher with verified verb mapping.
+- [x] **ROUTE-02**: MCP autopilot and observability tools (`run_task`, `stop_task`, `get_task_status`, `get_logs`, `list_sessions`, memory/session reads) do not depend on fragile `chrome.runtime.sendMessage` self-dispatch.
+- [x] **ROUTE-03**: Restricted-tab MCP recovery returns accurate next actions for blank/new-tab pages versus non-routable browser-internal pages.
+- [x] **ROUTE-04**: MCP routing regression tests assert executable route contracts rather than only checking for string mentions in source files.
 
 ### Diagnostics
 
@@ -70,10 +70,10 @@ Deferred to future releases.
 | BRIDGE-02 | Phase 198 | Complete |
 | BRIDGE-03 | Phase 198 | Complete |
 | BRIDGE-04 | Phase 198 | Complete |
-| ROUTE-01 | Phase 199 | Pending |
-| ROUTE-02 | Phase 199 | Pending |
-| ROUTE-03 | Phase 199 | Pending |
-| ROUTE-04 | Phase 199 | Pending |
+| ROUTE-01 | Phase 199 | Complete |
+| ROUTE-02 | Phase 199 | Complete |
+| ROUTE-03 | Phase 199 | Complete |
+| ROUTE-04 | Phase 199 | Complete |
 | DIAG-01 | Phase 200 | Pending |
 | DIAG-02 | Phase 200 | Pending |
 | DIAG-03 | Phase 200 | Pending |
