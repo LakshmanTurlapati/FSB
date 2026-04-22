@@ -246,15 +246,15 @@ async function runHubExitPromotion(WebSocketBridge) {
 
     hub.disconnect();
     await waitFor(
-      () => relay.currentMode === 'hub' || relay.currentMode === 'relay',
+      () => relay.currentMode === 'hub' &&
+        relay.topology?.activeHubInstanceId === 'test-relay',
       'hub-exit-promotion',
       1000,
       10
     );
 
-    assert(['hub', 'relay'].includes(relay.currentMode), 'relay reaches stable hub or relay mode after hub-exit-promotion');
-    assert(relay.topology?.instanceId === 'test-relay', 'relay topology is not orphaned after hub exit');
-    assert(relay.topology?.activeHubInstanceId || relay.currentMode === 'hub', 'relay topology retains or replaces active hub identity after hub exit');
+    assertEqual(relay.currentMode, 'hub', 'relay promotes to hub after original hub exits');
+    assertEqual(relay.topology?.activeHubInstanceId, 'test-relay', 'promoted relay reports itself as active hub');
   } finally {
     await cleanup(resources);
   }
