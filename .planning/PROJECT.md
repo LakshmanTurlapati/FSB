@@ -8,20 +8,23 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.31 Dashboard & MCP Repair
+## Current Milestone: v0.9.34 Vault, Payments & Secure MCP Access
 
-**Goal:** Fix the broken Angular dashboard and non-functional MCP install/uninstall commands so both shipped features actually work.
+**Goal:** Fix the broken vault unlock flow, wire up the orphaned payment methods backend, and expose credential/payment operations through MCP and autopilot with strict security boundaries (no raw secrets leak to MCP, confirmation required for payments).
 
 **Target features:**
-- Complete Angular dashboard foundation (missing bootstrap, routing, page components, styles, package.json)
-- Fix Express server to serve built Angular app
-- Create TypeScript source files for MCP install/config-writer/platforms modules
-- Wire install/uninstall command routing into MCP server index.ts
-- Validate both systems end-to-end
+- Fix vault unlock propagation (background.js handler + session initialization)
+- Wire all 5 payment method message handlers in background.js
+- Payment management UI in options page (add/edit/delete cards, masked display)
+- AI autopilot tools: fill_credential, fill_payment_method with sidepanel confirmation dialog
+- MCP tools: list_credentials (domain+username only), fill_credential (extension autofill, password never over WebSocket), list_payment_methods (last 4 + brand only), use_payment_method (MCP confirmation, then extension fills directly)
+- Redacted logging for all sensitive operations
 
-## Previous State: v0.9.30 MCP Platform Install Flags (shipped 2026-04-18)
+**Phase 197 update:** MCP payment fills now use sidepanel approval/denial messages, credential fills derive the lookup domain from the active tab URL, and content-script logs redact credential/payment fill params. Verification found one remaining gap: the MCP server `use_payment_method` timeout must be aligned with the extension's payment confirmation window.
 
-**Shipped:** One-command MCP auto-configuration for all 10 major platforms (build artifacts only -- TS sources missing, commands not wired).
+## Previous State: v0.9.33 Dashboard Task Results & Stream Quality (shipped 2026-04-20)
+
+**Shipped:** Canonical dashboard surface, task lifecycle bridge, DOM stream forwarding, dashboard result UI (result cards, action feed, AI summary), stream quality & resilience. 5 phases, 6 plans.
 
 ## Requirements
 
@@ -337,4 +340,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 -- Milestone v0.9.31 started*
+*Last updated: 2026-04-22 -- Phase 197 MCP security boundary fixes executed*

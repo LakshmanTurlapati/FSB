@@ -98,7 +98,9 @@ Plans:
   1. MCP use_payment_method shows sidepanel confirmation dialog and waits for user approval/denial before proceeding with fill
   2. MCP fill_credential derives the lookup domain from the active tab URL, not from the MCP request payload
   3. Content script logging path (content/messaging.js) cannot emit raw credential or payment params even if logger is activated
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [x] 197-01-PLAN.md -- Fix MCP confirmation flow, domain derivation, and content script log redaction
 
 ## Progress
 
@@ -112,7 +114,7 @@ Plans:
 | 194. Autopilot Tools & Confirmation Dialog | 2/2 | Complete    | 2026-04-20 |
 | 195. MCP Tools & Security Boundary | 0/0 | Complete    | 2026-04-20 |
 | 196. Logging Audit & Hardening Pass | 0/0 | Complete    | 2026-04-20 |
-| 197. MCP Security Boundary Fixes | 0/0 | Pending     | -- |
+| 197. MCP Security Boundary Fixes | 1/1 | Blocked    | -- |
 
 ## Previous Milestones
 

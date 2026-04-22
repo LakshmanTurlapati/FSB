@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.33
-milestone_name: Dashboard Task Results & Stream Quality
-status: complete
-stopped_at: Milestone shipped
-last_updated: "2026-04-20T12:40:00.000Z"
-last_activity: 2026-04-20
+milestone: v0.9.34
+milestone_name: Vault, Payments & Secure MCP Access
+status: gaps_found
+stopped_at: Completed 197-01-PLAN.md
+last_updated: "2026-04-22T04:12:48.486Z"
+last_activity: 2026-04-22
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 10
+  completed_plans: 10
   percent: 100
 ---
 
@@ -18,38 +18,46 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15)
+See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Milestone complete -- no active work
+**Current focus:** Phase 197 — MCP Security Boundary Fixes gap closure
 
 ## Current Position
 
-Phase: All complete
-Plan: All complete
-Status: v0.9.33 shipped
-Last activity: 2026-04-20
+Phase: 197 (mcp-security-boundary-fixes) — GAPS FOUND
+Plan: 1 of 1
+Status: Verification gap found — MCP payment timeout mismatch
+Last activity: 2026-04-22
 
 Progress: [##########] 100%
 
 ## Performance Metrics
 
-**v0.9.33 Milestone Summary:**
+**Velocity:**
 
-| Phase | Plan | Duration | Tasks | Files |
-|-------|------|----------|-------|-------|
-| 186 | P01 | ~4 min | 2 tasks | canonical surface |
-| 187 | P01-P02 | ~8 min | 4 tasks | lifecycle bridge |
-| 188 | P01 | ~4 min | 2 tasks | DOM stream forwarding |
-| 189 | P01 | ~4 min | 2 tasks | result UI |
-| 190 | P01 | ~4 min | 2 tasks | stream quality |
+- Total plans completed: 7
+- Average duration: --
+- Total execution time: 0 hours
 
-**Post-milestone fixes:**
-- Sidepanel completion message rendering (literal \n)
-- Dashboard metrics all-zeros (missing provider param in BackgroundAnalytics)
-- Angular dashboard port (Phase 189/190 features were vanilla-only)
-- Agent-loop analytics bridge to BackgroundAnalytics (control panel metrics)
-- Page title "ShowcaseAngular" -> "FSB"
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 191 | 2 | - | - |
+| 192 | 1 | - | - |
+| 193 | 2 | - | - |
+| 194 | 2 | - | - |
+| 195 | 0 | - | - |
+| 196 | 0 | - | - |
+
+**Recent Trend:**
+
+- Last 5 plans: --
+- Trend: --
+
+*Updated after each plan completion*
+| Phase 197 P01 | 10 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -59,9 +67,11 @@ Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - [v0.9.33]: Angular dashboard is the production surface (served via Docker, deployed to full-selfbrowsing.com)
-- [v0.9.33]: Vanilla JS dashboard is dev fallback only
 - [v0.9.33]: agent-loop.js must bridge to BackgroundAnalytics -- CostTracker is session-only, not persistent
-- [v0.9.33]: Dynamic DOM elements in Angular need :host ::ng-deep for styling (no _ngcontent attribute)
+- [v0.9.34]: Vault unlock is root blocker -- everything depends on vault being unlockable first
+- [v0.9.34]: Proxy command pattern -- passwords/card data never traverse WebSocket, only opaque IDs
+- [v0.9.34]: MCP vault tools isolated in vault.ts, not auto-registered through TOOL_REGISTRY
+- [Phase 197]: Content executeAction logging redacts credential and payment fill params — Prevents raw passwords, card numbers, and CVVs from crossing into content-script action logs.
 
 ### Pending Todos
 
@@ -70,10 +80,10 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- No active blockers.
+- Phase 197 verification found one blocker: MCP server `use_payment_method` waits 30 seconds while extension-side payment confirmation waits 120 seconds.
 
 ## Session Continuity
 
-Last session: 2026-04-20T12:40:00.000Z
-Stopped at: Milestone v0.9.33 complete and shipped
+Last session: 2026-04-22T04:12:28.667Z
+Stopped at: Completed 197-01-PLAN.md
 Resume file: None

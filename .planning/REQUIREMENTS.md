@@ -43,8 +43,8 @@ Requirements for fixing vault unlock, wiring payment methods, and exposing secur
 
 ### Security Hardening
 
-- [ ] **SEC-01**: No password, full card number, or CVV appears in any log output (MCP bridge, automationLogger, console)
-- [ ] **SEC-02**: Fill operations derive the target domain from the active tab URL, never from MCP payload parameters
+- [x] **SEC-01**: No password, full card number, or CVV appears in any log output (MCP bridge, automationLogger, console)
+- [x] **SEC-02**: Fill operations derive the target domain from the active tab URL, never from MCP payload parameters
 - [ ] **SEC-03**: MCP vault tools are registered in a separate vault.ts file, not through the shared TOOL_REGISTRY auto-registration path
 
 ## v2 Requirements
@@ -95,8 +95,8 @@ Deferred to future release.
 | MCP-02 | Phase 195 | Pending |
 | MCP-03 | Phase 195 | Pending |
 | MCP-04 | Phase 197 | Pending |
-| SEC-01 | Phase 197 | Pending |
-| SEC-02 | Phase 197 | Pending |
+| SEC-01 | Phase 197 | Complete |
+| SEC-02 | Phase 197 | Complete |
 | SEC-03 | Phase 195 | Pending |
 
 **Coverage:**
@@ -106,4 +106,4 @@ Deferred to future release.
 
 ---
 *Requirements defined: 2026-04-20*
-*Last updated: 2026-04-20 after roadmap creation*
+*Last updated: 2026-04-22 after Phase 197 verification*
