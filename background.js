@@ -7,6 +7,7 @@ importScripts('config/secure-config.js');
 importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
+try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
