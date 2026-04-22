@@ -11582,7 +11582,11 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // --- Background Agent Alarm Handler ---
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === MCP_RECONNECT_ALARM) {
+  const isMcpReconnectAlarm =
+    typeof MCP_RECONNECT_ALARM !== 'undefined' &&
+    alarm.name === MCP_RECONNECT_ALARM;
+
+  if (isMcpReconnectAlarm) {
     armMcpBridge('alarm:' + MCP_RECONNECT_ALARM);
     return;
   }
