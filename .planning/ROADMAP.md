@@ -47,7 +47,12 @@ Plans:
 3. Restricted-tab responses distinguish blank/new-tab smart routing from non-routable browser pages and advertise only valid recovery tools.
 4. MCP route tests fail if a route is missing even when source strings happen to exist.
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 199-01-PLAN.md -- Create executable MCP route-contract and restricted recovery tests
+- [ ] 199-02-PLAN.md -- Implement shared dispatcher and direct browser/tab routes
+- [ ] 199-03-PLAN.md -- Complete autopilot, observability, and restricted recovery routing
 
 ### Phase 200: Doctor, Status Watch & Recovery Messaging
 
