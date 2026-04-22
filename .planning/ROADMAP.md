@@ -52,7 +52,7 @@ Plans:
 Plans:
 - [x] 199-01-PLAN.md -- Create executable MCP route-contract and restricted recovery tests
 - [x] 199-02-PLAN.md -- Implement shared dispatcher and direct browser/tab routes
-- [ ] 199-03-PLAN.md -- Complete autopilot, observability, and restricted recovery routing
+- [x] 199-03-PLAN.md -- Complete autopilot, observability, and restricted recovery routing
 
 ### Phase 200: Doctor, Status Watch & Recovery Messaging
 
@@ -109,7 +109,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 198. MCP Bridge Lifecycle & Reconnect State | 3/3 | Complete    | 2026-04-22 |
-| 199. MCP Tool Routing Contract | 2/3 | In Progress|  |
+| 199. MCP Tool Routing Contract | 3/3 | Complete   | 2026-04-22 |
 | 200. Doctor, Status Watch & Recovery Messaging | 0/TBD | Not Started | - |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
 | 202. Cross-Host Smoke Matrix & Release Hardening | 0/TBD | Not Started | - |

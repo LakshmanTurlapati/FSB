@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.35
 milestone_name: MCP Plug-and-Play Reliability
-status: executing
-stopped_at: Completed 199-mcp-tool-routing-contract-02-PLAN.md
-last_updated: "2026-04-22T23:33:47.955Z"
+status: verifying
+stopped_at: Completed 199-mcp-tool-routing-contract-03-PLAN.md
+last_updated: "2026-04-22T23:46:50.531Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 
 Phase: 199 (mcp-tool-routing-contract) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-22
 
 Progress: [##########] 100%
@@ -65,6 +65,7 @@ Progress: [##########] 100%
 | Phase 198-mcp-bridge-lifecycle-reconnect-state P03 | 7min | 2 tasks | 6 files |
 | Phase 199-mcp-tool-routing-contract P01 | 5min | 2 tasks | 3 files |
 | Phase 199-mcp-tool-routing-contract P02 | 6min | 2 tasks | 3 files |
+| Phase 199-mcp-tool-routing-contract P03 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,10 @@ Recent decisions affecting current work:
 - [Phase 199-mcp-tool-routing-contract]: Browser/tab MCP routes now execute through a shared dispatcher loaded before the bridge client.
 - [Phase 199-mcp-tool-routing-contract]: Restricted read helper gaps return navigation-only restricted recovery responses before generic route errors.
 - [Phase 199-mcp-tool-routing-contract]: The browser contract includes get_site_guide/mcp:get-site-guides, so those read-only routes are declared without changing the underlying helper behavior.
+- [Phase 199-mcp-tool-routing-contract]: Autopilot and observability MCP routes now execute through the shared dispatcher instead of bridge-client background self-dispatch.
+- [Phase 199-mcp-tool-routing-contract]: Public MCP tool names are preserved through explicit alias entries that point to message routes.
+- [Phase 199-mcp-tool-routing-contract]: Restricted read recovery is navigation/tab-only and returned before read_page/get_dom_snapshot content-script dispatch.
+- [Phase 199-mcp-tool-routing-contract]: Root npm test has unrelated runtime-contract failures deferred outside Phase 199 route work.
 
 ### Pending Todos
 
@@ -109,6 +114,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-22T23:33:47.951Z
-Stopped at: Completed 199-mcp-tool-routing-contract-02-PLAN.md
+Last session: 2026-04-22T23:46:50.528Z
+Stopped at: Completed 199-mcp-tool-routing-contract-03-PLAN.md
 Resume file: None
