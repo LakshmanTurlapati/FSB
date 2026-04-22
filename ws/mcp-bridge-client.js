@@ -10,6 +10,8 @@
  */
 
 const MCP_BRIDGE_URL = 'ws://localhost:7225';
+const MCP_BRIDGE_STATE_KEY = 'mcpBridgeState';
+const MCP_RECONNECT_ALARM = 'fsb-mcp-bridge-reconnect';
 const MCP_RECONNECT_BASE_MS = 2000;
 const MCP_RECONNECT_MAX_MS = 30000;
 const MCP_PING_INTERVAL_MS = 25000;
@@ -22,6 +24,40 @@ class MCPBridgeClient {
     this._pingTimer = null;
     this._intentionalClose = false;
     this._connected = false;
+    this._status = 'idle';
+    this._lastWakeReason = null;
+    this._wakeCount = 0;
+    this._lastConnectAttemptAt = null;
+    this._lastConnectedAt = null;
+    this._lastDisconnectedAt = null;
+    this._lastDisconnectReason = null;
+    this._nextReconnectAt = null;
+    this._reconnectAttemptCount = 0;
+  }
+
+  getState() {
+    return {
+      status: this._status,
+      connected: this._connected,
+      url: MCP_BRIDGE_URL,
+      reconnectDelayMs: this._reconnectDelay,
+      maxReconnectDelayMs: MCP_RECONNECT_MAX_MS,
+      nextReconnectAt: this._nextReconnectAt,
+      reconnectAttemptCount: this._reconnectAttemptCount,
+      wakeCount: this._wakeCount,
+      lastWakeReason: this._lastWakeReason,
+      lastConnectAttemptAt: this._lastConnectAttemptAt,
+      lastConnectedAt: this._lastConnectedAt,
+      lastDisconnectedAt: this._lastDisconnectedAt,
+      lastDisconnectReason: this._lastDisconnectReason,
+      updatedAt: this._timestamp()
+    };
+  }
+
+  recordWake(reason) {
+    this._lastWakeReason = reason || 'unknown';
+    this._wakeCount += 1;
+    this._persistState({ status: this._status || 'waking' });
   }
 
   /**
@@ -29,15 +65,25 @@ class MCPBridgeClient {
    */
   connect() {
     if (this._ws && (this._ws.readyState === WebSocket.OPEN || this._ws.readyState === WebSocket.CONNECTING)) {
+      this._persistState();
       return;
     }
 
     this._intentionalClose = false;
+    this._status = 'connecting';
+    this._lastConnectAttemptAt = this._timestamp();
+    this._persistState();
 
     try {
       this._ws = new WebSocket(MCP_BRIDGE_URL);
     } catch (err) {
       console.log('[FSB MCP Bridge] WebSocket construction failed:', err.message);
+      this._ws = null;
+      this._connected = false;
+      this._status = 'disconnected';
+      this._lastDisconnectedAt = this._timestamp();
+      this._lastDisconnectReason = 'construct_failed:' + (err.message || 'unknown');
+      this._persistState();
       this._scheduleReconnect();
       return;
     }
@@ -45,7 +91,13 @@ class MCPBridgeClient {
     this._ws.onopen = () => {
       console.log('[FSB MCP Bridge] Connected to local MCP bridge');
       this._connected = true;
+      this._status = 'connected';
       this._reconnectDelay = MCP_RECONNECT_BASE_MS;
+      this._nextReconnectAt = null;
+      this._lastConnectedAt = this._timestamp();
+      this._lastDisconnectReason = null;
+      this._clearReconnectAlarm();
+      this._persistState();
       this._startPing();
     };
 
@@ -56,6 +108,12 @@ class MCPBridgeClient {
     this._ws.onclose = () => {
       console.log('[FSB MCP Bridge] Disconnected from local MCP bridge');
       this._connected = false;
+      this._status = 'disconnected';
+      this._lastDisconnectedAt = this._timestamp();
+      this._lastDisconnectReason = this._intentionalClose
+        ? 'intentional_close'
+        : (this._lastDisconnectReason === 'socket_error' ? 'socket_error' : 'socket_close');
+      this._persistState();
       this._stopPing();
       if (!this._intentionalClose) {
         this._scheduleReconnect();
@@ -64,6 +122,7 @@ class MCPBridgeClient {
 
     this._ws.onerror = (err) => {
       // Errors are followed by onclose, so reconnect happens there
+      this._lastDisconnectReason = 'socket_error';
     };
   }
 
@@ -77,11 +136,17 @@ class MCPBridgeClient {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
     }
+    this._clearReconnectAlarm();
     if (this._ws) {
       this._ws.close();
       this._ws = null;
     }
     this._connected = false;
+    this._status = 'disconnected';
+    this._lastDisconnectedAt = this._timestamp();
+    this._lastDisconnectReason = 'intentional_close';
+    this._nextReconnectAt = null;
+    this._persistState();
   }
 
   get isConnected() {
@@ -96,14 +161,72 @@ class MCPBridgeClient {
     if (this._intentionalClose) return;
     if (this._reconnectTimer) return;
 
+    this._reconnectAttemptCount += 1;
     const jitter = Math.random() * 500;
     const delay = Math.min(this._reconnectDelay + jitter, MCP_RECONNECT_MAX_MS);
+    this._status = 'reconnecting';
+    this._nextReconnectAt = this._timestamp(Date.now() + delay);
+    this._persistState({ status: 'reconnecting' });
+    this._scheduleReconnectAlarm(delay);
 
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
       this._reconnectDelay = Math.min(this._reconnectDelay * 1.5, MCP_RECONNECT_MAX_MS);
       this.connect();
     }, delay);
+  }
+
+  _timestamp(time = Date.now()) {
+    return new Date(time).toISOString();
+  }
+
+  _persistState(patch = {}) {
+    if (typeof chrome === 'undefined' || !chrome.storage?.session || typeof chrome.storage.session.set !== 'function') return;
+
+    const state = {
+      ...this.getState(),
+      ...patch,
+      updatedAt: this._timestamp()
+    };
+
+    try {
+      const result = chrome.storage.session.set({ [MCP_BRIDGE_STATE_KEY]: state });
+      if (result && typeof result.catch === 'function') {
+        result.catch((err) => {
+          console.warn('[FSB MCP Bridge] Failed to persist bridge state:', err.message || String(err));
+        });
+      }
+    } catch (err) {
+      console.warn('[FSB MCP Bridge] Failed to persist bridge state:', err.message || String(err));
+    }
+  }
+
+  _clearReconnectAlarm() {
+    const alarms = typeof chrome !== 'undefined' ? chrome.alarms : null;
+    if (!alarms || typeof alarms.clear !== 'function') return;
+
+    try {
+      const result = alarms.clear(MCP_RECONNECT_ALARM);
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {});
+      }
+    } catch (err) {
+      // Alarm cleanup is best-effort; reconnect state remains authoritative.
+    }
+  }
+
+  _scheduleReconnectAlarm(delayMs) {
+    const alarms = typeof chrome !== 'undefined' ? chrome.alarms : null;
+    if (!alarms || typeof alarms.create !== 'function') return;
+
+    try {
+      const result = alarms.create(MCP_RECONNECT_ALARM, { delayInMinutes: 0.5 });
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {});
+      }
+    } catch (err) {
+      // The in-memory timer still retries while the service worker is alive.
+    }
   }
 
   // --------------------------------------------------------------------------
