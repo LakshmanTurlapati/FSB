@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.9.35
 milestone_name: MCP Plug-and-Play Reliability
-status: verifying
-stopped_at: Completed 198-mcp-bridge-lifecycle-reconnect-state-03-PLAN.md
+status: ready
+stopped_at: Phase 198 verified and complete; ready for Phase 199 discussion
 last_updated: "2026-04-22T17:24:22.743Z"
 last_activity: 2026-04-22
 progress:
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 198 — mcp-bridge-lifecycle-reconnect-state
+**Current focus:** Phase 199 — mcp-tool-routing-contract
 
 ## Current Position
 
 Phase: 199
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Phase 198 verified — ready for Phase 199 discussion
 Last activity: 2026-04-22
 
 Progress: [##########] 100%
@@ -91,15 +91,16 @@ Recent decisions affecting current work:
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
 - MCP background-routed tools (navigate, run_task, get_logs, etc.) fail or are brittle through chrome.runtime.sendMessage self-dispatch issue -- active v0.9.35 target.
-- MCP extension attachment can remain false even when the local bridge listens on port 7225; service worker wake/reconnect lifecycle needs repair.
+- Phase 198 bridge lifecycle repair is verified; remaining v0.9.35 MCP work starts with direct background tool routing in Phase 199.
 
 ### Blockers/Concerns
 
 - v0.9.34 archived with accepted validation debt: stale `gaps_found` milestone audit, 19 unchecked requirements preserved in the archive, and pending live UAT for Phase 191 and Phase 197.
 - Current MCP regression `tests/mcp-restricted-tab.test.js` fails 9 assertions and must be converted from string-presence checks into behavioral route-contract coverage.
+- Phase 198 code review is advisory but found 1 critical and 2 warnings; run `$gsd-code-review-fix 198` before advancing if you want review issues closed first.
 
 ## Session Continuity
 
-Last session: 2026-04-22T17:13:10.417Z
-Stopped at: Completed 198-mcp-bridge-lifecycle-reconnect-state-03-PLAN.md
+Last session: 2026-04-22T17:24:22.743Z
+Stopped at: Phase 198 verified and complete; ready for Phase 199 discussion
 Resume file: None
