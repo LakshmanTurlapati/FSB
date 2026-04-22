@@ -53,6 +53,30 @@ export interface MCPProgress {
   };
 }
 
+export type BridgeMode = 'hub' | 'relay' | 'disconnected';
+
+export interface BridgeOptions {
+  port?: number;
+  host?: string;
+  instanceId?: string;
+  handshakeTimeoutMs?: number;
+  relayHandshakeTimeoutMs?: number;
+  promotionJitterMs?: number;
+  maxReconnectDelayMs?: number;
+}
+
+export interface BridgeTopologyState {
+  instanceId: string;
+  mode: BridgeMode;
+  hubConnected: boolean;
+  extensionConnected: boolean;
+  relayCount: number;
+  pendingRequestCount: number;
+  activeHubInstanceId: string | null;
+  lastExtensionHeartbeatAt: number | null;
+  lastDisconnectReason: string | null;
+}
+
 // Relay protocol: MCP instance -> hub handshake
 export interface RelayHello {
   type: 'relay:hello';
@@ -63,9 +87,23 @@ export interface RelayHello {
 export interface RelayWelcome {
   type: 'relay:welcome';
   instanceId: string;
+  hubInstanceId: string;
+  extensionConnected: boolean;
+  relayCount: number;
+  lastExtensionHeartbeatAt: number | null;
+  lastDisconnectReason: string | null;
 }
 
-export type RelayMessage = RelayHello | RelayWelcome;
+export interface RelayState {
+  type: 'relay:state';
+  hubInstanceId: string;
+  extensionConnected: boolean;
+  relayCount: number;
+  lastExtensionHeartbeatAt: number | null;
+  lastDisconnectReason: string | null;
+}
+
+export type RelayMessage = RelayHello | RelayWelcome | RelayState;
 
 // Tool result wrapper
 export interface ToolResult {

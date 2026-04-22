@@ -1,12 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import WebSocket from 'ws';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
-import type { MCPMessage, MCPResponse, RelayHello, RelayWelcome } from './types.js';
+import type {
+  BridgeMode,
+  BridgeOptions,
+  BridgeTopologyState,
+  MCPMessage,
+  MCPResponse,
+  RelayHello,
+  RelayState,
+  RelayWelcome,
+} from './types.js';
 import { FSB_ERROR_MESSAGES } from './errors.js';
-
-const PORT = 7225;
-const HANDSHAKE_TIMEOUT_MS = 2_000;
-const PROMOTION_JITTER_MS = 500; // max random delay before attempting promotion
 
 interface PendingRequest {
   resolve: (value: MCPResponse) => void;
@@ -14,12 +19,16 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout>;
 }
 
-type BridgeMode = 'hub' | 'relay' | 'disconnected';
-
 export class WebSocketBridge {
   // Identity
   private instanceId: string;
   private mode: BridgeMode = 'disconnected';
+  private port: number;
+  private host: string;
+  private handshakeTimeoutMs: number;
+  private relayHandshakeTimeoutMs: number;
+  private promotionJitterMs: number;
+  private maxReconnectDelayMs: number;
 
   // Hub mode state
   private wss: WebSocketServer | null = null;
@@ -32,7 +41,6 @@ export class WebSocketBridge {
   private hubConnection: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 0;
-  private maxReconnectDelay = 30_000;
   private intentionalClose = false;
 
   // Shared state
@@ -40,9 +48,21 @@ export class WebSocketBridge {
   private progressListeners = new Map<string, (progress: MCPResponse) => void>();
   private msgIdCounter = 0;
   private connected = false;
+  private hubConnected = false;
+  private activeHubInstanceId: string | null = null;
+  private relayExtensionConnected = false;
+  private relayCount = 0;
+  private lastExtensionHeartbeatAt: number | null = null;
+  private lastDisconnectReason: string | null = null;
 
-  constructor() {
-    this.instanceId = randomBytes(4).toString('hex');
+  constructor(options: BridgeOptions = {}) {
+    this.port = options.port ?? 7225;
+    this.host = options.host ?? 'localhost';
+    this.instanceId = options.instanceId ?? randomBytes(4).toString('hex');
+    this.handshakeTimeoutMs = options.handshakeTimeoutMs ?? 2_000;
+    this.relayHandshakeTimeoutMs = options.relayHandshakeTimeoutMs ?? 5_000;
+    this.promotionJitterMs = options.promotionJitterMs ?? 500;
+    this.maxReconnectDelayMs = options.maxReconnectDelayMs ?? 30_000;
   }
 
   // --------------------------------------------------------------------------
@@ -58,7 +78,7 @@ export class WebSocketBridge {
       await this._startAsHub();
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-        console.error(`[FSB Bridge ${this.instanceId}] Port ${PORT} in use, connecting as relay client`);
+        console.error(`[FSB Bridge ${this.instanceId}] Port ${this.port} in use, connecting as relay client`);
         await this._startAsRelay();
       } else {
         throw err;
@@ -114,6 +134,11 @@ export class WebSocketBridge {
     this.progressListeners.clear();
     this.messageOrigin.clear();
     this.connected = false;
+    this.hubConnected = false;
+    this.activeHubInstanceId = null;
+    this.relayExtensionConnected = false;
+    this.relayCount = 0;
+    this.lastExtensionHeartbeatAt = null;
     this.mode = 'disconnected';
     console.error(`[FSB Bridge ${this.instanceId}] Disconnected`);
   }
@@ -174,12 +199,27 @@ export class WebSocketBridge {
 
   /** Whether this bridge can reach the extension (directly or via relay). */
   get isConnected(): boolean {
-    return this.connected;
+    return this.topology.extensionConnected;
   }
 
   /** Current operating mode. */
   get currentMode(): BridgeMode {
     return this.mode;
+  }
+
+  get topology(): BridgeTopologyState {
+    const extensionConnected = this.mode === 'hub' ? this.connected : this.relayExtensionConnected;
+    return {
+      instanceId: this.instanceId,
+      mode: this.mode,
+      hubConnected: this.mode === 'hub' ? this.wss !== null : this.hubConnected,
+      extensionConnected,
+      relayCount: this.mode === 'hub' ? this.relayClients.size : this.relayCount,
+      pendingRequestCount: this.pendingRequests.size,
+      activeHubInstanceId: this.mode === 'hub' ? this.instanceId : this.activeHubInstanceId,
+      lastExtensionHeartbeatAt: this.lastExtensionHeartbeatAt,
+      lastDisconnectReason: this.lastDisconnectReason,
+    };
   }
 
   /** Generate a unique message ID with instance prefix. */
@@ -193,15 +233,23 @@ export class WebSocketBridge {
 
   private _startAsHub(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this.wss = new WebSocketServer({ port: PORT });
+      this.wss = new WebSocketServer({ port: this.port, host: this.host });
 
       this.wss.on('listening', () => {
         this.mode = 'hub';
-        console.error(`[FSB Bridge ${this.instanceId}] Hub mode: WebSocket server listening on port ${PORT}`);
+        this.hubConnected = true;
+        this.activeHubInstanceId = this.instanceId;
+        this.relayExtensionConnected = false;
+        this.relayCount = 0;
+        this.lastDisconnectReason = null;
+        console.error(`[FSB Bridge ${this.instanceId}] Hub mode: WebSocket server listening on ${this.host}:${this.port}`);
         resolve();
       });
 
       this.wss.on('error', (err: NodeJS.ErrnoException) => {
+        this.wss?.close();
+        this.wss = null;
+        this.hubConnected = false;
         reject(err);
       });
 
@@ -213,7 +261,7 @@ export class WebSocketBridge {
 
   /**
    * When a new WebSocket connection arrives, wait for a relay:hello handshake.
-   * If it arrives, this is a relay client. If not within HANDSHAKE_TIMEOUT_MS,
+   * If it arrives, this is a relay client. If not within the configured timeout,
    * treat it as the Chrome extension.
    */
   private _handleNewConnection(ws: WsWebSocket): void {
@@ -268,7 +316,7 @@ export class WebSocketBridge {
           this._handleExtensionMessage(raw);
         }
       }
-    }, HANDSHAKE_TIMEOUT_MS);
+    }, this.handshakeTimeoutMs);
 
     this.handshakeTimers.set(ws, handshakeTimer);
 
@@ -284,12 +332,16 @@ export class WebSocketBridge {
   private _registerExtensionClient(ws: WsWebSocket): void {
     if (this.extensionClient) {
       console.error(`[FSB Bridge ${this.instanceId}] New extension connected, closing previous`);
+      this.lastDisconnectReason = 'extension_replaced';
       this.extensionClient.close();
     }
 
     this.extensionClient = ws;
     this.connected = true;
+    this.lastExtensionHeartbeatAt = Date.now();
+    this.lastDisconnectReason = null;
     console.error(`[FSB Bridge ${this.instanceId}] Extension connected`);
+    this._broadcastRelayState();
 
     // Replace the temporary message handler with the real one
     ws.removeAllListeners('message');
@@ -298,11 +350,13 @@ export class WebSocketBridge {
     });
 
     ws.on('close', () => {
+      if (this.extensionClient !== ws) return;
+
       console.error(`[FSB Bridge ${this.instanceId}] Extension disconnected`);
       this.extensionClient = null;
-      this.connected = this.relayClients.size > 0 ? false : false;
-      // Actually hub is "connected" only when extension is present
       this.connected = false;
+      this.lastDisconnectReason = 'extension_disconnected';
+      this.lastExtensionHeartbeatAt = null;
 
       // Reject all pending local requests
       for (const [id, pending] of this.pendingRequests) {
@@ -320,6 +374,7 @@ export class WebSocketBridge {
           this.messageOrigin.delete(msgId);
         }
       }
+      this._broadcastRelayState();
     });
 
     ws.on('error', (err: Error) => {
@@ -339,8 +394,17 @@ export class WebSocketBridge {
     console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} registered (total: ${this.relayClients.size})`);
 
     // Send welcome
-    const welcome: RelayWelcome = { type: 'relay:welcome', instanceId: clientId };
+    const welcome: RelayWelcome = {
+      type: 'relay:welcome',
+      instanceId: clientId,
+      hubInstanceId: this.instanceId,
+      extensionConnected: this.connected,
+      relayCount: this.relayClients.size,
+      lastExtensionHeartbeatAt: this.lastExtensionHeartbeatAt,
+      lastDisconnectReason: this.lastDisconnectReason,
+    };
     ws.send(JSON.stringify(welcome));
+    this._broadcastRelayState();
 
     // Replace message handler
     ws.removeAllListeners('message');
@@ -350,7 +414,9 @@ export class WebSocketBridge {
 
     ws.on('close', () => {
       console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} disconnected`);
-      this.relayClients.delete(clientId);
+      if (this.relayClients.get(clientId) === ws) {
+        this.relayClients.delete(clientId);
+      }
 
       // Clean up messageOrigin entries for this client
       for (const [msgId, origin] of this.messageOrigin) {
@@ -358,11 +424,32 @@ export class WebSocketBridge {
           this.messageOrigin.delete(msgId);
         }
       }
+      this._broadcastRelayState();
     });
 
     ws.on('error', (err: Error) => {
       console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} error:`, err.message);
     });
+  }
+
+  private _buildRelayState(): RelayState {
+    return {
+      type: 'relay:state',
+      hubInstanceId: this.instanceId,
+      extensionConnected: this.connected,
+      relayCount: this.relayClients.size,
+      lastExtensionHeartbeatAt: this.lastExtensionHeartbeatAt,
+      lastDisconnectReason: this.lastDisconnectReason,
+    };
+  }
+
+  private _broadcastRelayState(): void {
+    const raw = JSON.stringify(this._buildRelayState());
+    for (const [, ws] of this.relayClients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(raw);
+      }
+    }
   }
 
   /**
@@ -374,9 +461,12 @@ export class WebSocketBridge {
     try {
       const parsed = JSON.parse(raw);
       if (parsed.type === 'mcp:ping') {
+        const heartbeatAt = Date.now();
+        this.lastExtensionHeartbeatAt = heartbeatAt;
         if (this.extensionClient && this.extensionClient.readyState === 1 /* WebSocket.OPEN */) {
-          this.extensionClient.send(JSON.stringify({ type: 'mcp:pong', ts: Date.now() }));
+          this.extensionClient.send(JSON.stringify({ type: 'mcp:pong', ts: heartbeatAt }));
         }
+        this._broadcastRelayState();
         return;
       }
     } catch { /* fall through to normal parse */ }
@@ -460,17 +550,57 @@ export class WebSocketBridge {
   // Relay mode
   // --------------------------------------------------------------------------
 
+  private _applyRelayState(state: RelayWelcome | RelayState): void {
+    this.hubConnected = true;
+    this.activeHubInstanceId = state.hubInstanceId;
+    this.relayExtensionConnected = state.extensionConnected === true;
+    this.relayCount = Number.isFinite(state.relayCount) ? state.relayCount : 0;
+    this.lastExtensionHeartbeatAt = typeof state.lastExtensionHeartbeatAt === 'number'
+      ? state.lastExtensionHeartbeatAt
+      : null;
+    this.lastDisconnectReason = typeof state.lastDisconnectReason === 'string'
+      ? state.lastDisconnectReason
+      : null;
+    this.connected = this.relayExtensionConnected;
+  }
+
   private _startAsRelay(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.intentionalClose = false;
       this.mode = 'relay';
+      this.hubConnected = false;
+      this.activeHubInstanceId = null;
+      this.relayExtensionConnected = false;
+      this.connected = false;
+
+      let handshakeSettled = false;
+      let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
+      const settleResolve = (): void => {
+        if (handshakeSettled) return;
+        handshakeSettled = true;
+        if (handshakeTimer) clearTimeout(handshakeTimer);
+        resolve();
+      };
+      const settleReject = (err: Error): void => {
+        if (handshakeSettled) return;
+        handshakeSettled = true;
+        if (handshakeTimer) clearTimeout(handshakeTimer);
+        reject(err);
+      };
 
       try {
-        this.hubConnection = new WebSocket(`ws://localhost:${PORT}`);
+        this.hubConnection = new WebSocket(`ws://${this.host}:${this.port}`);
       } catch (err) {
-        reject(err);
+        settleReject(err instanceof Error ? err : new Error(String(err)));
         return;
       }
+
+      handshakeTimer = setTimeout(() => {
+        if (!this.hubConnected && this.mode === 'relay') {
+          this.hubConnection?.close();
+          settleReject(new Error('Relay handshake timed out'));
+        }
+      }, this.relayHandshakeTimeoutMs);
 
       this.hubConnection.on('open', () => {
         // Send handshake
@@ -491,10 +621,15 @@ export class WebSocketBridge {
 
         // Handle welcome handshake
         if (parsed.type === 'relay:welcome') {
-          this.connected = true;
+          this._applyRelayState(parsed as unknown as RelayWelcome);
           this.reconnectDelay = 0;
           console.error(`[FSB Bridge ${this.instanceId}] Relay mode: handshake complete, ready`);
-          resolve();
+          settleResolve();
+          return;
+        }
+
+        if (parsed.type === 'relay:state') {
+          this._applyRelayState(parsed as unknown as RelayState);
           return;
         }
 
@@ -503,8 +638,17 @@ export class WebSocketBridge {
       });
 
       this.hubConnection.on('close', () => {
-        const wasConnected = this.connected;
+        if (!handshakeSettled) {
+          settleReject(new Error('Relay connection closed before handshake completed'));
+        }
+
+        this.hubConnection = null;
+        this.hubConnected = false;
+        this.activeHubInstanceId = null;
+        this.relayExtensionConnected = false;
+        this.relayCount = 0;
         this.connected = false;
+        this.lastDisconnectReason = 'hub_disconnected';
         console.error(`[FSB Bridge ${this.instanceId}] Relay mode: disconnected from hub`);
 
         // Reject all pending requests
@@ -525,13 +669,6 @@ export class WebSocketBridge {
         console.error(`[FSB Bridge ${this.instanceId}] Relay error:`, err.message);
         // onclose fires after onerror, promotion/reconnect handled there
       });
-
-      // Timeout the initial connection attempt
-      setTimeout(() => {
-        if (!this.connected && this.mode === 'relay') {
-          reject(new Error('Relay handshake timed out'));
-        }
-      }, 5_000);
     });
   }
 
@@ -564,7 +701,7 @@ export class WebSocketBridge {
     if (this.intentionalClose) return;
 
     // Random jitter to avoid thundering herd
-    const jitter = Math.floor(Math.random() * PROMOTION_JITTER_MS);
+    const jitter = Math.floor(Math.random() * this.promotionJitterMs);
     console.error(`[FSB Bridge ${this.instanceId}] Attempting promotion in ${jitter}ms`);
 
     await new Promise(r => setTimeout(r, jitter));
@@ -573,6 +710,10 @@ export class WebSocketBridge {
 
     try {
       await this._startAsHub();
+      this.hubConnected = true;
+      this.activeHubInstanceId = this.instanceId;
+      this.relayExtensionConnected = false;
+      this.relayCount = 0;
       console.error(`[FSB Bridge ${this.instanceId}] Promoted to hub mode`);
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
@@ -587,15 +728,17 @@ export class WebSocketBridge {
 
   private _scheduleRelayReconnect(): void {
     if (this.intentionalClose) return;
+    if (this.reconnectTimer) return;
 
     if (this.reconnectDelay === 0) {
-      this.reconnectDelay = 2_000;
+      this.reconnectDelay = Math.min(2_000, this.maxReconnectDelayMs);
     } else {
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelayMs);
     }
 
     console.error(`[FSB Bridge ${this.instanceId}] Relay reconnect in ${this.reconnectDelay}ms`);
     this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
       if (this.intentionalClose) return;
       try {
         await this._startAsRelay();
