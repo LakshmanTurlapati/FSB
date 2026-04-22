@@ -26,7 +26,12 @@
 3. Any service worker wake path re-arms MCP bridge connection attempts and records bridge state.
 4. Multiple MCP host processes keep a stable hub/relay topology and recover cleanly when the hub exits.
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 198-01-PLAN.md -- Create Wave 0 bridge lifecycle and topology tests
+- [ ] 198-02-PLAN.md -- Implement extension lifecycle state and wake re-arming
+- [ ] 198-03-PLAN.md -- Implement hub/relay topology state and diagnostics
 
 ### Phase 199: MCP Tool Routing Contract
 
