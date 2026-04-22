@@ -9,10 +9,10 @@ Requirements for making FSB MCP install-once, reconnect reliably, diagnose its o
 
 ### Bridge Lifecycle
 
-- [ ] **BRIDGE-01**: User can start an MCP host after Chrome/FSB is already open and the extension attaches to the local MCP bridge without extension reload.
-- [ ] **BRIDGE-02**: User can open Chrome/FSB after an MCP host is already running and the extension attaches to the existing local bridge within a bounded reconnect window.
-- [ ] **BRIDGE-03**: FSB re-arms MCP bridge connection attempts whenever the MV3 service worker wakes from suspension or handles extension activity.
-- [ ] **BRIDGE-04**: Multiple MCP hosts can connect through hub/relay mode without stealing, orphaning, or permanently breaking the extension connection.
+- [x] **BRIDGE-01**: User can start an MCP host after Chrome/FSB is already open and the extension attaches to the local MCP bridge without extension reload.
+- [x] **BRIDGE-02**: User can open Chrome/FSB after an MCP host is already running and the extension attaches to the existing local bridge within a bounded reconnect window.
+- [x] **BRIDGE-03**: FSB re-arms MCP bridge connection attempts whenever the MV3 service worker wakes from suspension or handles extension activity.
+- [x] **BRIDGE-04**: Multiple MCP hosts can connect through hub/relay mode without stealing, orphaning, or permanently breaking the extension connection.
 
 ### Tool Routing
 
@@ -66,10 +66,10 @@ Deferred to future releases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BRIDGE-01 | Phase 198 | Pending |
-| BRIDGE-02 | Phase 198 | Pending |
-| BRIDGE-03 | Phase 198 | Pending |
-| BRIDGE-04 | Phase 198 | Pending |
+| BRIDGE-01 | Phase 198 | Complete |
+| BRIDGE-02 | Phase 198 | Complete |
+| BRIDGE-03 | Phase 198 | Complete |
+| BRIDGE-04 | Phase 198 | Complete |
 | ROUTE-01 | Phase 199 | Pending |
 | ROUTE-02 | Phase 199 | Pending |
 | ROUTE-03 | Phase 199 | Pending |

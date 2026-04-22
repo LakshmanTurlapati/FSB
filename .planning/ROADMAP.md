@@ -29,7 +29,7 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 198-01-PLAN.md -- Create Wave 0 bridge lifecycle and topology tests
+- [x] 198-01-PLAN.md -- Create Wave 0 bridge lifecycle and topology tests
 - [ ] 198-02-PLAN.md -- Implement extension lifecycle state and wake re-arming
 - [ ] 198-03-PLAN.md -- Implement hub/relay topology state and diagnostics
 
@@ -103,7 +103,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 198. MCP Bridge Lifecycle & Reconnect State | 0/3 | Ready to Execute | - |
+| 198. MCP Bridge Lifecycle & Reconnect State | 1/3 | In Progress|  |
 | 199. MCP Tool Routing Contract | 0/TBD | Not Started | - |
 | 200. Doctor, Status Watch & Recovery Messaging | 0/TBD | Not Started | - |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
