@@ -39,9 +39,9 @@ export function registerVaultTools(
   // Password travels background.js -> content script only, never over WebSocket.
   server.tool(
     'fill_credential',
-    'Auto-fill login form on the active tab with a saved credential. The password is resolved inside the extension and injected directly into the page -- it never crosses the WebSocket bridge. Requires the credential vault to be unlocked.',
+    'Auto-fill login form on the active tab with a saved credential. The password is resolved inside the extension and injected directly into the page -- it never crosses the WebSocket bridge. The domain parameter is accepted for backward compatibility but the actual lookup domain is derived from the active tab URL for security. Requires the credential vault to be unlocked.',
     {
-      domain: z.string().describe('Domain of the credential to fill (e.g., github.com). The extension matches this against saved credentials.'),
+      domain: z.string().optional().describe('Hint for which credential to fill. Ignored for security -- the actual domain is derived from the active tab URL. Kept for backward compatibility.'),
     },
     async ({ domain }) => {
       if (!bridge.isConnected) {

@@ -618,12 +618,16 @@ class MCPBridgeClient {
     return { success: true, credentials };
   }
 
-  async _handleFillCredential(payload) {
-    const { domain } = payload;
-    if (!domain) return { success: false, error: 'domain is required' };
-
+  async _handleFillCredential() {
     const tab = await this._getActiveTab();
-    if (!tab?.id) return { success: false, error: 'No active tab' };
+    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+
+    let domain;
+    try {
+      domain = new URL(tab.url).hostname;
+    } catch {
+      return { success: false, error: 'Cannot determine domain from active tab URL' };
+    }
 
     // Lookup credential in vault (stays in extension)
     const credResponse = await this._dispatchToBackground({
@@ -688,16 +692,50 @@ class MCPBridgeClient {
     }
     const pm = pmResponse.paymentMethod;
 
-    // Confirmation gate: send to sidepanel for user approval (MCP-04)
-    const confirmResult = await this._dispatchToBackground({
-      action: 'paymentFillConfirmation',
-      paymentMethodId,
-      cardBrand: pm.cardBrand || 'unknown',
-      last4: pm.last4 || (pm.cardNumber ? pm.cardNumber.slice(-4) : '****'),
-      merchantDomain,
+    // Confirmation gate: two-phase broadcast + listener (MCP-04)
+    // Pattern: register listener FIRST, then send confirmation request
+    const confirmResult = await new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        chrome.runtime.onMessage.removeListener(confirmHandler);
+        resolve({ approved: false, reason: 'timeout' });
+      }, 120_000);
+
+      function confirmHandler(request, sender, sendResponse) {
+        if (request.action === 'paymentFillApproved' && request.paymentMethodId === paymentMethodId) {
+          clearTimeout(timeoutId);
+          chrome.runtime.onMessage.removeListener(confirmHandler);
+          resolve({ approved: true });
+          sendResponse({ received: true });
+        } else if (request.action === 'paymentFillDenied' && request.paymentMethodId === paymentMethodId) {
+          clearTimeout(timeoutId);
+          chrome.runtime.onMessage.removeListener(confirmHandler);
+          resolve({ approved: false, reason: 'user_declined' });
+          sendResponse({ received: true });
+        }
+      }
+
+      chrome.runtime.onMessage.addListener(confirmHandler);
+
+      chrome.runtime.sendMessage({
+        action: 'paymentFillConfirmation',
+        paymentMethodId,
+        cardBrand: pm.cardBrand || 'unknown',
+        last4: pm.last4 || (pm.cardNumber ? pm.cardNumber.slice(-4) : '****'),
+        merchantDomain,
+      }).catch(() => {
+        clearTimeout(timeoutId);
+        chrome.runtime.onMessage.removeListener(confirmHandler);
+        resolve({ approved: false, reason: 'sidepanel_unavailable' });
+      });
     });
-    if (!confirmResult?.approved) {
-      return { success: false, error: 'User declined payment fill' };
+    if (!confirmResult.approved) {
+      const reason = confirmResult.reason || 'user_declined';
+      const errorMsg = reason === 'sidepanel_unavailable'
+        ? 'Payment confirmation requires the FSB sidepanel to be open'
+        : reason === 'timeout'
+          ? 'Payment confirmation timed out (2 minutes)'
+          : 'User declined payment fill';
+      return { success: false, error: errorMsg };
     }
 
     // Fill payment fields on the active tab -- full card data travels bg->content only
