@@ -63,6 +63,7 @@ export interface BridgeOptions {
   relayHandshakeTimeoutMs?: number;
   promotionJitterMs?: number;
   maxReconnectDelayMs?: number;
+  allowedBrowserOrigins?: string[];
 }
 
 export interface BridgeTopologyState {

@@ -76,6 +76,30 @@ function createExtensionSocket(port) {
   });
 }
 
+function attemptRelayWithOrigin(port, origin) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}`, {
+      headers: { Origin: origin }
+    });
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error(`relay attempt from ${origin} was not closed`));
+    }, 500);
+
+    socket.once('open', () => {
+      socket.send(JSON.stringify({ type: 'relay:hello', instanceId: 'browser-relay' }));
+    });
+    socket.once('close', (code, reason) => {
+      clearTimeout(timeout);
+      resolve({ code, reason: reason.toString() });
+    });
+    socket.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 async function loadBridgeClass() {
   const bridgeUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'bridge.js')).href;
   const module = await import(bridgeUrl);
@@ -188,6 +212,33 @@ async function runExtensionStateBroadcastsToRelays(WebSocketBridge) {
   }
 }
 
+async function runRejectsUntrustedBrowserOrigin(WebSocketBridge) {
+  const port = await getFreePort();
+  const resources = {
+    sockets: [],
+    bridges: [
+      new WebSocketBridge({
+        port,
+        host: '127.0.0.1',
+        instanceId: 'test-hub-origin',
+        handshakeTimeoutMs: 25
+      })
+    ]
+  };
+
+  try {
+    const hub = resources.bridges[0];
+    await hub.connect();
+
+    const close = await attemptRelayWithOrigin(port, 'https://evil.example');
+    assertEqual(close.code, 1008, 'hub rejects browser-origin relay handshake with policy violation');
+    assertEqual(close.reason, 'Forbidden origin', 'hub reports forbidden origin when rejecting browser-origin relay');
+    assertEqual(hub.topology?.relayCount, 0, 'rejected browser-origin relay is not registered');
+  } finally {
+    await cleanup(resources);
+  }
+}
+
 async function runHubExitPromotion(WebSocketBridge) {
   const resources = await createBridgePair(WebSocketBridge);
   try {
@@ -215,6 +266,7 @@ async function run() {
   await runCase('server-first topology', () => runServerFirstTopology(WebSocketBridge));
   await runCase('relay waits for extension reachability', () => runRelayWaitsForExtensionReachability(WebSocketBridge));
   await runCase('extension state broadcasts to relays', () => runExtensionStateBroadcastsToRelays(WebSocketBridge));
+  await runCase('rejects untrusted browser relay origin', () => runRejectsUntrustedBrowserOrigin(WebSocketBridge));
   await runCase('hub-exit-promotion', () => runHubExitPromotion(WebSocketBridge));
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);

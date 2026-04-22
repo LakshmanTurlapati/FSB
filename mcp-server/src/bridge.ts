@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import WebSocket from 'ws';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import type {
@@ -29,6 +30,7 @@ export class WebSocketBridge {
   private relayHandshakeTimeoutMs: number;
   private promotionJitterMs: number;
   private maxReconnectDelayMs: number;
+  private allowedBrowserOrigins: string[];
 
   // Hub mode state
   private wss: WebSocketServer | null = null;
@@ -63,6 +65,7 @@ export class WebSocketBridge {
     this.relayHandshakeTimeoutMs = options.relayHandshakeTimeoutMs ?? 5_000;
     this.promotionJitterMs = options.promotionJitterMs ?? 500;
     this.maxReconnectDelayMs = options.maxReconnectDelayMs ?? 30_000;
+    this.allowedBrowserOrigins = options.allowedBrowserOrigins ?? ['chrome-extension://'];
   }
 
   // --------------------------------------------------------------------------
@@ -253,10 +256,29 @@ export class WebSocketBridge {
         reject(err);
       });
 
-      this.wss.on('connection', (ws: WsWebSocket) => {
+      this.wss.on('connection', (ws: WsWebSocket, req: IncomingMessage) => {
+        if (!this.isAllowedWebSocketOrigin(req)) {
+          ws.close(1008, 'Forbidden origin');
+          return;
+        }
+
         this._handleNewConnection(ws);
       });
     });
+  }
+
+  private isAllowedWebSocketOrigin(req: IncomingMessage): boolean {
+    const originHeader = req.headers.origin;
+    if (!originHeader) return true;
+
+    const origins = Array.isArray(originHeader) ? originHeader : [originHeader];
+    return origins.every((origin) =>
+      this.allowedBrowserOrigins.some((allowedOrigin) =>
+        allowedOrigin.endsWith('://')
+          ? origin.startsWith(allowedOrigin)
+          : origin === allowedOrigin,
+      ),
+    );
   }
 
   /**
