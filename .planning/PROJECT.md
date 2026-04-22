@@ -20,6 +20,8 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Goal:** Make FSB MCP feel install-once and usable across Claude, Codex, OpenClaw/OpenCode-style clients, and other MCP hosts without repeated extension/MCP restarts or platform-specific tinkering.
 
+**Progress:** Phase 198 complete -- MCP bridge lifecycle and hub/relay topology now recover across browser-first, server-first, service-worker wake, and hub handoff scenarios.
+
 **Target features:**
 - MCP bridge lifecycle repair so the extension reconnects whenever the MV3 service worker wakes, regardless of whether the MCP host or browser starts first.
 - Direct, verified MCP tool routing for background, content, autopilot, observability, and restricted-tab recovery paths.
@@ -151,10 +153,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Install/uninstall CLI for all 10 MCP platforms with per-platform flags -- v0.9.30
 - ✓ Claude Code CLI delegation, Codex TOML, Continue YAML support -- v0.9.30
 - ✓ --dry-run preview and --all bulk install/uninstall across all platforms -- v0.9.30
+- ✓ MCP bridge reconnects without extension reloads when the MCP host starts after Chrome, Chrome starts after the MCP host, or the MV3 service worker wakes from suspension -- Phase 198 (v0.9.35)
 
 ### Active
 
-- [ ] MCP bridge reconnects without extension reloads when the MCP host starts after Chrome, Chrome starts after the MCP host, or the MV3 service worker wakes from suspension.
 - [ ] MCP background-routed tools use a direct internal dispatcher with tested verb mapping instead of fragile `chrome.runtime.sendMessage` self-dispatch.
 - [ ] MCP diagnostics distinguish install/config, bridge ownership, extension attachment, content-script availability, and tool-routing failures.
 - [ ] Platform install verification covers Claude, Codex, OpenClaw/OpenCode-compatible hosts, Cursor/Windsurf, and supported config formats with idempotent writes.
@@ -355,4 +357,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 after v0.9.35 milestone start*
+*Last updated: 2026-04-22 after Phase 198 completion*
