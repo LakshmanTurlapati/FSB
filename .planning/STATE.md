@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.35
 milestone_name: MCP Plug-and-Play Reliability
 status: executing
-stopped_at: Completed 198-01-PLAN.md
-last_updated: "2026-04-22T16:56:48.309Z"
+stopped_at: Completed 198-mcp-bridge-lifecycle-reconnect-state-02-PLAN.md
+last_updated: "2026-04-22T17:03:23.451Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 ## Current Position
 
 Phase: 198 (mcp-bridge-lifecycle-reconnect-state) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-22
 
-Progress: [----------] 0%
+Progress: [#######---] 67%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [----------] 0%
 | Phase 197 P01 | 10 min | 2 tasks | 3 files |
 | Phase 197 P02 | 4 min | 1 tasks | 1 files |
 | Phase 198-mcp-bridge-lifecycle-reconnect-state P01 | 5min | 2 tasks | 2 files |
+| Phase 198-mcp-bridge-lifecycle-reconnect-state P02 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [v0.9.35]: MCP reliability first -- bridge lifecycle, direct tool routing, diagnostics, installer parity, and cross-host smoke validation come before new MCP feature expansion.
 - [Phase 198-mcp-bridge-lifecycle-reconnect-state]: Plan 198-01 remains RED-only; production behavior is intentionally left for Plans 198-02 and 198-03.
 - [Phase 198-mcp-bridge-lifecycle-reconnect-state]: Topology coverage imports mcp-server/build/bridge.js after build so later fixes are verified against package output.
+- [Phase 198-mcp-bridge-lifecycle-reconnect-state]: Bridge lifecycle diagnostics remain session-scoped in chrome.storage.session; no long-lived chrome.storage.local bridge history was added.
+- [Phase 198-mcp-bridge-lifecycle-reconnect-state]: Wake handling is centralized through armMcpBridge(reason), with runtime.onMessage arming only after same-extension sender validation.
+- [Phase 198-mcp-bridge-lifecycle-reconnect-state]: Lifecycle timestamps are stored as ISO strings to match the Wave 0 contract and keep live state readable.
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-22T16:56:48.306Z
-Stopped at: Completed 198-01-PLAN.md
+Last session: 2026-04-22T17:03:23.448Z
+Stopped at: Completed 198-mcp-bridge-lifecycle-reconnect-state-02-PLAN.md
 Resume file: None
