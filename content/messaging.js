@@ -863,7 +863,9 @@
         case 'executeAction':
           const { tool, params, visualContext, source } = request;
           const isManualMCP = source === 'mcp-manual';
-          logger.logActionExecution(FSB.sessionId, tool, 'start', params);
+          const SENSITIVE_TOOLS = new Set(['fillCredentialFields', 'fillPaymentFields']);
+          const safeParams = SENSITIVE_TOOLS.has(tool) ? '***' : params;
+          logger.logActionExecution(FSB.sessionId, tool, 'start', safeParams);
 
           // MCP manual tools: show viewport glow without progress overlay
           if (isManualMCP) {
