@@ -4,7 +4,7 @@
 
 ## Phases
 
-- [ ] **Phase 198: MCP Bridge Lifecycle & Reconnect State** - Make extension/server attachment recover automatically across startup order, service worker wake, and hub/relay handoff
+- [x] **Phase 198: MCP Bridge Lifecycle & Reconnect State** - Make extension/server attachment recover automatically across startup order, service worker wake, and hub/relay handoff (completed 2026-04-22)
 - [ ] **Phase 199: MCP Tool Routing Contract** - Replace fragile background self-dispatch with direct verified route handling for browser, autopilot, observability, and restricted recovery tools
 - [ ] **Phase 200: Doctor, Status Watch & Recovery Messaging** - Make diagnostics identify the exact failed layer and tell users the next concrete action
 - [ ] **Phase 201: Platform Installer & Config Parity** - Verify install/update behavior across Claude, Codex, OpenClaw/OpenCode-style hosts, Cursor/Windsurf, and supported config formats
@@ -26,7 +26,7 @@
 3. Any service worker wake path re-arms MCP bridge connection attempts and records bridge state.
 4. Multiple MCP host processes keep a stable hub/relay topology and recover cleanly when the hub exits.
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 198-01-PLAN.md -- Create Wave 0 bridge lifecycle and topology tests
@@ -103,7 +103,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 198. MCP Bridge Lifecycle & Reconnect State | 3/3 | Complete   | 2026-04-22 |
+| 198. MCP Bridge Lifecycle & Reconnect State | 3/3 | Complete    | 2026-04-22 |
 | 199. MCP Tool Routing Contract | 0/TBD | Not Started | - |
 | 200. Doctor, Status Watch & Recovery Messaging | 0/TBD | Not Started | - |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
