@@ -1,5 +1,28 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.34 Vault, Payments & Secure MCP Access (Shipped: 2026-04-22)
+
+**Delivered:** Vault unlock repair, payment method management, autopilot/MCP vault fill surfaces, and security boundary fixes for sensitive credential/payment flows.
+
+**Phases completed:** 8 phases, 11 plans, 14 tasks
+
+**Key accomplishments:**
+
+- Restored vault lifecycle messaging and eager session/payment-access rehydration across service worker restarts.
+- Wired payment method CRUD, masked listing, separate payment unlock state, and options-page payment management UI.
+- Added autopilot credential/payment fill paths with sidepanel confirmation before payment fills.
+- Added MCP vault tools that return metadata only and keep raw secrets inside the extension/content-script boundary.
+- Closed MCP security audit gaps for active-tab domain derivation, sidepanel payment confirmation, content-script param redaction, and the 125-second MCP payment confirmation timeout.
+- Shipped backlog MCP tool hardening for route-aware dispatch and text-based click targeting.
+
+**Accepted validation debt:**
+
+- Archived milestone audit is `gaps_found` and predates the Phase 197 gap-closure commits; Phase 197 closed the listed MCP-04, SEC-01, and SEC-02 code gaps, but the milestone audit was not rerun.
+- `REQUIREMENTS.md` still had 19 unchecked v1 requirement rows at archive time; those are preserved in `milestones/v0.9.34-REQUIREMENTS.md` as validation debt.
+- Live UAT remains pending for Phase 191 vault behavior and Phase 197 MCP payment approve/deny/delayed-approval behavior.
+
+---
+
 ## v0.9.30 MCP Platform Install Flags (Shipped: 2026-04-18)
 
 **Phases completed:** 3 phases, 6 plans, 10 tasks

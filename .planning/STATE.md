@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.9.34
 milestone_name: Vault, Payments & Secure MCP Access
-status: human_needed
-stopped_at: Phase 197 complete; human UAT pending
-last_updated: "2026-04-22T04:43:03.709Z"
+status: milestone_complete
+stopped_at: v0.9.34 archived; ready for next milestone
+last_updated: "2026-04-22T04:53:44Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 11
   completed_plans: 11
   percent: 100
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 197 human UAT — MCP payment approval/denial live checks
+**Current focus:** Between milestones — start the next milestone when ready
 
 ## Current Position
 
-Phase: 197 (mcp-security-boundary-fixes) — HUMAN UAT
+Phase: none — v0.9.34 archived
 Plan: Not started
-Status: Automated verification passed; live MCP payment checks pending
+Status: Milestone complete; ready for `$gsd-new-milestone`
 Last activity: 2026-04-22
 
 Progress: [##########] 100%
@@ -81,10 +81,10 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Phase 197 has live human UAT pending for MCP `use_payment_method` approve, deny, and delayed approval behavior.
+- v0.9.34 archived with accepted validation debt: stale `gaps_found` milestone audit, 19 unchecked requirements preserved in the archive, and pending live UAT for Phase 191 and Phase 197.
 
 ## Session Continuity
 
 Last session: 2026-04-22T04:12:28.667Z
-Stopped at: Phase 197 complete; human UAT pending
+Stopped at: v0.9.34 archived; ready for next milestone
 Resume file: None

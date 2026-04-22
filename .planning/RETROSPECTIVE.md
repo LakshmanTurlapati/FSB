@@ -2,6 +2,44 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v0.9.34 -- Vault, Payments & Secure MCP Access
+
+**Shipped:** 2026-04-22
+**Phases:** 8 | **Plans:** 11
+
+### What Was Built
+- Vault lifecycle messaging and eager session/payment-access rehydration across service worker restarts
+- Payment method backend handlers, masked metadata listing, separate unlock state, and options-page payment management UI
+- Autopilot credential/payment fill execution with sidepanel payment confirmation before any payment fill
+- MCP vault tools and bridge handlers that keep raw secrets inside the extension/content-script boundary
+- Phase 197 security boundary fixes for active-tab domain derivation, sidepanel MCP payment confirmation, content-script log redaction, and the 125-second payment confirmation timeout
+
+### What Worked
+- Phase 197 gap closure was small and focused: one code commit closed the timeout mismatch and one docs commit updated verification/UAT state.
+- The proxy command pattern remained coherent: MCP clients receive opaque IDs and masked metadata while the extension resolves secrets locally.
+- Sidepanel confirmation became a shared security pattern across autopilot and MCP payment fills.
+
+### What Was Inefficient
+- The milestone audit was run before the Phase 197 gap-closure work and was archived as stale `gaps_found` instead of being rerun.
+- Requirements traceability was incomplete at close: 19 v1 requirements remained unchecked even though roadmap phases were marked complete.
+- Phase 195 and Phase 196 were closed as 0-plan phases, which made later audit and requirement attribution weaker.
+
+### Patterns Established
+- Active-tab authority pattern: derive credential/payment target domains from browser state rather than MCP payloads.
+- Sensitive-param redaction pattern: content-script fill actions redact params before logging even if logging is later enabled.
+- Human-gated MCP timeout pattern: server-side bridge timeouts must exceed browser-side confirmation windows.
+
+### Key Lessons
+1. Run milestone audit after all gap-closure phases, not before the final closure commit.
+2. Requirements checkboxes and traceability rows need to be updated during each phase, not reconstructed at milestone close.
+3. Zero-plan phases make archives look complete while weakening evidence; future milestones should create explicit audit/verification plans even for hardening passes.
+
+### Cost Observations
+- Model mix: inherit profile.
+- Notable: The final closure was code-small but documentation-heavy because audit and requirements state lagged behind implementation.
+
+---
+
 ## Milestone: v0.9.30 -- MCP Platform Install Flags
 
 **Shipped:** 2026-04-18
@@ -101,6 +139,7 @@
 | v0.9.6 | 7 | - | Agents + remote control |
 | v0.9.7 | 50 | 100 | Autonomous edge case validation at scale |
 | v0.9.30 | 3 | 6 | MCP platform install flags -- compact, data-driven |
+| v0.9.34 | 8 | 11 | Vault/payment/MCP security closure with accepted validation debt |
 
 ### Top Lessons (Verified Across Milestones)
 
