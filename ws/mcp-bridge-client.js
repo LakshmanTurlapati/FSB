@@ -315,7 +315,7 @@ class MCPBridgeClient {
         return this._handleStartAutomation(payload, id);
 
       case 'mcp:stop-automation':
-        return this._handleStopAutomation();
+        return this._handleStopAutomation(payload);
 
       case 'mcp:get-status':
         return this._handleGetStatus();
@@ -324,13 +324,13 @@ class MCPBridgeClient {
         return this._handleGetConfig();
 
       case 'mcp:get-site-guides':
-        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
+        return this._handleGetSiteGuides(payload);
 
       case 'mcp:get-memory':
         return this._handleGetMemory(payload);
 
       case 'mcp:list-sessions':
-        return this._handleListSessions();
+        return this._handleListSessions(payload);
 
       case 'mcp:get-session':
         return this._handleGetSession(payload);
@@ -593,14 +593,11 @@ class MCPBridgeClient {
   }
 
   async _handleStartAutomation(payload, mcpMsgId) {
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
-
-    const response = await this._dispatchToBackground({
-      action: 'startAutomation',
-      task: payload.task,
-      tabId: tab.id,
-      source: 'mcp',
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:start-automation',
+      payload,
+      client: this,
+      mcpMsgId
     });
 
     if (!response || !response.success) {
@@ -652,13 +649,21 @@ class MCPBridgeClient {
     });
   }
 
-  async _handleStopAutomation() {
-    const response = await this._dispatchToBackground({ action: 'stopAutomation' });
+  async _handleStopAutomation(payload = {}) {
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:stop-automation',
+      payload,
+      client: this
+    });
     return response || { stopped: true };
   }
 
   async _handleGetStatus() {
-    const response = await this._dispatchToBackground({ action: 'getStatus' });
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-status',
+      payload: {},
+      client: this
+    });
     return response || {};
   }
 
@@ -671,52 +676,55 @@ class MCPBridgeClient {
   }
 
   async _handleGetSiteGuides(payload) {
-    const response = await this._dispatchToBackground({
-      action: 'getSiteGuides',
-      domain: payload.domain,
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-site-guides',
+      payload,
+      client: this
     });
     return response || {};
   }
 
   async _handleGetMemory(payload) {
-    const response = await this._dispatchToBackground({
-      action: 'getMemory',
-      type: payload.type,
-      domain: payload.domain,
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-memory',
+      payload,
+      client: this
     });
     return response || {};
   }
 
-  async _handleListSessions() {
-    const response = await this._dispatchToBackground({ action: 'listSessions' });
+  async _handleListSessions(payload = {}) {
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:list-sessions',
+      payload,
+      client: this
+    });
     return response || {};
   }
 
   async _handleGetSession(payload) {
-    const response = await this._dispatchToBackground({
-      action: 'getSession',
-      sessionId: payload.sessionId,
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-session',
+      payload,
+      client: this
     });
     return response || {};
   }
 
   async _handleGetLogs(payload) {
-    const response = await this._dispatchToBackground({
-      action: 'getLogs',
-      sessionId: payload.sessionId,
-      level: payload.level,
-      limit: payload.limit,
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-logs',
+      payload,
+      client: this
     });
     return response || {};
   }
 
   async _handleSearchMemory(payload) {
-    const response = await this._dispatchToBackground({
-      action: 'searchMemory',
-      query: payload.query,
-      type: payload.type,
-      domain: payload.domain,
-      limit: payload.limit,
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:search-memory',
+      payload,
+      client: this
     });
     return response || {};
   }

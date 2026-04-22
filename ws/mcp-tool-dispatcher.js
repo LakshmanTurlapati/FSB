@@ -20,7 +20,17 @@ const MCP_PHASE199_TOOL_ROUTES = {
   switch_tab: { routeFamily: 'browser', handler: handleSwitchTabRoute },
   list_tabs: { routeFamily: 'browser', handler: handleListTabsRoute },
   execute_js: { routeFamily: 'browser', handler: handleExecuteJsRoute },
-  get_site_guide: { routeFamily: 'browser', handler: handleGetSiteGuideRoute },
+  run_task: { routeFamily: 'autopilot', messageType: 'mcp:start-automation', handler: handleToolAliasRoute },
+  stop_task: { routeFamily: 'autopilot', messageType: 'mcp:stop-automation', handler: handleToolAliasRoute },
+  get_task_status: { routeFamily: 'autopilot', messageType: 'mcp:get-status', handler: handleToolAliasRoute },
+  get_site_guide: { routeFamily: 'read-only', messageType: 'mcp:get-site-guides', handler: handleToolAliasRoute },
+  list_sessions: { routeFamily: 'observability', messageType: 'mcp:list-sessions', handler: handleToolAliasRoute },
+  get_session_detail: { routeFamily: 'observability', messageType: 'mcp:get-session', handler: handleToolAliasRoute },
+  get_logs: { routeFamily: 'observability', messageType: 'mcp:get-logs', handler: handleToolAliasRoute },
+  search_memory: { routeFamily: 'observability', messageType: 'mcp:search-memory', handler: handleToolAliasRoute },
+  get_memory_stats: { routeFamily: 'observability', messageType: 'mcp:get-memory', handler: handleToolAliasRoute },
+  read_page: { routeFamily: 'read-only', messageType: 'mcp:read-page', handler: handleToolAliasRoute },
+  get_dom_snapshot: { routeFamily: 'read-only', messageType: 'mcp:get-dom', handler: handleToolAliasRoute },
   report_progress: { routeFamily: 'task-status', handler: handleReportProgressRoute },
   complete_task: { routeFamily: 'task-status', handler: handleCompleteTaskRoute },
   partial_task: { routeFamily: 'task-status', handler: handlePartialTaskRoute },
@@ -29,9 +39,17 @@ const MCP_PHASE199_TOOL_ROUTES = {
 
 const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-tabs': { routeFamily: 'read-only', helperName: '_handleGetTabs' },
-  'mcp:get-site-guides': { routeFamily: 'read-only', helperName: '_handleGetSiteGuides' },
+  'mcp:get-site-guides': { routeFamily: 'read-only', handler: handleGetSiteGuidesRoute },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
-  'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' }
+  'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' },
+  'mcp:start-automation': { routeFamily: 'autopilot', handler: handleStartAutomationRoute },
+  'mcp:stop-automation': { routeFamily: 'autopilot', handler: handleStopAutomationRoute },
+  'mcp:get-status': { routeFamily: 'autopilot', handler: handleGetStatusRoute },
+  'mcp:list-sessions': { routeFamily: 'observability', handler: handleListSessionsMessageRoute },
+  'mcp:get-session': { routeFamily: 'observability', handler: handleGetSessionMessageRoute },
+  'mcp:get-logs': { routeFamily: 'observability', handler: handleGetLogsMessageRoute },
+  'mcp:search-memory': { routeFamily: 'observability', handler: handleSearchMemoryMessageRoute },
+  'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute }
 };
 
 function createMcpRouteError(tool, routeFamily, error, extra = {}) {
@@ -69,11 +87,11 @@ function getMcpRouteContracts() {
   return {
     toolRoutes: Object.fromEntries(Object.entries(MCP_PHASE199_TOOL_ROUTES).map(([tool, route]) => [
       tool,
-      { routeFamily: route.routeFamily, handler: route.handler.name }
+      { routeFamily: route.routeFamily, handler: route.handler.name, ...(route.messageType ? { messageType: route.messageType } : {}) }
     ])),
     messageRoutes: Object.fromEntries(Object.entries(MCP_PHASE199_MESSAGE_ROUTES).map(([type, route]) => [
       type,
-      { routeFamily: route.routeFamily, helperName: route.helperName }
+      { routeFamily: route.routeFamily, ...(route.helperName ? { helperName: route.helperName } : {}), ...(route.handler ? { handler: route.handler.name } : {}) }
     ])),
     excludedBackgroundTools: Array.from(MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS),
     navigationRecoveryTools: MCP_NAVIGATION_RECOVERY_TOOLS.slice()
@@ -90,13 +108,21 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
     return createMcpRouteError(tool, route.routeFamily, `MCP tool route ${tool} has no handler`);
   }
 
-  return route.handler({ tool, params: params || {}, client, tab, payload });
+  return route.handler({ tool, params: params || {}, client, tab, payload, route });
 }
 
 async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null }) {
   const route = MCP_PHASE199_MESSAGE_ROUTES[type];
   if (!route) {
     return createMcpRouteError(type, 'message', `Unsupported MCP message route: ${type}`);
+  }
+
+  if (typeof route.handler === 'function') {
+    try {
+      return await route.handler({ type, payload: payload || {}, client, mcpMsgId, route });
+    } catch (error) {
+      return maybeBuildRestrictedResponse({ error, tool: type, client });
+    }
   }
 
   if (!client || typeof client[route.helperName] !== 'function') {
@@ -328,6 +354,294 @@ async function handleGetSiteGuideRoute({ params, client }) {
 
 function boundedString(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
+}
+
+function boundedPositiveInt(value, defaultValue, maxValue) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
+  return Math.min(parsed, maxValue);
+}
+
+function isPromptOrRawResponseLog(entry) {
+  const logType = entry?.data?.logType || entry?.logType || null;
+  return logType === 'prompt' || logType === 'rawResponse';
+}
+
+function isSensitiveKey(key) {
+  return /password|passcode|token|secret|apikey|api_key|authorization|credential|cardnumber|card_number|cvv|cvc|vault|payment|privatekey|private_key/i.test(String(key || ''));
+}
+
+function sanitizeValue(value, options = {}, depth = 0) {
+  const maxString = options.maxString || 1000;
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') return value.slice(0, maxString);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) {
+    const maxArray = options.maxArray || 50;
+    return value.slice(0, maxArray).map(item => sanitizeValue(item, options, depth + 1));
+  }
+  if (typeof value === 'object') {
+    if (depth >= (options.maxDepth || 3)) return '[object]';
+    const output = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (isSensitiveKey(key)) continue;
+      output[key] = sanitizeValue(item, options, depth + 1);
+    }
+    return output;
+  }
+  return String(value).slice(0, maxString);
+}
+
+function sanitizeLogEntry(entry) {
+  return sanitizeValue(entry || {}, { maxString: 1000, maxArray: 50, maxDepth: 4 });
+}
+
+function filterAndCapLogs(logs, limit) {
+  const cappedLimit = boundedPositiveInt(limit, 50, 200);
+  return (Array.isArray(logs) ? logs : [])
+    .filter(entry => !isPromptOrRawResponseLog(entry))
+    .slice(-cappedLimit)
+    .map(sanitizeLogEntry);
+}
+
+function sanitizeSessionMetadata(session) {
+  if (!session || typeof session !== 'object') return null;
+  const sanitized = sanitizeValue(session, { maxString: 1000, maxArray: 100, maxDepth: 4 });
+  delete sanitized.logs;
+  delete sanitized.actionHistory;
+  return sanitized;
+}
+
+function sanitizeSessionDetail(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+
+  const sanitized = sanitizeSessionMetadata(session);
+  sanitized.logs = filterAndCapLogs(session.logs || [], 200);
+  if (Array.isArray(session.actionHistory)) {
+    sanitized.actionHistory = session.actionHistory.slice(-100).map(action => sanitizeValue(action, { maxString: 1000, maxArray: 25, maxDepth: 4 }));
+  }
+  return sanitized;
+}
+
+function sanitizeMemoryEntry(memory) {
+  return {
+    id: memory?.id || null,
+    type: memory?.type || null,
+    text: String(memory?.text || '').slice(0, 500),
+    metadata: sanitizeValue(memory?.metadata || {}, { maxString: 500, maxArray: 25, maxDepth: 3 })
+  };
+}
+
+function getMemoryListStorageUsageBytes(memories) {
+  try {
+    return new Blob([JSON.stringify(memories || [])]).size;
+  } catch (_) {
+    try {
+      return JSON.stringify(memories || []).length;
+    } catch (__) {
+      return 0;
+    }
+  }
+}
+
+function getActiveSessionsMap() {
+  return (typeof activeSessions !== 'undefined' && activeSessions instanceof Map) ? activeSessions : new Map();
+}
+
+function callCallbackHandler(handlerName, request, sender = {}) {
+  const handler = typeof globalThis !== 'undefined' ? globalThis[handlerName] : null;
+  const directHandler = typeof handler === 'function'
+    ? handler
+    : (handlerName === 'handleStartAutomation' && typeof handleStartAutomation === 'function')
+      ? handleStartAutomation
+      : (handlerName === 'handleStopAutomation' && typeof handleStopAutomation === 'function')
+        ? handleStopAutomation
+        : null;
+
+  if (typeof directHandler !== 'function') {
+    return Promise.resolve(createMcpRouteError(request?.action || handlerName, 'autopilot', `${handlerName} unavailable`));
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const result = directHandler(request, sender, (response) => resolve(response || {}));
+      if (result && typeof result.catch === 'function') {
+        result.catch((error) => resolve({ success: false, error: error.message || String(error) }));
+      }
+    } catch (error) {
+      resolve({ success: false, error: error.message || String(error) });
+    }
+  });
+}
+
+async function handleToolAliasRoute({ params, client, route }) {
+  return dispatchMcpMessageRoute({
+    type: route.messageType,
+    payload: params || {},
+    client
+  });
+}
+
+async function handleStartAutomationRoute({ payload, client }) {
+  const tab = await getActiveTabFromClient(client);
+  if (!tab?.id) {
+    return createMcpRouteError('run_task', 'autopilot', 'No active tab available for automation', { errorCode: 'no_active_tab' });
+  }
+
+  return callCallbackHandler(
+    'handleStartAutomation',
+    {
+      action: 'startAutomation',
+      task: payload.task,
+      tabId: tab.id,
+      source: 'mcp'
+    },
+    { tab: { id: tab.id } }
+  );
+}
+
+async function handleStopAutomationRoute({ payload, client }) {
+  const tab = await getActiveTabFromClient(client).catch(() => null);
+  return callCallbackHandler(
+    'handleStopAutomation',
+    {
+      action: 'stopAutomation',
+      sessionId: payload.sessionId
+    },
+    tab?.id ? { tab: { id: tab.id } } : {}
+  );
+}
+
+async function handleGetStatusRoute() {
+  const sessions = getActiveSessionsMap();
+  const sessionIds = Array.from(sessions.keys());
+  const firstSession = sessionIds.length > 0 ? sessions.get(sessionIds[0]) : null;
+  return {
+    status: 'ready',
+    activeSessions: sessions.size,
+    sessionIds,
+    currentSessionId: sessionIds[0] || null,
+    currentTask: firstSession?.task || null,
+    currentStartTime: firstSession?.startTime || null,
+    currentIterationCount: firstSession?.iterationCount || 0,
+    currentMaxIterations: firstSession?.maxIterations || 20,
+    currentActionCount: firstSession?.actionHistory?.length || 0
+  };
+}
+
+async function handleGetSiteGuidesRoute({ payload }) {
+  const task = payload.task || payload.query || '';
+  const url = payload.url || payload.domain || '';
+  let guide = null;
+
+  if (task && typeof getGuideForTask === 'function') {
+    guide = getGuideForTask(task, url);
+  } else if (url && typeof getGuideForUrl === 'function') {
+    guide = getGuideForUrl(url);
+  }
+
+  return { success: true, guide: guide || null };
+}
+
+async function handleListSessionsMessageRoute({ payload }) {
+  if (typeof automationLogger === 'undefined' || typeof automationLogger?.listSessions !== 'function') {
+    return createMcpRouteError('list_sessions', 'observability', 'Automation logger sessions unavailable');
+  }
+
+  const limit = boundedPositiveInt(payload.limit, 50, 50);
+  const sessions = await automationLogger.listSessions();
+  return {
+    success: true,
+    sessions: (Array.isArray(sessions) ? sessions : []).slice(0, limit).map(sanitizeSessionMetadata).filter(Boolean)
+  };
+}
+
+async function handleGetSessionMessageRoute({ payload }) {
+  if (!payload.sessionId) {
+    return createMcpInvalidParamsError('get_session_detail', 'get_session_detail requires sessionId', { routeFamily: 'observability' });
+  }
+  if (typeof automationLogger === 'undefined' || typeof automationLogger?.loadSession !== 'function') {
+    return createMcpRouteError('get_session_detail', 'observability', 'Automation logger session loader unavailable');
+  }
+
+  const session = await automationLogger.loadSession(payload.sessionId);
+  return {
+    success: Boolean(session),
+    session: sanitizeSessionDetail(session),
+    ...(session ? {} : { error: 'Session not found' })
+  };
+}
+
+async function handleGetLogsMessageRoute({ payload }) {
+  if (typeof automationLogger === 'undefined') {
+    return createMcpRouteError('get_logs', 'observability', 'Automation logger unavailable');
+  }
+
+  const requestedLimit = payload.count || payload.limit || 50;
+  const logs = payload.sessionId && typeof automationLogger.getSessionLogs === 'function'
+    ? automationLogger.getSessionLogs(payload.sessionId)
+    : typeof automationLogger.getRecentLogs === 'function'
+      ? automationLogger.getRecentLogs(boundedPositiveInt(requestedLimit, 50, 200))
+      : [];
+  const sanitizedLogs = filterAndCapLogs(logs, requestedLimit);
+  return {
+    success: true,
+    logs: sanitizedLogs,
+    count: sanitizedLogs.length
+  };
+}
+
+async function handleSearchMemoryMessageRoute({ payload }) {
+  if (typeof memoryManager === 'undefined' || typeof memoryManager?.search !== 'function') {
+    return createMcpRouteError('search_memory', 'observability', 'Memory search unavailable');
+  }
+
+  const filters = payload.filters || {
+    ...(payload.domain ? { domain: payload.domain } : {}),
+    ...(payload.type ? { type: payload.type } : {})
+  };
+  const options = {
+    ...(payload.options || {}),
+    topN: boundedPositiveInt(payload.options?.topN || payload.topN || payload.limit, 5, 25)
+  };
+  const results = await memoryManager.search(payload.query || '', filters, options);
+  return {
+    success: true,
+    results: (Array.isArray(results) ? results : []).slice(0, options.topN).map(sanitizeMemoryEntry)
+  };
+}
+
+async function handleGetMemoryMessageRoute({ payload }) {
+  if (typeof memoryManager === 'undefined' || typeof memoryManager?.getAll !== 'function') {
+    return createMcpRouteError('get_memory_stats', 'observability', 'Memory manager unavailable');
+  }
+
+  const memories = await memoryManager.getAll();
+  const memoryList = Array.isArray(memories) ? memories : [];
+  if (payload.statsOnly === true) {
+    const byType = {};
+    for (const memory of memoryList) {
+      const type = memory?.type || 'unknown';
+      byType[type] = (byType[type] || 0) + 1;
+    }
+    return {
+      success: true,
+      stats: {
+        total: memoryList.length,
+        byType,
+        storageUsageBytes: getMemoryListStorageUsageBytes(memoryList)
+      }
+    };
+  }
+
+  const limit = boundedPositiveInt(payload.limit, 25, 100);
+  return {
+    success: true,
+    memories: memoryList.slice(0, limit).map(sanitizeMemoryEntry),
+    total: memoryList.length
+  };
 }
 
 async function handleReportProgressRoute({ params }) {
