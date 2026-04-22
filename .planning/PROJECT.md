@@ -20,7 +20,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - MCP tools: list_credentials (domain+username only), fill_credential (extension autofill, password never over WebSocket), list_payment_methods (last 4 + brand only), use_payment_method (MCP confirmation, then extension fills directly)
 - Redacted logging for all sensitive operations
 
-**Phase 197 update:** MCP payment fills now use sidepanel approval/denial messages, credential fills derive the lookup domain from the active tab URL, and content-script logs redact credential/payment fill params. Verification found one remaining gap: the MCP server `use_payment_method` timeout must be aligned with the extension's payment confirmation window.
+**Phase 197 update:** MCP payment fills now use sidepanel approval/denial messages, credential fills derive the lookup domain from the active tab URL, content-script logs redact credential/payment fill params, and the MCP server `use_payment_method` timeout now exceeds the extension's 120-second confirmation window. Live browser UAT remains for approve, deny, and delayed approval behavior.
 
 ## Previous State: v0.9.33 Dashboard Task Results & Stream Quality (shipped 2026-04-20)
 
@@ -340,4 +340,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 -- Phase 197 MCP security boundary fixes executed*
+*Last updated: 2026-04-22 -- Phase 197 MCP security boundary gap closure verified*

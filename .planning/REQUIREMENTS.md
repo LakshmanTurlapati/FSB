@@ -39,7 +39,7 @@ Requirements for fixing vault unlock, wiring payment methods, and exposing secur
 - [ ] **MCP-01**: MCP client can list saved credentials showing domain and username only (passwords never exposed)
 - [ ] **MCP-02**: MCP client can trigger credential fill on the active tab's login form (password never travels over WebSocket)
 - [ ] **MCP-03**: MCP client can list saved payment methods showing last 4 digits and brand only (full card data never exposed)
-- [ ] **MCP-04**: MCP client can trigger payment method fill on the active tab with MCP terminal confirmation before execution
+- [x] **MCP-04**: MCP client can trigger payment method fill on the active tab with MCP terminal confirmation before execution
 
 ### Security Hardening
 
@@ -94,7 +94,7 @@ Deferred to future release.
 | MCP-01 | Phase 195 | Pending |
 | MCP-02 | Phase 195 | Pending |
 | MCP-03 | Phase 195 | Pending |
-| MCP-04 | Phase 197 | Pending |
+| MCP-04 | Phase 197 | Complete |
 | SEC-01 | Phase 197 | Complete |
 | SEC-02 | Phase 197 | Complete |
 | SEC-03 | Phase 195 | Pending |
@@ -106,4 +106,4 @@ Deferred to future release.
 
 ---
 *Requirements defined: 2026-04-20*
-*Last updated: 2026-04-22 after Phase 197 verification*
+*Last updated: 2026-04-22 after Phase 197 gap closure verification*

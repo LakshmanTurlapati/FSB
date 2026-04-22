@@ -1,27 +1,27 @@
 ---
 phase: 197-mcp-security-boundary-fixes
-verified: 2026-04-22T04:15:47Z
-status: gaps_found
-score: 2/3 must-haves verified
-gaps:
-  - truth: "MCP use_payment_method shows sidepanel confirmation dialog and waits for user approval/denial before proceeding with fill"
-    status: partial
-    reason: "The extension-side sidepanel confirmation flow is wired and gates the fill, but the MCP server waits only 30 seconds for mcp:use-payment-method while the extension waits 120 seconds for user confirmation. Approval after 30 seconds can still fill the active tab after the MCP tool has already timed out, so the flow is not reliable end-to-end."
-    artifacts:
-      - path: "mcp-server/src/tools/vault.ts"
-        issue: "use_payment_method bridge.sendAndWait timeout is 30_000ms."
-      - path: "ws/mcp-bridge-client.js"
-        issue: "_handleUsePaymentMethod confirmation gate waits 120_000ms and does not receive cancellation from the MCP server timeout."
-    missing:
-      - "Align the MCP server use_payment_method bridge timeout with the extension confirmation window, or add cancellation so the extension cannot continue filling after the MCP request times out."
+verified: 2026-04-22T04:41:14Z
+status: human_needed
+score: 3/3
+gaps: []
+human_verification:
+  - test: "Trigger MCP use_payment_method from an MCP client on a checkout page, then click Allow in the sidepanel confirmation dialog."
+    expected: "The sidepanel shows card brand, last 4, and merchant domain; payment fields fill only after approval; the MCP tool returns success."
+    why_human: "Requires a live Chrome extension, configured payment vault, checkout page DOM, and MCP client."
+  - test: "Trigger MCP use_payment_method from an MCP client on a checkout page, then click Deny in the sidepanel confirmation dialog."
+    expected: "No payment fields fill; the MCP tool returns a denial result."
+    why_human: "Requires live sidepanel interaction and content-script observation."
+  - test: "Trigger MCP use_payment_method, wait longer than 30 seconds but less than 120 seconds, then click Allow."
+    expected: "The MCP tool remains pending past 30 seconds and returns the final fill result after approval."
+    why_human: "Requires real-time interaction across the MCP server, extension bridge, sidepanel, and active tab."
 ---
 
 # Phase 197: MCP Security Boundary Fixes Verification Report
 
 **Phase Goal:** MCP payment confirmation works end-to-end and credential fills derive domain from active tab
-**Verified:** 2026-04-22T04:15:47Z
-**Status:** gaps_found
-**Re-verification:** No - initial verification
+**Verified:** 2026-04-22T04:41:14Z
+**Status:** human_needed
+**Re-verification:** Yes - after `197-02` timeout gap closure
 
 ## Goal Achievement
 
@@ -29,81 +29,82 @@ gaps:
 
 | # | Truth | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | MCP use_payment_method shows sidepanel confirmation dialog and waits for user approval/denial before proceeding with fill | PARTIAL | `ws/mcp-bridge-client.js` registers `chrome.runtime.onMessage.addListener(confirmHandler)` before broadcasting `paymentFillConfirmation`, and only calls `fillPaymentFields` after approval. `ui/sidepanel.js` handles `paymentFillConfirmation` and sends `paymentFillApproved` / `paymentFillDenied`. Gap: `mcp-server/src/tools/vault.ts` waits only `30_000ms` for the bridge result while the extension waits `120_000ms`, so the MCP request can time out before approval while the extension can still fill later. |
-| 2 | MCP fill_credential derives the lookup domain from the active tab URL, not from the MCP request payload | VERIFIED | `_handleFillCredential()` has no payload dependency, calls `_getActiveTab()`, requires `tab.url`, derives `domain = new URL(tab.url).hostname`, and passes that domain to `getFullCredential`. No `const { domain } = payload` remains in `ws/mcp-bridge-client.js`. |
+| 1 | MCP `use_payment_method` shows sidepanel confirmation dialog and waits for user approval/denial before proceeding with fill | VERIFIED at code level | `ws/mcp-bridge-client.js` registers `chrome.runtime.onMessage.addListener(confirmHandler)` before sending `paymentFillConfirmation`, fills only after `paymentFillApproved`, and returns denial/timeout results otherwise. `mcp-server/src/tools/vault.ts` now waits `PAYMENT_CONFIRMATION_TIMEOUT_MS = 125_000`, which exceeds the extension-side `120_000` confirmation gate. |
+| 2 | MCP `fill_credential` derives the lookup domain from the active tab URL, not from the MCP request payload | VERIFIED | `_handleFillCredential()` calls `_getActiveTab()`, requires `tab.url`, derives `domain = new URL(tab.url).hostname`, and passes that domain to `getFullCredential`. No `const { domain } = payload` remains in `ws/mcp-bridge-client.js`. |
 | 3 | Content script logging path cannot emit raw credential or payment params even if logger is activated | VERIFIED | `content/messaging.js` defines `SENSITIVE_TOOLS = new Set(['fillCredentialFields', 'fillPaymentFields'])`, sets `safeParams` to `'***'` for those tools, and passes `safeParams` to `logger.logActionExecution`. Follow-on content action timing logs only success and timing, not raw params. |
 
-**Score:** 2/3 truths verified
+**Score:** 3/3 truths verified at the code boundary
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 | --- | --- | --- | --- |
-| `ws/mcp-bridge-client.js` | Fixed MCP payment confirmation flow and secure domain derivation | PARTIAL | Domain derivation and extension-side confirmation gate are substantive and wired. The payment flow is incomplete end-to-end because the MCP server timeout can expire before the bridge handler finishes its 120-second confirmation window. |
+| `ws/mcp-bridge-client.js` | Fixed MCP payment confirmation flow and secure domain derivation | VERIFIED | Payment confirmation uses a two-phase listener-plus-broadcast gate, derives merchant domain from the active tab, and fills only after approval. Credential lookup domain is also derived from the active tab. |
 | `content/messaging.js` | Sensitive tool param redaction before logging | VERIFIED | `SENSITIVE_TOOLS` and `safeParams` are present in the `executeAction` handler before `logActionExecution`. |
-| `mcp-server/src/tools/vault.ts` | MCP vault tool descriptions and request envelope | PARTIAL | `fill_credential.domain` is optional and documented as ignored. `use_payment_method` still uses a 30-second bridge timeout, which conflicts with the 120-second sidepanel confirmation window. |
-
-`gsd-tools verify artifacts` passed the two plan-declared artifacts (`ws/mcp-bridge-client.js`, `content/messaging.js`). `gsd-tools verify key-links` could not parse the annotated `from` labels and reported "Source file not found", so wiring was verified manually.
+| `mcp-server/src/tools/vault.ts` | MCP vault tool descriptions and request envelope | VERIFIED | `fill_credential.domain` is optional and documented as ignored. `use_payment_method` now uses `PAYMENT_CONFIRMATION_TIMEOUT_MS = 125_000`, exceeding the extension-side confirmation timeout. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 | --- | --- | --- | --- | --- |
-| `mcp-server/src/tools/vault.ts` `use_payment_method` | `ws/mcp-bridge-client.js` `_handleUsePaymentMethod` | `bridge.sendAndWait({ type: 'mcp:use-payment-method' })` | PARTIAL | Correct message type and payload are sent, but timeout is `30_000ms` while extension confirmation waits `120_000ms`. |
+| `mcp-server/src/tools/vault.ts` `use_payment_method` | `ws/mcp-bridge-client.js` `_handleUsePaymentMethod` | `bridge.sendAndWait({ type: 'mcp:use-payment-method' })` | WIRED | The MCP server request timeout is 125 seconds; the extension confirmation timeout is 120 seconds. The MCP caller no longer times out early at 30 seconds while the extension can still fill later. |
 | `ws/mcp-bridge-client.js` `_handleUsePaymentMethod` | `ui/sidepanel.js` confirmation handler | `chrome.runtime.onMessage.addListener` plus `chrome.runtime.sendMessage({ action: 'paymentFillConfirmation' })` | WIRED | Sidepanel switch handles `paymentFillConfirmation`, displays the overlay, and sends `paymentFillApproved` / `paymentFillDenied` with the same payment method ID. |
 | `ws/mcp-bridge-client.js` `_handleFillCredential` | `chrome.tabs.query` | `_getActiveTab()` plus `new URL(tab.url).hostname` | WIRED | Active tab URL is required before credential lookup. |
 | `content/messaging.js` executeAction handler | `automation-logger.js` | `logger.logActionExecution(FSB.sessionId, tool, 'start', safeParams)` | WIRED | Sensitive content action params are replaced with `'***'` before logging. |
-
-### Data-Flow Trace (Level 4)
-
-| Artifact | Data Variable | Source | Produces Real Data | Status |
-| --- | --- | --- | --- | --- |
-| `ws/mcp-bridge-client.js` `_handleFillCredential` | `domain` | `new URL(tab.url).hostname` from `chrome.tabs.query({ active: true, currentWindow: true })` | Yes | VERIFIED |
-| `ws/mcp-bridge-client.js` `_handleFillCredential` | `credResponse.credential` | Background `getFullCredential` using active-tab-derived domain | Yes, then sent only to content script | VERIFIED |
-| `ws/mcp-bridge-client.js` `_handleUsePaymentMethod` | `confirmResult` | Sidepanel approval/denial runtime messages | Yes, but MCP server may time out first | PARTIAL |
-| `content/messaging.js` executeAction handler | `safeParams` | `SENSITIVE_TOOLS.has(tool) ? '***' : params` | Yes | VERIFIED |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 | --- | --- | --- | --- |
-| Bridge client syntax is valid | `node --check ws/mcp-bridge-client.js` | Exit 0 | PASS |
-| Content messaging syntax is valid | `node --check content/messaging.js` | Exit 0 | PASS |
+| Payment timeout constant exists | `grep -n "PAYMENT_CONFIRMATION_TIMEOUT_MS = 125_000" mcp-server/src/tools/vault.ts` | Found at line 8 | PASS |
+| `use_payment_method` uses aligned timeout | `grep -n "timeout: PAYMENT_CONFIRMATION_TIMEOUT_MS" mcp-server/src/tools/vault.ts` | Found at line 97 | PASS |
+| Stale 30-second timeout removed | `grep -n "timeout: 30_000" mcp-server/src/tools/vault.ts` | No matches | PASS |
+| Extension confirmation window remains 120 seconds | `grep -n "120_000" ws/mcp-bridge-client.js` | Found at line 763 | PASS |
 | MCP server TypeScript build succeeds | `npm --prefix mcp-server run build` | Exit 0 | PASS |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| MCP-04 | `197-01-PLAN.md` | MCP client can trigger payment method fill on the active tab with MCP terminal confirmation before execution | PARTIAL | The sidepanel confirmation dialog and fill gate are wired, but `mcp-server/src/tools/vault.ts` times out after 30 seconds while extension confirmation remains active for 120 seconds. |
-| SEC-02 | `197-01-PLAN.md` | Fill operations derive the target domain from the active tab URL, never from MCP payload parameters | SATISFIED | `fill_credential` ignores payload domain and derives from `tab.url`; `use_payment_method` also derives `merchantDomain` from `tab.url`. |
+| MCP-04 | `197-01-PLAN.md`, `197-02-PLAN.md` | MCP client can trigger payment method fill on the active tab with MCP terminal confirmation before execution | SATISFIED at code level; live UAT pending | Sidepanel approval/denial gate is wired; payment fill happens only after approval; server timeout now exceeds the extension-side confirmation window. |
+| SEC-02 | `197-01-PLAN.md` | Fill operations derive the target domain from the active tab URL, never from MCP payload parameters | SATISFIED | `fill_credential` ignores payload domain and derives from `tab.url`; `use_payment_method` derives `merchantDomain` from `tab.url`. |
 | SEC-01 | `197-01-PLAN.md` | No password, full card number, or CVV appears in any log output | SATISFIED for Phase 197 scope | The targeted content-script `executeAction` logging path redacts params for `fillCredentialFields` and `fillPaymentFields`; `automationLogger.logContentMessage` records metadata only and does not persist payload contents. |
-
-No orphaned Phase 197 requirements were found in `.planning/REQUIREMENTS.md`; MCP-04, SEC-01, and SEC-02 are all mapped to Phase 197.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 | --- | --- | --- | --- | --- |
-| `mcp-server/src/tools/vault.ts` | 94 | `timeout: 30_000` for human payment confirmation | Blocker | The MCP server can return timeout before the extension-side 120-second approval/denial window completes. |
+| (none) | - | - | - | - |
 
-Other grep hits in the modified files were benign initialization defaults, existing connection logging, or non-secret metadata. No placeholder/stub implementation was found in the plan-declared artifacts.
+No remaining Phase 197 blocker was found in the modified code. The previous `mcp-server/src/tools/vault.ts` 30-second timeout mismatch is resolved.
 
 ### Human Verification Required
 
-After the timeout gap is fixed, run a live MCP `use_payment_method` check with the sidepanel open:
+### 1. Approval Fill End-to-End
 
-1. Trigger `use_payment_method` from an MCP client on a checkout page.
-2. Confirm the sidepanel shows brand, last 4, and merchant domain.
-3. Click Allow and verify payment fields fill and the MCP tool returns success.
-4. Repeat with Deny and verify no fields fill and the MCP tool returns a denial result.
-5. Wait longer than 30 seconds but less than the configured confirmation timeout before approving, and verify the MCP tool remains pending and returns the final fill result.
+**Test:** Trigger MCP `use_payment_method` from an MCP client on a checkout page, then click Allow in the sidepanel confirmation dialog.
+**Expected:** The sidepanel shows card brand, last 4, and merchant domain; payment fields fill only after approval; the MCP tool returns success.
+**Why human:** Requires a live Chrome extension, configured payment vault, checkout page DOM, and MCP client.
+
+### 2. Denial Does Not Fill
+
+**Test:** Trigger MCP `use_payment_method` from an MCP client on a checkout page, then click Deny in the sidepanel confirmation dialog.
+**Expected:** No payment fields fill; the MCP tool returns a denial result.
+**Why human:** Requires live sidepanel interaction and content-script observation.
+
+### 3. Delayed Approval Remains Pending
+
+**Test:** Trigger MCP `use_payment_method`, wait longer than 30 seconds but less than 120 seconds, then click Allow.
+**Expected:** The MCP tool remains pending past 30 seconds and returns the final fill result after approval.
+**Why human:** Requires real-time interaction across the MCP server, extension bridge, sidepanel, and active tab.
 
 ### Gaps Summary
 
-Phase 197 closes the credential-domain derivation gap and the content-script raw-param logging gap. The payment confirmation implementation is correctly wired inside the extension and sidepanel, but the MCP server request envelope still times out after 30 seconds while the browser-side confirmation gate waits for 120 seconds. That mismatch prevents reliable end-to-end MCP behavior and can leave the extension able to fill after the MCP caller has already received a timeout.
+No code-level gaps remain for Phase 197. The original security boundaries are in place: payment fills require sidepanel approval/denial, credential and payment domains come from the active tab, sensitive content-script logging params are redacted, and the MCP server no longer times out before the extension-side payment confirmation window.
+
+Live UAT remains necessary because the final behavior spans Chrome extension UI, runtime messaging, a real checkout page, and an MCP client.
 
 ---
 
-_Verified: 2026-04-22T04:15:47Z_
-_Verifier: Claude (gsd-verifier)_
+_Verified: 2026-04-22T04:41:14Z_
+_Verifier: Codex (inline GSD verification)_

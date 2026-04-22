@@ -101,7 +101,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 197-01-PLAN.md -- Fix MCP confirmation flow, domain derivation, and content script log redaction
-- [ ] 197-02-PLAN.md -- Gap closure: align MCP payment confirmation timeout with extension approval window
+- [x] 197-02-PLAN.md -- Gap closure: align MCP payment confirmation timeout with extension approval window
 
 ## Progress
 
@@ -115,7 +115,7 @@ Plans:
 | 194. Autopilot Tools & Confirmation Dialog | 2/2 | Complete    | 2026-04-20 |
 | 195. MCP Tools & Security Boundary | 0/0 | Complete    | 2026-04-20 |
 | 196. Logging Audit & Hardening Pass | 0/0 | Complete    | 2026-04-20 |
-| 197. MCP Security Boundary Fixes | 1/2 | Blocked    | -- |
+| 197. MCP Security Boundary Fixes | 2/2 | Complete    | 2026-04-22 |
 
 ## Previous Milestones
 
