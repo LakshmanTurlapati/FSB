@@ -614,27 +614,33 @@ class MCPBridgeClient {
       }, 300000);
 
       const listener = (message) => {
-        if (message.type === 'automationProgress' && message.sessionId === sessionId) {
+        const eventType = message?.type || message?.action;
+        if (message?.sessionId !== sessionId) return;
+
+        if (eventType === 'automationProgress') {
+          const actionSummary = message.actionSummary
+            || message.currentAction
+            || (message.type === 'automationProgress' ? message.action : null);
           this._sendProgress(mcpMsgId, {
             taskId: sessionId,
             progress: message.progress || 0,
             phase: message.phase || 'executing',
             eta: message.eta || null,
-            action: message.action || null,
+            action: actionSummary || null,
           });
         }
 
-        if (message.type === 'automationComplete' && message.sessionId === sessionId) {
+        if (eventType === 'automationComplete') {
           clearTimeout(timeout);
           chrome.runtime.onMessage.removeListener(listener);
           resolve({
             sessionId,
-            status: message.result?.status || 'completed',
+            status: message.outcome || message.result?.status || (message.partial ? 'partial' : 'completed'),
             result: message.result || {},
           });
         }
 
-        if (message.type === 'automationError' && message.sessionId === sessionId) {
+        if (eventType === 'automationError') {
           clearTimeout(timeout);
           chrome.runtime.onMessage.removeListener(listener);
           resolve({

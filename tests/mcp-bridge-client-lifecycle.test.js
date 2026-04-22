@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const vm = require('vm');
 
 let passed = 0;
@@ -19,6 +20,14 @@ function assert(cond, msg) {
 
 function assertEqual(actual, expected, msg) {
   assert(actual === expected, `${msg} (expected: ${expected}, got: ${actual})`);
+}
+
+function assertDeepEqual(actual, expected, msg) {
+  assert(util.isDeepStrictEqual(actual, expected), `${msg} (expected: ${JSON.stringify(expected)}, got: ${JSON.stringify(actual)})`);
+}
+
+function toPlainObject(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
 function createStorageArea(initial = {}) {
@@ -85,13 +94,34 @@ function createFakeTimers() {
   };
 }
 
+function createRuntimeOnMessageMock() {
+  const listeners = [];
+  return {
+    addListener(listener) {
+      listeners.push(listener);
+    },
+    removeListener(listener) {
+      const index = listeners.indexOf(listener);
+      if (index !== -1) listeners.splice(index, 1);
+    },
+    _emit(message, sender = {}, sendResponse = () => {}) {
+      for (const listener of [...listeners]) {
+        listener(message, sender, sendResponse);
+      }
+    },
+    _listeners() {
+      return [...listeners];
+    }
+  };
+}
+
 function createChromeMock() {
   const session = createStorageArea();
   const local = createStorageArea();
   const alarms = new Map();
   const cleared = [];
   return {
-    runtime: { id: 'phase-198-test-extension' },
+    runtime: { id: 'phase-198-test-extension', onMessage: createRuntimeOnMessageMock() },
     storage: { session, local },
     alarms: {
       async create(name, options) {
@@ -168,6 +198,7 @@ function buildClientHarness(options = {}) {
     clearTimeout: timers.clearTimeout,
     setInterval: timers.setInterval,
     clearInterval: timers.clearInterval,
+    dispatchMcpMessageRoute: options.dispatchMcpMessageRoute || (async () => ({ success: true })),
     globalThis: {}
   };
   context.globalThis = context;
@@ -270,6 +301,78 @@ async function runConnectedTransitionCase() {
   assertNoSecrets(sessionState, 'connected state omits password, cardNumber, cvv, and apiKey fields');
 }
 
+async function runAutomationRuntimeEventShapeCase() {
+  console.log('\n--- run_task runtime event shape ---');
+
+  const sessionId = 'session_action_event_shape';
+  let dispatched = null;
+  const harness = buildClientHarness({
+    dispatchMcpMessageRoute: async ({ type, payload, mcpMsgId }) => {
+      dispatched = { type, payload, mcpMsgId };
+      return { success: true, sessionId };
+    }
+  });
+  const client = harness.exports.mcpBridgeClient;
+  const sent = [];
+  client._send = (payload) => {
+    sent.push(payload);
+  };
+
+  const resultPromise = client._handleStartAutomation({ task: 'finish checkout' }, 'mcp-msg-199');
+  await flushMicrotasks();
+
+  assertDeepEqual(
+    dispatched,
+    { type: 'mcp:start-automation', payload: { task: 'finish checkout' }, mcpMsgId: 'mcp-msg-199' },
+    'run_task dispatches through mcp:start-automation',
+  );
+  assertEqual(harness.chrome.runtime.onMessage._listeners().length, 1, 'run_task registers one runtime listener');
+
+  harness.chrome.runtime.onMessage._emit({
+    action: 'automationProgress',
+    sessionId,
+    progress: 42,
+    phase: 'acting',
+    eta: 12,
+    actionSummary: 'Clicking submit'
+  });
+
+  assertDeepEqual(
+    toPlainObject(sent[0]),
+    {
+      id: 'mcp-msg-199',
+      type: 'mcp:progress',
+      payload: {
+        taskId: sessionId,
+        progress: 42,
+        phase: 'acting',
+        eta: 12,
+        action: 'Clicking submit'
+      }
+    },
+    'automationProgress action event emits stable MCP progress payload',
+  );
+
+  harness.chrome.runtime.onMessage._emit({
+    action: 'automationComplete',
+    sessionId,
+    result: { summary: 'checkout complete' }
+  });
+
+  const result = await resultPromise;
+  assertDeepEqual(
+    toPlainObject(result),
+    {
+      sessionId,
+      status: 'completed',
+      result: { summary: 'checkout complete' }
+    },
+    'automationComplete action event resolves run_task before timeout',
+  );
+  assertEqual(harness.chrome.runtime.onMessage._listeners().length, 0, 'run_task removes runtime listener after completion');
+  assert(harness.timers.timeouts[0]?.cleared === true, 'run_task clears timeout after completion');
+}
+
 function runBackgroundArmingSourceCase() {
   console.log('\n--- background wake arming source ---');
 
@@ -296,6 +399,7 @@ async function run() {
   await runBrowserFirstReconnectCase();
   await runServiceWorkerWakeCase();
   await runConnectedTransitionCase();
+  await runAutomationRuntimeEventShapeCase();
   runBackgroundArmingSourceCase();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
