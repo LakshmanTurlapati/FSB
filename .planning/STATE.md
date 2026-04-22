@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.34
-milestone_name: Vault, Payments & Secure MCP Access
-status: milestone_complete
-stopped_at: v0.9.34 archived; ready for next milestone
-last_updated: "2026-04-22T04:53:44Z"
+milestone: v0.9.35
+milestone_name: MCP Plug-and-Play Reliability
+status: roadmap_created
+stopped_at: v0.9.35 roadmap created; ready for Phase 198 planning
+last_updated: "2026-04-22T16:06:48Z"
 last_activity: 2026-04-22
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Between milestones — start the next milestone when ready
+**Current focus:** v0.9.35 MCP Plug-and-Play Reliability
 
 ## Current Position
 
-Phase: none — v0.9.34 archived
-Plan: Not started
-Status: Milestone complete; ready for `$gsd-new-milestone`
-Last activity: 2026-04-22
+Phase: 198 (not started)
+Plan: —
+Status: Roadmap created; ready for Phase 198 planning
+Last activity: 2026-04-22 — Milestone v0.9.35 roadmap created
 
-Progress: [##########] 100%
+Progress: [----------] 0%
 
 ## Performance Metrics
 
@@ -73,18 +73,21 @@ Recent decisions affecting current work:
 - [v0.9.34]: Proxy command pattern -- passwords/card data never traverse WebSocket, only opaque IDs
 - [v0.9.34]: MCP vault tools isolated in vault.ts, not auto-registered through TOOL_REGISTRY
 - [Phase 197]: Content executeAction logging redacts credential and payment fill params — Prevents raw passwords, card numbers, and CVVs from crossing into content-script action logs.
+- [v0.9.35]: MCP reliability first -- bridge lifecycle, direct tool routing, diagnostics, installer parity, and cross-host smoke validation come before new MCP feature expansion.
 
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- MCP background-routed tools (navigate, run_task, get_logs, etc.) fail with chrome.runtime.sendMessage self-dispatch issue -- needs investigation.
+- MCP background-routed tools (navigate, run_task, get_logs, etc.) fail or are brittle through chrome.runtime.sendMessage self-dispatch issue -- active v0.9.35 target.
+- MCP extension attachment can remain false even when the local bridge listens on port 7225; service worker wake/reconnect lifecycle needs repair.
 
 ### Blockers/Concerns
 
 - v0.9.34 archived with accepted validation debt: stale `gaps_found` milestone audit, 19 unchecked requirements preserved in the archive, and pending live UAT for Phase 191 and Phase 197.
+- Current MCP regression `tests/mcp-restricted-tab.test.js` fails 9 assertions and must be converted from string-presence checks into behavioral route-contract coverage.
 
 ## Session Continuity
 
-Last session: 2026-04-22T04:12:28.667Z
-Stopped at: v0.9.34 archived; ready for next milestone
+Last session: 2026-04-22T16:06:48Z
+Stopped at: v0.9.35 roadmap created; ready for Phase 198 planning
 Resume file: None
