@@ -4,6 +4,9 @@ import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { mapFSBError } from '../errors.js';
 
+// Must exceed the extension-side 120_000ms payment confirmation gate.
+const PAYMENT_CONFIRMATION_TIMEOUT_MS = 125_000;
+
 /**
  * Register vault tools: list_credentials, fill_credential,
  * list_payment_methods, use_payment_method.
@@ -91,7 +94,7 @@ export function registerVaultTools(
       return queue.enqueue('use_payment_method', async () => {
         const result = await bridge.sendAndWait(
           { type: 'mcp:use-payment-method', payload: { paymentMethodId: payment_method_id } },
-          { timeout: 30_000 },
+          { timeout: PAYMENT_CONFIRMATION_TIMEOUT_MS },
         );
         return mapFSBError(result);
       });
