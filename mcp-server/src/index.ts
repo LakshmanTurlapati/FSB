@@ -101,6 +101,10 @@ function formatStatus(diagnostics: Awaited<ReturnType<typeof collectBridgeDiagno
     `Bridge endpoint: ${diagnostics.bridgeUrl}`,
     `Bridge mode: ${diagnostics.bridgeMode}`,
     `Extension connected: ${diagnostics.extensionConnected ? 'yes' : 'no'}`,
+    `Hub connected: ${diagnostics.hubConnected ? 'yes' : 'no'}`,
+    `Relay count: ${diagnostics.relayCount}`,
+    `Active hub: ${diagnostics.activeHubInstanceId ?? 'none'}`,
+    `Last bridge disconnect: ${diagnostics.lastDisconnectReason ?? 'none'}`,
   ];
 
   if (diagnostics.extensionConfig) {
@@ -133,6 +137,7 @@ function formatDoctor(diagnostics: Awaited<ReturnType<typeof collectBridgeDiagno
     lines.push(`- The extension must be able to reach ${FSB_EXTENSION_BRIDGE_URL}.`);
   } else if (diagnostics.bridgeMode === 'relay') {
     lines.push('- Another fsb-mcp-server instance already owns the local bridge port.');
+    lines.push('- The relay can reach a hub, but the extension is not attached to that hub yet.');
     lines.push('- Keep the other instance running, or stop it if you want this process to become the primary bridge.');
   } else {
     lines.push('- The local bridge could not start.');

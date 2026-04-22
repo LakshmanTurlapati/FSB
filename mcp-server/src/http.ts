@@ -89,8 +89,12 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
       sendJson(res, 200, {
         ok: true,
         transport: 'streamable-http',
-        bridgeMode: options.bridge.currentMode,
-        extensionConnected: options.bridge.isConnected,
+        bridgeMode: options.bridge.topology.mode,
+        extensionConnected: options.bridge.topology.extensionConnected,
+        bridgeTopology: options.bridge.topology,
+        hubConnected: options.bridge.topology.hubConnected,
+        relayCount: options.bridge.topology.relayCount,
+        activeHubInstanceId: options.bridge.topology.activeHubInstanceId,
         queuedMutationTools: options.queue.isRunning,
         sessions: sessions.size,
       });

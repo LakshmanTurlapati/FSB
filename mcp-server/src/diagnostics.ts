@@ -1,5 +1,6 @@
 import type { WebSocketBridge } from './bridge.js';
 import { WebSocketBridge as Bridge } from './bridge.js';
+import type { BridgeTopologyState } from './types.js';
 import {
   DEFAULT_HTTP_HOST,
   DEFAULT_HTTP_PORT,
@@ -11,6 +12,12 @@ export type BridgeDiagnostics = {
   bridgeUrl: string;
   bridgeMode: 'hub' | 'relay' | 'disconnected';
   extensionConnected: boolean;
+  bridgeTopology: BridgeTopologyState;
+  hubConnected: boolean;
+  relayCount: number;
+  activeHubInstanceId: string | null;
+  lastExtensionHeartbeatAt: number | null;
+  lastDisconnectReason: string | null;
   extensionConfig?: Record<string, unknown> | null;
   tabsSummary?: { totalTabs: number; activeTabId: number | null };
   error?: string;
@@ -47,11 +54,18 @@ export async function collectBridgeDiagnostics(options: {
       await waitForExtensionConnection(bridge, waitForExtensionMs);
     }
 
+    const topology = bridge.topology;
     const diagnostics: BridgeDiagnostics = {
       checkedAt: new Date().toISOString(),
       bridgeUrl: FSB_EXTENSION_BRIDGE_URL,
-      bridgeMode: bridge.currentMode,
-      extensionConnected: bridge.isConnected,
+      bridgeMode: topology.mode,
+      extensionConnected: topology.extensionConnected,
+      bridgeTopology: topology,
+      hubConnected: topology.hubConnected,
+      relayCount: topology.relayCount,
+      activeHubInstanceId: topology.activeHubInstanceId,
+      lastExtensionHeartbeatAt: topology.lastExtensionHeartbeatAt,
+      lastDisconnectReason: topology.lastDisconnectReason,
     };
 
     if (bridge.isConnected && options.includeConfig) {
@@ -89,11 +103,18 @@ export async function collectBridgeDiagnostics(options: {
 
     return diagnostics;
   } catch (err) {
+    const topology = bridge.topology;
     return {
       checkedAt: new Date().toISOString(),
       bridgeUrl: FSB_EXTENSION_BRIDGE_URL,
-      bridgeMode: bridge.currentMode,
-      extensionConnected: false,
+      bridgeMode: topology.mode,
+      extensionConnected: topology.extensionConnected,
+      bridgeTopology: topology,
+      hubConnected: topology.hubConnected,
+      relayCount: topology.relayCount,
+      activeHubInstanceId: topology.activeHubInstanceId,
+      lastExtensionHeartbeatAt: topology.lastExtensionHeartbeatAt,
+      lastDisconnectReason: topology.lastDisconnectReason,
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
