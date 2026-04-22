@@ -103,7 +103,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 198. MCP Bridge Lifecycle & Reconnect State | 0/TBD | Not Started | - |
+| 198. MCP Bridge Lifecycle & Reconnect State | 0/3 | Ready to Execute | - |
 | 199. MCP Tool Routing Contract | 0/TBD | Not Started | - |
 | 200. Doctor, Status Watch & Recovery Messaging | 0/TBD | Not Started | - |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
