@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.35
 milestone_name: MCP Plug-and-Play Reliability
 status: executing
-stopped_at: Completed 199-mcp-tool-routing-contract-01-PLAN.md
-last_updated: "2026-04-22T23:25:03.042Z"
+stopped_at: Completed 199-mcp-tool-routing-contract-02-PLAN.md
+last_updated: "2026-04-22T23:33:47.955Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 ## Current Position
 
 Phase: 199 (mcp-tool-routing-contract) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-22
 
@@ -64,6 +64,7 @@ Progress: [##########] 100%
 | Phase 198-mcp-bridge-lifecycle-reconnect-state P02 | 4min | 2 tasks | 2 files |
 | Phase 198-mcp-bridge-lifecycle-reconnect-state P03 | 7min | 2 tasks | 6 files |
 | Phase 199-mcp-tool-routing-contract P01 | 5min | 2 tasks | 3 files |
+| Phase 199-mcp-tool-routing-contract P02 | 6min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase 199-mcp-tool-routing-contract]: Plan 199-01 is RED-only by design; dispatcher implementation is deferred to Plans 199-02 and 199-03.
 - [Phase 199-mcp-tool-routing-contract]: Restricted recovery advertises only navigate, open_tab, switch_tab, and list_tabs; run_task is not an accepted restricted recovery tool.
 - [Phase 199-mcp-tool-routing-contract]: Root npm test runs Phase 198 bridge lifecycle/topology tests before the new Phase 199 route-contract tests.
+- [Phase 199-mcp-tool-routing-contract]: Browser/tab MCP routes now execute through a shared dispatcher loaded before the bridge client.
+- [Phase 199-mcp-tool-routing-contract]: Restricted read helper gaps return navigation-only restricted recovery responses before generic route errors.
+- [Phase 199-mcp-tool-routing-contract]: The browser contract includes get_site_guide/mcp:get-site-guides, so those read-only routes are declared without changing the underlying helper behavior.
 
 ### Pending Todos
 
@@ -105,6 +109,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-22T23:25:03.038Z
-Stopped at: Completed 199-mcp-tool-routing-contract-01-PLAN.md
+Last session: 2026-04-22T23:33:47.951Z
+Stopped at: Completed 199-mcp-tool-routing-contract-02-PLAN.md
 Resume file: None
