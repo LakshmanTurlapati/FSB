@@ -300,13 +300,13 @@ class MCPBridgeClient {
   async _routeMessage(type, payload, id) {
     switch (type) {
       case 'mcp:get-tabs':
-        return this._handleGetTabs();
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
       case 'mcp:get-dom':
-        return this._handleGetDOM(payload);
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
       case 'mcp:read-page':
-        return this._handleReadPage(payload);
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
       case 'mcp:execute-action':
         return this._handleExecuteAction(payload);
@@ -324,7 +324,7 @@ class MCPBridgeClient {
         return this._handleGetConfig();
 
       case 'mcp:get-site-guides':
-        return this._handleGetSiteGuides(payload);
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
       case 'mcp:get-memory':
         return this._handleGetMemory(payload);
@@ -418,20 +418,8 @@ class MCPBridgeClient {
     });
   }
 
-  async _handleGetTabs() {
-    const tabs = await chrome.tabs.query({});
-    const activeTab = await this._getActiveTab();
-    return {
-      tabs: tabs.map(t => ({
-        id: t.id,
-        url: t.url || '',
-        title: t.title || '',
-        active: t.active,
-        windowId: t.windowId,
-      })),
-      activeTabId: activeTab?.id || null,
-      totalTabs: tabs.length,
-    };
+  async _handleGetTabs(payload = {}) {
+    return dispatchMcpToolRoute({ tool: 'list_tabs', params: payload, client: this });
   }
 
   async _handleGetDOM(payload) {
@@ -489,15 +477,32 @@ class MCPBridgeClient {
       return this._handleExecuteJS(tab, params);
     }
 
-    // For other background tools (navigate, report_progress, etc.),
-    // dispatch via chrome.runtime.sendMessage to background.js onMessage handler
-    const bgAction = toolDef._contentVerb || toolName;
-    const response = await this._dispatchToBackground({
-      action: bgAction,
-      ...params,
-      tabId: tab.id,
-    });
-    return response;
+    if (typeof hasMcpToolRoute === 'function' && hasMcpToolRoute(toolName)) {
+      return dispatchMcpToolRoute({ tool: payload.tool, params: payload.params || {}, client: this, tab });
+    }
+
+    if (toolName === 'fill_credential' || toolName === 'fill_payment_method') {
+      const bgAction = toolDef._contentVerb || toolName;
+      const response = await this._dispatchToBackground({
+        action: bgAction,
+        ...params,
+        tabId: tab.id,
+      });
+      return response;
+    }
+
+    if (typeof createMcpRouteError === 'function') {
+      return createMcpRouteError(toolName, 'background', `Unsupported MCP background route: ${toolName}`);
+    }
+
+    return {
+      success: false,
+      errorCode: 'mcp_route_unavailable',
+      tool: toolName,
+      routeFamily: 'background',
+      recoveryHint: 'Use a supported MCP browser/tab route.',
+      error: `Unsupported MCP background route: ${toolName}`
+    };
   }
 
   /**

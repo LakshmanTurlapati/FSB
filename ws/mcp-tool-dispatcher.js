@@ -29,6 +29,7 @@ const MCP_PHASE199_TOOL_ROUTES = {
 
 const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-tabs': { routeFamily: 'read-only', helperName: '_handleGetTabs' },
+  'mcp:get-site-guides': { routeFamily: 'read-only', helperName: '_handleGetSiteGuides' },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
   'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' }
 };
@@ -46,10 +47,13 @@ function createMcpRouteError(tool, routeFamily, error, extra = {}) {
 }
 
 function createMcpInvalidParamsError(tool, error, extra = {}) {
-  return createMcpRouteError(tool, 'browser', error, {
+  const routeFamily = extra.routeFamily || 'browser';
+  const rest = { ...extra };
+  delete rest.routeFamily;
+  return createMcpRouteError(tool, routeFamily, error, {
     errorCode: 'mcp_route_invalid_params',
     recoveryHint: 'Provide the required MCP tool parameters and retry.',
-    ...extra
+    ...rest
   });
 }
 
@@ -96,6 +100,8 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
   }
 
   if (!client || typeof client[route.helperName] !== 'function') {
+    const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
+    if (restrictedResponse) return restrictedResponse;
     return createMcpRouteError(type, 'message', 'Bridge client helper unavailable');
   }
 
@@ -120,10 +126,16 @@ function buildRestrictedMcpResponse({ currentUrl, pageType, tool, error }) {
 }
 
 async function maybeBuildRestrictedResponse({ error, tool, client }) {
+  const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool, error });
+  if (restrictedResponse) return restrictedResponse;
+  throw error;
+}
+
+async function buildRestrictedResponseIfActive({ client, tool, error }) {
   const activeTab = await getActiveTabFromClient(client).catch(() => null);
   const currentUrl = activeTab?.url || '';
   if (!isRestrictedMcpUrl(currentUrl)) {
-    throw error;
+    return null;
   }
 
   return buildRestrictedMcpResponse({
@@ -197,36 +209,121 @@ function sanitizeSingleTab(tool, tab, extra = {}) {
   };
 }
 
-async function handleNavigateRoute() {
-  return createMcpRouteError('navigate', 'browser', 'navigate direct handler unavailable');
+async function handleNavigateRoute({ params, client }) {
+  if (!params?.url || typeof params.url !== 'string') {
+    return createMcpInvalidParamsError('navigate', 'navigate requires url');
+  }
+
+  try {
+    getChromeTabsApi();
+    const activeTab = await getActiveTabFromClient(client);
+    if (!activeTab?.id && !Number.isFinite(params.tabId)) {
+      return createMcpRouteError('navigate', 'browser', 'No active tab available for navigation', { errorCode: 'no_active_tab' });
+    }
+
+    const targetTabId = Number.isFinite(params.tabId) ? params.tabId : activeTab.id;
+    const updatedTab = await chrome.tabs.update(targetTabId, { url: params.url });
+    return sanitizeSingleTab('navigate', { ...activeTab, ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url });
+  } catch (error) {
+    return createMcpRouteError('navigate', 'browser', error.message || String(error));
+  }
 }
 
-async function handleNavigationHistoryRoute({ tool }) {
-  return createMcpRouteError(tool, 'browser', `${tool} direct handler unavailable`);
+async function handleNavigationHistoryRoute({ tool, params, client }) {
+  let targetTabId = Number.isFinite(params?.tabId) ? params.tabId : null;
+  try {
+    getChromeTabsApi();
+    const activeTab = await getActiveTabFromClient(client);
+    if (!activeTab?.id && targetTabId === null) {
+      return createMcpRouteError(tool, 'browser', 'No active tab available for navigation', { errorCode: 'no_active_tab' });
+    }
+
+    targetTabId = targetTabId === null ? activeTab.id : targetTabId;
+    if (tool === 'go_back') {
+      await chrome.tabs.goBack(targetTabId);
+    } else if (tool === 'go_forward') {
+      await chrome.tabs.goForward(targetTabId);
+    } else {
+      await chrome.tabs.reload(targetTabId);
+    }
+
+    return { success: true, tool, tabId: targetTabId };
+  } catch (error) {
+    return {
+      success: false,
+      errorCode: 'navigation_unavailable',
+      tool,
+      tabId: targetTabId,
+      error: error.message || String(error)
+    };
+  }
 }
 
-async function handleOpenTabRoute() {
-  return createMcpRouteError('open_tab', 'browser', 'open_tab direct handler unavailable');
+async function handleOpenTabRoute({ params }) {
+  try {
+    getChromeTabsApi();
+    const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active !== false });
+    return sanitizeSingleTab('open_tab', tab);
+  } catch (error) {
+    return createMcpRouteError('open_tab', 'browser', error.message || String(error));
+  }
 }
 
 async function handleSwitchTabRoute({ params }) {
-  const numericTabId = Number(params?.tabId);
-  if (!Number.isFinite(numericTabId)) {
+  if (!Number.isFinite(params?.tabId)) {
     return createMcpInvalidParamsError('switch_tab', 'switch_tab requires numeric tabId');
   }
-  return createMcpRouteError('switch_tab', 'browser', 'switch_tab direct handler unavailable', { tabId: numericTabId });
+
+  try {
+    getChromeTabsApi();
+    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const previousTabId = currentTab ? currentTab.id : null;
+    let tab = await chrome.tabs.update(params.tabId, { active: true });
+    if (chrome.tabs.get) {
+      tab = await chrome.tabs.get(params.tabId);
+    }
+    if (typeof chrome !== 'undefined' && chrome.windows?.update && tab?.windowId) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+
+    return sanitizeSingleTab('switch_tab', tab, { tabId: params.tabId, previousTabId });
+  } catch (error) {
+    return createMcpRouteError('switch_tab', 'browser', error.message || String(error), { tabId: params.tabId });
+  }
 }
 
-async function handleListTabsRoute() {
-  return createMcpRouteError('list_tabs', 'browser', 'list_tabs direct handler unavailable');
+async function handleListTabsRoute({ params }) {
+  try {
+    getChromeTabsApi();
+    const queryOptions = {};
+    if (params?.currentWindowOnly === true) {
+      queryOptions.currentWindow = true;
+    }
+
+    const tabs = await chrome.tabs.query(queryOptions);
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const sanitizedTabs = tabs.map(sanitizeTab);
+    return {
+      success: true,
+      tool: 'list_tabs',
+      tabs: sanitizedTabs,
+      activeTabId: activeTab?.id ?? null,
+      totalTabs: sanitizedTabs.length
+    };
+  } catch (error) {
+    return createMcpRouteError('list_tabs', 'browser', error.message || String(error));
+  }
 }
 
 async function handleExecuteJsRoute() {
   return createMcpRouteError('execute_js', 'browser', 'execute_js remains handled by the bridge client direct scripting path');
 }
 
-async function handleGetSiteGuideRoute() {
-  return createMcpRouteError('get_site_guide', 'browser', 'get_site_guide is handled by the bridge client background helper');
+async function handleGetSiteGuideRoute({ params, client }) {
+  if (!client || typeof client._handleGetSiteGuides !== 'function') {
+    return createMcpRouteError('get_site_guide', 'browser', 'Bridge client site guide helper unavailable');
+  }
+  return client._handleGetSiteGuides(params);
 }
 
 function boundedString(value, maxLength) {
@@ -236,7 +333,7 @@ function boundedString(value, maxLength) {
 async function handleReportProgressRoute({ params }) {
   const message = boundedString(params?.message, 500);
   if (!message) {
-    return createMcpInvalidParamsError('report_progress', 'report_progress requires message');
+    return createMcpInvalidParamsError('report_progress', 'report_progress requires message', { routeFamily: 'task-status' });
   }
 
   if (typeof automationLogger !== 'undefined' && automationLogger?.info) {
@@ -249,7 +346,7 @@ async function handleReportProgressRoute({ params }) {
 async function handleCompleteTaskRoute({ params }) {
   const summary = boundedString(params?.summary, 2000);
   if (!summary) {
-    return createMcpInvalidParamsError('complete_task', 'complete_task requires summary');
+    return createMcpInvalidParamsError('complete_task', 'complete_task requires summary', { routeFamily: 'task-status' });
   }
 
   return { success: true, tool: 'complete_task', status: 'completed', hadEffect: false, summary };
@@ -259,7 +356,7 @@ async function handlePartialTaskRoute({ params }) {
   const summary = boundedString(params?.summary, 2000);
   const blocker = boundedString(params?.blocker, 1000);
   if (!summary || !blocker) {
-    return createMcpInvalidParamsError('partial_task', 'partial_task requires summary and blocker');
+    return createMcpInvalidParamsError('partial_task', 'partial_task requires summary and blocker', { routeFamily: 'task-status' });
   }
 
   const nextStep = boundedString(params?.next_step, 1000);
@@ -279,7 +376,7 @@ async function handlePartialTaskRoute({ params }) {
 async function handleFailTaskRoute({ params }) {
   const reason = boundedString(params?.reason, 1000);
   if (!reason) {
-    return createMcpInvalidParamsError('fail_task', 'fail_task requires reason');
+    return createMcpInvalidParamsError('fail_task', 'fail_task requires reason', { routeFamily: 'task-status' });
   }
 
   return { success: false, tool: 'fail_task', status: 'failed', hadEffect: false, error: reason, reason };
