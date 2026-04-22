@@ -52,14 +52,14 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute }
 };
 
-function createMcpRouteError(tool, routeFamily, error, extra = {}) {
+function createMcpRouteError(tool, routeFamily, recoveryHint = MCP_ROUTE_RECOVERY_HINT, extra = {}) {
   return {
     success: false,
     errorCode: extra.errorCode || 'mcp_route_unavailable',
     tool,
     routeFamily,
-    recoveryHint: extra.recoveryHint || MCP_ROUTE_RECOVERY_HINT,
-    error: error || `No direct MCP route is available for ${tool}`,
+    recoveryHint: extra.recoveryHint || recoveryHint || MCP_ROUTE_RECOVERY_HINT,
+    error: extra.error || `Missing direct MCP route for ${tool}`,
     ...extra
   };
 }
@@ -68,9 +68,9 @@ function createMcpInvalidParamsError(tool, error, extra = {}) {
   const routeFamily = extra.routeFamily || 'browser';
   const rest = { ...extra };
   delete rest.routeFamily;
-  return createMcpRouteError(tool, routeFamily, error, {
+  return createMcpRouteError(tool, routeFamily, 'Provide the required MCP tool parameters and retry.', {
     errorCode: 'mcp_route_invalid_params',
-    recoveryHint: 'Provide the required MCP tool parameters and retry.',
+    error,
     ...rest
   });
 }
@@ -101,11 +101,11 @@ function getMcpRouteContracts() {
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
   const route = MCP_PHASE199_TOOL_ROUTES[tool];
   if (!route) {
-    return createMcpRouteError(tool, 'tool', `Unsupported MCP tool route: ${tool}`);
+    return createMcpRouteError(tool, 'tool', MCP_ROUTE_RECOVERY_HINT);
   }
 
   if (typeof route.handler !== 'function') {
-    return createMcpRouteError(tool, route.routeFamily, `MCP tool route ${tool} has no handler`);
+    return createMcpRouteError(tool, route.routeFamily, MCP_ROUTE_RECOVERY_HINT);
   }
 
   return route.handler({ tool, params: params || {}, client, tab, payload, route });
@@ -114,8 +114,11 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
 async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null }) {
   const route = MCP_PHASE199_MESSAGE_ROUTES[type];
   if (!route) {
-    return createMcpRouteError(type, 'message', `Unsupported MCP message route: ${type}`);
+    return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT);
   }
+
+  const restrictedReadResponse = await buildRestrictedResponseIfReadRoute({ type, client });
+  if (restrictedReadResponse) return restrictedReadResponse;
 
   if (typeof route.handler === 'function') {
     try {
@@ -128,7 +131,7 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
   if (!client || typeof client[route.helperName] !== 'function') {
     const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
     if (restrictedResponse) return restrictedResponse;
-    return createMcpRouteError(type, 'message', 'Bridge client helper unavailable');
+    return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client helper unavailable' });
   }
 
   try {
@@ -142,13 +145,26 @@ function buildRestrictedMcpResponse({ currentUrl, pageType, tool, error }) {
   return {
     success: false,
     errorCode: 'restricted_active_tab',
-    tool,
+    error: error?.message || String(error || 'Active tab is restricted'),
     currentUrl: currentUrl || '',
-    pageType: pageType || getPageTypeDescriptionForMcp(currentUrl),
-    error: error?.message || String(error || 'Content scripts are blocked on this page'),
-    validRecoveryTools: MCP_NAVIGATION_RECOVERY_TOOLS.slice(),
-    recoveryHint: 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.'
+    pageType: pageType || 'Restricted page',
+    tool: tool || null,
+    validRecoveryTools: MCP_NAVIGATION_RECOVERY_TOOLS.slice()
   };
+}
+
+async function buildRestrictedResponseIfReadRoute({ type, client }) {
+  if (type !== 'mcp:read-page' && type !== 'mcp:get-dom') return null;
+  const activeTab = await getActiveTabFromClient(client).catch(() => null);
+  const currentUrl = activeTab?.url || '';
+  if (!isRestrictedMcpUrl(currentUrl)) return null;
+
+  return buildRestrictedMcpResponse({
+    currentUrl,
+    pageType: getPageTypeDescriptionForMcp(currentUrl),
+    tool: type === 'mcp:read-page' ? 'read_page' : 'get_dom_snapshot',
+    error: 'Active tab is restricted'
+  });
 }
 
 async function maybeBuildRestrictedResponse({ error, tool, client }) {
@@ -190,6 +206,17 @@ function getChromeTabsApi() {
 
 function isRestrictedMcpUrl(url) {
   if (!url) return true;
+  if (typeof isRestrictedURL === 'function' && isRestrictedURL(url)) return true;
+  const restrictedPages = [
+    'about:blank',
+    'about:newtab',
+    'chrome://newtab/',
+    'chrome://settings/',
+    'chrome://extensions/',
+    'chrome://history/',
+    'chrome://downloads/'
+  ];
+  if (restrictedPages.some(page => url.startsWith(page))) return true;
   const restrictedProtocols = ['chrome://', 'chrome-extension://', 'moz-extension://', 'edge://', 'about:', 'file://'];
   return restrictedProtocols.some(protocol => url.startsWith(protocol));
 }
@@ -244,14 +271,17 @@ async function handleNavigateRoute({ params, client }) {
     getChromeTabsApi();
     const activeTab = await getActiveTabFromClient(client);
     if (!activeTab?.id && !Number.isFinite(params.tabId)) {
-      return createMcpRouteError('navigate', 'browser', 'No active tab available for navigation', { errorCode: 'no_active_tab' });
+      return createMcpRouteError('navigate', 'browser', 'Use list_tabs or open_tab to find a navigable tab before retrying.', {
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for navigation'
+      });
     }
 
     const targetTabId = Number.isFinite(params.tabId) ? params.tabId : activeTab.id;
     const updatedTab = await chrome.tabs.update(targetTabId, { url: params.url });
     return sanitizeSingleTab('navigate', { ...activeTab, ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url });
   } catch (error) {
-    return createMcpRouteError('navigate', 'browser', error.message || String(error));
+    return createMcpRouteError('navigate', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
 }
 
@@ -261,7 +291,10 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
     getChromeTabsApi();
     const activeTab = await getActiveTabFromClient(client);
     if (!activeTab?.id && targetTabId === null) {
-      return createMcpRouteError(tool, 'browser', 'No active tab available for navigation', { errorCode: 'no_active_tab' });
+      return createMcpRouteError(tool, 'browser', 'Use list_tabs or open_tab to find a navigable tab before retrying.', {
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for navigation'
+      });
     }
 
     targetTabId = targetTabId === null ? activeTab.id : targetTabId;
@@ -291,7 +324,7 @@ async function handleOpenTabRoute({ params }) {
     const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active !== false });
     return sanitizeSingleTab('open_tab', tab);
   } catch (error) {
-    return createMcpRouteError('open_tab', 'browser', error.message || String(error));
+    return createMcpRouteError('open_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
 }
 
@@ -314,7 +347,7 @@ async function handleSwitchTabRoute({ params }) {
 
     return sanitizeSingleTab('switch_tab', tab, { tabId: params.tabId, previousTabId });
   } catch (error) {
-    return createMcpRouteError('switch_tab', 'browser', error.message || String(error), { tabId: params.tabId });
+    return createMcpRouteError('switch_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error), tabId: params.tabId });
   }
 }
 
@@ -337,17 +370,17 @@ async function handleListTabsRoute({ params }) {
       totalTabs: sanitizedTabs.length
     };
   } catch (error) {
-    return createMcpRouteError('list_tabs', 'browser', error.message || String(error));
+    return createMcpRouteError('list_tabs', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
 }
 
 async function handleExecuteJsRoute() {
-  return createMcpRouteError('execute_js', 'browser', 'execute_js remains handled by the bridge client direct scripting path');
+  return createMcpRouteError('execute_js', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: 'execute_js remains handled by the bridge client direct scripting path' });
 }
 
 async function handleGetSiteGuideRoute({ params, client }) {
   if (!client || typeof client._handleGetSiteGuides !== 'function') {
-    return createMcpRouteError('get_site_guide', 'browser', 'Bridge client site guide helper unavailable');
+    return createMcpRouteError('get_site_guide', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client site guide helper unavailable' });
   }
   return client._handleGetSiteGuides(params);
 }
@@ -461,7 +494,7 @@ function callCallbackHandler(handlerName, request, sender = {}) {
         : null;
 
   if (typeof directHandler !== 'function') {
-    return Promise.resolve(createMcpRouteError(request?.action || handlerName, 'autopilot', `${handlerName} unavailable`));
+    return Promise.resolve(createMcpRouteError(request?.action || handlerName, 'autopilot', MCP_ROUTE_RECOVERY_HINT, { error: `${handlerName} unavailable` }));
   }
 
   return new Promise((resolve) => {
@@ -487,7 +520,10 @@ async function handleToolAliasRoute({ params, client, route }) {
 async function handleStartAutomationRoute({ payload, client }) {
   const tab = await getActiveTabFromClient(client);
   if (!tab?.id) {
-    return createMcpRouteError('run_task', 'autopilot', 'No active tab available for automation', { errorCode: 'no_active_tab' });
+    return createMcpRouteError('run_task', 'autopilot', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+      errorCode: 'no_active_tab',
+      error: 'No active tab available for automation'
+    });
   }
 
   return callCallbackHandler(
@@ -547,7 +583,7 @@ async function handleGetSiteGuidesRoute({ payload }) {
 
 async function handleListSessionsMessageRoute({ payload }) {
   if (typeof automationLogger === 'undefined' || typeof automationLogger?.listSessions !== 'function') {
-    return createMcpRouteError('list_sessions', 'observability', 'Automation logger sessions unavailable');
+    return createMcpRouteError('list_sessions', 'observability', MCP_ROUTE_RECOVERY_HINT, { error: 'Automation logger sessions unavailable' });
   }
 
   const limit = boundedPositiveInt(payload.limit, 50, 50);
@@ -563,7 +599,7 @@ async function handleGetSessionMessageRoute({ payload }) {
     return createMcpInvalidParamsError('get_session_detail', 'get_session_detail requires sessionId', { routeFamily: 'observability' });
   }
   if (typeof automationLogger === 'undefined' || typeof automationLogger?.loadSession !== 'function') {
-    return createMcpRouteError('get_session_detail', 'observability', 'Automation logger session loader unavailable');
+    return createMcpRouteError('get_session_detail', 'observability', MCP_ROUTE_RECOVERY_HINT, { error: 'Automation logger session loader unavailable' });
   }
 
   const session = await automationLogger.loadSession(payload.sessionId);
@@ -576,7 +612,7 @@ async function handleGetSessionMessageRoute({ payload }) {
 
 async function handleGetLogsMessageRoute({ payload }) {
   if (typeof automationLogger === 'undefined') {
-    return createMcpRouteError('get_logs', 'observability', 'Automation logger unavailable');
+    return createMcpRouteError('get_logs', 'observability', MCP_ROUTE_RECOVERY_HINT, { error: 'Automation logger unavailable' });
   }
 
   const requestedLimit = payload.count || payload.limit || 50;
@@ -595,7 +631,7 @@ async function handleGetLogsMessageRoute({ payload }) {
 
 async function handleSearchMemoryMessageRoute({ payload }) {
   if (typeof memoryManager === 'undefined' || typeof memoryManager?.search !== 'function') {
-    return createMcpRouteError('search_memory', 'observability', 'Memory search unavailable');
+    return createMcpRouteError('search_memory', 'observability', MCP_ROUTE_RECOVERY_HINT, { error: 'Memory search unavailable' });
   }
 
   const filters = payload.filters || {
@@ -615,7 +651,7 @@ async function handleSearchMemoryMessageRoute({ payload }) {
 
 async function handleGetMemoryMessageRoute({ payload }) {
   if (typeof memoryManager === 'undefined' || typeof memoryManager?.getAll !== 'function') {
-    return createMcpRouteError('get_memory_stats', 'observability', 'Memory manager unavailable');
+    return createMcpRouteError('get_memory_stats', 'observability', MCP_ROUTE_RECOVERY_HINT, { error: 'Memory manager unavailable' });
   }
 
   const memories = await memoryManager.getAll();

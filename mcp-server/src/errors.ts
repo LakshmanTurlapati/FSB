@@ -7,6 +7,8 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     'No active browser tab found. Open a browser tab or use the navigate tool to go to a URL first.',
   'restricted_active_tab':
     'The active tab is a restricted/browser-internal page ({pageType}: {currentUrl}). Page-reading and interaction tools cannot run there because Chrome blocks content script injection. {restrictedRecovery}',
+  'mcp_route_unavailable':
+    'Missing direct MCP route for {tool} ({routeFamily}). {recoveryHint}',
   'task_already_running':
     'A task is already running. Wait for it to complete or use stop_task to cancel it. Read-only tools (read_page, get_dom_snapshot, list_tabs) still work while a task runs.',
   'element_not_found':
@@ -31,14 +33,13 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
  */
 function getRecoveryHint(
   error: string,
-  options?: { errorKey?: string; autoRouteAvailable?: boolean },
+  options?: { errorKey?: string; validRecoveryTools?: string[] },
 ): string {
   const lower = error.toLowerCase();
 
   if (options?.errorKey === 'restricted_active_tab' || lower.includes('restricted/browser-internal page')) {
-    return options?.autoRouteAvailable
-      ? ' [Recovery: Use navigate/open_tab/switch_tab/list_tabs to move to a normal website, or use run_task from this blank/new-tab page to let FSB choose a starting page.]'
-      : ' [Recovery: Use navigate/open_tab/switch_tab/list_tabs to move to a normal website before using page-reading or interaction tools.]';
+    const recoveryTools = formatRecoveryToolList(options?.validRecoveryTools);
+    return ` [Recovery: Use ${recoveryTools} to move to a normal website before using page-reading or interaction tools.]`;
   }
 
   // Element not found errors
@@ -72,6 +73,23 @@ function getRecoveryHint(
   }
 
   return '';
+}
+
+const DEFAULT_RESTRICTED_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
+
+function getValidRecoveryTools(fsbResult: Record<string, unknown> | null | undefined): string[] {
+  const rawTools = Array.isArray(fsbResult?.validRecoveryTools)
+    ? fsbResult.validRecoveryTools
+    : DEFAULT_RESTRICTED_RECOVERY_TOOLS;
+  const tools = rawTools
+    .filter((tool): tool is string => typeof tool === 'string' && tool.trim().length > 0)
+    .filter(tool => tool !== 'run_task');
+  return tools.length > 0 ? tools : DEFAULT_RESTRICTED_RECOVERY_TOOLS;
+}
+
+function formatRecoveryToolList(tools: string[] | undefined): string {
+  const list = Array.isArray(tools) && tools.length > 0 ? tools : DEFAULT_RESTRICTED_RECOVERY_TOOLS;
+  return list.join(', ');
 }
 
 /**
@@ -113,15 +131,16 @@ export function mapFSBError(
   }
 
   let text = FSB_ERROR_MESSAGES[errorKey] || errorMsg || 'Unknown error';
-  const autoRouteAvailable = Boolean(fsbResult?.autoRouteAvailable);
+  const validRecoveryTools = getValidRecoveryTools(fsbResult);
 
   // Replace placeholders
   const mergedContext: Record<string, string> = {
     currentUrl: typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '',
     pageType: typeof fsbResult?.pageType === 'string' ? fsbResult.pageType : 'Restricted page',
-    restrictedRecovery: autoRouteAvailable
-      ? 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first. If you want sidepanel-style smart start routing from this blank/new-tab page, use run_task.'
-      : 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.',
+    restrictedRecovery: `Use ${formatRecoveryToolList(validRecoveryTools)} to move to a normal webpage first.`,
+    tool: typeof fsbResult?.tool === 'string' ? fsbResult.tool : '',
+    routeFamily: typeof fsbResult?.routeFamily === 'string' ? fsbResult.routeFamily : '',
+    recoveryHint: typeof fsbResult?.recoveryHint === 'string' ? fsbResult.recoveryHint : 'Use a supported MCP route or navigation recovery tool.',
     url: typeof fsbResult?.url === 'string'
       ? fsbResult.url
       : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : ''),
@@ -140,7 +159,7 @@ export function mapFSBError(
   }
 
   // Append actionable recovery hint based on error patterns
-  const hint = getRecoveryHint(text, { errorKey, autoRouteAvailable });
+  const hint = getRecoveryHint(text, { errorKey, validRecoveryTools });
   if (hint) {
     text += hint;
   }
