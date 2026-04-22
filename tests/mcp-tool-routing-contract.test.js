@@ -280,16 +280,105 @@ function runDispatcherChecks(dispatcher, groups) {
   }
 }
 
-function run() {
+async function runObservabilityRedactionCase(dispatcher, groups) {
+  if (!dispatcher || !groups.includes('observability')) return;
+
+  console.log('\n--- observability session detail redaction ---');
+
+  const previousAutomationLogger = global.automationLogger;
+  global.automationLogger = {
+    async loadSession(sessionId) {
+      return {
+        sessionId,
+        task: 'Log in and pay invoice',
+        logs: [
+          { logType: 'prompt', data: { text: 'prompt-secret-do-not-return' } },
+          { logType: 'info', data: { message: 'safe event' } }
+        ],
+        actionHistory: [
+          {
+            tool: 'type',
+            timestamp: '2026-04-22T23:59:00.000Z',
+            iteration: 3,
+            params: {
+              selector: '#password',
+              url: 'https://checkout.example.com/login',
+              text: 'typed-super-secret',
+              value: 'typed-hidden-value',
+              cardNumber: '4111111111111111'
+            },
+            result: {
+              success: true,
+              value: 'result-hidden-value',
+              password: 'result-password',
+              cvv: '123'
+            }
+          }
+        ]
+      };
+    }
+  };
+
+  try {
+    const response = await dispatcher.dispatchMcpMessageRoute({
+      type: 'mcp:get-session',
+      payload: { sessionId: 'session-redaction' }
+    });
+
+    assert(response?.success === true, 'mcp:get-session succeeds for regression fixture');
+    assert(Array.isArray(response?.session?.actionHistory), 'mcp:get-session returns actionHistory array');
+
+    const action = response?.session?.actionHistory?.[0] || {};
+    assertDeepEqual(
+      action,
+      {
+        tool: 'type',
+        timestamp: '2026-04-22T23:59:00.000Z',
+        iteration: 3,
+        selector: '#password',
+        domain: 'checkout.example.com',
+        result: { success: true }
+      },
+      'actionHistory returns bounded metadata instead of raw params/results',
+    );
+
+    const serialized = JSON.stringify(response || {});
+    for (const secret of [
+      'typed-super-secret',
+      'typed-hidden-value',
+      '4111111111111111',
+      'result-hidden-value',
+      'result-password',
+      '123',
+      'prompt-secret-do-not-return'
+    ]) {
+      assert(!serialized.includes(secret), `mcp:get-session omits raw secret value ${secret}`);
+    }
+  } finally {
+    if (previousAutomationLogger === undefined) {
+      delete global.automationLogger;
+    } else {
+      global.automationLogger = previousAutomationLogger;
+    }
+  }
+}
+
+async function run() {
   const groups = selectedGroups();
   console.log(`\n--- MCP route contract group: ${groups.join(', ')} ---`);
 
   runRegistryChecks();
   const dispatcher = loadDispatcher();
   runDispatcherChecks(dispatcher, groups);
+  await runObservabilityRedactionCase(dispatcher, groups);
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
 }
 
-run();
+run().catch((error) => {
+  failed++;
+  console.error('  FAIL: Test harness failed:', error);
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
+  process.exit(1);
+});

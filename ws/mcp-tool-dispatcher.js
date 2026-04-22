@@ -445,6 +445,22 @@ function sanitizeSessionMetadata(session) {
   return sanitized;
 }
 
+function sanitizeActionHistoryEntry(action) {
+  const params = (action?.params && typeof action.params === 'object') ? action.params : {};
+  const result = (action?.result && typeof action.result === 'object') ? action.result : {};
+  return {
+    tool: action?.tool || null,
+    timestamp: action?.timestamp || null,
+    iteration: action?.iteration || null,
+    ...(params.selector ? { selector: boundedString(params.selector, 250) } : {}),
+    ...(params.url ? { domain: getDomainFromUrl(params.url) } : {}),
+    result: {
+      success: Boolean(result.success),
+      ...(result.error ? { error: boundedString(result.error, 500) } : {})
+    }
+  };
+}
+
 function sanitizeSessionDetail(session) {
   if (!session || typeof session !== 'object') {
     return null;
@@ -453,7 +469,7 @@ function sanitizeSessionDetail(session) {
   const sanitized = sanitizeSessionMetadata(session);
   sanitized.logs = filterAndCapLogs(session.logs || [], 200);
   if (Array.isArray(session.actionHistory)) {
-    sanitized.actionHistory = session.actionHistory.slice(-100).map(action => sanitizeValue(action, { maxString: 1000, maxArray: 25, maxDepth: 4 }));
+    sanitized.actionHistory = session.actionHistory.slice(-100).map(sanitizeActionHistoryEntry);
   }
   return sanitized;
 }
