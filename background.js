@@ -19,6 +19,18 @@ importScripts('utils/overlay-state.js');
 // MCP bridge client for local MCP server connection
 try { importScripts('ws/mcp-bridge-client.js'); } catch (e) { console.error('[FSB] Failed to load mcp-bridge-client.js:', e.message); }
 
+function armMcpBridge(reason) {
+  try {
+    if (typeof mcpBridgeClient === 'undefined' || !mcpBridgeClient) return;
+    mcpBridgeClient.recordWake?.(reason);
+    mcpBridgeClient.connect();
+  } catch (error) {
+    console.error('[FSB] MCP bridge arm failed', error.message || String(error));
+  }
+}
+
+armMcpBridge('service-worker-evaluated');
+
 // Dashboard relay WebSocket client (auto-connects to full-selfbrowsing.com)
 try { importScripts('lib/lz-string.min.js'); } catch (e) { console.error('[FSB] Failed to load lz-string.min.js:', e.message); }
 try { importScripts('ws/ws-client.js'); } catch (e) { console.error('[FSB] Failed to load ws-client.js:', e.message); }
@@ -1455,6 +1467,7 @@ const contentScriptPorts = new Map();
 
 // Listen for persistent port connections from content scripts
 chrome.runtime.onConnect.addListener((port) => {
+  armMcpBridge('runtime.onConnect');
   debugLog('[FSB Background] onConnect received, port name:', port.name);
   if (port.name === 'content-script') {
     const tabId = port.sender?.tab?.id;
@@ -1514,6 +1527,8 @@ chrome.runtime.onConnect.addListener((port) => {
 // Clear content script state on navigation to prevent stale state issues
 chrome.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return; // Main frame only
+
+  armMcpBridge('webNavigation.onCommitted');
 
   const tabId = details.tabId;
 
@@ -4085,6 +4100,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: false, error: 'Unauthorized sender' });
     return;
   }
+
+  armMcpBridge('runtime.onMessage');
 
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
 
@@ -11544,6 +11561,7 @@ chrome.runtime.onSuspend.addListener(async () => {
 
 // Handle action (icon) clicks - open global side panel
 chrome.action.onClicked.addListener(async (tab) => {
+  armMcpBridge('action.onClicked');
   automationLogger.logInit('sidepanel', 'opening', { windowId: tab.windowId });
 
   // Open global side panel for the entire browser window
@@ -11564,6 +11582,11 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // --- Background Agent Alarm Handler ---
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === MCP_RECONNECT_ALARM) {
+    armMcpBridge('alarm:' + MCP_RECONNECT_ALARM);
+    return;
+  }
+
   const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
   if (!agentId) return; // Not an FSB agent alarm
 
@@ -11657,7 +11680,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   agentScheduler.rescheduleAllAgents();
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
-  mcpBridgeClient.connect();
+  armMcpBridge('runtime.onInstalled');
 
   // Connect to dashboard relay (auto-reconnects with backoff)
   fsbWebSocket.connect();
@@ -11675,7 +11698,7 @@ chrome.runtime.onStartup.addListener(async () => {
   agentScheduler.rescheduleAllAgents();
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
-  mcpBridgeClient.connect();
+  armMcpBridge('runtime.onStartup');
 
   // Connect to dashboard relay (auto-reconnects with backoff)
   fsbWebSocket.connect();
