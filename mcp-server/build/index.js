@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import { pathToFileURL } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createRuntime } from './runtime.js';
-import { collectBridgeDiagnostics, getLocalHttpEndpoint, waitForExtensionConnection } from './diagnostics.js';
+import { collectBridgeDiagnostics, formatDiagnosticLayerLabel, getLocalHttpEndpoint, waitForExtensionConnection, watchBridgeDiagnostics, } from './diagnostics.js';
 import { startHttpServer } from './http.js';
 import { WebSocketBridge } from './bridge.js';
 import { TaskQueue } from './queue.js';
@@ -67,7 +68,7 @@ Usage:
   fsb-mcp-server stdio              Start the stdio MCP server
   fsb-mcp-server serve              Start a local Streamable HTTP MCP server
   fsb-mcp-server status             Show bridge and extension status
-  fsb-mcp-server doctor             Run install diagnostics with remediation
+  fsb-mcp-server doctor             Diagnose the primary MCP failure layer
   fsb-mcp-server setup              Print install snippets for common MCP clients
   fsb-mcp-server wait-for-extension Wait until the extension connects
   fsb-mcp-server install             Install FSB to an MCP client config
@@ -77,19 +78,44 @@ Options:
   --host <host>       HTTP listen host for \`serve\` (default: ${DEFAULT_HTTP_HOST})
   --port <port>       HTTP listen port for \`serve\` (default: ${DEFAULT_HTTP_PORT})
   --timeout <ms>      Wait timeout for diagnostics / wait-for-extension
+  --watch             Continuously refresh \`status\`
+  --interval <ms>     Poll interval for \`status --watch\` (default: 1000)
   --json              Emit machine-readable JSON for status or doctor
 `);
 }
-function formatStatus(diagnostics) {
+export function formatHeartbeat(lastHeartbeatAt, nowMs = Date.now()) {
+    if (lastHeartbeatAt === null)
+        return 'none';
+    const ageMs = Math.max(0, nowMs - lastHeartbeatAt);
+    if (ageMs > 10_000)
+        return 'stale';
+    return `${(ageMs / 1000).toFixed(ageMs >= 5_000 ? 0 : 1)}s`;
+}
+export function buildCompactStatusFields(diagnostics, nowMs = Date.now()) {
+    return [
+        ['Mode', diagnostics.bridgeMode],
+        ['Ext', diagnostics.extensionConnected ? 'yes' : 'no'],
+        ['Heartbeat', formatHeartbeat(diagnostics.lastExtensionHeartbeatAt, nowMs)],
+        ['Hub', diagnostics.hubConnected ? 'yes' : 'no'],
+        ['Relays', String(diagnostics.relayCount)],
+        ['Disconnect', diagnostics.lastDisconnectReason ?? 'none'],
+        ['Layer', diagnostics.diagnosticLayer],
+    ];
+}
+function formatFieldLines(fields) {
+    return fields.map(([label, value]) => `${label}: ${value}`);
+}
+function formatFieldRow(fields) {
+    return fields.map(([label, value]) => `${label}: ${value}`).join(' | ');
+}
+export function formatStatus(diagnostics) {
     const lines = [
         `FSB MCP status @ ${diagnostics.checkedAt}`,
         `Bridge endpoint: ${diagnostics.bridgeUrl}`,
-        `Bridge mode: ${diagnostics.bridgeMode}`,
-        `Extension connected: ${diagnostics.extensionConnected ? 'yes' : 'no'}`,
-        `Hub connected: ${diagnostics.hubConnected ? 'yes' : 'no'}`,
-        `Relay count: ${diagnostics.relayCount}`,
-        `Active hub: ${diagnostics.activeHubInstanceId ?? 'none'}`,
-        `Last bridge disconnect: ${diagnostics.lastDisconnectReason ?? 'none'}`,
+        ...formatFieldLines(buildCompactStatusFields(diagnostics)),
+        `Detected: ${formatDiagnosticLayerLabel(diagnostics.diagnosticLayer)}`,
+        `Why: ${diagnostics.diagnosticWhy}`,
+        `Next action: ${diagnostics.nextAction}`,
     ];
     if (diagnostics.extensionConfig) {
         const provider = diagnostics.extensionConfig.modelProvider ?? 'unknown';
@@ -100,30 +126,41 @@ function formatStatus(diagnostics) {
         lines.push(`Open tabs: ${diagnostics.tabsSummary.totalTabs}`);
         lines.push(`Active tab ID: ${diagnostics.tabsSummary.activeTabId ?? 'none'}`);
     }
-    if (diagnostics.error) {
-        lines.push(`Note: ${diagnostics.error}`);
+    if (diagnostics.activeTab.url) {
+        lines.push(`Active page: ${diagnostics.activeTab.pageType} (${diagnostics.activeTab.url})`);
+    }
+    lines.push(`Content script: ${diagnostics.contentScript.ready ? 'ready' : 'not ready'} (${diagnostics.contentScript.readinessSource ?? 'none'})`);
+    for (const note of diagnostics.probeNotes ?? []) {
+        lines.push(`Note: [${note.scope}] ${note.message}`);
     }
     return `${lines.join('\n')}\n`;
 }
-function formatDoctor(diagnostics) {
-    const lines = [formatStatus(diagnostics).trimEnd(), '', 'Remediation:'];
-    if (diagnostics.extensionConnected) {
-        lines.push('- The extension bridge is healthy. Your MCP host should be able to use FSB now.');
-        lines.push(`- If you prefer HTTP transport, start: npx -y fsb-mcp-server serve`);
+export function formatWatchSnapshot(diagnostics) {
+    const lines = [
+        `FSB MCP status watch @ ${diagnostics.checkedAt}`,
+        formatFieldRow(buildCompactStatusFields(diagnostics)),
+    ];
+    if (diagnostics.activeTab.url) {
+        lines.push(`Active page: ${diagnostics.activeTab.pageType} (${diagnostics.activeTab.url})`);
     }
-    else if (diagnostics.bridgeMode === 'hub') {
-        lines.push('- The MCP bridge is listening, but the extension has not attached yet.');
-        lines.push('- Open Chrome/Edge/Brave, ensure the FSB extension is installed and enabled, then retry.');
-        lines.push(`- The extension must be able to reach ${FSB_EXTENSION_BRIDGE_URL}.`);
+    if (diagnostics.probeNotes && diagnostics.probeNotes.length > 0) {
+        lines.push(`Note: ${diagnostics.probeNotes[0].message}`);
     }
-    else if (diagnostics.bridgeMode === 'relay') {
-        lines.push('- Another fsb-mcp-server instance already owns the local bridge port.');
-        lines.push('- The relay can reach a hub, but the extension is not attached to that hub yet.');
-        lines.push('- Keep the other instance running, or stop it if you want this process to become the primary bridge.');
+    return `${lines.join('\n')}\n`;
+}
+export function formatDoctor(diagnostics) {
+    const lines = [
+        `FSB MCP doctor @ ${diagnostics.checkedAt}`,
+        `Detected: ${formatDiagnosticLayerLabel(diagnostics.diagnosticLayer)}`,
+        `Why: ${diagnostics.diagnosticWhy}`,
+        `Next action: ${diagnostics.nextAction}`,
+        ...formatFieldLines(buildCompactStatusFields(diagnostics)),
+    ];
+    if (diagnostics.activeTab.url) {
+        lines.push(`Active page: ${diagnostics.activeTab.pageType} (${diagnostics.activeTab.url})`);
     }
-    else {
-        lines.push('- The local bridge could not start.');
-        lines.push('- Check for another process using port 7225 or retry once the MCP server package is fully installed.');
+    for (const note of diagnostics.probeNotes ?? []) {
+        lines.push(`Note: [${note.scope}] ${note.message}`);
     }
     lines.push('');
     lines.push('Install paths:');
@@ -234,17 +271,37 @@ async function runHttpMode(flags) {
     process.on('SIGINT', shutdown);
 }
 async function runStatus(flags) {
+    const waitForExtensionMs = readNumberFlag(flags, 'timeout', 1500);
+    const intervalMs = readNumberFlag(flags, 'interval', 1000);
+    if (flags.watch === true) {
+        await watchBridgeDiagnostics({
+            intervalMs,
+            waitForExtensionMs,
+            includeConfig: true,
+            includeTabs: true,
+            onUpdate: (diagnostics) => {
+                if (isJson(flags)) {
+                    process.stdout.write(`${JSON.stringify(diagnostics)}\n`);
+                    return;
+                }
+                if (process.stdout.isTTY) {
+                    process.stdout.write('\x1Bc');
+                }
+                process.stdout.write(formatWatchSnapshot(diagnostics));
+            },
+        });
+        return;
+    }
     const diagnostics = await collectBridgeDiagnostics({
-        waitForExtensionMs: readNumberFlag(flags, 'timeout', 1500),
+        waitForExtensionMs,
         includeConfig: true,
         includeTabs: true,
     });
     if (isJson(flags)) {
         console.log(JSON.stringify(diagnostics, null, 2));
+        return;
     }
-    else {
-        process.stdout.write(formatStatus(diagnostics));
-    }
+    process.stdout.write(formatStatus(diagnostics));
 }
 async function runDoctor(flags) {
     const diagnostics = await collectBridgeDiagnostics({
@@ -258,7 +315,7 @@ async function runDoctor(flags) {
     else {
         process.stdout.write(formatDoctor(diagnostics));
     }
-    process.exitCode = diagnostics.extensionConnected ? 0 : 1;
+    process.exitCode = diagnostics.diagnosticLayer === 'healthy' ? 0 : 1;
 }
 async function runWaitForExtension(flags) {
     const bridge = new WebSocketBridge();
@@ -315,8 +372,14 @@ async function main() {
             throw new Error(`Unknown command: ${command}`);
     }
 }
-main().catch((err) => {
-    console.error('[FSB MCP] Fatal:', err);
-    process.exit(1);
-});
+function isExecutedDirectly() {
+    const entry = process.argv[1];
+    return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+}
+if (isExecutedDirectly()) {
+    main().catch((err) => {
+        console.error('[FSB MCP] Fatal:', err);
+        process.exit(1);
+    });
+}
 //# sourceMappingURL=index.js.map

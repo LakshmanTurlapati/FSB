@@ -39,6 +39,7 @@ const MCP_PHASE199_TOOL_ROUTES = {
 
 const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-tabs': { routeFamily: 'read-only', helperName: '_handleGetTabs' },
+  'mcp:get-diagnostics': { routeFamily: 'diagnostics', handler: handleGetDiagnosticsMessageRoute },
   'mcp:get-site-guides': { routeFamily: 'read-only', handler: handleGetSiteGuidesRoute },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
   'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' },
@@ -595,6 +596,20 @@ async function handleGetSiteGuidesRoute({ payload }) {
   }
 
   return { success: true, guide: guide || null };
+}
+
+async function handleGetDiagnosticsMessageRoute() {
+  const helper = (typeof globalThis !== 'undefined' && typeof globalThis.collectMcpDiagnosticsSnapshot === 'function')
+    ? globalThis.collectMcpDiagnosticsSnapshot
+    : (typeof collectMcpDiagnosticsSnapshot === 'function' ? collectMcpDiagnosticsSnapshot : null);
+
+  if (typeof helper !== 'function') {
+    return createMcpRouteError('mcp:get-diagnostics', 'diagnostics', MCP_ROUTE_RECOVERY_HINT, {
+      error: 'Background diagnostics helper unavailable'
+    });
+  }
+
+  return helper();
 }
 
 async function handleListSessionsMessageRoute({ payload }) {

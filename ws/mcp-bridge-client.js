@@ -302,6 +302,9 @@ class MCPBridgeClient {
       case 'mcp:get-tabs':
         return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
+      case 'mcp:get-diagnostics':
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
+
       case 'mcp:get-dom':
         return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 

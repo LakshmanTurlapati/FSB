@@ -1892,6 +1892,66 @@ async function waitForContentScriptReady(tabId, timeout = 5000) {
   return false;
 }
 
+function getContentScriptDiagnosticsForTab(tabId, activeTabUrl = '') {
+  const portInfo = tabId ? contentScriptPorts.get(tabId) : null;
+  const readyStatus = tabId ? contentScriptReadyStatus.get(tabId) : null;
+  const lastHeartbeatAt = portInfo?.lastHeartbeat || readyStatus?.timestamp || null;
+  const lastHeartbeatAgeMs = lastHeartbeatAt ? Math.max(0, Date.now() - lastHeartbeatAt) : null;
+  const readinessSource = portInfo
+    ? 'port'
+    : (readyStatus?.method || (readyStatus?.ready ? 'ready-status' : null));
+
+  return {
+    ready: Boolean(readyStatus?.ready || (portInfo && lastHeartbeatAgeMs !== null && lastHeartbeatAgeMs <= 10000)),
+    portConnected: Boolean(portInfo),
+    lastHeartbeatAgeMs,
+    lastReadyAt: readyStatus?.timestamp || null,
+    lastReadyUrl: readyStatus?.url || activeTabUrl || null,
+    readinessSource
+  };
+}
+
+async function collectMcpDiagnosticsSnapshot() {
+  let activeTab = {
+    id: null,
+    url: '',
+    title: '',
+    windowId: null,
+    restricted: true,
+    pageType: 'No active tab'
+  };
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) {
+      const currentUrl = tab.url || '';
+      activeTab = {
+        id: Number.isFinite(tab.id) ? tab.id : null,
+        url: currentUrl,
+        title: tab.title || '',
+        windowId: Number.isFinite(tab.windowId) ? tab.windowId : null,
+        restricted: isRestrictedURL(currentUrl),
+        pageType: currentUrl ? (isRestrictedURL(currentUrl) ? getPageTypeDescription(currentUrl) : 'Web page') : 'No active tab'
+      };
+    }
+  } catch (_error) {}
+
+  let bridgeClient = null;
+  try {
+    if (chrome.storage?.session?.get) {
+      const stored = await chrome.storage.session.get(['mcpBridgeState']);
+      bridgeClient = stored?.mcpBridgeState || null;
+    }
+  } catch (_error) {}
+
+  return {
+    success: true,
+    activeTab,
+    contentScript: getContentScriptDiagnosticsForTab(activeTab.id, activeTab.url),
+    bridgeClient
+  };
+}
+
 // Enhanced content script injection with retry logic and page load checks
 async function ensureContentScriptInjected(tabId, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
