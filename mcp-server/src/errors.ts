@@ -27,55 +27,24 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     'Tool call timed out waiting in queue. Another task is running and did not complete in time. Use stop_task to cancel the running task, or use read-only tools which bypass the queue.',
 };
 
-/**
- * Generate actionable recovery hints based on error message content.
- * Helps AI clients understand what to try next when a tool fails.
- */
-function getRecoveryHint(
-  error: string,
-  options?: { errorKey?: string; validRecoveryTools?: string[] },
-): string {
-  const lower = error.toLowerCase();
-
-  if (options?.errorKey === 'restricted_active_tab' || lower.includes('restricted/browser-internal page')) {
-    const recoveryTools = formatRecoveryToolList(options?.validRecoveryTools);
-    return ` [Recovery: Use ${recoveryTools} to move to a normal website before using page-reading or interaction tools.]`;
-  }
-
-  // Element not found errors
-  if (lower.includes('not found') || lower.includes('no element') || lower.includes('null')) {
-    return ' [Recovery: Call get_dom_snapshot to refresh element references, then retry with an updated selector. Element refs (e1, e2...) expire after page changes.]';
-  }
-
-  // Element not visible / not interactable
-  if (lower.includes('not visible') || lower.includes('not interactable') || lower.includes('obscured') || lower.includes('covered')) {
-    return ' [Recovery: The element may be behind a fixed header or overlay. Try scroll(direction="down") to reposition, or use click_at with viewport coordinates as a fallback.]';
-  }
-
-  // Extension not connected
-  if (lower.includes('extension_not_connected') || lower.includes('not connected') || lower.includes('bridge')) {
-    return ' [Recovery: The FSB Chrome Extension is not running or not connected. Make sure the extension is installed and active in Chrome, then retry.]';
-  }
-
-  // Timeout errors
-  if (lower.includes('timeout') || lower.includes('timed out')) {
-    return ' [Recovery: The page may be loading slowly. Try wait_for_stable first, then retry. For JS-heavy sites, read_page auto-waits for DOM stability.]';
-  }
-
-  // Navigation / page changed
-  if (lower.includes('navigation') || lower.includes('page changed') || lower.includes('detached') || lower.includes('stale')) {
-    return ' [Recovery: The page has changed since the last snapshot. Call get_dom_snapshot or read_page to get fresh content before retrying.]';
-  }
-
-  // Port disconnected / BF cache
-  if (lower.includes('port') || lower.includes('disconnected') || lower.includes('bf cache')) {
-    return ' [Recovery: Page navigation caused a disconnect. The content script will auto-reconnect. Wait a moment and retry the action.]';
-  }
-
-  return '';
-}
-
 const DEFAULT_RESTRICTED_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
+const LAYER_LABELS = {
+  package: 'Package / version parity',
+  configuration: 'Configuration',
+  bridge: 'Bridge ownership',
+  extension: 'Extension attachment',
+  contentScript: 'Content script availability',
+  toolRouting: 'Tool routing',
+  restrictedPage: 'Restricted page',
+  pageNavigation: 'Page navigation',
+} as const;
+
+type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
+type ErrorDetail = {
+  detected: LayerLabel;
+  why: string;
+  nextAction: string;
+};
 
 function getValidRecoveryTools(fsbResult: Record<string, unknown> | null | undefined): string[] {
   const rawTools = Array.isArray(fsbResult?.validRecoveryTools)
@@ -90,6 +59,146 @@ function getValidRecoveryTools(fsbResult: Record<string, unknown> | null | undef
 function formatRecoveryToolList(tools: string[] | undefined): string {
   const list = Array.isArray(tools) && tools.length > 0 ? tools : DEFAULT_RESTRICTED_RECOVERY_TOOLS;
   return list.join(', ');
+}
+
+function resolveErrorKey(
+  fsbResult: Record<string, unknown> | null | undefined,
+  errorMsg: string,
+): string {
+  const errorCode = typeof fsbResult?.errorCode === 'string' ? fsbResult.errorCode : '';
+  if (FSB_ERROR_MESSAGES[errorCode]) {
+    return errorCode;
+  }
+
+  const lower = errorMsg.toLowerCase();
+  if (lower.includes('version mismatch') || lower.includes('package.json') || lower.includes('server.json')) {
+    return 'package_version_mismatch';
+  }
+  if (
+    lower.includes('config probe failed')
+    || lower.includes('modelprovider')
+    || lower.includes('model provider')
+    || lower.includes('modelname')
+    || lower.includes('model name')
+    || lower.includes('selectedprovider')
+    || lower.includes('selectedmodel')
+  ) {
+    return 'configuration_error';
+  }
+  if (lower.includes('not found')) return 'element_not_found';
+  if (lower.includes('no active tab') || lower.includes('no tab')) return 'no_active_tab';
+  if (lower.includes('timeout') || lower.includes('timed out')) return 'task_timeout';
+  if (lower.includes('extension_not_connected') || lower.includes('bridge disconnected')) {
+    return 'extension_not_connected';
+  }
+  if (lower.includes('content script communication failed') || lower.includes('receiving end does not exist')) {
+    return 'content_script_failed';
+  }
+  if (lower.includes('injection failed') || lower.includes('content script injection')) {
+    return 'injection_failed';
+  }
+  return 'action_rejected';
+}
+
+function isBridgeOwnershipError(
+  fsbResult: Record<string, unknown> | null | undefined,
+  errorMsg: string,
+): boolean {
+  return fsbResult?.bridgeMode === 'disconnected'
+    || fsbResult?.hubConnected === false
+    || /bridge disconnected|port 7225|relay|disconnected mode/i.test(errorMsg);
+}
+
+function buildLayeredDetail(
+  errorKey: string,
+  fsbResult: Record<string, unknown> | null | undefined,
+  errorMsg: string,
+  validRecoveryTools: string[],
+): ErrorDetail {
+  const currentUrl = typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '';
+  const pageType = typeof fsbResult?.pageType === 'string' ? fsbResult.pageType : 'Restricted page';
+  const tool = typeof fsbResult?.tool === 'string' ? fsbResult.tool : 'this tool';
+  const routeFamily = typeof fsbResult?.routeFamily === 'string' ? fsbResult.routeFamily : 'unknown';
+  const recoveryHint = typeof fsbResult?.recoveryHint === 'string' && fsbResult.recoveryHint.trim().length > 0
+    ? fsbResult.recoveryHint
+    : 'Update the MCP server/extension pair so this direct route exists, then retry.';
+  const url = typeof fsbResult?.url === 'string'
+    ? fsbResult.url
+    : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '');
+
+  switch (errorKey) {
+    case 'package_version_mismatch':
+      return {
+        detected: LAYER_LABELS.package,
+        why: 'The MCP runtime and package metadata do not agree on the installed version.',
+        nextAction: 'Reinstall or rebuild fsb-mcp-server so the package metadata and runtime version match.',
+      };
+    case 'configuration_error':
+      return {
+        detected: LAYER_LABELS.configuration,
+        why: 'The extension is attached, but its provider/model configuration is incomplete or unreadable.',
+        nextAction: 'Open the FSB extension settings, choose a provider and model, then retry.',
+      };
+    case 'extension_not_connected':
+      if (isBridgeOwnershipError(fsbResult, errorMsg)) {
+        return {
+          detected: LAYER_LABELS.bridge,
+          why: 'The local MCP bridge is disconnected or does not own the active extension connection.',
+          nextAction: 'Keep one fsb-mcp-server instance running as the bridge owner, then retry.',
+        };
+      }
+      return {
+        detected: LAYER_LABELS.extension,
+        why: `The bridge is reachable, but the FSB browser extension is not attached to ${FSB_EXTENSION_BRIDGE_URL}.`,
+        nextAction: 'Open Chrome/Edge/Brave with FSB enabled, then retry.',
+      };
+    case 'content_script_failed':
+    case 'injection_failed':
+      return {
+        detected: LAYER_LABELS.contentScript,
+        why: currentUrl
+          ? `The active tab (${currentUrl}) does not have a ready content script.`
+          : 'The active tab does not have a ready content script.',
+        nextAction: 'Refresh or navigate the tab, wait for page readiness, then retry.',
+      };
+    case 'restricted_active_tab':
+      return {
+        detected: LAYER_LABELS.restrictedPage,
+        why: `${pageType} (${currentUrl || 'no active URL'}) cannot run page-reading or interaction tools because the browser blocks content scripts there.`,
+        nextAction: `Use ${formatRecoveryToolList(validRecoveryTools)} to move to a normal website first.`,
+      };
+    case 'mcp_route_unavailable':
+      return {
+        detected: LAYER_LABELS.toolRouting,
+        why: `The direct MCP route for ${tool} (${routeFamily}) is unavailable.`,
+        nextAction: recoveryHint,
+      };
+    case 'navigation_failed':
+      return {
+        detected: LAYER_LABELS.pageNavigation,
+        why: `Navigation to ${url || 'the requested URL'} failed.`,
+        nextAction: 'Verify the destination URL or switch to a normal website tab, then retry.',
+      };
+    case 'no_active_tab':
+      return {
+        detected: LAYER_LABELS.pageNavigation,
+        why: 'There is no active browser tab available for this tool call.',
+        nextAction: `Use ${formatRecoveryToolList(validRecoveryTools)} to open or switch to a normal website tab, then retry.`,
+      };
+    default:
+      return {
+        detected: LAYER_LABELS.pageNavigation,
+        why: errorMsg || 'The current page state did not allow the requested tool call to complete.',
+        nextAction: 'Refresh page state with read_page or get_dom_snapshot, then retry.',
+      };
+  }
+}
+
+function appendRawError(text: string, errorMsg: string, errorKey: string): string {
+  if (!errorMsg || errorMsg === errorKey || text.includes(errorMsg)) {
+    return text;
+  }
+  return `${text}\n\nRaw error: ${errorMsg}`;
 }
 
 /**
@@ -110,59 +219,15 @@ export function mapFSBError(
   }
 
   const errorMsg = String(fsbResult?.error ?? '');
-  const errorCode = typeof fsbResult?.errorCode === 'string' ? fsbResult.errorCode : '';
-  let errorKey = errorCode || 'action_rejected'; // default
-
-  if (!FSB_ERROR_MESSAGES[errorKey]) {
-    errorKey = 'action_rejected';
-
-    // Map known error patterns to specific error keys
-    if (errorMsg.includes('not found')) errorKey = 'element_not_found';
-    else if (errorMsg.includes('No active tab') || errorMsg.includes('no tab'))
-      errorKey = 'no_active_tab';
-    else if (errorMsg.includes('timeout') || errorMsg.includes('timed out'))
-      errorKey = 'task_timeout';
-    else if (errorMsg.includes('extension_not_connected') || errorMsg.includes('Bridge disconnected'))
-      errorKey = 'extension_not_connected';
-    else if (errorMsg.includes('Content script communication failed') || errorMsg.includes('Receiving end does not exist'))
-      errorKey = 'content_script_failed';
-    else if (errorMsg.includes('injection failed') || errorMsg.includes('Content script injection'))
-      errorKey = 'injection_failed';
-  }
-
-  let text = FSB_ERROR_MESSAGES[errorKey] || errorMsg || 'Unknown error';
   const validRecoveryTools = getValidRecoveryTools(fsbResult);
-
-  // Replace placeholders
-  const mergedContext: Record<string, string> = {
-    currentUrl: typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '',
-    pageType: typeof fsbResult?.pageType === 'string' ? fsbResult.pageType : 'Restricted page',
-    restrictedRecovery: `Use ${formatRecoveryToolList(validRecoveryTools)} to move to a normal webpage first.`,
-    tool: typeof fsbResult?.tool === 'string' ? fsbResult.tool : '',
-    routeFamily: typeof fsbResult?.routeFamily === 'string' ? fsbResult.routeFamily : '',
-    recoveryHint: typeof fsbResult?.recoveryHint === 'string' ? fsbResult.recoveryHint : 'Use a supported MCP route or navigation recovery tool.',
-    url: typeof fsbResult?.url === 'string'
-      ? fsbResult.url
-      : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : ''),
-    selector: typeof fsbResult?.selector === 'string' ? fsbResult.selector : '',
-    ...(context || {}),
-  };
-  for (const [key, val] of Object.entries(mergedContext)) {
-    if (typeof val === 'string') {
-      text = text.replace(`{${key}}`, val);
-    }
-  }
-
-  // Always append the raw error for debugging transparency
-  if (errorMsg && errorMsg !== errorCode && !text.includes(errorMsg)) {
-    text += `\n\n[Raw error: ${errorMsg}]`;
-  }
-
-  // Append actionable recovery hint based on error patterns
-  const hint = getRecoveryHint(text, { errorKey, validRecoveryTools });
-  if (hint) {
-    text += hint;
-  }
+  const errorKey = resolveErrorKey(fsbResult, errorMsg);
+  const detail = buildLayeredDetail(errorKey, { ...(fsbResult || {}), ...(context || {}) }, errorMsg, validRecoveryTools);
+  let text = [
+    `Detected: ${detail.detected}`,
+    `Why: ${detail.why}`,
+    `Next action: ${detail.nextAction}`,
+  ].join('\n');
+  text = appendRawError(text, errorMsg, errorKey);
 
   // Log to stderr for MCP server-side debugging
   console.error(`[FSB MCP] Tool error: key=${errorKey} raw="${errorMsg}"`);
