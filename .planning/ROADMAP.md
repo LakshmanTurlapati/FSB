@@ -5,7 +5,7 @@
 ## Phases
 
 - [x] **Phase 198: MCP Bridge Lifecycle & Reconnect State** - Make extension/server attachment recover automatically across startup order, service worker wake, and hub/relay handoff (completed 2026-04-22)
-- [ ] **Phase 199: MCP Tool Routing Contract** - Replace fragile background self-dispatch with direct verified route handling for browser, autopilot, observability, and restricted recovery tools
+- [x] **Phase 199: MCP Tool Routing Contract** - Replace fragile background self-dispatch with direct verified route handling for browser, autopilot, observability, and restricted recovery tools (completed 2026-04-23)
 - [ ] **Phase 200: Doctor, Status Watch & Recovery Messaging** - Make diagnostics identify the exact failed layer and tell users the next concrete action
 - [ ] **Phase 201: Platform Installer & Config Parity** - Verify install/update behavior across Claude, Codex, OpenClaw/OpenCode-style hosts, Cursor/Windsurf, and supported config formats
 - [ ] **Phase 202: Cross-Host Smoke Matrix & Release Hardening** - Prove plug-and-play behavior through automated lifecycle smoke tests and manual host UAT
@@ -47,7 +47,7 @@ Plans:
 3. Restricted-tab responses distinguish blank/new-tab smart routing from non-routable browser pages and advertise only valid recovery tools.
 4. MCP route tests fail if a route is missing even when source strings happen to exist.
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 199-01-PLAN.md -- Create executable MCP route-contract and restricted recovery tests
@@ -109,7 +109,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 198. MCP Bridge Lifecycle & Reconnect State | 3/3 | Complete    | 2026-04-22 |
-| 199. MCP Tool Routing Contract | 3/3 | Complete   | 2026-04-22 |
+| 199. MCP Tool Routing Contract | 3/3 | Complete    | 2026-04-23 |
 | 200. Doctor, Status Watch & Recovery Messaging | 0/TBD | Not Started | - |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
 | 202. Cross-Host Smoke Matrix & Release Hardening | 0/TBD | Not Started | - |
