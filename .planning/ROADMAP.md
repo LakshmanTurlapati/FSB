@@ -6,7 +6,7 @@
 
 - [x] **Phase 198: MCP Bridge Lifecycle & Reconnect State** - Make extension/server attachment recover automatically across startup order, service worker wake, and hub/relay handoff (completed 2026-04-22)
 - [x] **Phase 199: MCP Tool Routing Contract** - Replace fragile background self-dispatch with direct verified route handling for browser, autopilot, observability, and restricted recovery tools (completed 2026-04-23)
-- [ ] **Phase 200: Doctor, Status Watch & Recovery Messaging** - Make diagnostics identify the exact failed layer and tell users the next concrete action
+- [x] **Phase 200: Doctor, Status Watch & Recovery Messaging** - Make diagnostics identify the exact failed layer and tell users the next concrete action (completed 2026-04-23)
 - [ ] **Phase 201: Platform Installer & Config Parity** - Verify install/update behavior across Claude, Codex, OpenClaw/OpenCode-style hosts, Cursor/Windsurf, and supported config formats
 - [ ] **Phase 202: Cross-Host Smoke Matrix & Release Hardening** - Prove plug-and-play behavior through automated lifecycle smoke tests and manual host UAT
 
@@ -68,11 +68,11 @@ Plans:
 3. Tool errors include a short recovery instruction tied to the detected failed layer.
 4. MCP package metadata, runtime `FSB_MCP_VERSION`, setup output, and README version references agree.
 
-**Plans:** 2/3 plans complete
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 200-01-PLAN.md -- Add layered diagnostics probe and `status --watch`
-- [ ] 200-02-PLAN.md -- Map layer-aware MCP recovery messaging
+- [x] 200-02-PLAN.md -- Map layer-aware MCP recovery messaging
 - [x] 200-03-PLAN.md -- Enforce MCP version parity and docs failure flow
 
 ### Phase 201: Platform Installer & Config Parity
@@ -115,7 +115,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 198. MCP Bridge Lifecycle & Reconnect State | 3/3 | Complete    | 2026-04-22 |
 | 199. MCP Tool Routing Contract | 3/3 | Complete    | 2026-04-23 |
-| 200. Doctor, Status Watch & Recovery Messaging | 2/3 | In Progress | - |
+| 200. Doctor, Status Watch & Recovery Messaging | 3/3 | Complete | 2026-04-23 |
 | 201. Platform Installer & Config Parity | 0/TBD | Not Started | - |
 | 202. Cross-Host Smoke Matrix & Release Hardening | 0/TBD | Not Started | - |
 
@@ -149,4 +149,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-04-22*
-*Last updated: 2026-04-23 after Phase 200 Plan 03 completion*
+*Last updated: 2026-04-23 after Phase 200 completion*
