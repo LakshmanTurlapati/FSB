@@ -479,6 +479,8 @@ Remove from a platform: `npx -y fsb-mcp-server uninstall --cursor`
 
 See the [MCP server README](https://www.npmjs.com/package/fsb-mcp-server) for the full tool reference, transport options, and architecture details.
 
+If MCP stops working, run `npx -y fsb-mcp-server doctor` first, then `npx -y fsb-mcp-server status --watch`. Only fall back to manual reinstall or restart steps when the reported layer points there.
+
 ---
 
 ## Development

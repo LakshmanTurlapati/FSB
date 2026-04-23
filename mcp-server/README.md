@@ -52,7 +52,7 @@ FSB uses two local endpoints with different roles:
 | `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
 | `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
 
-The extension pairing contract did **not** change in `0.5.2`. The new HTTP server is only an additional MCP client entrypoint.
+The extension pairing contract did **not** change in `0.6.0`. The local HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 
@@ -158,9 +158,19 @@ npx -y fsb-mcp-server uninstall --cursor
 ```bash
 npx -y fsb-mcp-server setup              # Print manual install snippets
 npx -y fsb-mcp-server status             # Show bridge and extension status
-npx -y fsb-mcp-server doctor             # Run install diagnostics
+npx -y fsb-mcp-server status --watch     # Live bridge diagnostics
+npx -y fsb-mcp-server doctor             # Diagnose the primary failed layer
 npx -y fsb-mcp-server wait-for-extension # Wait for extension to connect
 ```
+
+### Troubleshooting
+
+When MCP stops working, start with the built-in diagnostics before reinstalling anything:
+
+1. `npx -y fsb-mcp-server doctor`
+2. `npx -y fsb-mcp-server status --watch`
+
+Only move on to manual restart or reinstall steps if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content-script trouble, fix that layer first instead of cycling the whole setup.
 
 ---
 
