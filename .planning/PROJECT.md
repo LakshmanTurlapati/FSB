@@ -20,7 +20,9 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Goal:** Make FSB MCP feel install-once and usable across Claude, Codex, OpenClaw/OpenCode-style clients, and other MCP hosts without repeated extension/MCP restarts or platform-specific tinkering.
 
-**Progress:** Phase 198 complete -- MCP bridge lifecycle and hub/relay topology now recover across browser-first, server-first, service-worker wake, and hub handoff scenarios.
+**Progress:** Phases 198-199 complete -- MCP bridge lifecycle and hub/relay topology recover across browser-first, server-first, service-worker wake, and hub handoff scenarios; MCP browser, autopilot, observability, and restricted-tab tools now route through explicit verified dispatcher contracts.
+
+**Next:** Phase 200 -- doctor, status watch, and recovery messaging for exact layer diagnosis and concrete user recovery steps.
 
 **Target features:**
 - MCP bridge lifecycle repair so the extension reconnects whenever the MV3 service worker wakes, regardless of whether the MCP host or browser starts first.
@@ -154,10 +156,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Claude Code CLI delegation, Codex TOML, Continue YAML support -- v0.9.30
 - ✓ --dry-run preview and --all bulk install/uninstall across all platforms -- v0.9.30
 - ✓ MCP bridge reconnects without extension reloads when the MCP host starts after Chrome, Chrome starts after the MCP host, or the MV3 service worker wakes from suspension -- Phase 198 (v0.9.35)
+- ✓ MCP background/browser, autopilot, observability, and restricted-tab recovery tools route through explicit verified dispatcher contracts instead of fragile background self-dispatch -- Phase 199 (v0.9.35)
 
 ### Active
 
-- [ ] MCP background-routed tools use a direct internal dispatcher with tested verb mapping instead of fragile `chrome.runtime.sendMessage` self-dispatch.
 - [ ] MCP diagnostics distinguish install/config, bridge ownership, extension attachment, content-script availability, and tool-routing failures.
 - [ ] Platform install verification covers Claude, Codex, OpenClaw/OpenCode-compatible hosts, Cursor/Windsurf, and supported config formats with idempotent writes.
 - [ ] Cross-host smoke tests prove MCP can list tabs, navigate, read page content, click, run a task, and recover after server/extension restarts.
