@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.35
 milestone_name: MCP Plug-and-Play Reliability
 status: executing
-stopped_at: Phase 200 context gathered
-last_updated: "2026-04-23T18:01:27.329Z"
-last_activity: 2026-04-23 -- Phase 200 planning complete
+stopped_at: Completed 200-doctor-status-watch-recovery-messaging-01-PLAN.md
+last_updated: "2026-04-23T18:13:03Z"
+last_activity: 2026-04-23
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 6
-  percent: 67
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 200 — doctor,-status-watch-&-recovery-messaging
+**Current focus:** Phase 200 — Doctor, Status Watch & Recovery Messaging
 
 ## Current Position
 
-Phase: 200
-Plan: Not started
+Phase: 200 (Doctor, Status Watch & Recovery Messaging) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-04-23 -- Phase 200 planning complete
+Last activity: 2026-04-23
 
 Progress: [##########] 100%
 
@@ -36,7 +36,7 @@ Progress: [##########] 100%
 
 **Velocity:**
 
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: --
 - Total execution time: 0 hours
 
@@ -52,6 +52,7 @@ Progress: [##########] 100%
 | 196 | 0 | - | - |
 | 198 | 3 | - | - |
 | 199 | 3 | - | - |
+| 200 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -67,6 +68,7 @@ Progress: [##########] 100%
 | Phase 199-mcp-tool-routing-contract P01 | 5min | 2 tasks | 3 files |
 | Phase 199-mcp-tool-routing-contract P02 | 6min | 2 tasks | 3 files |
 | Phase 199-mcp-tool-routing-contract P03 | 10min | 2 tasks | 4 files |
+| Phase 200-doctor-status-watch-recovery-messaging P01 | 9min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -104,17 +106,17 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- MCP background-routed tools (navigate, run_task, get_logs, etc.) fail or are brittle through chrome.runtime.sendMessage self-dispatch issue -- active v0.9.35 target.
-- Phase 198 bridge lifecycle repair is verified; remaining v0.9.35 MCP work starts with direct background tool routing in Phase 199.
+- Phase 200 still needs layer-aware MCP recovery messaging (DIAG-03) and version/documentation parity cleanup (DIAG-04).
+- Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
 
 - v0.9.34 archived with accepted validation debt: stale `gaps_found` milestone audit, 19 unchecked requirements preserved in the archive, and pending live UAT for Phase 191 and Phase 197.
-- Current MCP regression `tests/mcp-restricted-tab.test.js` fails 9 assertions and must be converted from string-presence checks into behavioral route-contract coverage.
-- Phase 198 code review is advisory but found 1 critical and 2 warnings; run `$gsd-code-review-fix 198` before advancing if you want review issues closed first.
+- Phase 200 diagnostics now classify runtime failures, but the user-facing MCP error mapper still uses older generic recovery text until Plan 200-02 lands.
+- Runtime/package/docs version parity is still intentionally deferred to Plan 200-03.
 
 ## Session Continuity
 
-Last session: 2026-04-23T17:47:15.512Z
-Stopped at: Phase 200 context gathered
-Resume file: .planning/phases/200-doctor-status-watch-recovery-messaging/200-CONTEXT.md
+Last session: 2026-04-23T18:13:03Z
+Stopped at: Completed 200-doctor-status-watch-recovery-messaging-01-PLAN.md
+Resume file: None

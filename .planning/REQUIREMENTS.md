@@ -23,8 +23,8 @@ Requirements for making FSB MCP install-once, reconnect reliably, diagnose its o
 
 ### Diagnostics
 
-- [ ] **DIAG-01**: `fsb-mcp-server doctor` identifies the failing layer: package availability, platform config, bridge bind/ownership, extension attachment, content script availability, or tool routing.
-- [ ] **DIAG-02**: `fsb-mcp-server status --watch` shows live bridge mode, extension connection, last heartbeat, active hub/relay state, and recent disconnect reason.
+- [x] **DIAG-01**: `fsb-mcp-server doctor` identifies the failing layer: package availability, platform config, bridge bind/ownership, extension attachment, content script availability, or tool routing.
+- [x] **DIAG-02**: `fsb-mcp-server status --watch` shows live bridge mode, extension connection, last heartbeat, active hub/relay state, and recent disconnect reason.
 - [ ] **DIAG-03**: MCP error messages provide exact recovery steps for the detected failure and avoid generic restart advice unless a restart is actually required.
 - [ ] **DIAG-04**: MCP package, runtime, README, and reported server version metadata agree on one version string before release.
 
@@ -74,8 +74,8 @@ Deferred to future releases.
 | ROUTE-02 | Phase 199 | Complete |
 | ROUTE-03 | Phase 199 | Complete |
 | ROUTE-04 | Phase 199 | Complete |
-| DIAG-01 | Phase 200 | Pending |
-| DIAG-02 | Phase 200 | Pending |
+| DIAG-01 | Phase 200 | Complete |
+| DIAG-02 | Phase 200 | Complete |
 | DIAG-03 | Phase 200 | Pending |
 | DIAG-04 | Phase 200 | Pending |
 | PLAT-01 | Phase 201 | Pending |
