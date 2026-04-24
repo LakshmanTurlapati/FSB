@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.36
 milestone_name: MCP Visual Lifecycle & Client Identity
 status: phase_in_progress
-stopped_at: Ready to plan Phase 205
-last_updated: "2026-04-24T04:49:36Z"
-last_activity: 2026-04-24 -- Phase 204 complete
+stopped_at: Ready to execute Plan 205-01
+last_updated: "2026-04-24T05:20:00Z"
+last_activity: 2026-04-24 -- Planned Phase 205
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 4
+  total_plans: 6
   completed_plans: 4
-  percent: 100
+  percent: 67
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Validation and documentation coverage for the MCP visual-session lifecycle
+**Current focus:** Execute final validation coverage and then ship MCP lifecycle usage docs
 
 ## Current Position
 
 Milestone: v0.9.36 (MCP Visual Lifecycle & Client Identity)
 Phase: 205
-Plan: Not started
-Status: Phase 204 complete; ready to plan validation and documentation coverage
-Last activity: 2026-04-24 -- Persisted client-owned visual sessions across reinjection/navigation with replay-aware stale cleanup
+Plan: 205-01
+Status: Phase 205 planned; ready to execute validation and smoke coverage
+Last activity: 2026-04-24 -- Created Phase 205 context plus execution plans for regression coverage and MCP usage docs
 
 Progress: [██████░░░░] 67%
 
@@ -52,7 +52,7 @@ Progress: [██████░░░░] 67%
 **Recent Trend:**
 
 - Last 5 plans: 31 min, 36 min, 13 min, 10 min
-- Trend: Phase 204 landed cleanly; next focus is validation and docs coverage
+- Trend: Planning is complete for Phase 205; next focus is executing regression coverage before docs polish
 
 ## Accumulated Context
 
@@ -102,7 +102,8 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Plan Phase 205: validate and document the visual-session start/progress/end contract, badge surfaces, and persistence/cleanup behavior.
+- Execute Plan 205-01: expand MCP smoke/contract coverage and final overlay/UI regressions for the visual-session lifecycle.
+- Execute Plan 205-02: document the visual-session lifecycle and clarify when `run_task` remains the better fit.
 - Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
@@ -113,5 +114,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-04-24T04:23:21.021Z
-Stopped at: Ready to plan Phase 205
+Stopped at: Ready to execute Plan 205-01
 Resume file: None
