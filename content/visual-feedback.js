@@ -368,6 +368,21 @@
         font-size: 13px;
       }
 
+      .fsb-client-badge {
+        display: none;
+        margin-left: auto;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
       .fsb-task {
         color: rgba(255, 255, 255, 0.7);
         font-size: 12px;
@@ -491,6 +506,7 @@
       <div class="fsb-header">
         <img class="fsb-logo" src="" alt="FSB">
         <span class="fsb-title">FSB Automating</span>
+        <span class="fsb-client-badge"></span>
       </div>
       <div class="fsb-task">-</div>
       <div class="fsb-summary"></div>
@@ -583,6 +599,13 @@
         : (overlayState.phase || 'Working');
       var display = overlayState.display || {};
       var progress = overlayState.progress || { mode: 'indeterminate', label: phaseLabel };
+      var clientLabel = overlayState.clientLabel ? String(overlayState.clientLabel).trim() : '';
+      var clientBadgeEl = this.container.querySelector('.fsb-client-badge');
+
+      if (clientBadgeEl) {
+        clientBadgeEl.textContent = clientLabel;
+        clientBadgeEl.style.display = clientLabel ? 'inline-flex' : 'none';
+      }
 
       this.container.querySelector('.fsb-task').textContent = display.title || '-';
       this.container.querySelector('.fsb-summary').textContent = display.subtitle || '';

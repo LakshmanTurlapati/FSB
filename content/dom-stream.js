@@ -819,7 +819,12 @@
           label: overlayState.progress?.label || '',
           phase: overlayState.phase || '',
           eta: overlayState.progress?.eta || null,
-          detail: overlayState.display?.detail || ''
+          detail: overlayState.display?.detail || '',
+          clientLabel: overlayState.clientLabel || '',
+          sessionToken: overlayState.sessionToken || '',
+          version: typeof overlayState.version === 'number' ? overlayState.version : null,
+          lifecycle: overlayState.lifecycle || 'running',
+          result: overlayState.result || null
         };
       }
     } catch (e) { /* ignore */ }

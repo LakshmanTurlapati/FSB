@@ -55,6 +55,14 @@ type TaskState = 'idle' | 'running' | 'success' | 'failed';
 type PreviewState = 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error' | 'paused' | 'frozen-disconnect' | 'frozen-complete';
 type PreviewLayoutMode = 'inline' | 'maximized' | 'pip' | 'fullscreen';
 
+interface PreviewOverlayIdentity {
+  clientLabel: string;
+  lifecycle: string;
+  result: string;
+  sessionToken: string;
+  version: number | null;
+}
+
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
@@ -137,6 +145,13 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private staleMutationCount = 0;
   private mutationApplyFailures = 0;
   private previewResyncPending = false;
+  private lastPreviewOverlayIdentity: PreviewOverlayIdentity = {
+    clientLabel: '',
+    lifecycle: '',
+    result: '',
+    sessionToken: '',
+    version: null,
+  };
 
   // ---- Task recovery state ----
   private activeTaskRunId = '';
@@ -208,6 +223,9 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private previewLoading!: HTMLElement | null;
   private previewGlow!: HTMLElement | null;
   private previewProgress!: HTMLElement | null;
+  private previewProgressBadge!: HTMLElement | null;
+  private previewProgressStatus!: HTMLElement | null;
+  private previewProgressDetail!: HTMLElement | null;
   private previewStatus!: HTMLElement | null;
   private previewRcState!: HTMLElement | null;
   private previewDisconnected!: HTMLElement | null;
@@ -224,6 +242,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private remoteOverlay!: HTMLElement | null;
   private previewFsExit!: HTMLElement | null;
   private previewFrozenOverlay!: HTMLElement | null;
+  private previewFrozenBadge!: HTMLElement | null;
   private previewFrozenLabel!: HTMLElement | null;
 
   // Action feed DOM refs
@@ -387,6 +406,9 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.previewLoading = this.el('dash-preview-loading');
     this.previewGlow = this.el('dash-preview-glow');
     this.previewProgress = this.el('dash-preview-progress');
+    this.previewProgressBadge = this.el('dash-preview-progress-badge');
+    this.previewProgressStatus = this.el('dash-preview-progress-status');
+    this.previewProgressDetail = this.el('dash-preview-progress-detail');
     this.previewStatus = this.el('dash-preview-status');
     this.previewRcState = this.el('dash-preview-rc-state');
     this.previewDisconnected = this.el('dash-preview-disconnected');
@@ -403,6 +425,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.remoteOverlay = this.el('dash-remote-overlay');
     this.previewFsExit = this.el('dash-preview-fs-exit');
     this.previewFrozenOverlay = this.el('dash-preview-frozen-overlay');
+    this.previewFrozenBadge = this.el('dash-preview-frozen-badge');
     this.previewFrozenLabel = this.previewFrozenOverlay ? this.previewFrozenOverlay.querySelector('.dash-preview-frozen-label') : null;
     this.actionFeed = this.el('dash-action-feed');
 
@@ -1000,6 +1023,42 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       keepProgressView: false,
       shouldFail: timedOut,
     };
+  }
+
+  private clearPreviewOverlayIdentity(): void {
+    this.lastPreviewOverlayIdentity = {
+      clientLabel: '',
+      lifecycle: '',
+      result: '',
+      sessionToken: '',
+      version: null,
+    };
+  }
+
+  private rememberPreviewOverlayIdentity(progressPayload: any): void {
+    if (!progressPayload || progressPayload.lifecycle === 'cleared') {
+      this.clearPreviewOverlayIdentity();
+      return;
+    }
+
+    this.lastPreviewOverlayIdentity = {
+      clientLabel: String(progressPayload.clientLabel || '').trim(),
+      lifecycle: String(progressPayload.lifecycle || '').trim(),
+      result: String(progressPayload.result || '').trim(),
+      sessionToken: String(progressPayload.sessionToken || '').trim(),
+      version: typeof progressPayload.version === 'number' ? progressPayload.version : null,
+    };
+  }
+
+  private renderPreviewClientBadge(target: HTMLElement | null, clientLabel: string): void {
+    if (!target) return;
+    const label = String(clientLabel || '').trim();
+    target.textContent = label;
+    target.style.display = label ? 'inline-flex' : 'none';
+  }
+
+  private renderPreviewFrozenIdentity(): void {
+    this.renderPreviewClientBadge(this.previewFrozenBadge, this.lastPreviewOverlayIdentity.clientLabel);
   }
 
   // ==================== TASK RECOVERY ====================
@@ -2496,6 +2555,7 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
         }
         if (this.previewFrozenOverlay && previewSurface.showFrozenOverlay) {
           this.previewFrozenOverlay.style.display = 'flex';
+          this.renderPreviewFrozenIdentity();
           if (this.previewFrozenLabel) {
             this.previewFrozenLabel.textContent = previewSurface.frozenLabel || 'Frozen';
             this.previewFrozenLabel.className = 'dash-preview-frozen-label ' + (previewSurface.frozenType || '');
@@ -2912,7 +2972,10 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
 
   private handleDOMOverlay(payload: any): void {
     if (!this.shouldAcceptPreviewMessage(payload, 'ext:dom-overlay')) return;
-    if (this.previewState !== 'streaming') return;
+    const canRenderOverlay = this.previewState === 'streaming'
+      || this.previewState === 'frozen-disconnect'
+      || this.previewState === 'frozen-complete';
+    if (!canRenderOverlay) return;
     if (payload.glow?.state === 'active' && this.previewGlow) {
       this.previewGlow.style.display = '';
       this.previewGlow.style.top = (payload.glow.y * this.previewScale) + 'px';
@@ -2922,7 +2985,15 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     } else if (this.previewGlow) {
       this.previewGlow.style.display = 'none';
     }
-    if (payload.progress && this.previewProgress) {
+    if (payload.progress && payload.progress.lifecycle !== 'cleared') {
+      this.rememberPreviewOverlayIdentity(payload.progress);
+    } else {
+      this.clearPreviewOverlayIdentity();
+    }
+    this.renderPreviewFrozenIdentity();
+
+    const hasActiveProgress = !!(payload.progress && payload.progress.lifecycle !== 'cleared');
+    if (hasActiveProgress && this.previewProgress) {
       this.previewProgress.style.display = '';
       const phaseText = payload.progress.phase || 'Working';
       let progressText: string;
@@ -2931,9 +3002,22 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       } else {
         progressText = payload.progress.label || phaseText || 'Working';
       }
-      this.previewProgress.textContent = progressText + ' - ' + phaseText;
+      if (this.previewProgressStatus) {
+        this.previewProgressStatus.textContent = progressText + ' - ' + phaseText;
+      }
+      const detailText = String(payload.progress.detail || '').trim();
+      if (this.previewProgressDetail) {
+        this.previewProgressDetail.textContent = detailText;
+        this.previewProgressDetail.style.display = detailText ? 'block' : 'none';
+      }
+      this.renderPreviewClientBadge(this.previewProgressBadge, payload.progress.clientLabel || '');
     } else if (this.previewProgress) {
       this.previewProgress.style.display = 'none';
+      if (this.previewProgressDetail) {
+        this.previewProgressDetail.textContent = '';
+        this.previewProgressDetail.style.display = 'none';
+      }
+      this.renderPreviewClientBadge(this.previewProgressBadge, '');
     }
   }
 

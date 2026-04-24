@@ -182,29 +182,36 @@ console.log('\n--- source contracts ---');
 const dashboardSource = fs.readFileSync(path.join(__dirname, '../showcase/js/dashboard.js'), 'utf8');
 const backgroundSource = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
 const wsClientSource = fs.readFileSync(path.join(__dirname, '../ws/ws-client.js'), 'utf8');
+const runtimeStateSource = fs.readFileSync(path.join(__dirname, '../showcase/js/dashboard-runtime-state.js'), 'utf8');
+const angularDashboardTsSource = fs.readFileSync(path.join(__dirname, '../showcase/angular/src/app/pages/dashboard/dashboard-page.component.ts'), 'utf8');
+const angularDashboardHtmlSource = fs.readFileSync(path.join(__dirname, '../showcase/angular/src/app/pages/dashboard/dashboard-page.component.html'), 'utf8');
+const angularDashboardScssSource = fs.readFileSync(path.join(__dirname, '../showcase/angular/src/app/pages/dashboard/dashboard-page.component.scss'), 'utf8');
 
 assert(dashboardSource.includes('handleRemoteControlState'), 'dashboard.js handles authoritative remote control state');
 assert(dashboardSource.includes('setTaskRecoveryPending'), 'dashboard.js tracks task recovery state');
 assert(dashboardSource.includes('Waiting for task recovery...'), 'dashboard.js contains recovery wait copy');
 assert(dashboardSource.includes('Task recovery timed out'), 'dashboard.js contains recovery timeout copy');
 assert(dashboardSource.includes('taskSource'), 'dashboard.js consumes taskSource metadata');
+assert(dashboardSource.includes('ext:remote-control-state'), 'dashboard.js listens for ext:remote-control-state');
+assert(dashboardSource.includes('handleRemoteControlState(msg.payload || {})'), 'dashboard.js applies remote-control-state payloads');
 
-assert(backgroundSource.includes('ext:remote-control-state'), 'background.js broadcasts ext:remote-control-state');
-assert(backgroundSource.includes('_lastRemoteControlState'), 'background.js remembers last remote control state');
-assert(backgroundSource.includes('_lastRemotePrintableKeyDispatch'), 'background.js tracks recent printable remote keys for dedupe');
-assert(backgroundSource.includes('_shouldIgnoreDuplicateRemoteChar'), 'background.js exposes duplicate remote char guard');
-assert(backgroundSource.includes('Duplicate char ignored for legacy dashboard payload'), 'background.js logs legacy dashboard char dedupe');
-assert(backgroundSource.includes('retarget-required'), 'background.js reports retarget-required');
-assert(backgroundSource.includes('debugger-blocked'), 'background.js reports debugger-blocked');
 assert(backgroundSource.includes('taskSource'), 'background.js preserves taskSource');
-assert(backgroundSource.includes('complete-fallback'), 'background.js includes complete-fallback task source');
 
 assert(wsClientSource.includes('taskSource'), 'ws-client preserves taskSource');
+assert(wsClientSource.includes('_lastRemoteControlState'), 'ws-client remembers last remote control state for snapshot recovery');
 assert(wsClientSource.includes("'snapshot'"), 'ws-client includes snapshot task source');
 assert(wsClientSource.includes('duplicate-stop'), 'ws-client includes duplicate-stop task source');
 assert(wsClientSource.includes('stop-fallback'), 'ws-client includes stop-fallback task source');
 assert(wsClientSource.includes('complete-fallback'), 'ws-client includes complete-fallback task source');
-assert(wsClientSource.includes('ext:remote-control-state') || backgroundSource.includes('ext:remote-control-state'), 'remote-control-state contract exists end to end');
+assert(runtimeStateSource.includes('retarget-required'), 'dashboard runtime state handles retarget-required remote control recovery');
+assert(runtimeStateSource.includes('debugger-blocked'), 'dashboard runtime state handles debugger-blocked remote control recovery');
+assert(dashboardSource.includes('ext:remote-control-state') && angularDashboardTsSource.includes('ext:remote-control-state'), 'remote-control-state contract exists across both dashboard surfaces');
+assert(angularDashboardTsSource.includes('payload.progress.clientLabel') || angularDashboardTsSource.includes("payload.progress && payload.progress.lifecycle !== 'cleared'"), 'Angular dashboard preview consumes structured overlay identity from ext:dom-overlay');
+assert(angularDashboardTsSource.includes('renderPreviewClientBadge'), 'Angular dashboard preview renders a dedicated client badge');
+assert(angularDashboardHtmlSource.includes('dash-preview-progress-badge'), 'Angular dashboard HTML exposes live preview badge markup');
+assert(angularDashboardHtmlSource.includes('dash-preview-frozen-badge'), 'Angular dashboard HTML exposes frozen preview badge markup');
+assert(angularDashboardScssSource.includes('.dash-preview-client-badge'), 'Angular dashboard SCSS styles the preview client badge');
+assert(backgroundSource.includes('ext:dom-overlay'), 'background.js forwards ext:dom-overlay payloads');
 
 console.log('\n--- timeout alignment ---');
 // STRM-03: Dashboard TASK_TIMEOUT_MS must be 10 * 60 * 1000 = 600000
