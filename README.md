@@ -176,6 +176,20 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ## Documentation
 
+## MCP Server
+
+FSB also ships an MCP server for Claude Code, Codex, VS Code, Cursor, Windsurf, and other MCP-capable clients. The package-level guide lives in [mcp-server/README.md](mcp-server/README.md), and the current parity matrix is:
+
+- Claude Code: use `claude mcp add --scope user fsb -- npx -y fsb-mcp-server`.
+- Codex: add FSB to `~/.codex/config.toml` under `mcp_servers`, then restart Codex or reload the MCP list.
+- VS Code: edit `mcp.json` with a top-level `servers` object and `type: "stdio"`, then trust/start the server if prompted.
+- Cursor: edit `~/.cursor/mcp.json`, then restart Cursor.
+- Windsurf: use `~/.codeium/windsurf/mcp_config.json` or `~/.codeium/mcp_config.json`, then press refresh or reload the client.
+- OpenCode: manual fallback only, via the `mcp` JSON snippet in `mcp-server/README.md`.
+- OpenClaw: manual / unsupported for now while its MCP config surface remains unstable.
+
+For a repo-local release smoke check, run `npm run test:mcp-smoke` first. If MCP setup still breaks after that, run `npx -y fsb-mcp-server doctor` and `npx -y fsb-mcp-server status --watch` before restarting or reinstalling clients.
+
 ### Architecture Overview
 
 FSB follows a modular architecture designed for reliability and extensibility:
@@ -479,7 +493,7 @@ Remove from a platform: `npx -y fsb-mcp-server uninstall --cursor`
 
 See the [MCP server README](https://www.npmjs.com/package/fsb-mcp-server) for the full tool reference, transport options, and architecture details.
 
-If MCP stops working, run `npx -y fsb-mcp-server doctor` first, then `npx -y fsb-mcp-server status --watch`. Only fall back to manual reinstall or restart steps when the reported layer points there.
+If MCP stops working, run `npm run test:mcp-smoke` first, then `npx -y fsb-mcp-server doctor`, then `npx -y fsb-mcp-server status --watch`. Only fall back to manual reinstall or restart steps when the reported layer points there.
 
 ---
 

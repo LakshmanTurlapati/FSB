@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 const home = homedir();
 /**
  * Platform registry mapping all 10 MCP-capable platforms to their
@@ -129,6 +130,97 @@ export function getServerEntry() {
     }
     return { command: 'npx', args: ['-y', 'fsb-mcp-server'] };
 }
+function getPlatformConfigPath(platform) {
+    if (!platform.configPath)
+        return null;
+    const osPlatform = process.platform;
+    return platform.configPath[osPlatform] || null;
+}
+function getPlatformTargetCandidates(platformKey, platform) {
+    const configPath = getPlatformConfigPath(platform);
+    if (!configPath)
+        return [];
+    if (platformKey === 'windsurf') {
+        const windsurfRoot = join(home, '.codeium');
+        return [
+            {
+                configPath,
+                targetLabel: platform.displayName,
+                variant: 'app',
+            },
+            {
+                configPath: join(windsurfRoot, 'mcp_config.json'),
+                targetLabel: platform.displayName + ' (JetBrains/Cascade plugin)',
+                variant: 'plugin',
+            },
+        ];
+    }
+    return [
+        {
+            configPath,
+            targetLabel: platform.displayName,
+            variant: null,
+        },
+    ];
+}
+/**
+ * Resolve the best config target for a platform on the current OS.
+ * Prefers an existing config file first, then an existing parent directory,
+ * and finally falls back to the default documented path for dry-run/help output.
+ *
+ * @param platformKey - Platform key (e.g., 'cursor', 'windsurf')
+ * @returns Structured target metadata for installer flows
+ */
+export function resolvePlatformTarget(platformKey) {
+    const platform = PLATFORMS[platformKey];
+    if (!platform) {
+        throw new Error('Unknown platform: ' + platformKey);
+    }
+    const candidates = getPlatformTargetCandidates(platformKey, platform);
+    if (candidates.length === 0) {
+        return {
+            platformKey,
+            platform,
+            configPath: null,
+            targetLabel: platform.displayName,
+            variant: null,
+            detected: false,
+        };
+    }
+    for (const candidate of candidates) {
+        if (existsSync(candidate.configPath)) {
+            return {
+                platformKey,
+                platform,
+                configPath: candidate.configPath,
+                targetLabel: candidate.targetLabel,
+                variant: candidate.variant,
+                detected: true,
+            };
+        }
+    }
+    for (const candidate of candidates) {
+        if (existsSync(dirname(candidate.configPath))) {
+            return {
+                platformKey,
+                platform,
+                configPath: candidate.configPath,
+                targetLabel: candidate.targetLabel,
+                variant: candidate.variant,
+                detected: true,
+            };
+        }
+    }
+    const fallback = candidates[0];
+    return {
+        platformKey,
+        platform,
+        configPath: fallback.configPath,
+        targetLabel: fallback.targetLabel,
+        variant: fallback.variant,
+        detected: false,
+    };
+}
 /**
  * Resolves the config file path for a given platform on the current OS.
  * Returns null if the platform uses CLI format or the current OS is not mapped.
@@ -137,11 +229,7 @@ export function getServerEntry() {
  * @returns Absolute path to the config file, or null
  */
 export function resolvePlatformConfig(platformKey) {
-    const platform = PLATFORMS[platformKey];
-    if (!platform || !platform.configPath)
-        return null;
-    const osPlatform = process.platform;
-    return platform.configPath[osPlatform] || null;
+    return resolvePlatformTarget(platformKey).configPath;
 }
 /**
  * Returns an array of all platform flag names (keys of PLATFORMS).

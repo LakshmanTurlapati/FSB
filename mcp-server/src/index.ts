@@ -19,7 +19,7 @@ import {
   FSB_EXTENSION_BRIDGE_URL,
   FSB_MCP_VERSION,
 } from './version.js';
-import { runInstall, runUninstall } from './install.js';
+import { getSetupSections, runInstall, runUninstall } from './install.js';
 
 type FlagValue = boolean | string;
 
@@ -226,54 +226,18 @@ function buildCursorDeeplink(): string {
 }
 
 function printSetup(): void {
-  const windowsCommand = ['cmd', '/c', 'npx', '-y', 'fsb-mcp-server'];
-  const stdioCommand = ['npx', '-y', 'fsb-mcp-server'];
+  const sections = getSetupSections(getLocalHttpEndpoint(), buildCursorDeeplink());
+  const lines = ['FSB MCP install snippets'];
 
-  console.log(`FSB MCP install snippets
-
-Stdio command
-  macOS / Linux:
-    ${stdioCommand.join(' ')}
-  Windows:
-    ${windowsCommand.join(' ')}
-
-Local HTTP endpoint
-  1. Start the server:
-    npx -y fsb-mcp-server serve
-  2. Use this endpoint in any Streamable HTTP-capable client:
-    ${getLocalHttpEndpoint()}
-
-Claude Code
-  claude mcp add fsb -- ${stdioCommand.join(' ')}
-
-Claude Desktop
-  Add to claude_desktop_config.json:
-  {
-    "mcpServers": {
-      "fsb": {
-        "command": "npx",
-        "args": ["-y", "fsb-mcp-server"]
-      }
+  for (const section of sections) {
+    lines.push('');
+    lines.push(section.title);
+    for (const line of section.lines) {
+      lines.push('  ' + line);
     }
   }
 
-Cursor
-  Add to .cursor/mcp.json:
-  {
-    "mcpServers": {
-      "fsb": {
-        "command": "npx",
-        "args": ["-y", "fsb-mcp-server"]
-      }
-    }
-  }
-  Install deeplink:
-    ${buildCursorDeeplink()}
-
-Windsurf / other MCP hosts
-  Use the stdio command above, or point the client to:
-    ${getLocalHttpEndpoint()}
-`);
+  console.log(lines.join('\n'));
 }
 
 async function runStdioServer(): Promise<void> {

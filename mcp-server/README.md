@@ -72,12 +72,44 @@ Add to your `claude_desktop_config.json`:
 ### Claude Code
 
 ```bash
-claude mcp add fsb -- npx -y fsb-mcp-server
+claude mcp add --scope user fsb -- npx -y fsb-mcp-server
 ```
+
+Already active after add. If the tools do not appear, run `doctor` and `status --watch` before retrying.
+
+### Codex CLI / Codex IDE
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
+```
+
+Restart Codex or reload the MCP server list after editing `config.toml`.
+
+### VS Code
+
+Add to `mcp.json`:
+
+```json
+{
+  "servers": {
+    "fsb": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+}
+```
+
+Then open the MCP view, trust/start the server if prompted, and reload VS Code if it does not start automatically.
 
 ### Cursor
 
-Add to `.cursor/mcp.json`:
+Add to `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -90,13 +122,58 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-### Windsurf / Other MCP Clients
+Restart Cursor after editing `~/.cursor/mcp.json`.
 
-Any client that supports stdio MCP servers works. The command is:
+### Windsurf
 
+Supported config paths:
+
+```text
+~/.codeium/windsurf/mcp_config.json
+~/.codeium/mcp_config.json
 ```
+
+Use the standard stdio entry:
+
+```json
+{
+  "mcpServers": {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+}
+```
+
+Press refresh in Windsurf or reload the client after editing the matching config file.
+
+### OpenCode (manual fallback)
+
+Add to `~/.config/opencode/opencode.json` under the top-level `mcp` object:
+
+```json
+{
+  "mcp": {
+    "fsb": {
+      "type": "local",
+      "command": ["npx", "-y", "fsb-mcp-server"]
+    }
+  }
+}
+```
+
+Restart OpenCode after saving the config.
+
+### OpenClaw (manual / unsupported for now)
+
+OpenClaw's MCP config/runtime surface is still unstable, so FSB does **not** claim one-command support here yet. Use the stdio command manually only if your OpenClaw build documents a stable MCP format.
+
+```text
 npx -y fsb-mcp-server
 ```
+
+Start with `doctor` and `status --watch` before trying manual restart or reinstall loops.
 
 ### Local Streamable HTTP
 
@@ -153,6 +230,16 @@ Remove FSB from a platform:
 npx -y fsb-mcp-server uninstall --cursor
 ```
 
+#### Post-install host notes
+
+- Claude Code: `claude mcp add --scope user ...` is the intended cross-project install path.
+- Codex: edit `~/.codex/config.toml`, then restart Codex or reload the MCP server list.
+- VS Code: after editing `mcp.json`, trust/start the server in the MCP view if prompted.
+- Cursor: restart Cursor after editing `~/.cursor/mcp.json`.
+- Windsurf: after editing either supported config path, use refresh or reload the client.
+- OpenCode: manual fallback only via the `mcp` JSON snippet above.
+- OpenClaw: manual / unsupported until its MCP surface stabilizes.
+
 ### Helpers
 
 ```bash
@@ -171,6 +258,17 @@ When MCP stops working, start with the built-in diagnostics before reinstalling 
 2. `npx -y fsb-mcp-server status --watch`
 
 Only move on to manual restart or reinstall steps if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content-script trouble, fix that layer first instead of cycling the whole setup.
+
+### Release Smoke
+
+Before tagging a release or debugging a fresh host setup from this repo checkout, run the short smoke flow in order:
+
+1. `npm run test:mcp-smoke`
+2. `npx -y fsb-mcp-server doctor`
+3. `npx -y fsb-mcp-server status --watch`
+4. Only then use the host-specific refresh, reload, or restart step documented above
+
+This keeps automated lifecycle/tool smoke and operator-facing diagnostics aligned. Do not jump straight to "restart everything" loops.
 
 ---
 

@@ -7,7 +7,7 @@ import { startHttpServer } from './http.js';
 import { WebSocketBridge } from './bridge.js';
 import { TaskQueue } from './queue.js';
 import { DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, FSB_EXTENSION_BRIDGE_URL, FSB_MCP_VERSION, } from './version.js';
-import { runInstall, runUninstall } from './install.js';
+import { getSetupSections, runInstall, runUninstall } from './install.js';
 function parseArgs(argv) {
     const flags = {};
     let command = 'stdio';
@@ -178,53 +178,16 @@ function buildCursorDeeplink() {
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=fsb&config=${encodeURIComponent(JSON.stringify(config))}`;
 }
 function printSetup() {
-    const windowsCommand = ['cmd', '/c', 'npx', '-y', 'fsb-mcp-server'];
-    const stdioCommand = ['npx', '-y', 'fsb-mcp-server'];
-    console.log(`FSB MCP install snippets
-
-Stdio command
-  macOS / Linux:
-    ${stdioCommand.join(' ')}
-  Windows:
-    ${windowsCommand.join(' ')}
-
-Local HTTP endpoint
-  1. Start the server:
-    npx -y fsb-mcp-server serve
-  2. Use this endpoint in any Streamable HTTP-capable client:
-    ${getLocalHttpEndpoint()}
-
-Claude Code
-  claude mcp add fsb -- ${stdioCommand.join(' ')}
-
-Claude Desktop
-  Add to claude_desktop_config.json:
-  {
-    "mcpServers": {
-      "fsb": {
-        "command": "npx",
-        "args": ["-y", "fsb-mcp-server"]
-      }
+    const sections = getSetupSections(getLocalHttpEndpoint(), buildCursorDeeplink());
+    const lines = ['FSB MCP install snippets'];
+    for (const section of sections) {
+        lines.push('');
+        lines.push(section.title);
+        for (const line of section.lines) {
+            lines.push('  ' + line);
+        }
     }
-  }
-
-Cursor
-  Add to .cursor/mcp.json:
-  {
-    "mcpServers": {
-      "fsb": {
-        "command": "npx",
-        "args": ["-y", "fsb-mcp-server"]
-      }
-    }
-  }
-  Install deeplink:
-    ${buildCursorDeeplink()}
-
-Windsurf / other MCP hosts
-  Use the stdio command above, or point the client to:
-    ${getLocalHttpEndpoint()}
-`);
+    console.log(lines.join('\n'));
 }
 async function runStdioServer() {
     const runtime = createRuntime();

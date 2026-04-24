@@ -8,7 +8,7 @@
  * and routing metadata (_route, _readOnly, _contentVerb, _cdpVerb).
  *
  * Per D-01: All tool names use snake_case matching MCP convention.
- * Per D-04: All 43 tools defined from day one.
+ * Per D-04: All 51 tools defined (49 original + 2 vault fill tools).
  *
  * @module tool-definitions
  */
@@ -27,7 +27,7 @@
  */
 
 /**
- * All 43 browser automation tool definitions.
+ * All 51 browser automation tool definitions.
  * Grouped by category: Navigation, Interaction, Scrolling, Waiting, Tabs, Data, CDP, Read-Only.
  * @type {ToolDefinition[]}
  */
@@ -117,13 +117,14 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click',
-    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click).',
+    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click).',
     inputSchema: {
       type: 'object',
       properties: {
-        selector: { type: 'string', description: 'CSS selector or element reference from get_dom_snapshot (e.g., "#submit-btn", ".nav-link", or element ref "e5")' }
+        selector: { type: 'string', description: 'CSS selector or element reference from get_dom_snapshot (e.g., "#submit-btn", ".nav-link", or element ref "e5")' },
+        text: { type: 'string', description: 'Text content to find and click. Case-insensitive substring match. Clicks the first visible element containing this text. Use when CSS selectors are unstable (e.g., LinkedIn, Facebook). Example: "Latha Pulipati" or "Send message".' }
       },
-      required: ['selector']
+      required: []
     },
     _route: 'content',
     _readOnly: false,
@@ -900,6 +901,42 @@ const TOOL_REGISTRY = [
     },
     _route: 'background',
     _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  // =========================================================================
+  // VAULT FILL TOOLS (2 tools)
+  // =========================================================================
+
+  {
+    name: 'fill_credential',
+    description: 'Fill a login form with saved credentials from the vault. The extension looks up username and password for the given domain and fills them into the detected login fields. No user confirmation needed. When to use: when a login page is detected and user wants to sign in with saved credentials. Related: read_page (verify login form exists before filling).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string', description: 'Domain to look up credentials for (e.g. "github.com")' }
+      },
+      required: ['domain']
+    },
+    _route: 'background',
+    _readOnly: false,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'fill_payment_method',
+    description: 'Fill a checkout form with a saved payment method from the vault. Shows a confirmation dialog in the sidepanel before filling. User must approve before any card data is entered. When to use: when a checkout page is detected and user wants to pay with a saved card. Related: read_page (verify checkout form exists before filling).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paymentMethodId: { type: 'string', description: 'ID of the saved payment method to use' }
+      },
+      required: ['paymentMethodId']
+    },
+    _route: 'background',
+    _readOnly: false,
     _contentVerb: null,
     _cdpVerb: null
   }

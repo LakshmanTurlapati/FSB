@@ -1,5 +1,26 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.35 MCP Plug-and-Play Reliability (Shipped: 2026-04-24)
+
+**Delivered:** Plug-and-play MCP reliability across reconnect lifecycle, tool routing, diagnostics, install parity, and release-smoke validation.
+
+**Phases completed:** 5 phases, 15 plans, 24 tasks
+
+**Key accomplishments:**
+
+- Bridge lifecycle now reconnects across browser-first, server-first, service-worker wake, and hub/relay handoff scenarios without requiring extension reload loops.
+- MCP browser, autopilot, observability, and restricted-tab paths now route through explicit verified contracts instead of fragile background self-dispatch.
+- `doctor`, `status --watch`, and recovery messaging now identify the failing layer and point operators at one concrete next action.
+- Installer/config parity now covers Codex TOML preservation, Claude/Cursor/Windsurf guidance, and explicit manual fallback posture for unstable hosts like OpenCode/OpenClaw.
+- Release smoke now includes automated lifecycle/tool suites plus dated host evidence and diagnostics-first troubleshooting docs.
+
+**Accepted closeout debt:**
+
+- No standalone `v0.9.35-MILESTONE-AUDIT.md` file was produced before archive.
+- Phase 202 records residual live-UAT risk because paid-model host prompt sessions were not auto-triggered when local host preflight was already red or unconfigured.
+
+---
+
 ## v0.9.34 Vault, Payments & Secure MCP Access (Shipped: 2026-04-22)
 
 **Delivered:** Vault unlock repair, payment method management, autopilot/MCP vault fill surfaces, and security boundary fixes for sensitive credential/payment flows.

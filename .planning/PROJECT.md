@@ -8,28 +8,19 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current State: v0.9.34 Shipped
+## Current State: v0.9.35 Shipped
 
-**Shipped:** Vault unlock repair, payment method backend/UI wiring, autopilot vault fills, MCP vault tools, and security boundary fixes for sensitive credential/payment flows.
+**Shipped:** MCP bridge lifecycle repair, explicit MCP routing contracts, layer-aware diagnostics, installer/config parity across supported hosts, and release smoke/UAT hardening for the FSB MCP surface.
 
-**Archive:** See `.planning/milestones/v0.9.34-ROADMAP.md`, `.planning/milestones/v0.9.34-REQUIREMENTS.md`, and `.planning/MILESTONES.md`.
+**Archive:** See `.planning/milestones/v0.9.35-ROADMAP.md`, `.planning/milestones/v0.9.35-REQUIREMENTS.md`, and `.planning/MILESTONES.md`.
 
-**Known validation debt:** The archived milestone audit predates Phase 197 gap closure and still records `gaps_found`. Phase 197 closed the listed MCP-04, SEC-01, and SEC-02 code gaps, but live UAT remains pending for vault behavior and MCP payment approve/deny/delayed-approval flows.
+**Accepted closeout debt:** No standalone `v0.9.35` milestone-audit file was created before archive, and Phase 202 records residual live-UAT risk because paid-model host prompt runs were not auto-triggered when local host preflight was already red or unconfigured.
 
-## Current Milestone: v0.9.35 MCP Plug-and-Play Reliability
+## Next Milestone
 
-**Goal:** Make FSB MCP feel install-once and usable across Claude, Codex, OpenClaw/OpenCode-style clients, and other MCP hosts without repeated extension/MCP restarts or platform-specific tinkering.
+**Status:** Not started yet.
 
-**Progress:** Phases 198-199 complete -- MCP bridge lifecycle and hub/relay topology recover across browser-first, server-first, service-worker wake, and hub handoff scenarios; MCP browser, autopilot, observability, and restricted-tab tools now route through explicit verified dispatcher contracts.
-
-**Next:** Phase 200 -- doctor, status watch, and recovery messaging for exact layer diagnosis and concrete user recovery steps.
-
-**Target features:**
-- MCP bridge lifecycle repair so the extension reconnects whenever the MV3 service worker wakes, regardless of whether the MCP host or browser starts first.
-- Direct, verified MCP tool routing for background, content, autopilot, observability, and restricted-tab recovery paths.
-- `doctor`/`status` diagnostics that identify the exact broken layer and give precise recovery steps instead of generic restart advice.
-- Platform installer/config parity for Claude, Codex, OpenClaw/OpenCode-compatible hosts, Cursor/Windsurf, and other supported clients.
-- Cross-host smoke validation that proves list/read/navigate/click/run-task flows recover after restarts.
+**Next step:** Run `$gsd-new-milestone` to define the next scoped requirements and roadmap.
 
 ## Previous State: v0.9.33 Dashboard Task Results & Stream Quality (shipped 2026-04-20)
 
@@ -157,12 +148,13 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ --dry-run preview and --all bulk install/uninstall across all platforms -- v0.9.30
 - ✓ MCP bridge reconnects without extension reloads when the MCP host starts after Chrome, Chrome starts after the MCP host, or the MV3 service worker wakes from suspension -- Phase 198 (v0.9.35)
 - ✓ MCP background/browser, autopilot, observability, and restricted-tab recovery tools route through explicit verified dispatcher contracts instead of fragile background self-dispatch -- Phase 199 (v0.9.35)
+- ✓ MCP diagnostics now classify package/config/bridge/extension/content-script/tool-routing failures and guide operators through `doctor` and `status --watch` first -- Phase 200 (v0.9.35)
+- ✓ Installer/config parity now covers Codex TOML preservation, Claude/Cursor/Windsurf variants, and explicit manual fallback posture for unstable hosts -- Phase 201 (v0.9.35)
+- ✓ Release smoke now includes automated lifecycle/tool suites plus dated host evidence and diagnostics-first recovery docs -- Phase 202 (v0.9.35)
 
 ### Active
 
-- [ ] MCP diagnostics distinguish install/config, bridge ownership, extension attachment, content-script availability, and tool-routing failures.
-- [ ] Platform install verification covers Claude, Codex, OpenClaw/OpenCode-compatible hosts, Cursor/Windsurf, and supported config formats with idempotent writes.
-- [ ] Cross-host smoke tests prove MCP can list tabs, navigate, read page content, click, run a task, and recover after server/extension restarts.
+- [ ] No new milestone requirements defined yet. Start the next scope with `$gsd-new-milestone`.
 
 ### Deferred At v0.9.29 Close
 
@@ -170,7 +162,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - [ ] Task execution, live preview streaming, and remote-control state handling are ported to Angular with contract-safe behavior.
 - [ ] Migration parity and regression checks are in place, including the deferred off-screen dashboard refresh smoke evidence before release tagging.
 
-## Last Shipped Milestone: v0.9.30 MCP Platform Install Flags (shipped 2026-04-18)
+## Previous Milestone: v0.9.30 MCP Platform Install Flags (shipped 2026-04-18)
 
 **Shipped:** Platform registry with 10 MCP platform configs, format-aware config engine (JSON/JSONC/TOML/YAML), install/uninstall CLI for all platforms, Claude Code CLI delegation, --dry-run preview, --all bulk operations. 3 phases, 6 plans.
 
@@ -339,7 +331,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Display firewall before display changes | Data audit/field dependency mapping FIRST, then overlay changes, to avoid breaking dashboard/sidepanel/popup/MCP consumers | Good -- no consumer regressions, all fields verified via inline audit comments |
 | scaleX() + rAF in content script | GPU-composited bar avoids layout thrash; local timer avoids background.js message latency | Good -- zero reflows, timer accuracy independent of message passing |
 | First-sentence extraction for overlay text | AI summaries are multi-sentence; truncating mid-sentence is worse than showing only the first sentence | Good -- overlay text is concise and reads naturally |
-| v0.9.35 focuses MCP on plug-and-play reliability before new MCP features | User reports repeated MCP/extension restarts and platform tinkering across Claude, Codex, and OpenClaw/OpenCode-style hosts | Pending -- milestone starting 2026-04-22 |
+| v0.9.35 focuses MCP on plug-and-play reliability before new MCP features | User reports repeated MCP/extension restarts and platform tinkering across Claude, Codex, and OpenClaw/OpenCode-style hosts | Good -- shipped bridge recovery, diagnostics, installer parity, and release smoke coverage |
 
 ## Evolution
 
@@ -359,4 +351,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 after Phase 198 completion*
+*Last updated: 2026-04-24 after v0.9.35 milestone close*

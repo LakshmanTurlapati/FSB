@@ -1,0 +1,162 @@
+'use strict';
+
+const util = require('util');
+const {
+  createToolHarness,
+  loadBuildModule,
+} = require('./mcp-smoke-harness.js');
+
+let passed = 0;
+let failed = 0;
+
+function assert(cond, msg) {
+  if (cond) {
+    passed++;
+    console.log('  PASS:', msg);
+  } else {
+    failed++;
+    console.error('  FAIL:', msg);
+  }
+}
+
+function assertDeepEqual(actual, expected, msg) {
+  assert(util.isDeepStrictEqual(actual, expected), `${msg} (expected: ${JSON.stringify(expected)}, got: ${JSON.stringify(actual)})`);
+}
+
+const requiredSmokeTools = [
+  'list_tabs',
+  'navigate',
+  'read_page',
+  'get_dom_snapshot',
+  'click',
+  'run_task',
+  'stop_task',
+  'get_logs',
+];
+
+async function invokeTool(harness, toolName, params = {}, extra = null) {
+  const handler = harness.getHandler(toolName);
+  assert(typeof handler === 'function', `${toolName} registers a callable MCP handler`);
+  if (typeof handler !== 'function') return null;
+
+  const before = harness.bridgeCalls.length;
+  const result = await handler(params, extra || harness.createExtra());
+  const call = harness.bridgeCalls[before] || null;
+
+  assert(result && Array.isArray(result.content), `${toolName} smoke returns MCP content output`);
+  return call;
+}
+
+async function run() {
+  const runtimeModule = await loadBuildModule('runtime.js');
+  const readOnlyModule = await loadBuildModule(pathJoin('tools', 'read-only.js'));
+  const manualModule = await loadBuildModule(pathJoin('tools', 'manual.js'));
+  const autopilotModule = await loadBuildModule(pathJoin('tools', 'autopilot.js'));
+  const observabilityModule = await loadBuildModule(pathJoin('tools', 'observability.js'));
+
+  console.log('\n--- packaged runtime surface ---');
+  assert(typeof runtimeModule.createRuntime === 'function', 'build/runtime.js exports createRuntime');
+  assert(typeof readOnlyModule.registerReadOnlyTools === 'function', 'build/tools/read-only.js exports registerReadOnlyTools');
+  assert(typeof manualModule.registerManualTools === 'function', 'build/tools/manual.js exports registerManualTools');
+  assert(typeof autopilotModule.registerAutopilotTools === 'function', 'build/tools/autopilot.js exports registerAutopilotTools');
+  assert(typeof observabilityModule.registerObservabilityTools === 'function', 'build/tools/observability.js exports registerObservabilityTools');
+
+  const harness = createToolHarness({
+    bridgeResponses: {
+      'mcp:get-tabs': { success: true, tabs: [{ id: 7, active: true, url: 'https://example.com' }] },
+      'mcp:execute-action': ({ payload }) => ({ success: true, executed: payload.tool }),
+      'mcp:read-page': { success: true, content: 'Example page' },
+      'mcp:get-dom': { success: true, elements: [{ ref: 'e5' }] },
+      'mcp:start-automation': { success: true, sessionId: 'smoke-session', status: 'started' },
+      'mcp:stop-automation': { success: true, stopped: true },
+      'mcp:get-logs': { success: true, logs: [] },
+    },
+  });
+
+  readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue);
+  manualModule.registerManualTools(harness.server, harness.bridge, harness.queue);
+  autopilotModule.registerAutopilotTools(harness.server, harness.bridge, harness.queue);
+  observabilityModule.registerObservabilityTools(harness.server, harness.bridge, harness.queue);
+
+  console.log('\n--- registered smoke tools ---');
+  for (const toolName of requiredSmokeTools) {
+    assert(harness.handlers.has(toolName), `registered handlers include ${toolName}`);
+  }
+
+  console.log('\n--- bridge message families ---');
+  const listTabsCall = await invokeTool(harness, 'list_tabs');
+  assertDeepEqual(
+    listTabsCall && listTabsCall.message,
+    { type: 'mcp:get-tabs', payload: {} },
+    'list_tabs routes through mcp:get-tabs with empty payload',
+  );
+
+  const navigateCall = await invokeTool(harness, 'navigate', { url: 'https://example.com' });
+  assertDeepEqual(
+    navigateCall && navigateCall.message,
+    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' } } },
+    'navigate routes through mcp:execute-action with navigate payload',
+  );
+
+  const readPageCall = await invokeTool(harness, 'read_page', { full: true });
+  assertDeepEqual(
+    readPageCall && readPageCall.message,
+    { type: 'mcp:read-page', payload: { full: true } },
+    'read_page routes through mcp:read-page with full flag',
+  );
+
+  const domSnapshotCall = await invokeTool(harness, 'get_dom_snapshot', { maxElements: 5 });
+  assertDeepEqual(
+    domSnapshotCall && domSnapshotCall.message,
+    { type: 'mcp:get-dom', payload: { maxElements: 5 } },
+    'get_dom_snapshot routes through mcp:get-dom with maxElements payload',
+  );
+
+  const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });
+  assertDeepEqual(
+    clickCall && clickCall.message,
+    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' } } },
+    'click routes through mcp:execute-action with click payload',
+  );
+
+  const runTaskCall = await invokeTool(harness, 'run_task', { task: 'Smoke test the browser bridge' }, harness.createExtra({ progressToken: 'smoke-progress' }));
+  assertDeepEqual(
+    runTaskCall && runTaskCall.message,
+    { type: 'mcp:start-automation', payload: { task: 'Smoke test the browser bridge' } },
+    'run_task routes through mcp:start-automation with task payload',
+  );
+
+  const stopTaskCall = await invokeTool(harness, 'stop_task');
+  assertDeepEqual(
+    stopTaskCall && stopTaskCall.message,
+    { type: 'mcp:stop-automation', payload: {} },
+    'stop_task routes through mcp:stop-automation with empty payload',
+  );
+
+  const getLogsCall = await invokeTool(harness, 'get_logs', { sessionId: 'smoke-session', count: 10 });
+  assertDeepEqual(
+    getLogsCall && getLogsCall.message,
+    { type: 'mcp:get-logs', payload: { sessionId: 'smoke-session', count: 10 } },
+    'get_logs routes through mcp:get-logs with observability payload',
+  );
+
+  console.log('\n--- queue coverage ---');
+  for (const toolName of requiredSmokeTools.filter((name) => name !== 'stop_task')) {
+    assert(harness.queueCalls.includes(toolName), `${toolName} passes through the shared queue surface`);
+  }
+  assert(!harness.queueCalls.includes('stop_task'), 'stop_task stays direct so cancellation does not wait behind queued work');
+
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+function pathJoin(...parts) {
+  return parts.join('/');
+}
+
+run().catch((error) => {
+  failed++;
+  console.error('  FAIL: Test harness failed:', error);
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
+  process.exit(1);
+});
