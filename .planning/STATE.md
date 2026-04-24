@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.9.36
 milestone_name: MCP Visual Lifecycle & Client Identity
-status: roadmap_defined
-stopped_at: Ready to plan Phase 203
-last_updated: "2026-04-23T20:48:25-05:00"
+status: phase_planned
+stopped_at: Ready to execute Phase 203 plan 01
+last_updated: "2026-04-23T21:05:01-05:00"
 last_activity: 2026-04-23
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 
 Milestone: v0.9.36 (MCP Visual Lifecycle & Client Identity)
 Phase: 203
-Plan: —
-Status: Roadmap defined; ready to plan Phase 203
-Last activity: 2026-04-23 — Defined milestone v0.9.36 and mapped requirements
+Plan: 01
+Status: Phase 203 planned; ready to execute the start/end visual-session contract
+Last activity: 2026-04-23 — Planned Phase 203 with two execution plans
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -90,7 +90,8 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Plan Phase 203 for the MCP visual-session contract and start the first execution wave.
+- Execute Phase 203 plan 01: explicit start/end visual-session contract and trusted client allowlist.
+- Execute Phase 203 plan 02: token-aware progress/final lifecycle updates and focused regression coverage.
 - Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
@@ -100,6 +101,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-23T20:48:25-05:00
-Stopped at: Ready to plan Phase 203
+Last session: 2026-04-23T21:05:01-05:00
+Stopped at: Ready to execute Phase 203 plan 01
 Resume file: None
