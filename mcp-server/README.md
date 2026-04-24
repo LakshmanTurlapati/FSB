@@ -5,7 +5,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/LakshmanTurlapati/FSB/main/assets/fsb_logo_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/LakshmanTurlapati/FSB/main/assets/fsb_logo_light.png" />
-  <img src="https://raw.githubusercontent.com/LakshmanTurlapati/FSB/main/assets/fsb_logo_light.png" alt="FSB: Full Self-Browsing" width="200" />
+  <img src="https://raw.githubusercontent.com/LakshmanTurlapati/FSB/main/assets/fsb_logo_light.png" alt="FSB: Full Self Browsing" width="200" />
 </picture>
 
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
@@ -20,9 +20,9 @@
 
 **Control your browser from any MCP client**
 
-*Browser automation tools for manual control, client-owned visual sessions, autopilot mode, agents, and observability*
+*Browser automation tools for manual control, client owned visual sessions, autopilot mode, agents, and observability*
 
-[Quick Start](#quick-start) | [Tools](#tools-58-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
+[Quick Start](#quick-start) | [Tools](#tools-62-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
 
 </div>
 
@@ -30,12 +30,21 @@
 
 ## What is this?
 
-FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser across four operating styles:
+FSB MCP Server connects any MCP compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser across four operating styles:
 
-- **Manual mode**: fine-grained control with click, type, scroll, navigate, read page content
-- **Visual-session mode**: show the trusted glow/badge while your MCP client drives the browser step by step
+- **Manual mode**: fine grained control with click, type, scroll, navigate, read page content
+- **Visual session mode**: show the trusted glow/badge while your MCP client drives the browser step by step
 - **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
 - **Agent mode**: create, run, inspect, and manage scheduled background agents from any MCP client
+
+### What's New in v0.7.0
+
+- **Bridge lifecycle reconnect**: the MCP bridge re arms automatically on service worker wakes, with hub/relay handoff when multiple clients connect
+- **Centralized tool routing**: a new route aware dispatcher replaces the old direct dispatch, improving reliability and error recovery
+- **Layered diagnostics**: `doctor` and `status --watch` now identify the exact failing layer (package, bridge, extension, content script)
+- **Visual session persistence**: sessions survive content script reinjection so the glow stays active across navigations
+- **Trusted client badges**: the automation overlay shows the connected client name (Claude, Codex, Cursor, etc.)
+- **Vault tools**: 4 new tools for secure credential and payment method access without exposing raw secrets
 
 ## Prerequisites
 
@@ -53,7 +62,7 @@ FSB uses two local endpoints with different roles:
 | `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
 | `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
 
-The extension pairing contract did **not** change in `0.6.0`. The local HTTP server is only an additional MCP client entrypoint.
+The extension pairing contract did **not** change in `0.7.0`. The local HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 
@@ -151,7 +160,7 @@ Press refresh in Windsurf or reload the client after editing the matching config
 
 ### OpenCode (manual fallback)
 
-Add to `~/.config/opencode/opencode.json` under the top-level `mcp` object:
+Add to `~/.config/opencode/opencode.json` under the top level `mcp` object:
 
 ```json
 {
@@ -168,7 +177,7 @@ Restart OpenCode after saving the config.
 
 ### OpenClaw (manual / unsupported for now)
 
-OpenClaw's MCP config/runtime surface is still unstable, so FSB does **not** claim one-command support here yet. Use the stdio command manually only if your OpenClaw build documents a stable MCP format.
+OpenClaw's MCP config/runtime surface is still unstable, so FSB does **not** claim one command support here yet. Use the stdio command manually only if your OpenClaw build documents a stable MCP format.
 
 ```text
 npx -y fsb-mcp-server
@@ -196,21 +205,21 @@ Health check:
 http://127.0.0.1:7226/health
 ```
 
-### One-Command Install (New)
+### One Command Install (New)
 
-Auto-configure FSB in any supported MCP client:
+Auto configure FSB in any supported MCP client:
 
 ```bash
-npx -y fsb-mcp-server install --claude-desktop
-npx -y fsb-mcp-server install --cursor
-npx -y fsb-mcp-server install --vscode
-npx -y fsb-mcp-server install --windsurf
-npx -y fsb-mcp-server install --cline
-npx -y fsb-mcp-server install --zed
-npx -y fsb-mcp-server install --gemini
-npx -y fsb-mcp-server install --claude-code
-npx -y fsb-mcp-server install --codex
-npx -y fsb-mcp-server install --continue
+npx -y fsb-mcp-server install --claude-desktop   # Claude Desktop
+npx -y fsb-mcp-server install --claude-code       # Claude Code
+npx -y fsb-mcp-server install --cursor            # Cursor
+npx -y fsb-mcp-server install --vscode            # VS Code
+npx -y fsb-mcp-server install --windsurf          # Windsurf
+npx -y fsb-mcp-server install --cline             # Cline
+npx -y fsb-mcp-server install --zed               # Zed
+npx -y fsb-mcp-server install --gemini            # Gemini CLI
+npx -y fsb-mcp-server install --codex             # OpenAI Codex
+npx -y fsb-mcp-server install --continue          # Continue
 ```
 
 Install to all detected platforms at once:
@@ -231,9 +240,9 @@ Remove FSB from a platform:
 npx -y fsb-mcp-server uninstall --cursor
 ```
 
-#### Post-install host notes
+#### Post install host notes
 
-- Claude Code: `claude mcp add --scope user ...` is the intended cross-project install path.
+- Claude Code: `claude mcp add --scope user ...` is the intended cross project install path.
 - Codex: edit `~/.codex/config.toml`, then restart Codex or reload the MCP server list.
 - VS Code: after editing `mcp.json`, trust/start the server in the MCP view if prompted.
 - Cursor: restart Cursor after editing `~/.cursor/mcp.json`.
@@ -253,12 +262,12 @@ npx -y fsb-mcp-server wait-for-extension # Wait for extension to connect
 
 ### Troubleshooting
 
-When MCP stops working, start with the built-in diagnostics before reinstalling anything:
+When MCP stops working, start with the built in diagnostics before reinstalling anything:
 
 1. `npx -y fsb-mcp-server doctor`
 2. `npx -y fsb-mcp-server status --watch`
 
-Only move on to manual restart or reinstall steps if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content-script trouble, fix that layer first instead of cycling the whole setup.
+Only move on to manual restart or reinstall steps if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content script trouble, fix that layer first instead of cycling the whole setup.
 
 ### Release Smoke
 
@@ -267,15 +276,15 @@ Before tagging a release or debugging a fresh host setup from this repo checkout
 1. `npm run test:mcp-smoke`
 2. `npx -y fsb-mcp-server doctor`
 3. `npx -y fsb-mcp-server status --watch`
-4. Only then use the host-specific refresh, reload, or restart step documented above
+4. Only then use the host specific refresh, reload, or restart step documented above
 
-This keeps automated lifecycle/tool smoke and operator-facing diagnostics aligned. Do not jump straight to "restart everything" loops.
+This keeps automated lifecycle/tool smoke and operator facing diagnostics aligned. Do not jump straight to "restart everything" loops.
 
 ---
 
 ## Visual Session Lifecycle
 
-Use the explicit visual-session flow when your MCP client already owns the browser steps and only wants FSB to show the trusted glow, badge, and final freeze states in the browser. If you want FSB to decide and execute the steps for you, use `run_task` instead.
+Use the explicit visual session flow when your MCP client already owns the browser steps and only wants FSB to show the trusted glow, badge, and final freeze states in the browser. If you want FSB to decide and execute the steps for you, use `run_task` instead.
 
 ### Choose The Right Flow
 
@@ -283,7 +292,7 @@ Use the explicit visual-session flow when your MCP client already owns the brows
 |----------|------------|
 | "FSB should decide the steps and drive the browser end to end." | `run_task` |
 | "My MCP client is already deciding the steps; I only want FSB's visible overlay and trusted client badge while I call manual tools." | `start_visual_session` + manual tools + `end_visual_session` |
-| "My runtime can also emit FSB task-status tools and I want the glow to show progress and final outcome states." | `start_visual_session` + `report_progress` / `complete_task` / `partial_task` / `fail_task` + optional `end_visual_session` |
+| "My runtime can also emit FSB task status tools and I want the glow to show progress and final outcome states." | `start_visual_session` + `report_progress` / `complete_task` / `partial_task` / `fail_task` + optional `end_visual_session` |
 
 ### Trusted Client Labels
 
@@ -301,7 +310,7 @@ Example:
 
 ```text
 start_visual_session(client="Codex", task="Complete checkout", detail="Preparing cart")
-→ returns session_token="visual_token_123"
+-> returns session_token="visual_token_123"
 
 navigate(url="https://example.com/cart")
 click(selector="text=Checkout")
@@ -312,7 +321,7 @@ end_visual_session(session_token="visual_token_123", reason="ended")
 
 ### Extended Progress And Finalization
 
-If your runtime also has access to FSB's shared task-status tools, keep the same `session_token` threaded through the rest of the lifecycle:
+If your runtime also has access to FSB's shared task status tools, keep the same `session_token` threaded through the rest of the lifecycle:
 
 1. `start_visual_session(client, task, detail?)`
 2. Zero or more `report_progress(session_token, message, progress_percent?)`
@@ -326,12 +335,12 @@ Notes:
 
 - `session_token` is the ownership key for the visible lifecycle. Reuse the latest token returned by `start_visual_session`.
 - Final outcome calls preserve the short frozen overlay before the glow clears.
-- `partial_task` is the right fit for useful partial work plus an external blocker, especially login/manual-approval handoffs.
+- `partial_task` is the right fit for useful partial work plus an external blocker, especially login/manual approval handoffs.
 - `report_progress` is narration/status only. It does not click, type, navigate, or submit by itself.
 
 ---
 
-## Tools
+## Tools (62 total)
 
 ### Visual Sessions (2 tools)
 
@@ -339,8 +348,8 @@ Use these when your MCP client wants the visible glow/badge without handing cont
 
 | Tool | Description |
 |------|-------------|
-| `start_visual_session` | Start the visible FSB overlay on the active normal webpage and return a `session_token` for follow-up lifecycle calls. |
-| `end_visual_session` | Clear a client-owned visual session explicitly using its `session_token`, without invoking autopilot completion. |
+| `start_visual_session` | Start the visible FSB overlay on the active normal webpage and return a `session_token` for follow up lifecycle calls. |
+| `end_visual_session` | Clear a client owned visual session explicitly using its `session_token`, without invoking autopilot completion. |
 
 ### Autopilot (3 tools)
 
@@ -374,9 +383,9 @@ Let FSB's AI handle the entire task autonomously.
 | `check_box` | Toggle a checkbox. |
 | `hover` | Hover over an element to trigger menus or tooltips. |
 | `right_click` | Open context menu on an element. |
-| `double_click` | Double-click an element. |
+| `double_click` | Double click an element. |
 | `select_text_range` | Select a substring within an element by character offsets. |
-| `drag_drop` | Drag and drop one DOM element onto another (3-method fallback). |
+| `drag_drop` | Drag and drop one DOM element onto another (3 method fallback). |
 | `drop_file` | Simulate dropping a file onto a dropzone element. |
 | `focus` | Move keyboard focus to an element. |
 | `clear_input` | Clear the contents of an input field. |
@@ -412,11 +421,11 @@ For canvas elements, overlays, and elements where DOM selectors don't work.
 | Tool | Description |
 |------|-------------|
 | `click_at` | Click at viewport coordinates using CDP trusted events. Supports modifiers. |
-| `click_and_hold` | Click and hold at coordinates for a duration (long-press, record buttons). |
+| `click_and_hold` | Click and hold at coordinates for a duration (long press, record buttons). |
 | `drag` | Drag between two viewport coordinates (canvas drawing, sliders, maps). |
-| `drag_variable_speed` | Drag with ease-in-out timing curve (CAPTCHA-resistant, human-like motion). |
+| `drag_variable_speed` | Drag with ease-in-out timing curve (human like motion). |
 | `scroll_at` | Mouse wheel at coordinates (map zoom, canvas zoom). |
-| `double_click_at` | Double-click at viewport coordinates using CDP trusted events. |
+| `double_click_at` | Double click at viewport coordinates using CDP trusted events. |
 | `insert_text` | Insert text via CDP into the currently focused editable target. |
 | `wait_for_element` | Wait until an element matching a selector appears on the page. |
 
@@ -426,7 +435,7 @@ For canvas elements, overlays, and elements where DOM selectors don't work.
 |------|-------------|
 | `set_attribute` | Set an HTML attribute value on a specific element. |
 
-### Read-Only (5 tools)
+### Read Only (5 tools)
 
 These bypass the mutation queue for concurrent access.
 
@@ -446,7 +455,7 @@ Inspect past sessions and FSB's learned memory.
 |------|-------------|
 | `list_sessions` | List all past automation sessions with summary info. |
 | `get_session_detail` | Get full session detail: logs, action history, timing. |
-| `get_logs` | Get recent logs or session-specific logs with error summary. |
+| `get_logs` | Get recent logs or session specific logs with error summary. |
 | `search_memory` | Search FSB's memory for past experiences on similar sites. |
 | `get_memory_stats` | Get memory system statistics: count, types, storage usage. |
 
@@ -464,6 +473,17 @@ Manage and run scheduled background agents directly over MCP.
 | `toggle_agent` | Enable or disable an agent. |
 | `get_agent_stats` | Get aggregate stats across all agents. |
 | `get_agent_history` | Get recent run history for one agent. |
+
+### Vault (4 tools)
+
+Secure access to saved credentials and payment methods. Raw secrets never cross the MCP bridge.
+
+| Tool | Description |
+|------|-------------|
+| `list_credentials` | List saved credentials (domain + username only, passwords never included). |
+| `fill_credential` | Auto fill a login form with a saved credential on the active tab. |
+| `list_payment_methods` | List saved payment methods (last 4 digits + brand only). |
+| `use_payment_method` | Fill a checkout form with a saved payment method after user confirmation. |
 
 ---
 
@@ -486,9 +506,10 @@ graph TD
         T0["Visual Sessions\n2 tools"]
         T1["Autopilot\n3 tools"]
         T2["Manual\n37 tools"]
-        T6["Read-Only\n5 tools"]
+        T6["Read Only\n5 tools"]
         T7["Observability\n5 tools"]
         T8["Agents\n8 tools"]
+        T9["Vault\n4 tools"]
     end
 
     B --- tools
@@ -502,7 +523,7 @@ FSB still uses the same local bridge contract:
 - This package talks to the extension over `ws://localhost:7225`
 - The browser extension remains unchanged
 
-This keeps installation simple while avoiding any MCP-specific changes inside the extension.
+This keeps installation simple while avoiding any MCP specific changes inside the extension.
 
 Multiple MCP clients can connect simultaneously. The first server instance becomes the **hub** (listens on port 7225). Additional instances connect as **relay clients** to the hub. If the hub disconnects, a relay automatically promotes to hub.
 
@@ -516,7 +537,7 @@ The server also exposes 5 live MCP resources:
 |----------|-----|-------------|
 | Current Page DOM | `browser://dom/snapshot` | Structured DOM with element references |
 | Open Tabs | `browser://tabs` | All tabs with title, URL, active status |
-| Site Guides | `fsb://site-guides` | Domain-specific automation intelligence |
+| Site Guides | `fsb://site-guides` | Domain specific automation intelligence |
 | FSB Memory | `fsb://memory` | Learned patterns from past sessions |
 | Extension Config | `fsb://config` | Current settings and connection status |
 

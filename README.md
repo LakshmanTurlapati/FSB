@@ -1,16 +1,16 @@
-# FSB v0.9.31 - Full Self-Browsing
+# FSB v0.9.36 Full Self Browsing
 
 <div align="center">
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/fsb_logo_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="assets/fsb_logo_light.png" />
-  <img src="assets/fsb_logo_light.png" alt="FSB - Full Self-Browsing" width="200" />
+  <img src="assets/fsb_logo_light.png" alt="FSB Full Self Browsing" width="200" />
 </picture>
 
 <!-- Row 1: Identity badges -->
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-0.9.30-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.9.36-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
 
@@ -30,7 +30,7 @@
 ![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D4A574?style=flat-square&logo=anthropic&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?style=flat-square&logo=googlegemini&logoColor=white)
 
-**An intelligent, open-source browser automation assistant powered by multiple AI models**
+**An intelligent, open source browser automation assistant powered by multiple AI models**
 
 *Inspired by Project Mariner, built for everyone*
 
@@ -42,32 +42,32 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9.31 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v0.9.36 is production ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non critical pages first. Feedback and contributions are welcome!
 
-FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
+FSB (Full Self Browsing) is a powerful Chrome extension that brings AI powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
 
 <details>
 <summary><b>All features (detailed list)</b></summary>
 
-- **Multi-Model AI Support**: Four fully integrated providers -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models
-- **Universal Provider Architecture**: Model-agnostic engine that works with any OpenAI-compatible API, with automatic parameter discovery and self-healing
+- **Multi Model AI Support**: Four fully integrated providers -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models
+- **Universal Provider Architecture**: Model agnostic engine that works with any OpenAI compatible API, with automatic parameter discovery and self healing
 - **Natural Language Interface**: Describe tasks in plain English -- no scripting required
 - **Smart DOM Analysis**: Advanced webpage structure analysis with incremental diffing and element identification
-- **Comprehensive Action Library**: 47 browser actions -- click, type, scroll, navigate, multi-tab control, form handling, and more
-- **Site-Specific Intelligence**: Domain-specific guides for e-commerce, finance, social media, travel, coding, email, career, gaming, and productivity platforms
-- **Long-Term Memory**: Episodic, semantic, and procedural memory with AI-enriched extraction and consolidation across sessions
+- **Comprehensive Action Library**: 47 browser actions -- click, type, scroll, navigate, multi tab control, form handling, and more
+- **Site Specific Intelligence**: Domain specific guides for ecommerce, finance, social media, travel, coding, email, career, gaming, and productivity platforms
+- **Long Term Memory**: Episodic, semantic, and procedural memory with AI enriched extraction and consolidation across sessions
 - **Background Agents**: Scheduled automation tasks with chrome.alarms, run history, and session replay
-- **Site Visualization**: Per-site D3.js mind maps and a consolidated 3D knowledge graph of all site guide categories
-- **Cross-Site Pattern Analysis**: AI-powered detection of recurring UI patterns across different websites
+- **Site Visualization**: Per site D3.js mind maps and a consolidated 3D knowledge graph of all site guide categories
+- **Cross Site Pattern Analysis**: AI powered detection of recurring UI patterns across different websites
 - **Dual Cost Tracking**: Separate cost monitoring for automation sessions and memory operations
-- **Visual Feedback**: Viewport glow indicators, element-level action highlights, and progress overlay with step counting
-- **Smart DOM Waiting**: Event-driven waiting based on DOM mutations and loading state detection, not fixed delays
+- **Visual Feedback**: Viewport glow indicators, element level action highlights, and progress overlay with step counting
+- **Smart DOM Waiting**: Event driven waiting based on DOM mutations and loading state detection, not fixed delays
 - **Markdown and Diagram Rendering**: Rich chat output with mermaid diagrams and Chart.js charts
-- **Action Verification**: Post-action state validation to confirm actions had their intended effect
-- **Multi-Tab Support**: Open, close, switch, and list browser tabs during automation
+- **Action Verification**: Post action state validation to confirm actions had their intended effect
+- **Multi Tab Support**: Open, close, switch, and list browser tabs during automation
 - **Dark Theme**: Full dark mode across all interfaces (popup, side panel, options)
 - **Analytics and Monitoring**: Usage tracking, token counting, cost calculation, and performance insights per model
-- **CAPTCHA Integration**: Built-in framework for CAPTCHA solving services
+- **CAPTCHA Integration**: Built in framework for CAPTCHA solving services
 - **Secure Configuration**: AES-GCM encrypted API key storage
 - **Smart Recovery**: Automatic stuck detection with DOM hashing, action pattern analysis, and adaptive behavior
 - **Multiple UI Modes**: Popup chat and persistent side panel interfaces
@@ -80,11 +80,11 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Data Entry**: Fill forms and submit information across multiple sites
 - **Research**: Navigate and extract information from websites
 - **Social Media**: Automate posting and interaction tasks
-- **E-commerce**: Product research and comparison shopping
+- **Ecommerce**: Product research and comparison shopping
 - **Finance**: Stock lookups, portfolio monitoring, financial data gathering
 - **Development**: Coding platform automation, GitHub workflows, code review navigation
 - **Productivity**: Streamline routine browsing tasks
-- **Memory-Powered Automation**: Leverage learned site knowledge for faster, more reliable task execution
+- **Memory Powered Automation**: Leverage learned site knowledge for faster, more reliable task execution
 - **Background Monitoring**: Schedule recurring agents to check prices, track changes, or gather data
 
 > **Tip**: Always monitor automation results and start with simple tasks to build familiarity. Your feedback helps improve accuracy!
@@ -136,7 +136,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ### Prerequisites
 
-- Google Chrome (version 88+) or any Chromium-based browser (Edge, Brave, etc.)
+- Google Chrome (version 88+) or any Chromium based browser (Edge, Brave, etc.)
 - **One API key** from any supported provider (only one is required):
   - xAI Grok API key ([Get one here](https://x.ai/api)) -- recommended for automation
   - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
@@ -178,19 +178,19 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ## MCP Server
 
-FSB also ships an MCP server for Claude Code, Codex, VS Code, Cursor, Windsurf, and other MCP-capable clients. The package-level guide lives in [mcp-server/README.md](mcp-server/README.md), and the current parity matrix is:
+FSB also ships an MCP server (v0.7.0) for Claude Code, Codex, VS Code, Cursor, Windsurf, and other MCP capable clients. The package level guide lives in [mcp-server/README.md](mcp-server/README.md), and the current parity matrix is:
 
 - Claude Code: use `claude mcp add --scope user fsb -- npx -y fsb-mcp-server`.
 - Codex: add FSB to `~/.codex/config.toml` under `mcp_servers`, then restart Codex or reload the MCP list.
-- VS Code: edit `mcp.json` with a top-level `servers` object and `type: "stdio"`, then trust/start the server if prompted.
+- VS Code: edit `mcp.json` with a top level `servers` object and `type: "stdio"`, then trust/start the server if prompted.
 - Cursor: edit `~/.cursor/mcp.json`, then restart Cursor.
 - Windsurf: use `~/.codeium/windsurf/mcp_config.json` or `~/.codeium/mcp_config.json`, then press refresh or reload the client.
 - OpenCode: manual fallback only, via the `mcp` JSON snippet in `mcp-server/README.md`.
 - OpenClaw: manual / unsupported for now while its MCP config surface remains unstable.
 
-If you want the browser glow and trusted client badge without handing the task to autopilot, the package guide now documents the explicit visual-session lifecycle: `start_visual_session`, optional status threading with the same `session_token`, and `end_visual_session`, plus when that flow is a better fit than `run_task`.
+If you want the browser glow and trusted client badge without handing the task to autopilot, the package guide now documents the explicit visual session lifecycle: `start_visual_session`, optional status threading with the same `session_token`, and `end_visual_session`, plus when that flow is a better fit than `run_task`.
 
-For a repo-local release smoke check, run `npm run test:mcp-smoke` first. If MCP setup still breaks after that, run `npx -y fsb-mcp-server doctor` and `npx -y fsb-mcp-server status --watch` before restarting or reinstalling clients.
+For a repo local release smoke check, run `npm run test:mcp-smoke` first. If MCP setup still breaks after that, run `npx -y fsb-mcp-server doctor` and `npx -y fsb-mcp-server status --watch` before restarting or reinstalling clients.
 
 ### Architecture Overview
 
@@ -254,7 +254,7 @@ graph TB
 
 **Background Service Worker:**
 - **Session Management**: Orchestrates automation workflows and maintains state
-- **Universal Provider**: Model-agnostic AI communication with automatic parameter discovery across all providers
+- **Universal Provider**: Model agnostic AI communication with automatic parameter discovery across all providers
 - **Configuration Manager**: Handles secure settings storage with AES-GCM encryption
 - **Analytics Tracking**: Monitors usage, performance, and cost calculations per model
 - **Site Guide Loader**: Matches current domain to specialized automation guides across 9 categories
@@ -263,24 +263,24 @@ graph TB
 - **DOM Analysis**: Advanced webpage structure parsing with incremental diffing (`dom-analysis.js`, `dom-state.js`)
 - **Action Execution**: 47 browser actions with smart delays and error handling (`actions.js`)
 - **Selector Generation**: Multiple CSS selector strategies for reliability (`selectors.js`)
-- **Action Verification**: Post-action state validation to confirm intended effects (`utils/action-verification.js`)
+- **Action Verification**: Post action state validation to confirm intended effects (`utils/action-verification.js`)
 - **Visual Feedback System**: Viewport glow, element highlights, and progress overlay (`visual-feedback.js`)
 - **Accessibility**: Screen reader and ARIA support (`accessibility.js`)
 - **Messaging**: Background script communication (`messaging.js`)
-- **Lifecycle**: Script initialization, cleanup, and re-injection guards (`init.js`, `lifecycle.js`)
+- **Lifecycle**: Script initialization, cleanup, and reinjection guards (`init.js`, `lifecycle.js`)
 
 **Memory and Intelligence Layer:**
 - **Memory Manager**: Orchestrates memory lifecycle -- creation, retrieval, consolidation, and cleanup (`lib/memory/memory-manager.js`)
-- **Memory Extractor**: AI-enriched extraction of episodic, semantic, and procedural memories from automation sessions (`lib/memory/memory-extractor.js`)
+- **Memory Extractor**: AI enriched extraction of episodic, semantic, and procedural memories from automation sessions (`lib/memory/memory-extractor.js`)
 - **Memory Consolidator**: Deduplication and merging of related memories over time (`lib/memory/memory-consolidator.js`)
-- **Cross-Site Patterns**: Detects recurring UI patterns (login flows, navigation structures, form layouts) across different websites (`lib/memory/cross-site-patterns.js`)
-- **Site Visualization**: D3.js force-directed graph renderer for per-site mind maps (`lib/visualization/site-graph.js`)
-- **Knowledge Graph**: 3D Canvas-based consolidated view of all site guide knowledge across 9 categories (`lib/visualization/knowledge-graph.js`)
+- **Cross Site Patterns**: Detects recurring UI patterns (login flows, navigation structures, form layouts) across different websites (`lib/memory/cross-site-patterns.js`)
+- **Site Visualization**: D3.js force directed graph renderer for per site mind maps (`lib/visualization/site-graph.js`)
+- **Knowledge Graph**: 3D Canvas based consolidated view of all site guide knowledge across 9 categories (`lib/visualization/knowledge-graph.js`)
 - **Sitemap Processing**: Converts and refines sitemaps into structured memory entries (`lib/memory/sitemap-converter.js`, `sitemap-refiner.js`)
 
 **Background Agent Layer:**
 - **Agent Manager**: Creates, updates, and tracks background automation agents (`agents/agent-manager.js`)
-- **Agent Scheduler**: chrome.alarms-based scheduling for recurring tasks (`agents/agent-scheduler.js`)
+- **Agent Scheduler**: chrome.alarms based scheduling for recurring tasks (`agents/agent-scheduler.js`)
 - **Agent Executor**: Runs agent tasks with session replay and result capture (`agents/agent-executor.js`)
 - **Server Sync**: Optional synchronization with Node.js or Python server backends (`agents/server-sync.js`)
 
@@ -298,36 +298,37 @@ graph TB
 |------|-------------|
 | `background.js` | Service worker -- session orchestration and AI communication |
 | `ai/ai-integration.js` | Prompt engineering, task type detection, and response parsing |
-| `ai/universal-provider.js` | Model-agnostic AI provider with automatic parameter discovery |
+| `ai/universal-provider.js` | Model agnostic AI provider with automatic parameter discovery |
 | `ai/ai-providers.js` | Provider configurations and model registry |
 | `config/config.js` | Configuration management with model validation |
 | `config/secure-config.js` | AES-GCM encrypted API key storage |
-| `config/init-config.js` | First-run setup and configuration migration |
+| `config/init-config.js` | First run setup and configuration migration |
 | `content/` | 10 modular content script files (see Content Script Layer above) |
 | `content/actions.js` | 47 browser action tools |
 | `content/dom-analysis.js` | DOM traversal and element extraction |
 | `content/visual-feedback.js` | Viewport glow, element highlights, progress overlay |
-| `lib/memory/` | Long-term memory system (9 modules) |
+| `lib/memory/` | Long term memory system (9 modules) |
 | `lib/memory/memory-manager.js` | Memory lifecycle orchestration |
-| `lib/memory/memory-extractor.js` | AI-enriched memory extraction |
-| `lib/memory/cross-site-patterns.js` | Cross-site UI pattern detection |
-| `lib/visualization/site-graph.js` | D3.js force-directed per-site visualization |
+| `lib/memory/memory-extractor.js` | AI enriched memory extraction |
+| `lib/memory/cross-site-patterns.js` | Cross site UI pattern detection |
+| `lib/visualization/site-graph.js` | D3.js force directed per site visualization |
 | `lib/visualization/knowledge-graph.js` | 3D Canvas consolidated knowledge graph |
 | `agents/` | Background agent system (4 modules) |
 | `agents/agent-manager.js` | Agent lifecycle management |
 | `agents/agent-scheduler.js` | chrome.alarms scheduling |
 | `utils/analytics.js` | Usage tracking, token counting, and cost calculation |
 | `utils/automation-logger.js` | Structured logging with session recording |
-| `utils/action-verification.js` | Post-action state validation and outcome detection |
+| `utils/action-verification.js` | Post action state validation and outcome detection |
 | `utils/dom-state-manager.js` | Incremental DOM diffing for change detection |
 | `utils/keyboard-emulator.js` | Chrome DevTools Protocol key emulation |
 | `utils/site-explorer.js` | Automated website reconnaissance via BFS crawling |
-| `site-guides/` | Domain-specific automation intelligence (9 categories + index) |
+| `site-guides/` | Domain specific automation intelligence (9 categories + index) |
 | `site-maps/` | Generated site structure maps (JSON) |
 | `ui/popup.html/js/css` | Popup chat interface |
 | `ui/sidepanel.html/js/css` | Persistent side panel interface |
 | `ui/options.html/js/css` | Settings dashboard with analytics, memory viewer, and logs |
 | `ui/markdown-renderer.js` | Markdown, mermaid diagram, and Chart.js rendering |
+| `ui/markdown.css` | Markdown rendering styles |
 | `server/` | Optional Node.js backend for agent data |
 | `server-py/` | Optional Python/Flask backend for agent data |
 
@@ -338,12 +339,12 @@ graph TB
 1. **Input**: User describes task in natural language
 2. **Analysis**: FSB analyzes current webpage structure (DOM elements, forms, navigation)
 3. **Memory Retrieval**: Relevant memories (site knowledge, past workflows, selectors) are loaded for context
-4. **Planning**: AI generates step-by-step action plan based on page context, site guides, and memories
+4. **Planning**: AI generates step by step action plan based on page context, site guides, and memories
 5. **Execution**: Actions are executed with smart delays, visual feedback, and error handling
-6. **Verification**: Post-action state validation confirms actions had their intended effect
+6. **Verification**: Post action state validation confirms actions had their intended effect
 7. **Iteration**: Process repeats until task completion, stuck detection triggers recovery, or timeout
-8. **Memory Extraction**: Episodic, semantic, and procedural memories are extracted and AI-enriched
-9. **Feedback**: User receives real-time updates and final results in the chat interface
+8. **Memory Extraction**: Episodic, semantic, and procedural memories are extracted and AI enriched
+9. **Feedback**: User receives real time updates and final results in the chat interface
 
 ### Automation Lifecycle
 
@@ -408,7 +409,7 @@ Access settings through the extension popup or options page:
 #### xAI Grok
 | Model | Description | Cost (per 1M tokens) |
 |-------|-------------|---------------------|
-| **grok-4-1-fast** | High-speed with reasoning, 2M context (Recommended) | $0.20 / $0.50 |
+| **grok-4-1-fast** | High speed with reasoning, 2M context (Recommended) | $0.20 / $0.50 |
 | grok-4-1-fast-non-reasoning | Without reasoning for faster responses | $0.20 / $0.50 |
 | grok-4 | Complex reasoning model | $3.00 / $15.00 |
 | grok-code-fast-1 | Dedicated code generation and debugging | $0.20 / $1.50 |
@@ -427,7 +428,7 @@ Access settings through the extension popup or options page:
 | Model | Description | Cost (per 1M tokens) |
 |-------|-------------|---------------------|
 | **claude-sonnet-4-5** | Latest flagship with 200K context | $3.00 / $15.00 |
-| claude-haiku-4-5 | Fast and cost-effective, 200K context | $1.00 / $5.00 |
+| claude-haiku-4-5 | Fast and cost effective, 200K context | $1.00 / $5.00 |
 | claude-opus-4-1 | Most powerful reasoning model | $15.00 / $75.00 |
 | claude-sonnet-4 | Previous Sonnet version | $3.00 / $15.00 |
 | claude-opus-4 | Previous Opus version | $15.00 / $75.00 |
@@ -455,14 +456,14 @@ Access settings through the extension popup or options page:
 ### Advanced Configuration
 
 #### Extension Options Page
-Configure all settings through the extension's built-in options page:
+Configure all settings through the extension's built in options page:
 
-1. **Right-click the extension icon** then select "Options"
+1. **Right click the extension icon** then select "Options"
 2. **Or visit**: `chrome-extension://[extension-id]/options.html`
 
 #### Security Features
 - **Encrypted Storage**: API keys are automatically encrypted using AES-GCM in Chrome storage
-- **Secure Configuration**: No plain-text files or environment variables needed
+- **Secure Configuration**: No plain text files or environment variables needed
 - **Session Management**: Automatic cleanup and secure key handling
 - **XSS Protection**: DOMPurify sanitization for all rendered chat content
 - **Tab Security**: Automation is restricted to the active session tab
@@ -471,9 +472,9 @@ Configure all settings through the extension's built-in options page:
 
 ## MCP Server
 
-FSB includes a standalone MCP server ([`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server)) that connects any MCP-compatible AI client to your browser. 58 tools across manual control, autopilot, agents, and observability.
+FSB includes a standalone MCP server ([`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server)) that connects any MCP compatible AI client to your browser. 62 tools across manual control, visual sessions, autopilot, vault, agents, and observability.
 
-### One-Command Install
+### One Command Install
 
 ```bash
 npx -y fsb-mcp-server install --claude-desktop   # Claude Desktop
@@ -516,11 +517,11 @@ FSB/
   ai/                           # AI integration layer
     ai-integration.js           # Prompt engineering and response parsing
     ai-providers.js             # Provider configurations and model registry
-    universal-provider.js       # Model-agnostic AI provider
+    universal-provider.js       # Model agnostic AI provider
   assets/                       # Icons and images
   config/                       # Configuration management
     config.js                   # Model validation and settings
-    init-config.js              # First-run setup and migration
+    init-config.js              # First run setup and migration
     secure-config.js            # AES-GCM encrypted storage
   content/                      # Content script modules (10 files)
     accessibility.js            # Accessibility helpers
@@ -534,18 +535,18 @@ FSB/
     utils.js                    # Shared content utilities
     visual-feedback.js          # Viewport glow, highlights, overlay
   lib/                          # Libraries and subsystems
-    memory/                     # Long-term memory system (9 modules)
-      cross-site-patterns.js    # Cross-site UI pattern detection
+    memory/                     # Long term memory system (9 modules)
+      cross-site-patterns.js    # Cross site UI pattern detection
       memory-consolidator.js    # Memory deduplication and merging
-      memory-extractor.js       # AI-enriched memory extraction
+      memory-extractor.js       # AI enriched memory extraction
       memory-manager.js         # Memory lifecycle orchestration
-      memory-retriever.js       # Context-aware memory retrieval
+      memory-retriever.js       # Context aware memory retrieval
       memory-schemas.js         # Memory type definitions
       memory-storage.js         # Chrome storage persistence
-      sitemap-converter.js      # Sitemap-to-memory conversion
+      sitemap-converter.js      # Sitemap to memory conversion
       sitemap-refiner.js        # AI sitemap refinement
     visualization/              # Site visualization
-      site-graph.js             # D3.js force-directed per-site graph
+      site-graph.js             # D3.js force directed per site graph
       knowledge-graph.js        # 3D Canvas consolidated knowledge graph
       d3-*.min.js               # D3 dependencies
     chart.min.js                # Chart.js for analytics
@@ -570,7 +571,7 @@ FSB/
     css/                        # Stylesheets
     js/                         # Scripts
     assets/                     # Images and provider logos
-  site-guides/                  # Domain-specific AI guides (9 categories)
+  site-guides/                  # Domain specific AI guides (9 categories)
     index.js                    # Guide registry and URL matcher
     ecommerce.js                # Amazon, eBay, Walmart, etc.
     finance.js                  # Yahoo Finance, TradingView, etc.
@@ -591,7 +592,7 @@ FSB/
     markdown.css                # Markdown rendering styles
     unlock.html / unlock.js     # API key unlock screen
   utils/                        # Utility modules
-    action-verification.js      # Post-action state validation
+    action-verification.js      # Post action state validation
     analytics.js                # Usage tracking and cost calculation
     automation-logger.js        # Structured session logging
     dom-state-manager.js        # Incremental DOM diffing
@@ -636,7 +637,7 @@ No build step or npm install is required -- FSB runs directly as a Chrome extens
 
 ---
 
-## Multi-Model AI Integration
+## Multi Model AI Integration
 
 <div align="center">
 
@@ -647,46 +648,46 @@ No build step or npm install is required -- FSB runs directly as a Chrome extens
 
 </div>
 
-FSB supports four AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
+FSB supports four AI providers through a universal, model agnostic architecture. Each provider has unique strengths for browser automation.
 
 ### Supported AI Providers
 
 #### xAI Grok
-- **Strengths**: Fast responses, creative problem-solving, handles complex web interactions
-- **Best for**: Dynamic websites, real-time automation, unconventional UI patterns
+- **Strengths**: Fast responses, creative problem solving, handles complex web interactions
+- **Best for**: Dynamic websites, real time automation, unconventional UI patterns
 - **Recommended model**: `grok-4-1-fast` -- 2M context window, high speed, low cost
 
 #### OpenAI GPT
 - **Strengths**: Broad knowledge base, reliable structured output, strong reasoning
-- **Best for**: General-purpose automation, data extraction, multi-step workflows
+- **Best for**: General purpose automation, data extraction, multi step workflows
 - **Recommended model**: `gpt-4o` -- multimodal understanding, consistent results
 
 #### Anthropic Claude
 - **Strengths**: Advanced reasoning, strong code understanding, careful and thorough
-- **Best for**: Complex forms, code-heavy sites, tasks requiring nuanced understanding
+- **Best for**: Complex forms, code heavy sites, tasks requiring nuanced understanding
 - **Recommended model**: `claude-sonnet-4-5` -- balanced performance and cost
 
 #### Google Gemini
 - **Strengths**: Reliable structured output, analytical approach, FREE tier available
-- **Best for**: Structured forms, data entry, systematic workflows, budget-conscious usage
+- **Best for**: Structured forms, data entry, systematic workflows, budget conscious usage
 - **Recommended model**: `gemini-2.5-flash` -- latest with thinking capabilities
 
 ### Universal Provider Architecture
 
-FSB's universal provider eliminates the need for provider-specific code:
+FSB's universal provider eliminates the need for provider specific code:
 
-- **Any OpenAI-compatible API**: Works with any endpoint that follows the OpenAI chat completions format
+- **Any OpenAI compatible API**: Works with any endpoint that follows the OpenAI chat completions format
 - **Automatic parameter discovery**: Learns what parameters each API supports by retrying on errors
-- **Self-healing**: Adapts automatically when APIs change or add/remove parameters
+- **Self healing**: Adapts automatically when APIs change or add/remove parameters
 - **Configuration caching**: Remembers successful configurations per model for faster subsequent calls
 - **Custom endpoints**: Add new providers by configuring an endpoint URL -- no code changes required
 
 ### Advanced Prompt Engineering
 
 - **Task type detection**: Automatically classifies tasks (search, form, extraction, navigation) for optimized prompts
-- **Context-aware system prompts**: Dynamic tool documentation based on task type
-- **Model-specific formatting**: Tailored instructions for each provider's response style
-- **Enter-first strategy**: More natural interaction patterns for form filling
+- **Context aware system prompts**: Dynamic tool documentation based on task type
+- **Model specific formatting**: Tailored instructions for each provider's response style
+- **Enter first strategy**: More natural interaction patterns for form filling
 - **Retry with enhancement**: Progressive prompt improvement on parsing failures (3 attempts with backoff)
 
 ### Comprehensive Action Library
@@ -703,8 +704,8 @@ FSB's universal provider eliminates the need for provider-specific code:
 **Clicking**
 - `click` -- Click an element (with selector cascade and coordinate fallback)
 - `clickSearchResult` -- Click search engine results (Google, Bing, DuckDuckGo)
-- `rightClick` -- Right-click context menu
-- `doubleClick` -- Double-click an element
+- `rightClick` -- Right click context menu
+- `doubleClick` -- Double click an element
 - `hover` -- Hover over an element
 - `focus` / `blur` -- Focus or blur an element
 
@@ -733,7 +734,7 @@ FSB's universal provider eliminates the need for provider-specific code:
 - `scrollToTop` / `scrollToBottom` -- Scroll to page extremes
 - `scrollToElement` -- Scroll a specific element into view
 
-**Multi-Tab**
+**Multi Tab**
 - `openNewTab` -- Open a new browser tab
 - `switchToTab` -- Switch to a specific tab
 - `closeTab` -- Close a tab
@@ -746,7 +747,7 @@ FSB's universal provider eliminates the need for provider-specific code:
 - `detectLoadingState` -- Check for loading indicators (spinners, progress bars)
 
 **Game and Arrow Controls**
-- `gameControl` -- Send game-specific key events
+- `gameControl` -- Send game specific key events
 - `arrowUp` / `arrowDown` / `arrowLeft` / `arrowRight` -- Arrow key navigation
 
 **Special**
@@ -758,16 +759,16 @@ FSB's universal provider eliminates the need for provider-specific code:
 
 ---
 
-## Site-Specific Intelligence
+## Site Specific Intelligence
 
-FSB includes a site guides system that provides domain-specific knowledge to the AI, improving accuracy and reducing token usage.
+FSB includes a site guides system that provides domain specific knowledge to the AI, improving accuracy and reducing token usage.
 
 ### How It Works
 
 When you navigate to a supported domain, FSB automatically loads the relevant guide. Each guide provides:
 
-- **Domain-specific selectors**: Pre-mapped CSS selectors for common elements
-- **Workflow patterns**: Step-by-step instructions for common tasks on that site
+- **Domain specific selectors**: Pre mapped CSS selectors for common elements
+- **Workflow patterns**: Step by step instructions for common tasks on that site
 - **Navigation hints**: How the site's UI is structured and how to navigate it
 - **Gotchas and workarounds**: Known quirks and how to handle them
 
@@ -775,7 +776,7 @@ When you navigate to a supported domain, FSB automatically loads the relevant gu
 
 | Category | Sites |
 |----------|-------|
-| **E-commerce** | Amazon, eBay, Walmart, and similar shopping sites |
+| **Ecommerce** | Amazon, eBay, Walmart, and similar shopping sites |
 | **Finance** | Yahoo Finance, TradingView, and financial platforms |
 | **Social Media** | Major social media platforms |
 | **Travel** | Flight booking and hotel reservation sites |
@@ -789,7 +790,7 @@ Site guides reduce token usage by 30-40% by providing focused context instead of
 
 ---
 
-## Long-Term Memory System
+## Long Term Memory System
 
 FSB maintains a persistent memory system that learns from automation sessions and improves over time.
 
@@ -797,26 +798,26 @@ FSB maintains a persistent memory system that learns from automation sessions an
 
 - **Episodic Memory**: Records of specific automation sessions -- what happened, what actions were taken, what succeeded or failed. Used to avoid repeating mistakes and to replay successful workflows.
 - **Semantic Memory**: Factual knowledge about websites -- site structure, navigation patterns, important selectors, form layouts. Built up across multiple visits to the same domain.
-- **Procedural Memory**: Step-by-step workflows that have been verified to work -- login sequences, checkout flows, data entry patterns. Includes success rate tracking per procedure.
+- **Procedural Memory**: Step by step workflows that have been verified to work -- login sequences, checkout flows, data entry patterns. Includes success rate tracking per procedure.
 
 ### How It Works
 
 1. **Extraction**: After each automation session, the memory extractor analyzes the session log and identifies memories worth keeping
 2. **AI Enrichment**: Each memory passes through AI analysis for categorization, tagging, and quality scoring before storage
-3. **Consolidation**: The memory consolidator periodically merges related memories, deduplicates entries, and prunes low-quality data
+3. **Consolidation**: The memory consolidator periodically merges related memories, deduplicates entries, and prunes low quality data
 4. **Retrieval**: When a new task starts, the memory retriever loads relevant memories based on the current domain, task type, and context
-5. **Cross-Site Patterns**: The cross-site pattern analyzer detects recurring UI patterns (login forms, navigation menus, modal dialogs) across different websites and creates generalized knowledge
+5. **Cross Site Patterns**: The cross site pattern analyzer detects recurring UI patterns (login forms, navigation menus, modal dialogs) across different websites and creates generalized knowledge
 
 ### Site Visualization
 
 FSB provides two visualization modes:
 
-- **Per-Site Graphs**: D3.js force-directed mind maps for individual site memories, showing page hierarchy, navigation paths, interactive elements, and form layouts
-- **Knowledge Graph**: A consolidated 3D Canvas-based view that renders all 9 site guide categories and 43+ supported sites as a single rotating graph, with search highlighting and detail level toggles (Overview / Full Detail)
+- **Per Site Graphs**: D3.js force directed mind maps for individual site memories, showing page hierarchy, navigation paths, interactive elements, and form layouts
+- **Knowledge Graph**: A consolidated 3D Canvas based view that renders all 9 site guide categories and 43+ supported sites as a single rotating graph, with search highlighting and detail level toggles (Overview / Full Detail)
 
 ### Cost Tracking
 
-Memory operations that use AI (extraction, enrichment, cross-site analysis) are tracked separately from automation costs. The Memory section in the options dashboard shows a dedicated cost panel so you can monitor AI spend on memory operations independently.
+Memory operations that use AI (extraction, enrichment, cross site analysis) are tracked separately from automation costs. The Memory section in the options dashboard shows a dedicated cost panel so you can monitor AI spend on memory operations independently.
 
 ---
 
@@ -830,13 +831,13 @@ FSB supports scheduled background automation through its agent system.
 - **Scheduling**: Agents use chrome.alarms to run at specified intervals (hourly, daily, weekly, or custom)
 - **Execution**: When triggered, the agent executor opens the target page, runs the automation task, and captures results
 - **Run History**: Every agent run is logged with timestamps, outcomes, and session details for later review
-- **Session Replay**: Past agent runs can be reviewed step-by-step to understand what happened
+- **Session Replay**: Past agent runs can be reviewed step by step to understand what happened
 
 ### Server Backends (Optional)
 
 For persistent agent data beyond Chrome storage limits, FSB includes two optional server backends:
 
-- **Node.js** (`server/`): Express-based API server for agent data persistence
+- **Node.js** (`server/`): Express based API server for agent data persistence
 - **Python/Flask** (`server-py/`): Alternative backend with SQLite storage and Fly.io deployment support
 
 Server backends are entirely optional -- agents work fully with local Chrome storage.
@@ -845,7 +846,7 @@ Server backends are entirely optional -- agents work fully with local Chrome sto
 
 ## Visual Feedback System
 
-FSB provides real-time visual indicators during automation:
+FSB provides real time visual indicators during automation:
 
 - **Viewport Glow**: A colored border around the browser viewport indicates the current state -- thinking (blue pulse), acting (amber), complete (green flash), or error (red)
 - **Element Highlights**: The target element for each action is highlighted with an animated glow before the action executes
@@ -856,19 +857,19 @@ FSB provides real-time visual indicators during automation:
 ## Analytics and Monitoring
 
 ### Usage Tracking
-- **Token consumption** monitoring with per-model cost calculation
+- **Token consumption** monitoring with per model cost calculation
 - **Dual cost tracking**: Automation session costs and memory operation costs tracked separately
 - **Success/failure rates** for different task types and action categories
 - **Performance metrics** including execution time and AI response latency
 - **Error analysis** for debugging and improvement
-- **30-day data retention** with automatic cleanup
+- **30 day data retention** with automatic cleanup
 
 ### Dashboard Features
-- Real-time automation status
+- Real time automation status
 - Historical usage charts with cost breakdown by model and time period
 - Overall cost summary panel in the Dashboard hero section
-- Dedicated memory-operations cost panel in the Memory section
-- Memory tab with auto-refresh on storage changes, detail panels, and inline controls
+- Dedicated memory operations cost panel in the Memory section
+- Memory tab with auto refresh on storage changes, detail panels, and inline controls
 - Session history viewer with detailed action logs
 - Settings export for backup and migration
 - Detailed logs with filtering options accessible from the options page
@@ -889,12 +890,12 @@ FSB provides real-time visual indicators during automation:
 - Enable encrypted storage for production use
 - Regularly rotate API keys
 - Review logs for any unintended actions
-- Test on non-sensitive websites first
+- Test on non sensitive websites first
 
 ### Safety Guidelines
-- **Always monitor automation**: Watch what FSB does in real-time via visual feedback
+- **Always monitor automation**: Watch what FSB does in real time via visual feedback
 - **Start with safe sites**: Use test websites or your own domains first
-- **Verify results**: Double-check all automated actions and their outcomes
+- **Verify results**: Double check all automated actions and their outcomes
 - **Tab isolation**: FSB only controls the active session tab, not other open tabs
 - **Report issues**: Help improve FSB by reporting unexpected behavior
 - **Use responsibly**: Respect website terms of service and rate limits
@@ -906,30 +907,38 @@ FSB provides real-time visual indicators during automation:
 ### Completed in v0.9.31
 - Full automation engine with smart iteration and stuck recovery
 - Four AI providers (xAI, OpenAI, Anthropic, Gemini) with 21 models
-- Universal model-agnostic provider architecture
+- Universal model agnostic provider architecture
 - Modern chat UI with markdown, mermaid, and Chart.js rendering
-- Site-specific intelligence with 9 domain guide categories
+- Site specific intelligence with 9 domain guide categories
 - Action verification and visual feedback system
 - Analytics dashboard with cost tracking
 - Encrypted configuration and secure API key storage
-- Multi-tab automation support
+- Multi tab automation support
 - Comprehensive logging and debugging tools
 
 ### Completed in v9.1 -- v9.3
-- Long-term memory system with episodic, semantic, and procedural memory types
-- AI-enriched memory extraction for all memory types
-- Cross-site pattern analysis detecting recurring UI patterns across websites
-- D3.js site visualization with force-directed radial mind maps
+- Long term memory system with episodic, semantic, and procedural memory types
+- AI enriched memory extraction for all memory types
+- Cross site pattern analysis detecting recurring UI patterns across websites
+- D3.js site visualization with force directed radial mind maps
 - Background agent system with chrome.alarms scheduling and run history
 - Content script modularization -- monolithic content.js split into 10 focused modules
-- Memory intelligence overhaul -- AI analysis pipeline, detail viewers, auto-refresh, cost tracking
+- Memory intelligence overhaul -- AI analysis pipeline, detail viewers, auto refresh, cost tracking
 - Optional server backends (Node.js and Python/Flask) for agent data persistence
-- Sitemap generation and refinement with AI-powered conversion
+- Sitemap generation and refinement with AI powered conversion
 - Site guides viewer with consolidated 3D knowledge graph visualization
 
-### In Progress -- v9.3
-- Dead code removal and configuration cleanup
-- Memory extractor bug fix for AI provider instantiation
+### Completed in v0.9.34 -- v0.9.36
+- Vault management with numeric PIN unlock, credential CRUD, and payment method storage
+- MCP server v0.7.0 with bridge lifecycle reconnect across service worker wakes
+- Centralized MCP tool routing contract replacing direct dispatch
+- Layered MCP diagnostics (`doctor`, `status --watch`) identifying the exact failing layer
+- Explicit visual session lifecycle for MCP clients (`start_visual_session` / `end_visual_session`)
+- Trusted client badges (Claude, Codex, Cursor, etc.) on the automation overlay
+- Visual session persistence across content script reinjection
+- One command install for 10+ MCP platforms
+- Secure vault bridge handlers with sensitive content redaction
+- Payment confirmation timeout alignment across MCP boundary
 
 ### Future
 - Advanced CAPTCHA solver integration (Buster, CapSolver, 2Captcha)
@@ -943,7 +952,7 @@ FSB provides real-time visual indicators during automation:
 
 ## Acknowledgments
 
-FSB is inspired by **Project Mariner** from Google DeepMind, designed as an open-source alternative accessible to everyone. This multi-model approach is made possible by:
+FSB is inspired by **Project Mariner** from Google DeepMind, designed as an open source alternative accessible to everyone. This multi model approach is made possible by:
 
 **AI Model Providers:**
 - **xAI Team**: For providing powerful and accessible Grok models
@@ -952,7 +961,7 @@ FSB is inspired by **Project Mariner** from Google DeepMind, designed as an open
 - **Google AI**: For making Gemini available to developers, including a free tier
 
 **Community and Inspiration:**
-- **Project Mariner**: For demonstrating the potential of AI-powered browsing
+- **Project Mariner**: For demonstrating the potential of AI powered browsing
 - **Chrome Extensions Community**: For excellent documentation and development resources
 - **Open Source Contributors**: Every bug report, feature request, and code contribution
 - **Beta Testers**: Community members helping test and improve FSB across different websites
@@ -979,14 +988,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Code Contributions**: Help implement new features, fix bugs, or optimize performance
 - **Documentation**: Improve guides, add examples, or create tutorials
 - **AI Model Integration**: Help add support for new AI models and providers
-- **Site Guides**: Add domain-specific guides for new websites
+- **Site Guides**: Add domain specific guides for new websites
 
 ### Getting Started
 
 1. **Start Testing**: Download FSB and try it on your favorite websites
 2. **Report Your Experience**: Use our [issues page](https://github.com/lakshmanturlapati/FSB/issues) to share feedback
 3. **Join Discussions**: Engage with the community in GitHub discussions
-4. **Pick an Issue**: Look for "good first issue" labels for beginner-friendly tasks
+4. **Pick an Issue**: Look for "good first issue" labels for beginner friendly tasks
 5. **Submit Code**: Fork, improve, and submit pull requests
 
 Every contributor helps make FSB better! Contributors are recognized in our acknowledgments and become part of FSB's development story.
@@ -996,7 +1005,7 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 ## Support
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/lakshmanturlapati/FSB/issues)
-- **Options Page**: Built-in help section and log viewer for troubleshooting
+- **Options Page**: Built in help section and log viewer for troubleshooting
 - **Community**: Join discussions in our GitHub repository
 
 ---
@@ -1007,8 +1016,8 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 
 **Star this repository if FSB helps you automate your browsing!**
 
-*FSB - Full Self-Browsing: Making AI-powered automation accessible to everyone*
+*FSB Full Self Browsing: Making AI powered automation accessible to everyone*
 
-[Back to top](#fsb-v902---full-self-browsing)
+[Back to top](#fsb-v0936-full-self-browsing)
 
 </div>

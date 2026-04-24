@@ -9,7 +9,7 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 1. **[Claude for Chrome](./claude-for-chrome.md)**
    - Anthropic's official browser extension
    - Native Messaging integration with Claude Code
-   - Multi-tab workflows and scheduling features
+   - Multi tab workflows and scheduling features
    - Safety and security architecture
 
 2. **[MCP Protocol](./mcp-protocol.md)**
@@ -33,12 +33,12 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 5. **[Security Mitigations](./security-mitigations.md)**
    - Prompt injection vulnerabilities
    - Anthropic's defense mechanisms
-   - Site-level permissions
+   - Site level permissions
    - Content isolation rules
 
 6. **[Implementation Comparison](./implementation-comparison.md)**
    - FSB vs Claude for Chrome approaches
-   - DOM analysis vs screenshot-based automation
+   - DOM analysis vs screenshot based automation
    - Action execution strategies
    - Improvement opportunities for FSB
 
@@ -47,17 +47,17 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 | Technology | Purpose | FSB Relevance |
 |------------|---------|---------------|
 | Claude for Chrome | Browser automation via extension | Direct competitor, architectural reference |
-| MCP | AI-to-system integration standard | Potential integration path |
-| Computer Use API | Screenshot-based automation | Alternative approach to DOM analysis |
-| Native Messaging | Extension-to-CLI communication | Future Claude Code integration |
+| MCP | AI to system integration standard | Fully integrated (MCP v0.7.0, 62 tools) |
+| Computer Use API | Screenshot based automation | Alternative approach to DOM analysis |
+| Native Messaging | Extension to CLI communication | Integrated via MCP server |
 
 ## Key Insights for FSB
 
-1. **DOM Analysis vs Screenshots**: FSB uses direct DOM analysis which is faster and more precise than screenshot-based approaches, but may miss visually-rendered content.
+1. **DOM Analysis vs Screenshots**: FSB uses direct DOM analysis which is faster and more precise than screenshot based approaches, but may miss visually rendered content.
 
-2. **Security Model**: Anthropic's site-level permissions and content isolation provide a robust security model worth adopting.
+2. **Security Model**: Anthropic's site level permissions and content isolation provide a robust security model worth adopting.
 
-3. **MCP Integration**: Adding MCP server capabilities to FSB could enable integration with Claude Code and other MCP clients.
+3. **MCP Integration**: FSB ships a full MCP server (v0.7.0) that connects Claude Code, Codex, Cursor, Windsurf, and other MCP clients to the browser with 62 tools across manual, visual session, autopilot, agent, and observability surfaces.
 
 4. **Hybrid Approach**: Combining DOM analysis with selective screenshot capture for complex UI elements could improve reliability.
 
@@ -72,5 +72,5 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 
 ---
 
-*Last Updated: February 2026*
-*Part of FSB v0.9.30 Research Initiative*
+*Last Updated: April 2026*
+*Part of FSB v0.9.36 Research Initiative*
