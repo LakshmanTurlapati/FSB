@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.36
 milestone_name: MCP Visual Lifecycle & Client Identity
-status: phase_planned
-stopped_at: Ready to execute Phase 203 plan 01
-last_updated: "2026-04-23T21:05:01-05:00"
+status: phase_in_progress
+stopped_at: Ready to execute Phase 203 plan 02
+last_updated: "2026-04-23T21:36:33-05:00"
 last_activity: 2026-04-23
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State
@@ -21,38 +21,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** MCP visual-session lifecycle and trusted client badges for visible automation feedback
+**Current focus:** Token-aware MCP visual-session lifecycle updates, trusted client badges, and deterministic visual cleanup
 
 ## Current Position
 
 Milestone: v0.9.36 (MCP Visual Lifecycle & Client Identity)
 Phase: 203
-Plan: 01
-Status: Phase 203 planned; ready to execute the start/end visual-session contract
-Last activity: 2026-04-23 — Planned Phase 203 with two execution plans
+Plan: 02
+Status: Phase 203 plan 01 complete; ready to execute token-aware progress/final lifecycle updates
+Last activity: 2026-04-23 — Implemented explicit visual-session start/end tools, shared trusted client allowlist, and focused regression coverage
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed this milestone: 0
-- Average duration: --
-- Total execution time: 0 hours
+- Total plans completed this milestone: 1
+- Average duration: 31 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 203 | 0 | - | - |
+| 203 | 1 | 31 min | 31 min |
 | 204 | 0 | - | - |
 | 205 | 0 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: --
-- Trend: --
+- Last 5 plans: 31 min
+- Trend: First active milestone plan completed cleanly
 
 ## Accumulated Context
 
@@ -86,12 +86,15 @@ Recent decisions affecting current work:
 - [Phase 199-mcp-tool-routing-contract]: Public MCP tool names are preserved through explicit alias entries that point to message routes.
 - [Phase 199-mcp-tool-routing-contract]: Restricted read recovery is navigation/tab-only and returned before read_page/get_dom_snapshot content-script dispatch.
 - [Phase 199-mcp-tool-routing-contract]: Root npm test has unrelated runtime-contract failures deferred outside Phase 199 route work.
+- [Phase 203-mcp-visual-session-contract]: Client-owned MCP visual sessions use explicit `start_visual_session` / `end_visual_session` bridge routes and stay separate from autopilot `activeSessions`.
+- [Phase 203-mcp-visual-session-contract]: Trusted client identity comes from the shared allowlist in `utils/mcp-visual-session.js`; arbitrary caller branding is rejected on both server and extension sides.
+- [Phase 203-mcp-visual-session-contract]: Overlay state now preserves `sessionToken`, `version`, and `clientLabel` for client-owned visual sessions so stale clear messages can be ignored immediately.
 
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Execute Phase 203 plan 01: explicit start/end visual-session contract and trusted client allowlist.
 - Execute Phase 203 plan 02: token-aware progress/final lifecycle updates and focused regression coverage.
+- Implement Phase 204: visible client badge rendering, persistence across reinjection/navigation, and stuck-glow cleanup.
 - Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
@@ -101,6 +104,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-23T21:05:01-05:00
-Stopped at: Ready to execute Phase 203 plan 01
+Last session: 2026-04-23T21:36:33-05:00
+Stopped at: Ready to execute Phase 203 plan 02
 Resume file: None
