@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.36
 milestone_name: MCP Visual Lifecycle & Client Identity
-status: executing
-stopped_at: Phase 204 context gathered
-last_updated: "2026-04-24T04:26:46.958Z"
-last_activity: 2026-04-24 -- Phase 204 planning complete
+status: phase_in_progress
+stopped_at: Ready to execute Phase 204 plan 02
+last_updated: "2026-04-24T04:39:54Z"
+last_activity: 2026-04-24 -- Phase 204 plan 01 complete
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Client badge rendering, reinjection persistence, and stuck-glow cleanup for MCP-owned visual sessions
+**Current focus:** Reinjection persistence, replay, and stuck-glow cleanup for MCP-owned visual sessions
 
 ## Current Position
 
 Milestone: v0.9.36 (MCP Visual Lifecycle & Client Identity)
 Phase: 204
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-24 -- Phase 204 planning complete
+Plan: 02
+Status: Phase 204 plan 01 complete; ready to execute persisted replay and stale-session cleanup
+Last activity: 2026-04-24 -- Added trusted client badge rendering to the live overlay and mirrored dashboard preview
 
 Progress: [███░░░░░░░] 33%
 
@@ -38,21 +38,21 @@ Progress: [███░░░░░░░] 33%
 **Velocity:**
 
 - Total plans completed this milestone: 2
-- Average duration: 34 min
-- Total execution time: 1.1 hours
+- Average duration: 27 min
+- Total execution time: 1.3 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 203 | 2 | 67 min | 34 min |
-| 204 | 0 | - | - |
+| 204 | 1 | 13 min | 13 min |
 | 205 | 0 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 31 min, 36 min
-- Trend: Phase 203 completed cleanly with focused MCP regressions green
+- Last 5 plans: 31 min, 36 min, 13 min
+- Trend: Badge rendering landed cleanly; next focus is persistence and stale-session cleanup
 
 ## Accumulated Context
 
@@ -92,12 +92,15 @@ Recent decisions affecting current work:
 - [Phase 203-mcp-visual-session-contract]: `report_progress`, `complete_task`, `partial_task`, and `fail_task` now branch on optional `session_token`; omitted tokens preserve narration-only/task-lifecycle semantics, while matching tokens update or finalize the same client-owned visual session.
 - [Phase 203-mcp-visual-session-contract]: Client-owned success, partial, and failure outcomes emit a `lifecycle: 'final'` state first and then clear the same token deterministically after the 3200ms final overlay freeze.
 - [Phase 203-mcp-visual-session-contract]: Background data-tool execution now honors explicit `hadEffect: false`, which keeps narration-only `report_progress` from resetting stuck detection when executed through the shared tool executor.
+- [Phase 204-overlay-badge-session-persistence]: Live overlay badge rendering stays text-only and canonical, sourced directly from the trusted `clientLabel` metadata established in Phase 203.
+- [Phase 204-overlay-badge-session-persistence]: DOM-stream preview payloads now carry `clientLabel`, `sessionToken`, `version`, `lifecycle`, and `result` so mirrored surfaces do not infer identity from plain text.
+- [Phase 204-overlay-badge-session-persistence]: Frozen Angular preview overlays preserve the last trusted client badge until the visual session is actually cleared.
 
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Plan Phase 204: visible client badge rendering, persistence across reinjection/navigation, and stuck-glow cleanup.
-- Execute Phase 204 after planning: preserve the trusted badge and visual ownership across reinjection/navigation without leaving stale glow behind.
+- Execute Phase 204 plan 02: persist client-owned visual sessions across reinjection/navigation and clear stale glow safely.
+- Phase 205 remains ahead for validation/docs coverage after persistence and cleanup work land.
 - Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
@@ -108,5 +111,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-04-24T04:23:21.021Z
-Stopped at: Phase 204 context gathered
-Resume file: .planning/phases/204-overlay-badge-session-persistence/204-CONTEXT.md
+Stopped at: Ready to execute Phase 204 plan 02
+Resume file: .planning/phases/204-overlay-badge-session-persistence/204-02-PLAN.md
