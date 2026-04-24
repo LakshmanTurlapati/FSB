@@ -25,6 +25,12 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     'Content script injection failed. The extension could not inject its scripts into the current page.',
   'queue_timeout':
     'Tool call timed out waiting in queue. Another task is running and did not complete in time. Use stop_task to cancel the running task, or use read-only tools which bypass the queue.',
+  'invalid_client_label':
+    'The MCP client label is not on the trusted visual-session allowlist. Use one of the approved client names exactly as documented.',
+  'visual_session_not_found':
+    'The provided visual-session token does not match an active client-owned visual session. Start a new visual session or use the latest token returned by start_visual_session.',
+  'visual_surface_busy':
+    'The active visual surface is already owned by an FSB automation session. Wait for the current run to finish or stop it before starting a client-owned visual session.',
 };
 
 const DEFAULT_RESTRICTED_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
@@ -37,6 +43,7 @@ const LAYER_LABELS = {
   toolRouting: 'Tool routing',
   restrictedPage: 'Restricted page',
   pageNavigation: 'Page navigation',
+  visualSession: 'Visual session contract',
 } as const;
 
 type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
@@ -59,6 +66,14 @@ function getValidRecoveryTools(fsbResult: Record<string, unknown> | null | undef
 function formatRecoveryToolList(tools: string[] | undefined): string {
   const list = Array.isArray(tools) && tools.length > 0 ? tools : DEFAULT_RESTRICTED_RECOVERY_TOOLS;
   return list.join(', ');
+}
+
+function getAllowedClientLabels(
+  fsbResult: Record<string, unknown> | null | undefined,
+): string[] {
+  return Array.isArray(fsbResult?.allowedClients)
+    ? fsbResult.allowedClients.filter((label): label is string => typeof label === 'string' && label.trim().length > 0)
+    : [];
 }
 
 function resolveErrorKey(
@@ -125,6 +140,8 @@ function buildLayeredDetail(
   const url = typeof fsbResult?.url === 'string'
     ? fsbResult.url
     : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '');
+  const allowedClients = getAllowedClientLabels(fsbResult);
+  const clientLabel = typeof fsbResult?.clientLabel === 'string' ? fsbResult.clientLabel : '';
 
   switch (errorKey) {
     case 'package_version_mismatch':
@@ -178,6 +195,28 @@ function buildLayeredDetail(
         detected: LAYER_LABELS.pageNavigation,
         why: `Navigation to ${url || 'the requested URL'} failed.`,
         nextAction: 'Verify the destination URL or switch to a normal website tab, then retry.',
+      };
+    case 'invalid_client_label':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: clientLabel
+          ? `${clientLabel} is not on the trusted visual-session client allowlist.`
+          : 'The requested client label is not on the trusted visual-session client allowlist.',
+        nextAction: allowedClients.length > 0
+          ? `Retry with one of the approved client labels: ${allowedClients.join(', ')}.`
+          : 'Retry with one of the approved client labels documented for visual sessions.',
+      };
+    case 'visual_session_not_found':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: 'The provided visual-session token does not match an active client-owned visual session.',
+        nextAction: 'Start a new visual session or retry with the latest token returned by start_visual_session.',
+      };
+    case 'visual_surface_busy':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: 'The active tab is already owned by an FSB automation run, so a second visual-session owner cannot claim the surface right now.',
+        nextAction: 'Wait for the current automation to finish or stop it before starting a client-owned visual session.',
       };
     case 'no_active_tab':
       return {

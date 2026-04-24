@@ -37,6 +37,8 @@ const requiredPublicRoutes = [
   'open_tab',
   'switch_tab',
   'list_tabs',
+  'start_visual_session',
+  'end_visual_session',
   'run_task',
   'stop_task',
   'get_task_status',
@@ -54,6 +56,8 @@ const requiredMessageRoutes = [
   'mcp:get-tabs',
   'mcp:get-dom',
   'mcp:read-page',
+  'mcp:start-visual-session',
+  'mcp:end-visual-session',
   'mcp:start-automation',
   'mcp:stop-automation',
   'mcp:get-status',
@@ -90,6 +94,16 @@ const groupDefinitions = {
     messages: [
       'mcp:get-tabs',
       'mcp:get-site-guides'
+    ]
+  },
+  visual: {
+    tools: [
+      'start_visual_session',
+      'end_visual_session'
+    ],
+    messages: [
+      'mcp:start-visual-session',
+      'mcp:end-visual-session'
     ]
   },
   autopilot: {
@@ -135,7 +149,7 @@ const groupDefinitions = {
 function selectedGroups() {
   const groupArg = process.argv.find(arg => arg.startsWith('--group='));
   if (!groupArg) {
-    return ['browser', 'autopilot', 'observability', 'read'];
+    return ['browser', 'visual', 'autopilot', 'observability', 'read'];
   }
 
   const group = groupArg.slice('--group='.length);
@@ -179,7 +193,7 @@ function runRegistryChecks() {
 
   for (const toolName of requiredPublicRoutes) {
     const inRegistry = TOOL_REGISTRY.some(tool => tool.name === toolName);
-    const serverOnly = ['run_task', 'stop_task', 'get_task_status', 'list_sessions', 'get_session_detail', 'get_logs', 'search_memory', 'get_memory_stats'].includes(toolName);
+    const serverOnly = ['start_visual_session', 'end_visual_session', 'run_task', 'stop_task', 'get_task_status', 'list_sessions', 'get_session_detail', 'get_logs', 'search_memory', 'get_memory_stats'].includes(toolName);
     assert(inRegistry || serverOnly, `${toolName} is known through TOOL_REGISTRY or MCP server tool registration`);
   }
 

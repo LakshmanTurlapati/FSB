@@ -9,6 +9,8 @@ export type MCPMessageType =
   | 'mcp:start-automation'    // Autopilot: run a task
   | 'mcp:stop-automation'     // Cancel running task
   | 'mcp:get-status'          // Query task status
+  | 'mcp:start-visual-session' // MCP-owned visible lifecycle start
+  | 'mcp:end-visual-session'   // MCP-owned visible lifecycle end
   | 'mcp:execute-action'      // Manual: execute a single browser action
   | 'mcp:get-dom'             // Read DOM snapshot
   | 'mcp:get-tabs'            // List open tabs

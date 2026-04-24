@@ -7,6 +7,7 @@ importScripts('config/secure-config.js');
 importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
+importScripts('utils/mcp-visual-session.js');
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
@@ -500,6 +501,189 @@ async function sendSessionStatus(tabId, statusData) {
       });
     }
   }
+}
+
+function getMcpVisualSessionManager() {
+  if (!mcpVisualSessionManager) {
+    throw new Error('MCP visual session manager unavailable');
+  }
+  return mcpVisualSessionManager;
+}
+
+function findActiveAutomationSessionForTab(tabId) {
+  if (!Number.isFinite(tabId)) return null;
+  for (const session of activeSessions.values()) {
+    if (!session || session.isBackgroundAgent) continue;
+    if (session.tabId === tabId || session.originalTabId === tabId || session.previousTabId === tabId) {
+      return session;
+    }
+  }
+  return null;
+}
+
+async function handleStartMcpVisualSession(request, sender, sendResponse) {
+  try {
+    const manager = getMcpVisualSessionManager();
+    const tabId = Number.isFinite(request?.tabId)
+      ? Number(request.tabId)
+      : (Number.isFinite(sender?.tab?.id) ? Number(sender.tab.id) : null);
+
+    if (!Number.isFinite(tabId) || tabId <= 0) {
+      sendResponse({
+        success: false,
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for visual session',
+      });
+      return true;
+    }
+
+    const clientLabel = normalizeMcpVisualClientLabel(request?.clientLabel);
+    if (!clientLabel) {
+      sendResponse({
+        success: false,
+        errorCode: 'invalid_client_label',
+        error: 'Unapproved MCP client label',
+        clientLabel: request?.clientLabel || null,
+        allowedClients: getAllowedMcpVisualClientLabels(),
+      });
+      return true;
+    }
+
+    const task = String(request?.task || '').trim();
+    if (!task) {
+      sendResponse({
+        success: false,
+        errorCode: 'mcp_route_invalid_params',
+        error: 'start_visual_session requires task',
+      });
+      return true;
+    }
+
+    let tab = null;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch (_) {
+      tab = null;
+    }
+
+    const tabUrl = tab?.url || '';
+    if (isRestrictedURL(tabUrl)) {
+      sendResponse({
+        success: false,
+        errorCode: 'restricted_active_tab',
+        error: 'Active tab is restricted',
+        currentUrl: tabUrl,
+        pageType: typeof getPageTypeDescriptionForMcp === 'function'
+          ? getPageTypeDescriptionForMcp(tabUrl)
+          : 'Restricted page',
+        tool: 'start_visual_session',
+        validRecoveryTools: ['navigate', 'open_tab', 'switch_tab', 'list_tabs'],
+      });
+      return true;
+    }
+
+    if (findActiveAutomationSessionForTab(tabId)) {
+      sendResponse({
+        success: false,
+        errorCode: 'visual_surface_busy',
+        error: 'FSB automation already owns the active visual surface on this tab',
+        tabId,
+      });
+      return true;
+    }
+
+    const started = manager.startSession({
+      clientLabel,
+      tabId,
+      task,
+      detail: request?.detail,
+    });
+    if (!started?.session) {
+      sendResponse({
+        success: false,
+        errorCode: started?.errorCode || 'action_rejected',
+        error: 'Failed to start MCP visual session',
+        clientLabel,
+      });
+      return true;
+    }
+
+    await sendSessionStatus(
+      tabId,
+      buildMcpVisualSessionStatus(started.session, {
+        phase: 'planning',
+        lifecycle: 'running',
+        statusText: request?.detail || 'Ready to begin',
+      }),
+    );
+
+    sendResponse({
+      success: true,
+      sessionToken: started.session.sessionToken,
+      clientLabel: started.session.clientLabel,
+      tabId: started.session.tabId,
+    });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error.message || String(error),
+    });
+  }
+  return true;
+}
+
+async function handleEndMcpVisualSession(request, sender, sendResponse) {
+  try {
+    const manager = getMcpVisualSessionManager();
+    const sessionToken = String(request?.sessionToken || request?.session_token || '').trim();
+    if (!sessionToken) {
+      sendResponse({
+        success: false,
+        errorCode: 'mcp_route_invalid_params',
+        error: 'end_visual_session requires sessionToken',
+      });
+      return true;
+    }
+
+    const clearedSession = manager.endSession(sessionToken, {
+      reason: request?.reason,
+    });
+
+    if (!clearedSession) {
+      sendResponse({
+        success: true,
+        sessionToken,
+        cleared: false,
+        ignored: true,
+      });
+      return true;
+    }
+
+    await sendSessionStatus(
+      clearedSession.tabId,
+      buildMcpVisualSessionClearStatus(clearedSession, {
+        reason: request?.reason,
+      }),
+    );
+
+    sendResponse({
+      success: true,
+      sessionToken: clearedSession.sessionToken,
+      cleared: true,
+      tabId: clearedSession.tabId,
+    });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error.message || String(error),
+    });
+  }
+  return true;
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.handleStartMcpVisualSession = handleStartMcpVisualSession;
+  globalThis.handleEndMcpVisualSession = handleEndMcpVisualSession;
 }
 
 /**
@@ -1230,6 +1414,9 @@ async function restoreConversationSessions() {
 
 // Store for active automation sessions
 let activeSessions = new Map();
+const mcpVisualSessionManager = (typeof McpVisualSessionManager === 'function')
+  ? new McpVisualSessionManager()
+  : null;
 
 // Last dashboard task completion result (retained for recovery snapshot)
 var _lastDashboardTaskResult = null;

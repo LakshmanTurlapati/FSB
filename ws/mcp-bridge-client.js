@@ -311,6 +311,12 @@ class MCPBridgeClient {
       case 'mcp:read-page':
         return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
+      case 'mcp:start-visual-session':
+        return this._handleStartVisualSession(payload);
+
+      case 'mcp:end-visual-session':
+        return this._handleEndVisualSession(payload);
+
       case 'mcp:execute-action':
         return this._handleExecuteAction(payload);
 
@@ -443,6 +449,24 @@ class MCPBridgeClient {
       full: payload.full || false,
     });
     return response;
+  }
+
+  async _handleStartVisualSession(payload = {}) {
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:start-visual-session',
+      payload,
+      client: this
+    });
+    return response || {};
+  }
+
+  async _handleEndVisualSession(payload = {}) {
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:end-visual-session',
+      payload,
+      client: this
+    });
+    return response || {};
   }
 
   async _handleExecuteAction(payload) {

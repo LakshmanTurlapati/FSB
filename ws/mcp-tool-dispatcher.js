@@ -6,6 +6,14 @@ var _mcp_defs = (typeof TOOL_REGISTRY !== 'undefined')
   ? { TOOL_REGISTRY, getToolByName }
   : require('../ai/tool-definitions.js');
 var _mcp_getToolByName = _mcp_defs.getToolByName;
+var _mcp_visual_defs = (typeof normalizeMcpVisualClientLabel !== 'undefined')
+  ? {
+      normalizeMcpVisualClientLabel,
+      getAllowedMcpVisualClientLabels
+    }
+  : require('../utils/mcp-visual-session.js');
+var _mcp_normalizeVisualClientLabel = _mcp_visual_defs.normalizeMcpVisualClientLabel;
+var _mcp_getAllowedVisualClientLabels = _mcp_visual_defs.getAllowedMcpVisualClientLabels;
 
 const MCP_NAVIGATION_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
 const MCP_ROUTE_RECOVERY_HINT = 'Use an explicitly supported MCP route or a navigation recovery tool.';
@@ -19,6 +27,8 @@ const MCP_PHASE199_TOOL_ROUTES = {
   open_tab: { routeFamily: 'browser', handler: handleOpenTabRoute },
   switch_tab: { routeFamily: 'browser', handler: handleSwitchTabRoute },
   list_tabs: { routeFamily: 'browser', handler: handleListTabsRoute },
+  start_visual_session: { routeFamily: 'visual-session', messageType: 'mcp:start-visual-session', handler: handleToolAliasRoute },
+  end_visual_session: { routeFamily: 'visual-session', messageType: 'mcp:end-visual-session', handler: handleToolAliasRoute },
   execute_js: { routeFamily: 'browser', handler: handleExecuteJsRoute },
   run_task: { routeFamily: 'autopilot', messageType: 'mcp:start-automation', handler: handleToolAliasRoute },
   stop_task: { routeFamily: 'autopilot', messageType: 'mcp:stop-automation', handler: handleToolAliasRoute },
@@ -43,6 +53,8 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-site-guides': { routeFamily: 'read-only', handler: handleGetSiteGuidesRoute },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
   'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' },
+  'mcp:start-visual-session': { routeFamily: 'visual-session', handler: handleStartVisualSessionRoute },
+  'mcp:end-visual-session': { routeFamily: 'visual-session', handler: handleEndVisualSessionRoute },
   'mcp:start-automation': { routeFamily: 'autopilot', handler: handleStartAutomationRoute },
   'mcp:stop-automation': { routeFamily: 'autopilot', handler: handleStopAutomationRoute },
   'mcp:get-status': { routeFamily: 'autopilot', handler: handleGetStatusRoute },
@@ -261,6 +273,18 @@ function sanitizeSingleTab(tool, tab, extra = {}) {
     title: tab?.title || '',
     ...extra
   };
+}
+
+function hasActiveAutomationSessionForTab(tabId) {
+  if (!Number.isFinite(tabId)) return false;
+  const sessions = getActiveSessionsMap();
+  for (const session of sessions.values()) {
+    if (!session || session.isBackgroundAgent) continue;
+    if (session.tabId === tabId || session.originalTabId === tabId || session.previousTabId === tabId) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function handleNavigateRoute({ params, client }) {
@@ -532,6 +556,77 @@ async function handleToolAliasRoute({ params, client, route }) {
     payload: params || {},
     client
   });
+}
+
+async function handleStartVisualSessionRoute({ payload, client }) {
+  const clientLabel = _mcp_normalizeVisualClientLabel(payload?.clientLabel || payload?.client);
+  if (!clientLabel) {
+    return createMcpRouteError('start_visual_session', 'visual-session', 'Retry with one of the approved MCP client labels.', {
+      errorCode: 'invalid_client_label',
+      error: 'Unapproved MCP client label',
+      clientLabel: payload?.clientLabel || payload?.client || null,
+      allowedClients: _mcp_getAllowedVisualClientLabels()
+    });
+  }
+
+  const task = boundedString(payload?.task, 500);
+  if (!task) {
+    return createMcpInvalidParamsError('start_visual_session', 'start_visual_session requires task', { routeFamily: 'visual-session' });
+  }
+
+  const tab = await getActiveTabFromClient(client);
+  if (!tab?.id) {
+    return createMcpRouteError('start_visual_session', 'visual-session', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+      errorCode: 'no_active_tab',
+      error: 'No active tab available for visual session'
+    });
+  }
+
+  if (isRestrictedMcpUrl(tab.url || '')) {
+    return buildRestrictedMcpResponse({
+      currentUrl: tab.url || '',
+      pageType: getPageTypeDescriptionForMcp(tab.url || ''),
+      tool: 'start_visual_session',
+      error: 'Active tab is restricted'
+    });
+  }
+
+  if (hasActiveAutomationSessionForTab(tab.id)) {
+    return createMcpRouteError('start_visual_session', 'visual-session', 'Wait for the current FSB automation to finish or stop it before starting a client-owned visual session.', {
+      errorCode: 'visual_surface_busy',
+      error: 'FSB automation already owns the active visual surface on this tab',
+      tabId: tab.id
+    });
+  }
+
+  return callCallbackHandler(
+    'handleStartMcpVisualSession',
+    {
+      action: 'startMcpVisualSession',
+      tabId: tab.id,
+      clientLabel,
+      task,
+      detail: boundedString(payload?.detail, 1000)
+    },
+    { tab: { id: tab.id } }
+  );
+}
+
+async function handleEndVisualSessionRoute({ payload }) {
+  const sessionToken = boundedString(payload?.sessionToken || payload?.session_token, 200);
+  if (!sessionToken) {
+    return createMcpInvalidParamsError('end_visual_session', 'end_visual_session requires sessionToken', { routeFamily: 'visual-session' });
+  }
+
+  return callCallbackHandler(
+    'handleEndMcpVisualSession',
+    {
+      action: 'endMcpVisualSession',
+      sessionToken,
+      reason: boundedString(payload?.reason, 100)
+    },
+    {}
+  );
 }
 
 async function handleStartAutomationRoute({ payload, client }) {

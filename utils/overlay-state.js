@@ -308,8 +308,14 @@
     var normalizedPhase = normalizeOverlayPhase(statusData && statusData.phase);
     var lifecycle = getOverlayLifecycle(statusData || {}, normalizedPhase);
     var result = getOverlayResult(statusData || {}, normalizedPhase, lifecycle);
+    var sessionToken = statusData && statusData.sessionToken ? String(statusData.sessionToken) : null;
+    var version = Number.isFinite(statusData && statusData.version) ? Number(statusData.version) : null;
+    var clientLabel = statusData && statusData.clientLabel ? String(statusData.clientLabel) : null;
 
     return {
+      ...(sessionToken ? { sessionToken: sessionToken } : {}),
+      ...(version !== null ? { version: version } : {}),
+      ...(clientLabel ? { clientLabel: clientLabel } : {}),
       lifecycle: lifecycle,
       result: result,
       phase: lifecycle === 'cleared' ? 'cleared' : normalizedPhase,

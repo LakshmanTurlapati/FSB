@@ -3,6 +3,7 @@ import { createServer } from './server.js';
 import { WebSocketBridge } from './bridge.js';
 import { TaskQueue } from './queue.js';
 import { registerAutopilotTools } from './tools/autopilot.js';
+import { registerVisualSessionTools } from './tools/visual-session.js';
 import { registerManualTools } from './tools/manual.js';
 import { registerReadOnlyTools } from './tools/read-only.js';
 import { registerObservabilityTools } from './tools/observability.js';
@@ -28,6 +29,7 @@ export function createRuntime(options: RuntimeOptions = {}): FSBRuntime {
   const server = createServer();
 
   registerAutopilotTools(server, bridge, queue);
+  registerVisualSessionTools(server, bridge, queue);
   registerManualTools(server, bridge, queue);
   registerReadOnlyTools(server, bridge, queue);
   registerObservabilityTools(server, bridge, queue);

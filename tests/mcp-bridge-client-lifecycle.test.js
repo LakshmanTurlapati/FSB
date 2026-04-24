@@ -373,6 +373,60 @@ async function runAutomationRuntimeEventShapeCase() {
   assert(harness.timers.timeouts[0]?.cleared === true, 'run_task clears timeout after completion');
 }
 
+async function runVisualSessionRouteCase() {
+  console.log('\n--- visual-session route dispatch ---');
+
+  const dispatched = [];
+  const harness = buildClientHarness({
+    dispatchMcpMessageRoute: async ({ type, payload }) => {
+      dispatched.push({ type, payload });
+      if (type === 'mcp:start-visual-session') {
+        return { success: true, sessionToken: 'visual_token_123', clientLabel: payload.clientLabel, tabId: 7 };
+      }
+      return { success: true, sessionToken: payload.sessionToken, cleared: true };
+    }
+  });
+  const client = harness.exports.mcpBridgeClient;
+
+  const started = await client._routeMessage('mcp:start-visual-session', {
+    clientLabel: 'Codex',
+    task: 'Drive checkout',
+    detail: 'Preparing checkout'
+  }, 'mcp-msg-visual-start');
+
+  assertDeepEqual(
+    toPlainObject(dispatched[0]),
+    {
+      type: 'mcp:start-visual-session',
+      payload: {
+        clientLabel: 'Codex',
+        task: 'Drive checkout',
+        detail: 'Preparing checkout'
+      }
+    },
+    'mcp:start-visual-session routes through dispatchMcpMessageRoute',
+  );
+  assertEqual(started.sessionToken, 'visual_token_123', 'visual-session start returns the issued token');
+
+  const ended = await client._routeMessage('mcp:end-visual-session', {
+    sessionToken: 'visual_token_123',
+    reason: 'ended'
+  }, 'mcp-msg-visual-end');
+
+  assertDeepEqual(
+    toPlainObject(dispatched[1]),
+    {
+      type: 'mcp:end-visual-session',
+      payload: {
+        sessionToken: 'visual_token_123',
+        reason: 'ended'
+      }
+    },
+    'mcp:end-visual-session routes through dispatchMcpMessageRoute',
+  );
+  assertEqual(ended.cleared, true, 'visual-session end returns the clear result');
+}
+
 function runBackgroundArmingSourceCase() {
   console.log('\n--- background wake arming source ---');
 
@@ -400,6 +454,7 @@ async function run() {
   await runServiceWorkerWakeCase();
   await runConnectedTransitionCase();
   await runAutomationRuntimeEventShapeCase();
+  await runVisualSessionRouteCase();
   runBackgroundArmingSourceCase();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
