@@ -447,6 +447,23 @@ function runBackgroundArmingSourceCase() {
   for (const snippet of requiredSnippets) {
     assert(backgroundSource.includes(snippet), `background.js includes ${snippet}`);
   }
+
+  const visualSessionSnippets = [
+    "const MCP_VISUAL_SESSION_STORAGE_KEY = 'fsbMcpVisualSessions'",
+    'chrome.storage.session.get([MCP_VISUAL_SESSION_STORAGE_KEY])',
+    'chrome.storage.session.set({',
+    'restorePersistedMcpVisualSessions()',
+    'planMcpVisualSessionReplay',
+    'finalClearAt',
+    'lastUpdateAt',
+    "source: 'contentScriptReady'",
+    "source: 'port_ready'",
+    'replayMcpVisualSessionForTab(tabId',
+  ];
+
+  for (const snippet of visualSessionSnippets) {
+    assert(backgroundSource.includes(snippet), `background.js includes ${snippet}`);
+  }
 }
 
 async function run() {

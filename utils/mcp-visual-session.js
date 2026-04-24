@@ -21,6 +21,8 @@
   });
 
   var MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS = 3200;
+  var MCP_VISUAL_SESSION_DEGRADE_AFTER_MS = 60000;
+  var MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS = 120000;
 
   function toClientLabelKey(raw) {
     return String(raw || '')
@@ -52,6 +54,31 @@
   function normalizeText(value, fallback) {
     var text = String(value == null ? '' : value).trim();
     return text || (fallback || '');
+  }
+
+  function normalizeLifecycle(value, fallback) {
+    var lifecycle = normalizeText(value, '');
+    if (lifecycle === 'final' || lifecycle === 'cleared' || lifecycle === 'running') {
+      return lifecycle;
+    }
+    return fallback || 'running';
+  }
+
+  function normalizeResult(value) {
+    var result = normalizeText(value, '');
+    if (result === 'success' || result === 'partial' || result === 'error') {
+      return result;
+    }
+    return '';
+  }
+
+  function cloneStructuredValue(value) {
+    if (!value || typeof value !== 'object') return null;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_error) {
+      return null;
+    }
   }
 
   function McpVisualSessionManager() {
@@ -89,7 +116,11 @@
       detail: detail,
       version: 1,
       createdAt: now,
-      lastUpdateAt: now
+      lastUpdateAt: now,
+      phase: 'planning',
+      lifecycle: 'running',
+      statusText: detail || 'Ready to begin',
+      animatedHighlights: true
     };
 
     this._sessionsByToken.set(sessionToken, session);
@@ -107,6 +138,32 @@
 
   McpVisualSessionManager.prototype.getTokenForTab = function(tabId) {
     return this._tokenByTabId.get(Number(tabId)) || null;
+  };
+
+  McpVisualSessionManager.prototype.restoreSession = function(record) {
+    var restored = restoreMcpVisualSessionRecord(record);
+    if (!restored) {
+      return { errorCode: 'invalid_session_record' };
+    }
+
+    var existingSession = this._sessionsByToken.get(restored.sessionToken) || null;
+    if (existingSession && this._tokenByTabId.get(existingSession.tabId) === restored.sessionToken && existingSession.tabId !== restored.tabId) {
+      this._tokenByTabId.delete(existingSession.tabId);
+    }
+
+    var existingToken = this._tokenByTabId.get(restored.tabId) || null;
+    var replacedSession = existingToken ? (this._sessionsByToken.get(existingToken) || null) : null;
+    if (existingToken && existingToken !== restored.sessionToken) {
+      this._sessionsByToken.delete(existingToken);
+    }
+
+    this._sessionsByToken.set(restored.sessionToken, restored);
+    this._tokenByTabId.set(restored.tabId, restored.sessionToken);
+
+    return {
+      session: cloneSession(restored),
+      replacedSession: cloneSession(replacedSession)
+    };
   };
 
   McpVisualSessionManager.prototype.updateSession = function(sessionToken, patch) {
@@ -129,6 +186,7 @@
       session.tabId = Number(nextPatch.tabId);
       this._tokenByTabId.set(session.tabId, token);
     }
+    applyVisualSessionPatch(session, nextPatch);
 
     return cloneSession(session);
   };
@@ -159,6 +217,73 @@
     return clearedSession;
   };
 
+  function applyVisualSessionPatch(session, patch) {
+    if (!session || !patch || typeof patch !== 'object') return;
+
+    if (patch.phase !== undefined) {
+      session.phase = normalizeText(patch.phase, session.phase || 'planning');
+    }
+
+    if (patch.lifecycle !== undefined) {
+      session.lifecycle = normalizeLifecycle(patch.lifecycle, session.lifecycle || 'running');
+    }
+
+    if (patch.statusText !== undefined) {
+      session.statusText = normalizeText(
+        patch.statusText,
+        session.detail || session.task || 'Working'
+      );
+    }
+
+    if (patch.taskSummary !== undefined) {
+      var taskSummary = normalizeText(patch.taskSummary, '');
+      if (taskSummary) session.taskSummary = taskSummary;
+      else delete session.taskSummary;
+    }
+
+    if (patch.result !== undefined) {
+      var result = normalizeResult(patch.result);
+      if (result) session.result = result;
+      else delete session.result;
+    }
+
+    if (patch.reason !== undefined) {
+      var reason = normalizeText(patch.reason, '');
+      if (reason) session.reason = reason;
+      else delete session.reason;
+    }
+
+    if (patch.display !== undefined) {
+      var display = cloneStructuredValue(patch.display);
+      if (display && typeof display === 'object') session.display = display;
+      else delete session.display;
+    }
+
+    if (patch.progress !== undefined) {
+      var progress = cloneStructuredValue(patch.progress);
+      if (progress && typeof progress === 'object') session.progress = progress;
+      else delete session.progress;
+    }
+
+    if (patch.animatedHighlights !== undefined) {
+      session.animatedHighlights = patch.animatedHighlights !== false;
+    }
+
+    if (patch.finalClearAt !== undefined) {
+      if (Number.isFinite(patch.finalClearAt) && patch.finalClearAt > 0) {
+        session.finalClearAt = Number(patch.finalClearAt);
+      } else {
+        delete session.finalClearAt;
+      }
+    }
+
+    if (patch.finalClearReason !== undefined) {
+      var finalClearReason = normalizeText(patch.finalClearReason, '');
+      if (finalClearReason) session.finalClearReason = finalClearReason;
+      else delete session.finalClearReason;
+    }
+  }
+
   function cloneSession(session) {
     return session ? {
       sessionToken: session.sessionToken,
@@ -169,8 +294,78 @@
       version: session.version,
       createdAt: session.createdAt,
       lastUpdateAt: session.lastUpdateAt,
-      ...(session.reason ? { reason: session.reason } : {})
+      phase: session.phase || 'planning',
+      lifecycle: normalizeLifecycle(session.lifecycle, 'running'),
+      statusText: session.statusText || session.detail || session.task || 'Working',
+      animatedHighlights: session.animatedHighlights !== false,
+      ...(session.taskSummary ? { taskSummary: session.taskSummary } : {}),
+      ...(session.result ? { result: session.result } : {}),
+      ...(session.reason ? { reason: session.reason } : {}),
+      ...(session.display ? { display: cloneStructuredValue(session.display) } : {}),
+      ...(session.progress ? { progress: cloneStructuredValue(session.progress) } : {}),
+      ...(Number.isFinite(session.finalClearAt) ? { finalClearAt: session.finalClearAt } : {}),
+      ...(session.finalClearReason ? { finalClearReason: session.finalClearReason } : {})
     } : null;
+  }
+
+  function serializeMcpVisualSessionRecord(session) {
+    return cloneSession(session);
+  }
+
+  function restoreMcpVisualSessionRecord(record) {
+    if (!record || typeof record !== 'object') return null;
+
+    var sessionToken = normalizeText(record.sessionToken, '');
+    var clientLabel = normalizeMcpVisualClientLabel(record.clientLabel);
+    var tabId = Number(record.tabId);
+    if (!sessionToken || !clientLabel || !Number.isFinite(tabId) || tabId <= 0) {
+      return null;
+    }
+
+    var createdAt = Number.isFinite(record.createdAt) ? Number(record.createdAt) : Date.now();
+    var lastUpdateAt = Number.isFinite(record.lastUpdateAt) ? Number(record.lastUpdateAt) : createdAt;
+    var version = Number.isFinite(record.version) && Number(record.version) > 0 ? Number(record.version) : 1;
+    var task = normalizeText(record.task, 'FSB Automating');
+    var detail = normalizeText(record.detail, '');
+    var statusText = normalizeText(record.statusText, detail || task || 'Working');
+    var restored = {
+      sessionToken: sessionToken,
+      clientLabel: clientLabel,
+      tabId: tabId,
+      task: task,
+      detail: detail,
+      version: version,
+      createdAt: createdAt,
+      lastUpdateAt: lastUpdateAt,
+      phase: normalizeText(record.phase, 'planning'),
+      lifecycle: normalizeLifecycle(record.lifecycle, 'running'),
+      statusText: statusText,
+      animatedHighlights: record.animatedHighlights !== false
+    };
+
+    var taskSummary = normalizeText(record.taskSummary, '');
+    if (taskSummary) restored.taskSummary = taskSummary;
+
+    var result = normalizeResult(record.result);
+    if (result) restored.result = result;
+
+    var reason = normalizeText(record.reason, '');
+    if (reason) restored.reason = reason;
+
+    var display = cloneStructuredValue(record.display);
+    if (display && typeof display === 'object') restored.display = display;
+
+    var progress = cloneStructuredValue(record.progress);
+    if (progress && typeof progress === 'object') restored.progress = progress;
+
+    if (Number.isFinite(record.finalClearAt) && Number(record.finalClearAt) > 0) {
+      restored.finalClearAt = Number(record.finalClearAt);
+    }
+
+    var finalClearReason = normalizeText(record.finalClearReason, '');
+    if (finalClearReason) restored.finalClearReason = finalClearReason;
+
+    return restored;
   }
 
   function buildMcpVisualSessionStatus(session, overrides) {
@@ -180,21 +375,33 @@
       sessionToken: session.sessionToken,
       version: Number.isFinite(opts.version) ? opts.version : session.version,
       clientLabel: session.clientLabel,
-      phase: normalizeText(opts.phase, 'planning'),
-      lifecycle: normalizeText(opts.lifecycle, 'running'),
+      phase: normalizeText(opts.phase, session.phase || 'planning'),
+      lifecycle: normalizeLifecycle(opts.lifecycle, session.lifecycle || 'running'),
       taskName: normalizeText(opts.taskName, session.task || 'FSB Automating'),
       statusText: normalizeText(
         opts.statusText,
-        opts.detail !== undefined ? opts.detail : (session.detail || 'Working')
+        opts.detail !== undefined
+          ? opts.detail
+          : (session.statusText || session.detail || session.task || 'Working')
       ),
-      taskSummary: normalizeText(opts.taskSummary, ''),
-      animatedHighlights: opts.animatedHighlights !== false
+      taskSummary: normalizeText(opts.taskSummary, session.taskSummary || ''),
+      animatedHighlights: opts.animatedHighlights !== undefined
+        ? opts.animatedHighlights !== false
+        : (session.animatedHighlights !== false)
     };
 
-    if (opts.result) status.result = opts.result;
-    if (opts.reason) status.reason = normalizeText(opts.reason, '');
-    if (opts.display && typeof opts.display === 'object') status.display = opts.display;
-    if (opts.progress && typeof opts.progress === 'object') status.progress = opts.progress;
+    var result = normalizeResult(opts.result !== undefined ? opts.result : session.result);
+    if (result) status.result = result;
+
+    var reason = normalizeText(opts.reason !== undefined ? opts.reason : session.reason, '');
+    if (reason) status.reason = reason;
+
+    var display = cloneStructuredValue(opts.display !== undefined ? opts.display : session.display);
+    if (display && typeof display === 'object') status.display = display;
+
+    var progress = cloneStructuredValue(opts.progress !== undefined ? opts.progress : session.progress);
+    if (progress && typeof progress === 'object') status.progress = progress;
+
     if (Number.isFinite(opts.progressPercent)) status.progressPercent = opts.progressPercent;
 
     return status;
@@ -212,14 +419,101 @@
     };
   }
 
+  function buildMcpVisualSessionWaitingStatus(session) {
+    return buildMcpVisualSessionStatus(session, {
+      phase: 'waiting',
+      lifecycle: 'running',
+      statusText: 'Waiting for MCP client',
+      taskSummary: session.taskSummary || session.task,
+      display: {
+        title: session.taskSummary || session.task || 'FSB Automating',
+        subtitle: 'Waiting for MCP client',
+        detail: session.detail || 'Reconnect or send another progress update'
+      },
+      progress: {
+        mode: 'indeterminate',
+        label: 'Waiting'
+      }
+    });
+  }
+
+  function planMcpVisualSessionReplay(record, options) {
+    var session = restoreMcpVisualSessionRecord(record);
+    if (!session) {
+      return { action: 'ignore', reason: 'invalid_session_record' };
+    }
+
+    var opts = options || {};
+    var now = Number.isFinite(opts.now) ? Number(opts.now) : Date.now();
+    var degradeAfterMs = Number.isFinite(opts.degradeAfterMs)
+      ? Number(opts.degradeAfterMs)
+      : MCP_VISUAL_SESSION_DEGRADE_AFTER_MS;
+    var orphanAfterMs = Number.isFinite(opts.orphanAfterMs)
+      ? Number(opts.orphanAfterMs)
+      : MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS;
+    var idleAgeMs = Math.max(0, now - session.lastUpdateAt);
+
+    if (session.lifecycle === 'final') {
+      if (!Number.isFinite(session.finalClearAt) || session.finalClearAt <= now) {
+        return {
+          action: 'clear',
+          reason: normalizeText(session.finalClearReason, session.reason || session.result || 'complete'),
+          idleAgeMs: idleAgeMs,
+          session: session
+        };
+      }
+
+      return {
+        action: 'replay',
+        mode: 'final',
+        idleAgeMs: idleAgeMs,
+        clearAfterMs: Math.max(0, session.finalClearAt - now),
+        session: session,
+        status: buildMcpVisualSessionStatus(session)
+      };
+    }
+
+    if (idleAgeMs > orphanAfterMs) {
+      return {
+        action: 'clear',
+        reason: 'timeout',
+        idleAgeMs: idleAgeMs,
+        session: session
+      };
+    }
+
+    if (idleAgeMs > degradeAfterMs) {
+      return {
+        action: 'replay',
+        mode: 'degraded',
+        idleAgeMs: idleAgeMs,
+        session: session,
+        status: buildMcpVisualSessionWaitingStatus(session)
+      };
+    }
+
+    return {
+      action: 'replay',
+      mode: 'running',
+      idleAgeMs: idleAgeMs,
+      session: session,
+      status: buildMcpVisualSessionStatus(session)
+    };
+  }
+
   var exportsObj = {
     MCP_VISUAL_CLIENT_LABELS: MCP_VISUAL_CLIENT_LABELS,
     MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS: MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
+    MCP_VISUAL_SESSION_DEGRADE_AFTER_MS: MCP_VISUAL_SESSION_DEGRADE_AFTER_MS,
+    MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS: MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS,
     McpVisualSessionManager: McpVisualSessionManager,
     createMcpVisualSessionToken: createMcpVisualSessionToken,
     normalizeMcpVisualClientLabel: normalizeMcpVisualClientLabel,
     isAllowedMcpVisualClientLabel: isAllowedMcpVisualClientLabel,
     getAllowedMcpVisualClientLabels: getAllowedMcpVisualClientLabels,
+    serializeMcpVisualSessionRecord: serializeMcpVisualSessionRecord,
+    restoreMcpVisualSessionRecord: restoreMcpVisualSessionRecord,
+    planMcpVisualSessionReplay: planMcpVisualSessionReplay,
     buildMcpVisualSessionStatus: buildMcpVisualSessionStatus,
     buildMcpVisualSessionClearStatus: buildMcpVisualSessionClearStatus
   };

@@ -6,7 +6,11 @@ const util = require('util');
 const visualSessionUtils = require('../utils/mcp-visual-session.js');
 const overlayStateUtils = require('../utils/overlay-state.js');
 const dispatcher = require('../ws/mcp-tool-dispatcher.js');
-const { MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS } = visualSessionUtils;
+const {
+  MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
+  MCP_VISUAL_SESSION_DEGRADE_AFTER_MS,
+  MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS,
+} = visualSessionUtils;
 
 let passed = 0;
 let failed = 0;
@@ -140,6 +144,122 @@ async function runAllowlistAndManagerCase() {
   assertEqual(clearState.lifecycle, 'cleared', 'clear payload normalizes to cleared lifecycle');
   assertEqual(clearState.sessionToken, replacement.session.sessionToken, 'clear payload keeps the matching session token');
   assertEqual(manager.endSession(original.session.sessionToken, { reason: 'ended' }), null, 'stale token end is ignored');
+}
+
+async function runPersistenceReplayCase() {
+  console.log('\n--- persisted visual session replay planning ---');
+
+  const {
+    McpVisualSessionManager,
+    serializeMcpVisualSessionRecord,
+    restoreMcpVisualSessionRecord,
+    planMcpVisualSessionReplay,
+  } = visualSessionUtils;
+
+  const now = 1_700_000_000_000;
+  const manager = new McpVisualSessionManager();
+  const started = manager.startSession({
+    clientLabel: 'Codex',
+    tabId: 77,
+    task: 'Submit order',
+    detail: 'Opening cart',
+    now: now - 10_000,
+  });
+
+  const runningSession = manager.updateSession(started.session.sessionToken, {
+    detail: 'Clicking checkout',
+    lastUpdateAt: now - 10_000,
+    phase: 'acting',
+    lifecycle: 'running',
+    statusText: 'Clicking checkout',
+  });
+  const runningRecord = serializeMcpVisualSessionRecord(runningSession);
+
+  assertEqual(runningRecord.lastUpdateAt, now - 10_000, 'serialized record preserves lastUpdateAt');
+  assertEqual(runningRecord.statusText, 'Clicking checkout', 'serialized record preserves statusText');
+  assertEqual(runningRecord.phase, 'acting', 'serialized record preserves phase');
+
+  const restoredRunning = restoreMcpVisualSessionRecord(runningRecord);
+  assertDeepEqual(restoredRunning, runningRecord, 'restore helper preserves serialized running record');
+
+  const runningReplay = planMcpVisualSessionReplay(runningRecord, { now });
+  assertEqual(runningReplay.action, 'replay', 'fresh running record is replayed');
+  assertEqual(runningReplay.mode, 'running', 'fresh running record replays in running mode');
+  assertEqual(runningReplay.status.sessionToken, runningRecord.sessionToken, 'running replay keeps the same token');
+  assertEqual(runningReplay.status.clientLabel, 'Codex', 'running replay keeps the trusted client label');
+  assertEqual(runningReplay.status.statusText, 'Clicking checkout', 'running replay keeps the latest status text');
+
+  const degradedReplay = planMcpVisualSessionReplay({
+    ...runningRecord,
+    lastUpdateAt: now - (MCP_VISUAL_SESSION_DEGRADE_AFTER_MS + 1000),
+  }, { now });
+  assertEqual(degradedReplay.action, 'replay', 'stale-but-not-orphaned session still replays');
+  assertEqual(degradedReplay.mode, 'degraded', 'stale session replays in degraded mode');
+  assertEqual(degradedReplay.status.phase, 'waiting', 'degraded replay switches to waiting phase');
+  assertEqual(degradedReplay.status.progress.label, 'Waiting', 'degraded replay shows waiting progress label');
+  assertEqual(degradedReplay.status.clientLabel, 'Codex', 'degraded replay preserves trusted client badge');
+
+  const orphanReplay = planMcpVisualSessionReplay({
+    ...runningRecord,
+    lastUpdateAt: now - (MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS + 1000),
+  }, { now });
+  assertEqual(orphanReplay.action, 'clear', 'orphaned running session is cleared');
+  assertEqual(orphanReplay.reason, 'timeout', 'orphaned running session clears with timeout reason');
+
+  const finalSession = manager.updateSession(started.session.sessionToken, {
+    detail: 'Task completed',
+    lastUpdateAt: now - 1000,
+    phase: 'complete',
+    lifecycle: 'final',
+    result: 'success',
+    statusText: 'Task completed',
+    taskSummary: 'Order submitted',
+    display: {
+      title: 'Order submitted',
+      subtitle: 'Completed',
+      detail: 'Task completed',
+    },
+    animatedHighlights: false,
+    finalClearAt: now + 2200,
+    finalClearReason: 'complete',
+  });
+  const finalRecord = serializeMcpVisualSessionRecord(finalSession);
+  const finalReplay = planMcpVisualSessionReplay(finalRecord, { now });
+
+  assertEqual(finalReplay.action, 'replay', 'final record with remaining freeze time replays');
+  assertEqual(finalReplay.mode, 'final', 'final record replays in final mode');
+  assertEqual(finalReplay.status.lifecycle, 'final', 'final replay preserves final lifecycle');
+  assertEqual(finalReplay.status.result, 'success', 'final replay preserves final result');
+  assertEqual(finalReplay.clearAfterMs, 2200, 'final replay preserves remaining freeze time');
+
+  const expiredFinalReplay = planMcpVisualSessionReplay({
+    ...finalRecord,
+    finalClearAt: now - 1,
+  }, { now });
+  assertEqual(expiredFinalReplay.action, 'clear', 'expired final record clears immediately');
+  assertEqual(expiredFinalReplay.reason, 'complete', 'expired final record clears with stored final reason');
+
+  const restoreManager = new McpVisualSessionManager();
+  const restoredOriginal = restoreManager.restoreSession(runningRecord);
+  assert(restoredOriginal?.session, 'restoreSession accepts a persisted running record');
+
+  const replacementRecord = {
+    ...runningRecord,
+    sessionToken: 'replacement_token_456',
+    clientLabel: 'ChatGPT',
+    task: 'Retry order',
+    detail: 'Retrying checkout',
+    statusText: 'Retrying checkout',
+    version: runningRecord.version + 3,
+    lastUpdateAt: now,
+  };
+  const restoredReplacement = restoreManager.restoreSession(replacementRecord);
+  assert(
+    restoredReplacement.replacedSession && restoredReplacement.replacedSession.sessionToken === runningRecord.sessionToken,
+    'restoreSession replaces stale persisted token when a newer same-tab record exists',
+  );
+  assertEqual(restoreManager.getSession(runningRecord.sessionToken), null, 'stale restored token is removed after same-tab replacement');
+  assertEqual(restoreManager.getTokenForTab(77), 'replacement_token_456', 'same-tab restore keeps the newest token as owner');
 }
 
 async function runDispatcherValidationCases() {
@@ -414,6 +534,7 @@ async function runDispatcherValidationCases() {
 
 async function run() {
   await runAllowlistAndManagerCase();
+  await runPersistenceReplayCase();
   await runDispatcherValidationCases();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);

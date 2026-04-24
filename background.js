@@ -539,6 +539,67 @@ function buildMcpVisualSessionNotFoundError(sessionToken) {
   };
 }
 
+function isContentSurfaceReadyForTab(tabId) {
+  if (!Number.isFinite(tabId) || tabId <= 0) return false;
+  const portInfo = contentScriptPorts.get(tabId);
+  if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
+    return true;
+  }
+  const readyStatus = contentScriptReadyStatus.get(tabId);
+  return !!(readyStatus && readyStatus.ready);
+}
+
+async function readPersistedMcpVisualSessions() {
+  try {
+    const stored = await chrome.storage.session.get([MCP_VISUAL_SESSION_STORAGE_KEY]);
+    const records = stored?.[MCP_VISUAL_SESSION_STORAGE_KEY];
+    return records && typeof records === 'object' ? records : {};
+  } catch (error) {
+    automationLogger.warn('Failed to read persisted MCP visual sessions', {
+      error: error?.message || String(error),
+    });
+    return {};
+  }
+}
+
+async function writePersistedMcpVisualSessions(records) {
+  try {
+    const nextRecords = records && typeof records === 'object' ? records : {};
+    if (Object.keys(nextRecords).length === 0) {
+      await chrome.storage.session.remove(MCP_VISUAL_SESSION_STORAGE_KEY);
+      return;
+    }
+    await chrome.storage.session.set({
+      [MCP_VISUAL_SESSION_STORAGE_KEY]: nextRecords,
+    });
+  } catch (error) {
+    automationLogger.warn('Failed to write persisted MCP visual sessions', {
+      error: error?.message || String(error),
+    });
+  }
+}
+
+async function persistMcpVisualSessionRecord(session) {
+  const record = serializeMcpVisualSessionRecord(session);
+  if (!record?.sessionToken) return null;
+  const records = await readPersistedMcpVisualSessions();
+  records[record.sessionToken] = record;
+  await writePersistedMcpVisualSessions(records);
+  return record;
+}
+
+async function removePersistedMcpVisualSessionRecord(sessionToken) {
+  const token = String(sessionToken || '').trim();
+  if (!token) return false;
+  const records = await readPersistedMcpVisualSessions();
+  if (!Object.prototype.hasOwnProperty.call(records, token)) {
+    return false;
+  }
+  delete records[token];
+  await writePersistedMcpVisualSessions(records);
+  return true;
+}
+
 async function clearMcpVisualSession(sessionToken, options = {}) {
   const manager = getMcpVisualSessionManager();
   if (!options.skipTimerCancel) {
@@ -550,15 +611,20 @@ async function clearMcpVisualSession(sessionToken, options = {}) {
     lastUpdateAt: options.lastUpdateAt,
   });
   if (!clearedSession) {
+    await removePersistedMcpVisualSessionRecord(sessionToken);
     return null;
   }
 
-  await sendSessionStatus(
-    clearedSession.tabId,
-    buildMcpVisualSessionClearStatus(clearedSession, {
-      reason: options.reason,
-    }),
-  );
+  await removePersistedMcpVisualSessionRecord(clearedSession.sessionToken);
+
+  if (!options.skipStatusBroadcast) {
+    await sendSessionStatus(
+      clearedSession.tabId,
+      buildMcpVisualSessionClearStatus(clearedSession, {
+        reason: options.reason,
+      }),
+    );
+  }
 
   return clearedSession;
 }
@@ -569,7 +635,10 @@ function scheduleMcpVisualSessionClear(sessionToken, options = {}) {
 
   clearPendingMcpVisualSessionFinalization(token);
 
-  const delayMs = getMcpVisualSessionFinalClearDelayMs();
+  const requestedDelayMs = Number(options.delayMs);
+  const delayMs = Number.isFinite(requestedDelayMs) && requestedDelayMs >= 0
+    ? requestedDelayMs
+    : getMcpVisualSessionFinalClearDelayMs();
   const timerId = setTimeout(async () => {
     mcpVisualSessionFinalizationTimers.delete(token);
     try {
@@ -589,9 +658,108 @@ function scheduleMcpVisualSessionClear(sessionToken, options = {}) {
     timerId,
     reason: options.reason || 'ended',
     scheduledAt: Date.now(),
+    clearAt: Date.now() + delayMs,
   });
 
   return delayMs;
+}
+
+async function replayMcpVisualSessionForTab(tabId, options = {}) {
+  if (!Number.isFinite(tabId) || tabId <= 0) return null;
+
+  const manager = getMcpVisualSessionManager();
+  const sessionToken = manager.getTokenForTab(tabId);
+  if (!sessionToken) return null;
+
+  const session = manager.getSession(sessionToken);
+  if (!session) {
+    await removePersistedMcpVisualSessionRecord(sessionToken);
+    return null;
+  }
+
+  const replayPlan = planMcpVisualSessionReplay(session, {
+    now: Number.isFinite(options.now) ? options.now : Date.now(),
+  });
+  if (replayPlan.action === 'clear') {
+    await clearMcpVisualSession(sessionToken, {
+      reason: replayPlan.reason,
+      lastUpdateAt: Number.isFinite(options.now) ? options.now : Date.now(),
+    });
+    return {
+      cleared: true,
+      reason: replayPlan.reason,
+      sessionToken,
+    };
+  }
+
+  if (replayPlan.mode === 'final' && !isMcpVisualSessionFinalizing(sessionToken)) {
+    scheduleMcpVisualSessionClear(sessionToken, {
+      reason: session.finalClearReason || session.reason || 'complete',
+      delayMs: replayPlan.clearAfterMs,
+    });
+  }
+
+  await sendSessionStatus(tabId, replayPlan.status);
+  return {
+    replayed: true,
+    mode: replayPlan.mode,
+    sessionToken,
+    version: replayPlan.session?.version || session.version,
+  };
+}
+
+async function restorePersistedMcpVisualSessions() {
+  if (!mcpVisualSessionManager) return;
+
+  const manager = getMcpVisualSessionManager();
+  const now = Date.now();
+  const storedRecords = await readPersistedMcpVisualSessions();
+  const nextRecords = {};
+  const entries = Object.values(storedRecords).sort((left, right) => {
+    const leftTime = Number(left?.lastUpdateAt) || 0;
+    const rightTime = Number(right?.lastUpdateAt) || 0;
+    return leftTime - rightTime;
+  });
+
+  for (const rawRecord of entries) {
+    const replayPlan = planMcpVisualSessionReplay(rawRecord, { now });
+    const rawToken = String(rawRecord?.sessionToken || '').trim();
+
+    if (replayPlan.action !== 'replay' || !replayPlan.session?.sessionToken) {
+      await clearMcpVisualSession(rawToken || replayPlan.session?.sessionToken, {
+        reason: replayPlan.reason || 'timeout',
+        lastUpdateAt: now,
+        skipStatusBroadcast: true,
+      });
+      continue;
+    }
+
+    const restored = manager.restoreSession(replayPlan.session);
+    if (!restored?.session) continue;
+
+    if (restored.replacedSession?.sessionToken) {
+      clearPendingMcpVisualSessionFinalization(restored.replacedSession.sessionToken);
+      delete nextRecords[restored.replacedSession.sessionToken];
+    }
+
+    nextRecords[restored.session.sessionToken] = serializeMcpVisualSessionRecord(restored.session);
+
+    if (replayPlan.mode === 'final') {
+      scheduleMcpVisualSessionClear(restored.session.sessionToken, {
+        reason: restored.session.finalClearReason || restored.session.reason || 'complete',
+        delayMs: replayPlan.clearAfterMs,
+      });
+    }
+
+    if (isContentSurfaceReadyForTab(restored.session.tabId)) {
+      await replayMcpVisualSessionForTab(restored.session.tabId, { now });
+    }
+  }
+
+  await writePersistedMcpVisualSessions(nextRecords);
+  automationLogger.debug('MCP visual sessions restored', {
+    count: Object.keys(nextRecords).length,
+  });
 }
 
 function findActiveAutomationSessionForTab(tabId) {
@@ -611,22 +779,28 @@ async function updateMcpVisualSessionProgress(sessionToken, message) {
     return null;
   }
 
+  const now = Date.now();
   const updatedSession = manager.updateSession(sessionToken, {
     detail: message,
-    lastUpdateAt: Date.now(),
+    lastUpdateAt: now,
+    phase: 'acting',
+    lifecycle: 'running',
+    statusText: message,
+    taskSummary: '',
+    result: '',
+    reason: '',
+    display: null,
+    progress: null,
+    animatedHighlights: true,
+    finalClearAt: null,
+    finalClearReason: '',
   });
   if (!updatedSession) {
     return null;
   }
 
-  await sendSessionStatus(
-    updatedSession.tabId,
-    buildMcpVisualSessionStatus(updatedSession, {
-      phase: 'acting',
-      lifecycle: 'running',
-      statusText: message,
-    }),
-  );
+  await persistMcpVisualSessionRecord(updatedSession);
+  await sendSessionStatus(updatedSession.tabId, buildMcpVisualSessionStatus(updatedSession));
 
   return updatedSession;
 }
@@ -649,6 +823,7 @@ async function finalizeMcpVisualSession(sessionToken, options = {}) {
   const blocker = String(options.blocker || '').trim();
   const nextStep = String(options.nextStep || '').trim();
   const reason = String(options.reason || '').trim();
+  const now = Date.now();
 
   let statusText = summary || currentSession.detail || currentSession.task;
   let taskSummary = summary || currentSession.task;
@@ -682,34 +857,35 @@ async function finalizeMcpVisualSession(sessionToken, options = {}) {
     progress = { mode: 'indeterminate', label: 'Error' };
   }
 
+  const clearReason = result === 'success'
+    ? 'complete'
+    : (result === 'partial' ? (reason || 'partial') : (reason || 'error'));
+  const finalClearAt = now + getMcpVisualSessionFinalClearDelayMs();
+
   const finalizedSession = manager.updateSession(sessionToken, {
     detail: statusText,
-    lastUpdateAt: Date.now(),
+    lastUpdateAt: now,
+    phase,
+    lifecycle: 'final',
+    result,
+    statusText,
+    taskSummary,
+    reason: reason || '',
+    display: display || null,
+    progress: progress || null,
+    animatedHighlights: false,
+    finalClearAt,
+    finalClearReason: clearReason,
   });
   if (!finalizedSession) {
     return null;
   }
 
-  await sendSessionStatus(
-    finalizedSession.tabId,
-    buildMcpVisualSessionStatus(finalizedSession, {
-      phase,
-      lifecycle: 'final',
-      result,
-      statusText,
-      taskSummary,
-      animatedHighlights: false,
-      ...(reason ? { reason } : {}),
-      ...(display ? { display } : {}),
-      ...(progress ? { progress } : {}),
-    }),
-  );
-
-  const clearReason = result === 'success'
-    ? 'complete'
-    : (result === 'partial' ? (reason || 'partial') : (reason || 'error'));
+  await persistMcpVisualSessionRecord(finalizedSession);
+  await sendSessionStatus(finalizedSession.tabId, buildMcpVisualSessionStatus(finalizedSession));
   const clearsAfterMs = scheduleMcpVisualSessionClear(finalizedSession.sessionToken, {
     reason: clearReason,
+    delayMs: Math.max(0, finalClearAt - now),
   });
 
   return {
@@ -979,22 +1155,32 @@ async function handleStartMcpVisualSession(request, sender, sendResponse) {
 
     if (started.replacedSession?.sessionToken) {
       clearPendingMcpVisualSessionFinalization(started.replacedSession.sessionToken);
+      await removePersistedMcpVisualSessionRecord(started.replacedSession.sessionToken);
     }
 
-    await sendSessionStatus(
-      tabId,
-      buildMcpVisualSessionStatus(started.session, {
-        phase: 'planning',
-        lifecycle: 'running',
-        statusText: request?.detail || 'Ready to begin',
-      }),
-    );
+    const startedSession = manager.updateSession(started.session.sessionToken, {
+      lastUpdateAt: Date.now(),
+      phase: 'planning',
+      lifecycle: 'running',
+      statusText: request?.detail || 'Ready to begin',
+      taskSummary: '',
+      result: '',
+      reason: '',
+      display: null,
+      progress: null,
+      animatedHighlights: true,
+      finalClearAt: null,
+      finalClearReason: '',
+    }) || started.session;
+
+    await persistMcpVisualSessionRecord(startedSession);
+    await sendSessionStatus(tabId, buildMcpVisualSessionStatus(startedSession));
 
     sendResponse({
       success: true,
-      sessionToken: started.session.sessionToken,
-      clientLabel: started.session.clientLabel,
-      tabId: started.session.tabId,
+      sessionToken: startedSession.sessionToken,
+      clientLabel: startedSession.clientLabel,
+      tabId: startedSession.tabId,
     });
   } catch (error) {
     sendResponse({
@@ -1032,13 +1218,6 @@ async function handleEndMcpVisualSession(request, sender, sendResponse) {
       });
       return true;
     }
-
-    await sendSessionStatus(
-      clearedSession.tabId,
-      buildMcpVisualSessionClearStatus(clearedSession, {
-        reason: request?.reason,
-      }),
-    );
 
     sendResponse({
       success: true,
@@ -1793,6 +1972,7 @@ const mcpVisualSessionManager = (typeof McpVisualSessionManager === 'function')
   ? new McpVisualSessionManager()
   : null;
 const mcpVisualSessionFinalizationTimers = new Map();
+const MCP_VISUAL_SESSION_STORAGE_KEY = 'fsbMcpVisualSessions';
 
 // Last dashboard task completion result (retained for recovery snapshot)
 var _lastDashboardTaskResult = null;
@@ -1956,6 +2136,7 @@ async function restoreSessionsFromStorage() {
 
     // Restore conversation session mappings after sessions are restored
     await restoreConversationSessions();
+    await restorePersistedMcpVisualSessions();
 
     automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size, conversationSessions: conversationSessions.size });
   } catch (error) {
@@ -2065,6 +2246,12 @@ chrome.runtime.onConnect.addListener((port) => {
           method: 'port'
         });
         automationLogger.logComm(null, 'receive', 'port_ready', true, { tabId, url: msg.url });
+        replayMcpVisualSessionForTab(tabId, { now: Date.now(), source: 'port_ready' }).catch((error) => {
+          automationLogger.debug('MCP visual-session replay on port ready failed', {
+            tabId,
+            error: error?.message || String(error),
+          });
+        });
       } else if (msg.type === 'heartbeat-ack') {
         const portInfo = contentScriptPorts.get(tabId);
         if (portInfo) portInfo.lastHeartbeat = Date.now();
@@ -4826,6 +5013,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           chrome.action.setBadgeText({ text: '' });
           debugLog('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
+          replayMcpVisualSessionForTab(tabId, { now: Date.now(), source: 'contentScriptReady' }).catch((error) => {
+            automationLogger.debug('MCP visual-session replay on contentScriptReady failed', {
+              tabId,
+              error: error?.message || String(error),
+            });
+          });
         } else {
           debugLog('[FSB Background] Iframe ready ignored, frame:', frameId);
           automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
