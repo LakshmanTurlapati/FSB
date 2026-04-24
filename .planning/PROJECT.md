@@ -2,20 +2,25 @@
 
 ## What This Is
 
-FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions. Users describe what they want done ("search for wireless mouse on Amazon, add the first result to cart") and FSB figures out the clicks, types, and navigation to make it happen. It uses reliable element targeting with uniqueness-scored selectors, visual feedback (orange glow highlighting), and action verification to execute precisely on the first attempt.
+FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions. Users describe what they want done ("search for wireless mouse on Amazon, add the first result to cart") and FSB figures out the clicks, types, and navigation to make it happen. It uses reliable element targeting with uniqueness-scored selectors, visual feedback (orange glow highlighting), and action verification to execute precisely on the first attempt. It also exposes an MCP server so external clients can drive the same live browser surface with trusted diagnostics and visible feedback.
 
 ## Core Value
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.36 MCP Visual Lifecycle & Client Identity
+## Current State
 
-**Goal:** Let MCP clients explicitly start, update, and end visible browser automation feedback, with a trusted client badge and cleanup that never leaves stale glow behind.
+No active milestone is open right now.
 
-**Target features:**
-- Explicit MCP visual-session start/progress/end contract for the active browser tab without invoking FSB autopilot
-- Trusted client badge on the overlay and mirrored preview surfaces from a fixed allowlist such as Claude, Codex, ChatGPT, Perplexity, Windsurf, Cursor, Antigravity, OpenCode, OpenClaw, Grok, and Gemini
-- Lifecycle cleanup that clears the glow on complete, fail, partial, cancel, timeout, or disconnect instead of leaving stale feedback behind
+**Latest ship:** v0.9.36 MCP Visual Lifecycle & Client Identity (2026-04-24)
+
+**Current focus:**
+- Define the next milestone and recreate `.planning/REQUIREMENTS.md`
+- Keep deferred Angular migration work and the next MCP follow-up requirements visible without reopening closed v0.9.36 scope
+
+**Archive:** See `.planning/milestones/v0.9.36-ROADMAP.md`, `.planning/milestones/v0.9.36-REQUIREMENTS.md`, and `.planning/MILESTONES.md`.
+
+**Accepted closeout note:** No standalone `v0.9.36-MILESTONE-AUDIT.md` file was created before archive; closeout relies on the archived roadmap snapshot, requirements snapshot, and phase summaries.
 
 ## Previous State: v0.9.35 MCP Plug-and-Play Reliability (shipped 2026-04-24)
 
@@ -154,13 +159,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ MCP diagnostics now classify package/config/bridge/extension/content-script/tool-routing failures and guide operators through `doctor` and `status --watch` first -- Phase 200 (v0.9.35)
 - ✓ Installer/config parity now covers Codex TOML preservation, Claude/Cursor/Windsurf variants, and explicit manual fallback posture for unstable hosts -- Phase 201 (v0.9.35)
 - ✓ Release smoke now includes automated lifecycle/tool suites plus dated host evidence and diagnostics-first recovery docs -- Phase 202 (v0.9.35)
+- ✓ MCP clients can start an explicit visual feedback session on a normal page without invoking FSB autopilot -- v0.9.36
+- ✓ MCP visual sessions can report progress and end cleanly, with stale-session protection so the glow never gets stuck on the page -- v0.9.36
+- ✓ Overlay and mirrored preview surfaces show a trusted badge for the active MCP client from an approved allowlist -- v0.9.36
+- ✓ MCP docs and regression tests cover the start/progress/end contract and reject arbitrary badge labels -- v0.9.36
 
 ### Active
 
-- [ ] MCP clients can start an explicit visual feedback session on a normal page without invoking FSB autopilot.
-- [ ] MCP visual sessions can report progress and end cleanly, with stale-session protection so the glow never gets stuck on the page.
-- [ ] Overlay and mirrored preview surfaces show a trusted badge for the active MCP client from an approved allowlist.
-- [ ] MCP docs and regression tests cover the start/progress/end contract and reject arbitrary badge labels.
+- [ ] FSB derives trusted MCP client identity from connection or handshake metadata instead of requiring callers to send an allowlisted label each time.
+- [ ] Approved MCP clients can opt into auto-wrapping manual browser tools in a visual session when visible feedback is desired.
+- [ ] MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions.
 
 ### Deferred At v0.9.29 Close
 
@@ -284,7 +292,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
 - Dashboard website sync path still needs end-to-end validation across relay reconnects, stream lifecycle transitions, remote control events, and task/result delivery
 - A final local rerun of the off-screen dashboard refresh smoke is still pending before any push or release tagging that depends on the v0.9.27 verification evidence
-- MCP does not yet expose a client-owned visual lifecycle: the overlay/glow is still FSB-owned, task-status tools have no visible effect on the page, and no trusted MCP client badge appears on automation feedback surfaces.
+- MCP visual sessions still require a caller-supplied trusted label from the allowlist; identity is not yet derived automatically from MCP connection metadata.
 
 ## Constraints
 
@@ -338,8 +346,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | scaleX() + rAF in content script | GPU-composited bar avoids layout thrash; local timer avoids background.js message latency | Good -- zero reflows, timer accuracy independent of message passing |
 | First-sentence extraction for overlay text | AI summaries are multi-sentence; truncating mid-sentence is worse than showing only the first sentence | Good -- overlay text is concise and reads naturally |
 | v0.9.35 focuses MCP on plug-and-play reliability before new MCP features | User reports repeated MCP/extension restarts and platform tinkering across Claude, Codex, and OpenClaw/OpenCode-style hosts | Good -- shipped bridge recovery, diagnostics, installer parity, and release smoke coverage |
-| Explicit MCP visual sessions over implicit tool side effects | User wants the existing glow/overlay to be controllable from MCP even when FSB autopilot is not running | Selected for v0.9.36 milestone scope |
-| Fixed client badge allowlist over freeform caller text | The overlay should show trusted labels like Claude and Codex without allowing arbitrary spoofed strings | Selected for v0.9.36 milestone scope |
+| Explicit MCP visual sessions over implicit tool side effects | User wants the existing glow/overlay to be controllable from MCP even when FSB autopilot is not running | Good -- shipped in v0.9.36 with explicit start/end ownership |
+| Fixed client badge allowlist over freeform caller text | The overlay should show trusted labels like Claude and Codex without allowing arbitrary spoofed strings | Good -- shipped in v0.9.36 with shared server/extension validation |
+| Keep client-owned visual sessions separate from autopilot `activeSessions` | Manual MCP flows need clear ownership of the visible browser surface without colliding with FSB task runs | Good -- v0.9.36 keeps one owner per tab and avoids manual/autopilot overlap |
+| Persist visual-session replay state in `chrome.storage.session` | Reinjection and service-worker churn should preserve the same owner, badge, and final-clear deadlines | Good -- v0.9.36 replays running/final states without stretching stale glow |
+| Keep `run_task` and explicit visual sessions as separate MCP workflows | Autopilot planning and manual tool-driven browsing are different operator intents | Good -- v0.9.36 docs now steer callers to the right contract |
 
 ## Evolution
 
@@ -359,4 +370,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 after defining v0.9.36 milestone*
+*Last updated: 2026-04-24 after archiving v0.9.36*

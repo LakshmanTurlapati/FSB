@@ -123,6 +123,44 @@
 
 ---
 
+## Milestone: v0.9.36 -- MCP Visual Lifecycle & Client Identity
+
+**Shipped:** 2026-04-24
+**Phases:** 3 | **Plans:** 6 | **Tasks:** 12
+
+### What Was Built
+- Explicit `start_visual_session` / `end_visual_session` MCP tools with a trusted client-label allowlist
+- Optional `session_token` threading for `report_progress`, `complete_task`, `partial_task`, and `fail_task`
+- Live overlay badge plus mirrored dashboard and DOM-stream identity/lifecycle rendering
+- Persisted client-owned visual sessions with reinjection/service-worker replay and stale-session cleanup
+- Packaged smoke coverage and MCP docs for the visual-session lifecycle and the `run_task` boundary
+
+### What Worked
+- Reusing canonical overlay/session metadata across background, content, dashboard, and docs kept the badge feature incremental instead of creating parallel contracts.
+- The explicit start/end contract matched the user's mental model better than trying to infer visible ownership from unrelated MCP tool calls.
+- Focused lifecycle tests caught idempotent cleanup and stale-message edge cases before the docs were finalized.
+
+### What Was Inefficient
+- The milestone-close CLI created the archive snapshots quickly, but the live ROADMAP/PROJECT state still needed manual curation for the between-milestones state.
+- No standalone milestone audit file was created before archive, continuing the recent pattern of relying on phase summaries plus archived requirements for closeout evidence.
+- Progress/finalization semantics were layered into shared task-status tools, which required extra care to preserve narration-only `hadEffect: false` behavior.
+
+### Patterns Established
+- Explicit visual-session ownership pattern: caller starts, threads a token, and ends the same visible session.
+- Trusted client identity pattern: one allowlisted label shared across server, dispatcher, overlay, and preview surfaces.
+- Replay-safe finalization pattern: persisted `finalClearAt` deadlines avoid extending stale glow after reinjection or service-worker churn.
+
+### Key Lessons
+1. If a user wants "the same glow, but from MCP," explicit lifecycle tools are cleaner than overloading autopilot-only status paths.
+2. Shared canonical metadata (`sessionToken`, `clientLabel`, `version`, `lifecycle`) is what keeps live and mirrored UI surfaces honest.
+3. Milestone-close automation is most reliable when the archive generator and the human-curated PROJECT/ROADMAP review are treated as separate steps.
+
+### Cost Observations
+- Model mix: inherit profile.
+- Notable: Small milestone by phase count, but high coordination value because it aligned server tools, extension runtime, overlay UI, preview UI, and docs around one contract.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -140,6 +178,8 @@
 | v0.9.7 | 50 | 100 | Autonomous edge case validation at scale |
 | v0.9.30 | 3 | 6 | MCP platform install flags -- compact, data-driven |
 | v0.9.34 | 8 | 11 | Vault/payment/MCP security closure with accepted validation debt |
+| v0.9.35 | 5 | 15 | MCP reliability before new feature expansion |
+| v0.9.36 | 3 | 6 | Explicit MCP visual lifecycle and trusted client identity |
 
 ### Top Lessons (Verified Across Milestones)
 

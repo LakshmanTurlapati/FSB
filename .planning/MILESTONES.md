@@ -1,5 +1,28 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.36 MCP Visual Lifecycle & Client Identity (Shipped: 2026-04-24)
+
+**Delivered:** Explicit MCP visual-session ownership, trusted client badges, persisted overlay replay, and lifecycle validation/docs for MCP-driven browser work outside the built-in autopilot loop.
+
+**Archive:** `.planning/milestones/v0.9.36-ROADMAP.md` and `.planning/milestones/v0.9.36-REQUIREMENTS.md`
+
+**Phases completed:** 3 phases, 6 plans, 12 tasks
+
+**Key accomplishments:**
+
+- Explicit MCP visual-session start/end tools with trusted client labels, separate tab ownership, and token-aware overlay metadata.
+- Token-aware progress and final task-status updates for client-owned MCP visual sessions, with deterministic final-clear behavior and narration-safe regressions locked down.
+- Trusted MCP client badges now render consistently on the live page overlay and the mirrored dashboard preview, including frozen overlay states.
+- Client-owned visual sessions now survive reinjection and service-worker churn, replay with the same trusted owner, and degrade or clear safely instead of leaving the glow stuck.
+- The MCP visual-session lifecycle is now backed by packaged smoke for start/end, explicit idempotent cleanup assertions, and tighter overlay/preview regressions for degraded and frozen client-owned states.
+- The MCP package guide now explains how to own the glow with visual sessions, when `run_task` is still the better fit, and where trusted client labels and `session_token` threading matter.
+
+**Accepted closeout notes:**
+
+- No standalone `v0.9.36-MILESTONE-AUDIT.md` file was created before archive; closeout relies on the archived roadmap snapshot, requirements snapshot, and phase summaries.
+
+---
+
 ## v0.9.35 MCP Plug-and-Play Reliability (Shipped: 2026-04-24)
 
 **Delivered:** Plug-and-play MCP reliability across reconnect lifecycle, tool routing, diagnostics, install parity, and release-smoke validation.
