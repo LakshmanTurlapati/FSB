@@ -8,19 +8,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current State: v0.9.35 Shipped
+## Current Milestone: v0.9.36 MCP Visual Lifecycle & Client Identity
+
+**Goal:** Let MCP clients explicitly start, update, and end visible browser automation feedback, with a trusted client badge and cleanup that never leaves stale glow behind.
+
+**Target features:**
+- Explicit MCP visual-session start/progress/end contract for the active browser tab without invoking FSB autopilot
+- Trusted client badge on the overlay and mirrored preview surfaces from a fixed allowlist such as Claude, Codex, ChatGPT, Perplexity, Windsurf, Cursor, Antigravity, OpenCode, OpenClaw, Grok, and Gemini
+- Lifecycle cleanup that clears the glow on complete, fail, partial, cancel, timeout, or disconnect instead of leaving stale feedback behind
+
+## Previous State: v0.9.35 MCP Plug-and-Play Reliability (shipped 2026-04-24)
 
 **Shipped:** MCP bridge lifecycle repair, explicit MCP routing contracts, layer-aware diagnostics, installer/config parity across supported hosts, and release smoke/UAT hardening for the FSB MCP surface.
 
 **Archive:** See `.planning/milestones/v0.9.35-ROADMAP.md`, `.planning/milestones/v0.9.35-REQUIREMENTS.md`, and `.planning/MILESTONES.md`.
 
 **Accepted closeout debt:** No standalone `v0.9.35` milestone-audit file was created before archive, and Phase 202 records residual live-UAT risk because paid-model host prompt runs were not auto-triggered when local host preflight was already red or unconfigured.
-
-## Next Milestone
-
-**Status:** Not started yet.
-
-**Next step:** Run `$gsd-new-milestone` to define the next scoped requirements and roadmap.
 
 ## Previous State: v0.9.33 Dashboard Task Results & Stream Quality (shipped 2026-04-20)
 
@@ -154,7 +157,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
-- [ ] No new milestone requirements defined yet. Start the next scope with `$gsd-new-milestone`.
+- [ ] MCP clients can start an explicit visual feedback session on a normal page without invoking FSB autopilot.
+- [ ] MCP visual sessions can report progress and end cleanly, with stale-session protection so the glow never gets stuck on the page.
+- [ ] Overlay and mirrored preview surfaces show a trusted badge for the active MCP client from an approved allowlist.
+- [ ] MCP docs and regression tests cover the start/progress/end contract and reject arbitrary badge labels.
 
 ### Deferred At v0.9.29 Close
 
@@ -278,7 +284,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
 - Dashboard website sync path still needs end-to-end validation across relay reconnects, stream lifecycle transitions, remote control events, and task/result delivery
 - A final local rerun of the off-screen dashboard refresh smoke is still pending before any push or release tagging that depends on the v0.9.27 verification evidence
-- MCP is not yet plug-and-play across hosts: current diagnosis found extension bridge attachment can remain false after the server is listening, background-routed MCP tools have fragile verb mapping, `tests/mcp-restricted-tab.test.js` fails 9 assertions, and MCP package/version metadata is out of sync.
+- MCP does not yet expose a client-owned visual lifecycle: the overlay/glow is still FSB-owned, task-status tools have no visible effect on the page, and no trusted MCP client badge appears on automation feedback surfaces.
 
 ## Constraints
 
@@ -332,6 +338,8 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | scaleX() + rAF in content script | GPU-composited bar avoids layout thrash; local timer avoids background.js message latency | Good -- zero reflows, timer accuracy independent of message passing |
 | First-sentence extraction for overlay text | AI summaries are multi-sentence; truncating mid-sentence is worse than showing only the first sentence | Good -- overlay text is concise and reads naturally |
 | v0.9.35 focuses MCP on plug-and-play reliability before new MCP features | User reports repeated MCP/extension restarts and platform tinkering across Claude, Codex, and OpenClaw/OpenCode-style hosts | Good -- shipped bridge recovery, diagnostics, installer parity, and release smoke coverage |
+| Explicit MCP visual sessions over implicit tool side effects | User wants the existing glow/overlay to be controllable from MCP even when FSB autopilot is not running | Selected for v0.9.36 milestone scope |
+| Fixed client badge allowlist over freeform caller text | The overlay should show trusted labels like Claude and Codex without allowing arbitrary spoofed strings | Selected for v0.9.36 milestone scope |
 
 ## Evolution
 
@@ -351,4 +359,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after v0.9.35 milestone close*
+*Last updated: 2026-04-23 after defining v0.9.36 milestone*

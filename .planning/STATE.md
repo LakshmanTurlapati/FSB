@@ -1,42 +1,43 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.35
-milestone_name: MCP Plug-and-Play Reliability
-status: milestone_complete
-stopped_at: v0.9.35 milestone complete
-last_updated: "2026-04-24T01:22:09.396Z"
-last_activity: 2026-04-24
+milestone: v0.9.36
+milestone_name: MCP Visual Lifecycle & Client Identity
+status: roadmap_defined
+stopped_at: Ready to plan Phase 203
+last_updated: "2026-04-23T20:48:25-05:00"
+last_activity: 2026-04-23
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-24)
+See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Milestone close complete — ready to define the next milestone
+**Current focus:** MCP visual-session lifecycle and trusted client badges for visible automation feedback
 
 ## Current Position
 
-Milestone: v0.9.35 (MCP Plug-and-Play Reliability) — COMPLETE
-Plan: Archived
-Status: v0.9.35 milestone complete
-Last activity: 2026-04-24
+Milestone: v0.9.36 (MCP Visual Lifecycle & Client Identity)
+Phase: 203
+Plan: —
+Status: Roadmap defined; ready to plan Phase 203
+Last activity: 2026-04-23 — Defined milestone v0.9.36 and mapped requirements
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16
+- Total plans completed this milestone: 0
 - Average duration: --
 - Total execution time: 0 hours
 
@@ -44,36 +45,14 @@ Progress: [██████████] 100%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 191 | 2 | - | - |
-| 192 | 1 | - | - |
-| 193 | 2 | - | - |
-| 194 | 2 | - | - |
-| 195 | 0 | - | - |
-| 196 | 0 | - | - |
-| 198 | 3 | - | - |
-| 199 | 3 | - | - |
-| 200 | 3 | - | - |
+| 203 | 0 | - | - |
+| 204 | 0 | - | - |
+| 205 | 0 | - | - |
 
 **Recent Trend:**
 
 - Last 5 plans: --
 - Trend: --
-
-*Updated after each plan completion*
-| Phase 197 P01 | 10 min | 2 tasks | 3 files |
-| Phase 197 P02 | 4 min | 1 tasks | 1 files |
-| Phase 198-mcp-bridge-lifecycle-reconnect-state P01 | 5min | 2 tasks | 2 files |
-| Phase 198-mcp-bridge-lifecycle-reconnect-state P02 | 4min | 2 tasks | 2 files |
-| Phase 198-mcp-bridge-lifecycle-reconnect-state P03 | 7min | 2 tasks | 6 files |
-| Phase 199-mcp-tool-routing-contract P01 | 5min | 2 tasks | 3 files |
-| Phase 199-mcp-tool-routing-contract P02 | 6min | 2 tasks | 3 files |
-| Phase 199-mcp-tool-routing-contract P03 | 10min | 2 tasks | 4 files |
-| Phase 200-doctor-status-watch-recovery-messaging P01 | 9min | 2 tasks | 7 files |
-| Phase 200-doctor-status-watch-recovery-messaging P02 | 4min | 2 tasks | 3 files |
-| Phase 200-doctor-status-watch-recovery-messaging P03 | 4min | 2 tasks | 8 files |
-| Phase 201 P01 | 13 min | 2 tasks | 3 files |
-| Phase 201 P02 | 11 min | 2 tasks | 2 files |
-| Phase 201 P03 | 4 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -111,7 +90,7 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Define the next milestone scope and fresh requirements when ready.
+- Plan Phase 203 for the MCP visual-session contract and start the first execution wave.
 - Root `npm test` still has unrelated `tests/runtime-contracts.test.js` assertions deferred outside Phase 200.
 
 ### Blockers/Concerns
@@ -121,6 +100,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-24T01:22:09.396Z
-Stopped at: v0.9.35 milestone complete
+Last session: 2026-04-23T20:48:25-05:00
+Stopped at: Ready to plan Phase 203
 Resume file: None

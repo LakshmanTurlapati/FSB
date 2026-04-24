@@ -1,34 +1,78 @@
 # Roadmap: FSB (Full Self-Browsing)
 
-## Milestones
-
-- ✅ **v0.9.35 MCP Plug-and-Play Reliability** — Phases 198-202 (shipped 2026-04-24)
-- 📋 **Next milestone** — not started yet; run `$gsd-new-milestone` when ready
+## Active Milestone: v0.9.36 MCP Visual Lifecycle & Client Identity
 
 ## Phases
 
-<details>
-<summary>✅ v0.9.35 MCP Plug-and-Play Reliability (Phases 198-202) — SHIPPED 2026-04-24</summary>
+- [ ] **Phase 203: MCP Visual Session Contract** - Add explicit MCP start/progress/end routes and trusted client allowlist validation for client-owned visual feedback on the active tab.
+- [ ] **Phase 204: Overlay Badge & Session Persistence** - Render approved client badges in the on-page overlay and mirrored preview surfaces while honoring navigation, reinjection, timeout, and cleanup rules.
+- [ ] **Phase 205: Validation & MCP Usage Docs** - Lock the feature with route/UI regression tests, stale-cleanup coverage, and docs for Claude/Codex/ChatGPT-style MCP clients.
 
-- [x] **Phase 198: MCP Bridge Lifecycle & Reconnect State** - Make extension/server attachment recover automatically across startup order, service worker wake, and hub/relay handoff (completed 2026-04-22)
-- [x] **Phase 199: MCP Tool Routing Contract** - Replace fragile background self-dispatch with direct verified route handling for browser, autopilot, observability, and restricted recovery tools (completed 2026-04-23)
-- [x] **Phase 200: Doctor, Status Watch & Recovery Messaging** - Make diagnostics identify the exact failed layer and tell users the next concrete action (completed 2026-04-23)
-- [x] **Phase 201: Platform Installer & Config Parity** - Verify install/update behavior across Claude, Codex, OpenClaw/OpenCode-style hosts, Cursor/Windsurf, and supported config formats (completed 2026-04-24)
-- [x] **Phase 202: Cross-Host Smoke Matrix & Release Hardening** - Prove plug-and-play behavior through automated lifecycle smoke tests and manual host UAT (completed 2026-04-24)
+## Phase Details
 
-</details>
+### Phase 203: MCP Visual Session Contract
+
+**Goal**: MCP clients can explicitly claim and release the visible automation surface without invoking FSB autopilot.
+
+**Depends on**: Nothing
+
+**Requirements**: LIFE-01, LIFE-02, LIFE-03, BADGE-01
+
+**Success Criteria** (what must be TRUE):
+1. MCP exposes a clear start tool and end/finalization path for visual sessions on the active normal webpage.
+2. Progress updates can change overlay detail text without creating duplicate or competing sessions.
+3. Success, partial, failure, cancel, and explicit end flows all clear the client-owned session cleanly.
+4. Caller-supplied client labels are validated against an approved allowlist instead of being rendered as arbitrary text.
+
+### Phase 204: Overlay Badge & Session Persistence
+
+**Goal**: The page overlay and mirrored preview surfaces visibly show which approved MCP client is driving the session and keep that state coherent through runtime churn.
+
+**Depends on**: Phase 203
+
+**Requirements**: LIFE-04, BADGE-02, BADGE-03, BADGE-04
+
+**Success Criteria** (what must be TRUE):
+1. The page overlay shows a compact client badge alongside the existing task/progress treatment.
+2. Dashboard or DOM-stream preview surfaces display the same client label and lifecycle state as the live page.
+3. Client identity survives content-script reinjection and same-session navigation on the owned tab.
+4. Watchdog or disconnect handling degrades or clears stale sessions so the glow never stays stuck after the client disappears.
+
+### Phase 205: Validation & MCP Usage Docs
+
+**Goal**: The new lifecycle contract is trustworthy because it is documented, regression-tested, and explicit about when to use it.
+
+**Depends on**: Phase 203, Phase 204
+
+**Requirements**: VALID-01, VALID-02, VALID-03
+
+**Success Criteria** (what must be TRUE):
+1. MCP route tests prove start/progress/end flows, allowlist enforcement, and cleanup idempotency.
+2. Overlay/UI tests prove badge rendering, final freeze, watchdog recovery, and stale-message suppression for client-owned sessions.
+3. MCP docs show how a client should bracket its browser work with start/progress/end calls and when `run_task` remains the better fit.
 
 ## Progress
 
-| Milestone | Phase Range | Status | Shipped |
-|-----------|-------------|--------|---------|
-| v0.9.35 MCP Plug-and-Play Reliability | 198-202 | Complete | 2026-04-24 |
+**Execution Order:** 203 -> 204 -> 205
+
+| Phase | Requirements | Status |
+|-------|--------------|--------|
+| 203. MCP Visual Session Contract | LIFE-01, LIFE-02, LIFE-03, BADGE-01 | Planned |
+| 204. Overlay Badge & Session Persistence | LIFE-04, BADGE-02, BADGE-03, BADGE-04 | Planned |
+| 205. Validation & MCP Usage Docs | VALID-01, VALID-02, VALID-03 | Planned |
 
 ## Archive
 
-See [.planning/milestones/v0.9.35-ROADMAP.md](./milestones/v0.9.35-ROADMAP.md) for the full active-roadmap snapshot that was archived at milestone close.
+See [.planning/milestones/v0.9.35-ROADMAP.md](./milestones/v0.9.35-ROADMAP.md) for the full active-roadmap snapshot that was archived at the v0.9.35 milestone close.
 
 ## Previous Milestones
+
+<details>
+<summary>v0.9.35 MCP Plug-and-Play Reliability (shipped 2026-04-24)</summary>
+
+5 phases, 15 plans. Bridge lifecycle recovery, direct MCP route contracts, diagnostics, installer parity, and release smoke/UAT hardening.
+
+</details>
 
 <details>
 <summary>v0.9.34 Vault, Payments & Secure MCP Access (shipped 2026-04-22)</summary>
@@ -44,18 +88,11 @@ See [.planning/milestones/v0.9.35-ROADMAP.md](./milestones/v0.9.35-ROADMAP.md) f
 
 </details>
 
-<details>
-<summary>v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11)</summary>
-
-5 phases, 8 plans. Restricted-tab MCP parity, dashboard preview/remote-control/task-relay rebaseline, runtime carryover cleanup, and auth-wall smoke evidence.
-
-</details>
-
 ## Backlog
 
 - Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Live UAT for v0.9.34 vault behavior and MCP payment approve/deny/delayed approval remains accepted validation debt unless it overlaps Phase 202 smoke coverage.
+- Live UAT for v0.9.34 vault behavior and MCP payment approve/deny/delayed approval remains accepted validation debt unless it overlaps future verification work.
 
 ---
-*Roadmap created: 2026-04-22*
-*Last updated: 2026-04-24 after v0.9.35 milestone close*
+*Roadmap created: 2026-04-23*
+*Last updated: 2026-04-23 after defining v0.9.36*
