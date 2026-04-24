@@ -15,12 +15,12 @@
 
 [![npm downloads](https://img.shields.io/npm/dm/fsb-mcp-server?style=flat-square&label=Downloads)](https://www.npmjs.com/package/fsb-mcp-server)
 ![GitHub Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
-![Tools](https://img.shields.io/badge/MCP_Tools-58-F97316?style=flat-square)
+![Surface](https://img.shields.io/badge/MCP_Surface-Manual%20%7C%20Visual%20%7C%20Autopilot-F97316?style=flat-square)
 ![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 
 **Control your browser from any MCP client**
 
-*58 tools for browser automation: manual control, autopilot mode, agents, and full observability*
+*Browser automation tools for manual control, client-owned visual sessions, autopilot mode, agents, and observability*
 
 [Quick Start](#quick-start) | [Tools](#tools-58-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
 
@@ -30,9 +30,10 @@
 
 ## What is this?
 
-FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser with 58 tools across three operating styles:
+FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser across four operating styles:
 
 - **Manual mode**: fine-grained control with click, type, scroll, navigate, read page content
+- **Visual-session mode**: show the trusted glow/badge while your MCP client drives the browser step by step
 - **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
 - **Agent mode**: create, run, inspect, and manage scheduled background agents from any MCP client
 
@@ -272,7 +273,74 @@ This keeps automated lifecycle/tool smoke and operator-facing diagnostics aligne
 
 ---
 
-## Tools (58 total)
+## Visual Session Lifecycle
+
+Use the explicit visual-session flow when your MCP client already owns the browser steps and only wants FSB to show the trusted glow, badge, and final freeze states in the browser. If you want FSB to decide and execute the steps for you, use `run_task` instead.
+
+### Choose The Right Flow
+
+| Use case | Better fit |
+|----------|------------|
+| "FSB should decide the steps and drive the browser end to end." | `run_task` |
+| "My MCP client is already deciding the steps; I only want FSB's visible overlay and trusted client badge while I call manual tools." | `start_visual_session` + manual tools + `end_visual_session` |
+| "My runtime can also emit FSB task-status tools and I want the glow to show progress and final outcome states." | `start_visual_session` + `report_progress` / `complete_task` / `partial_task` / `fail_task` + optional `end_visual_session` |
+
+### Trusted Client Labels
+
+`start_visual_session` accepts only fixed trusted labels from FSB's allowlist. Common examples include `Claude`, `Codex`, `ChatGPT`, `Gemini`, `Cursor`, `Windsurf`, `Perplexity`, `Grok`, `OpenCode`, `OpenClaw`, and `Antigravity`. Arbitrary badge text or custom branding is rejected.
+
+### Minimal Public Flow
+
+This is the simplest public pattern for MCP clients that want the glow/badge without handing control to autopilot:
+
+1. Call `start_visual_session` with `client` and `task`.
+2. Drive the page with the normal manual tools such as `navigate`, `click`, `type_text`, `press_enter`, or `scroll`.
+3. Call `end_visual_session` with the returned `session_token` when you want to clear the glow explicitly.
+
+Example:
+
+```text
+start_visual_session(client="Codex", task="Complete checkout", detail="Preparing cart")
+→ returns session_token="visual_token_123"
+
+navigate(url="https://example.com/cart")
+click(selector="text=Checkout")
+type_text(selector="#email", text="user@example.com")
+
+end_visual_session(session_token="visual_token_123", reason="ended")
+```
+
+### Extended Progress And Finalization
+
+If your runtime also has access to FSB's shared task-status tools, keep the same `session_token` threaded through the rest of the lifecycle:
+
+1. `start_visual_session(client, task, detail?)`
+2. Zero or more `report_progress(session_token, message, progress_percent?)`
+3. One final outcome call:
+   - `complete_task(session_token, summary, detail?)`
+   - `partial_task(session_token, summary, blocker, next_step, reason?)`
+   - `fail_task(session_token, reason, detail?)`
+4. `end_visual_session(session_token)` only when you still need an explicit clear/cancel after your own flow
+
+Notes:
+
+- `session_token` is the ownership key for the visible lifecycle. Reuse the latest token returned by `start_visual_session`.
+- Final outcome calls preserve the short frozen overlay before the glow clears.
+- `partial_task` is the right fit for useful partial work plus an external blocker, especially login/manual-approval handoffs.
+- `report_progress` is narration/status only. It does not click, type, navigate, or submit by itself.
+
+---
+
+## Tools
+
+### Visual Sessions (2 tools)
+
+Use these when your MCP client wants the visible glow/badge without handing control to `run_task`.
+
+| Tool | Description |
+|------|-------------|
+| `start_visual_session` | Start the visible FSB overlay on the active normal webpage and return a `session_token` for follow-up lifecycle calls. |
+| `end_visual_session` | Clear a client-owned visual session explicitly using its `session_token`, without invoking autopilot completion. |
 
 ### Autopilot (3 tools)
 
@@ -413,8 +481,9 @@ graph TD
     B -->|"WebSocket (port 7225)"| C["FSB Chrome Extension\n(your browser)"]
     C -->|"DOM Analysis + Action Execution"| D["Any Website"]
 
-    subgraph tools ["58 MCP Tools"]
+    subgraph tools ["MCP Tool Groups"]
         direction LR
+        T0["Visual Sessions\n2 tools"]
         T1["Autopilot\n3 tools"]
         T2["Manual\n37 tools"]
         T6["Read-Only\n5 tools"]

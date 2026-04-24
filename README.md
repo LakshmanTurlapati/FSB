@@ -188,6 +188,8 @@ FSB also ships an MCP server for Claude Code, Codex, VS Code, Cursor, Windsurf, 
 - OpenCode: manual fallback only, via the `mcp` JSON snippet in `mcp-server/README.md`.
 - OpenClaw: manual / unsupported for now while its MCP config surface remains unstable.
 
+If you want the browser glow and trusted client badge without handing the task to autopilot, the package guide now documents the explicit visual-session lifecycle: `start_visual_session`, optional status threading with the same `session_token`, and `end_visual_session`, plus when that flow is a better fit than `run_task`.
+
 For a repo-local release smoke check, run `npm run test:mcp-smoke` first. If MCP setup still breaks after that, run `npx -y fsb-mcp-server doctor` and `npx -y fsb-mcp-server status --watch` before restarting or reinstalling clients.
 
 ### Architecture Overview
