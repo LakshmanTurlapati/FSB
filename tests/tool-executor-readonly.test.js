@@ -78,6 +78,21 @@ console.log('\n--- get_attribute reports hadEffect: false on success ---');
   });
 }
 
+console.log('\n--- report_progress without session_token reports hadEffect: false ---');
+{
+  executeTool(
+    'report_progress',
+    { message: 'Planning the next step' },
+    1,
+    {
+      dataHandler: async () => ({ success: true, hadEffect: false, message: 'Planning the next step' })
+    }
+  ).then(result => {
+    assertEqual(result.success, true, 'report_progress success');
+    assertEqual(result.hadEffect, false, 'report_progress hadEffect is false without session_token');
+  });
+}
+
 // -----------------------------------------------------------------------
 // Mutating content tools must still report hadEffect: true on success
 // -----------------------------------------------------------------------

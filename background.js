@@ -510,6 +510,90 @@ function getMcpVisualSessionManager() {
   return mcpVisualSessionManager;
 }
 
+function getMcpVisualSessionFinalClearDelayMs() {
+  const delay = Number(MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS);
+  return Number.isFinite(delay) && delay > 0 ? delay : 3200;
+}
+
+function clearPendingMcpVisualSessionFinalization(sessionToken) {
+  const token = String(sessionToken || '').trim();
+  if (!token) return false;
+  const pending = mcpVisualSessionFinalizationTimers.get(token);
+  if (!pending) return false;
+  clearTimeout(pending.timerId);
+  mcpVisualSessionFinalizationTimers.delete(token);
+  return true;
+}
+
+function isMcpVisualSessionFinalizing(sessionToken) {
+  const token = String(sessionToken || '').trim();
+  return !!token && mcpVisualSessionFinalizationTimers.has(token);
+}
+
+function buildMcpVisualSessionNotFoundError(sessionToken) {
+  return {
+    success: false,
+    errorCode: 'visual_session_not_found',
+    error: 'The visual-session token does not match an active client-owned visual session',
+    sessionToken: sessionToken || null,
+  };
+}
+
+async function clearMcpVisualSession(sessionToken, options = {}) {
+  const manager = getMcpVisualSessionManager();
+  if (!options.skipTimerCancel) {
+    clearPendingMcpVisualSessionFinalization(sessionToken);
+  }
+
+  const clearedSession = manager.endSession(sessionToken, {
+    reason: options.reason,
+    lastUpdateAt: options.lastUpdateAt,
+  });
+  if (!clearedSession) {
+    return null;
+  }
+
+  await sendSessionStatus(
+    clearedSession.tabId,
+    buildMcpVisualSessionClearStatus(clearedSession, {
+      reason: options.reason,
+    }),
+  );
+
+  return clearedSession;
+}
+
+function scheduleMcpVisualSessionClear(sessionToken, options = {}) {
+  const token = String(sessionToken || '').trim();
+  if (!token) return 0;
+
+  clearPendingMcpVisualSessionFinalization(token);
+
+  const delayMs = getMcpVisualSessionFinalClearDelayMs();
+  const timerId = setTimeout(async () => {
+    mcpVisualSessionFinalizationTimers.delete(token);
+    try {
+      await clearMcpVisualSession(token, {
+        reason: options.reason,
+        skipTimerCancel: true,
+      });
+    } catch (error) {
+      automationLogger.debug('MCP visual-session clear failed', {
+        sessionToken: token,
+        error: error?.message || String(error),
+      });
+    }
+  }, delayMs);
+
+  mcpVisualSessionFinalizationTimers.set(token, {
+    timerId,
+    reason: options.reason || 'ended',
+    scheduledAt: Date.now(),
+  });
+
+  return delayMs;
+}
+
 function findActiveAutomationSessionForTab(tabId) {
   if (!Number.isFinite(tabId)) return null;
   for (const session of activeSessions.values()) {
@@ -519,6 +603,291 @@ function findActiveAutomationSessionForTab(tabId) {
     }
   }
   return null;
+}
+
+async function updateMcpVisualSessionProgress(sessionToken, message) {
+  const manager = getMcpVisualSessionManager();
+  if (isMcpVisualSessionFinalizing(sessionToken)) {
+    return null;
+  }
+
+  const updatedSession = manager.updateSession(sessionToken, {
+    detail: message,
+    lastUpdateAt: Date.now(),
+  });
+  if (!updatedSession) {
+    return null;
+  }
+
+  await sendSessionStatus(
+    updatedSession.tabId,
+    buildMcpVisualSessionStatus(updatedSession, {
+      phase: 'acting',
+      lifecycle: 'running',
+      statusText: message,
+    }),
+  );
+
+  return updatedSession;
+}
+
+async function finalizeMcpVisualSession(sessionToken, options = {}) {
+  const manager = getMcpVisualSessionManager();
+  if (isMcpVisualSessionFinalizing(sessionToken)) {
+    return null;
+  }
+
+  const currentSession = manager.getSession(sessionToken);
+  if (!currentSession) {
+    return null;
+  }
+
+  const result = options.result === 'partial'
+    ? 'partial'
+    : (options.result === 'error' ? 'error' : 'success');
+  const summary = String(options.summary || '').trim();
+  const blocker = String(options.blocker || '').trim();
+  const nextStep = String(options.nextStep || '').trim();
+  const reason = String(options.reason || '').trim();
+
+  let statusText = summary || currentSession.detail || currentSession.task;
+  let taskSummary = summary || currentSession.task;
+  let phase = result === 'error' ? 'error' : 'complete';
+  let display = null;
+  let progress = null;
+
+  if (result === 'success') {
+    statusText = summary || 'Task completed';
+    display = {
+      title: taskSummary,
+      subtitle: currentSession.task && currentSession.task !== taskSummary ? currentSession.task : 'Completed',
+      detail: 'Task completed',
+    };
+  } else if (result === 'partial') {
+    statusText = blocker || summary || 'Task partially completed';
+    display = {
+      title: taskSummary,
+      subtitle: blocker || 'External blocker',
+      detail: nextStep || reason || 'Manual follow-up required',
+    };
+    progress = { mode: 'indeterminate', label: 'Partial' };
+  } else {
+    statusText = reason || 'Task ended with an error';
+    taskSummary = currentSession.task;
+    display = {
+      title: currentSession.task,
+      subtitle: 'Task failed',
+      detail: reason || 'Task ended with an error',
+    };
+    progress = { mode: 'indeterminate', label: 'Error' };
+  }
+
+  const finalizedSession = manager.updateSession(sessionToken, {
+    detail: statusText,
+    lastUpdateAt: Date.now(),
+  });
+  if (!finalizedSession) {
+    return null;
+  }
+
+  await sendSessionStatus(
+    finalizedSession.tabId,
+    buildMcpVisualSessionStatus(finalizedSession, {
+      phase,
+      lifecycle: 'final',
+      result,
+      statusText,
+      taskSummary,
+      animatedHighlights: false,
+      ...(reason ? { reason } : {}),
+      ...(display ? { display } : {}),
+      ...(progress ? { progress } : {}),
+    }),
+  );
+
+  const clearReason = result === 'success'
+    ? 'complete'
+    : (result === 'partial' ? (reason || 'partial') : (reason || 'error'));
+  const clearsAfterMs = scheduleMcpVisualSessionClear(finalizedSession.sessionToken, {
+    reason: clearReason,
+  });
+
+  return {
+    session: finalizedSession,
+    clearsAfterMs,
+  };
+}
+
+async function handleMcpVisualSessionTaskStatus(request, sender, sendResponse) {
+  try {
+    const tool = String(request?.tool || '').trim();
+    const sessionToken = String(request?.sessionToken || request?.session_token || '').trim();
+    if (!sessionToken) {
+      sendResponse({
+        success: false,
+        errorCode: 'mcp_route_invalid_params',
+        error: `${tool || 'visual-session task status'} requires sessionToken`,
+      });
+      return true;
+    }
+
+    if (tool === 'report_progress') {
+      const message = String(request?.message || '').trim();
+      if (!message) {
+        sendResponse({
+          success: false,
+          errorCode: 'mcp_route_invalid_params',
+          error: 'report_progress requires message',
+        });
+        return true;
+      }
+
+      const updatedSession = await updateMcpVisualSessionProgress(sessionToken, message);
+      if (!updatedSession) {
+        sendResponse(buildMcpVisualSessionNotFoundError(sessionToken));
+        return true;
+      }
+
+      sendResponse({
+        success: true,
+        tool: 'report_progress',
+        hadEffect: true,
+        message,
+        sessionToken: updatedSession.sessionToken,
+        version: updatedSession.version,
+        clientLabel: updatedSession.clientLabel,
+        tabId: updatedSession.tabId,
+      });
+      return true;
+    }
+
+    if (tool === 'complete_task') {
+      const summary = String(request?.summary || '').trim();
+      if (!summary) {
+        sendResponse({
+          success: false,
+          errorCode: 'mcp_route_invalid_params',
+          error: 'complete_task requires summary',
+        });
+        return true;
+      }
+
+      const finalized = await finalizeMcpVisualSession(sessionToken, {
+        result: 'success',
+        summary,
+      });
+      if (!finalized?.session) {
+        sendResponse(buildMcpVisualSessionNotFoundError(sessionToken));
+        return true;
+      }
+
+      sendResponse({
+        success: true,
+        tool: 'complete_task',
+        status: 'completed',
+        hadEffect: true,
+        summary,
+        sessionToken: finalized.session.sessionToken,
+        version: finalized.session.version,
+        clientLabel: finalized.session.clientLabel,
+        tabId: finalized.session.tabId,
+        clearsAfterMs: finalized.clearsAfterMs,
+      });
+      return true;
+    }
+
+    if (tool === 'partial_task') {
+      const summary = String(request?.summary || '').trim();
+      const blocker = String(request?.blocker || '').trim();
+      const nextStep = String(request?.nextStep || request?.next_step || '').trim();
+      const reason = String(request?.reason || '').trim();
+      if (!summary || !blocker) {
+        sendResponse({
+          success: false,
+          errorCode: 'mcp_route_invalid_params',
+          error: 'partial_task requires summary and blocker',
+        });
+        return true;
+      }
+
+      const finalized = await finalizeMcpVisualSession(sessionToken, {
+        result: 'partial',
+        summary,
+        blocker,
+        nextStep,
+        reason,
+      });
+      if (!finalized?.session) {
+        sendResponse(buildMcpVisualSessionNotFoundError(sessionToken));
+        return true;
+      }
+
+      sendResponse({
+        success: true,
+        tool: 'partial_task',
+        status: 'partial',
+        hadEffect: true,
+        summary,
+        blocker,
+        ...(nextStep ? { nextStep } : {}),
+        ...(reason ? { reason } : {}),
+        sessionToken: finalized.session.sessionToken,
+        version: finalized.session.version,
+        clientLabel: finalized.session.clientLabel,
+        tabId: finalized.session.tabId,
+        clearsAfterMs: finalized.clearsAfterMs,
+      });
+      return true;
+    }
+
+    if (tool === 'fail_task') {
+      const reason = String(request?.reason || '').trim();
+      if (!reason) {
+        sendResponse({
+          success: false,
+          errorCode: 'mcp_route_invalid_params',
+          error: 'fail_task requires reason',
+        });
+        return true;
+      }
+
+      const finalized = await finalizeMcpVisualSession(sessionToken, {
+        result: 'error',
+        reason,
+      });
+      if (!finalized?.session) {
+        sendResponse(buildMcpVisualSessionNotFoundError(sessionToken));
+        return true;
+      }
+
+      sendResponse({
+        success: false,
+        tool: 'fail_task',
+        status: 'failed',
+        hadEffect: true,
+        error: reason,
+        reason,
+        sessionToken: finalized.session.sessionToken,
+        version: finalized.session.version,
+        clientLabel: finalized.session.clientLabel,
+        tabId: finalized.session.tabId,
+        clearsAfterMs: finalized.clearsAfterMs,
+      });
+      return true;
+    }
+
+    sendResponse({
+      success: false,
+      errorCode: 'mcp_route_invalid_params',
+      error: `Unsupported visual-session task status tool: ${tool || 'unknown'}`,
+    });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error.message || String(error),
+    });
+  }
+  return true;
 }
 
 async function handleStartMcpVisualSession(request, sender, sendResponse) {
@@ -608,6 +977,10 @@ async function handleStartMcpVisualSession(request, sender, sendResponse) {
       return true;
     }
 
+    if (started.replacedSession?.sessionToken) {
+      clearPendingMcpVisualSessionFinalization(started.replacedSession.sessionToken);
+    }
+
     await sendSessionStatus(
       tabId,
       buildMcpVisualSessionStatus(started.session, {
@@ -634,7 +1007,6 @@ async function handleStartMcpVisualSession(request, sender, sendResponse) {
 
 async function handleEndMcpVisualSession(request, sender, sendResponse) {
   try {
-    const manager = getMcpVisualSessionManager();
     const sessionToken = String(request?.sessionToken || request?.session_token || '').trim();
     if (!sessionToken) {
       sendResponse({
@@ -645,7 +1017,9 @@ async function handleEndMcpVisualSession(request, sender, sendResponse) {
       return true;
     }
 
-    const clearedSession = manager.endSession(sessionToken, {
+    clearPendingMcpVisualSessionFinalization(sessionToken);
+
+    const clearedSession = await clearMcpVisualSession(sessionToken, {
       reason: request?.reason,
     });
 
@@ -684,6 +1058,7 @@ async function handleEndMcpVisualSession(request, sender, sendResponse) {
 if (typeof globalThis !== 'undefined') {
   globalThis.handleStartMcpVisualSession = handleStartMcpVisualSession;
   globalThis.handleEndMcpVisualSession = handleEndMcpVisualSession;
+  globalThis.handleMcpVisualSessionTaskStatus = handleMcpVisualSessionTaskStatus;
 }
 
 /**
@@ -1417,6 +1792,7 @@ let activeSessions = new Map();
 const mcpVisualSessionManager = (typeof McpVisualSessionManager === 'function')
   ? new McpVisualSessionManager()
   : null;
+const mcpVisualSessionFinalizationTimers = new Map();
 
 // Last dashboard task completion result (retained for recovery snapshot)
 var _lastDashboardTaskResult = null;

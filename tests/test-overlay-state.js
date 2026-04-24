@@ -103,6 +103,41 @@ const finalState = overlayStateUtils.buildOverlayState({
 assertEqual(finalState.lifecycle, 'final', 'complete phase maps to final lifecycle');
 assertEqual(finalState.result, 'success', 'complete phase maps to success result');
 assertEqual(finalState.progress.percent, 100, 'final success shows 100 percent');
+assertEqual(finalState.progress.label, 'Done', 'final success uses done label');
+
+console.log('\n--- explicit visual-session metadata pass-through ---');
+
+const partialFinalState = overlayStateUtils.buildOverlayState({
+  phase: 'complete',
+  lifecycle: 'final',
+  result: 'partial',
+  sessionToken: 'visual_token_123',
+  version: 7,
+  clientLabel: 'Codex',
+  display: {
+    title: 'Saved draft',
+    subtitle: 'Login required',
+    detail: 'Sign in and send the message'
+  }
+}, null);
+
+assertEqual(partialFinalState.sessionToken, 'visual_token_123', 'explicit session token passes through');
+assertEqual(partialFinalState.version, 7, 'explicit version passes through');
+assertEqual(partialFinalState.clientLabel, 'Codex', 'explicit client label passes through');
+assertEqual(partialFinalState.lifecycle, 'final', 'explicit final lifecycle passes through');
+assertEqual(partialFinalState.result, 'partial', 'explicit partial result passes through');
+assertEqual(partialFinalState.progress.label, 'Partial', 'partial final state gets dedicated progress label');
+
+const errorFinalState = overlayStateUtils.buildOverlayState({
+  phase: 'error',
+  lifecycle: 'final',
+  result: 'error',
+  statusText: 'Checkout button never appeared'
+}, null);
+
+assertEqual(errorFinalState.lifecycle, 'final', 'explicit error lifecycle stays final');
+assertEqual(errorFinalState.result, 'error', 'explicit error result passes through');
+assertEqual(errorFinalState.progress.label, 'Error', 'error final state gets dedicated progress label');
 
 console.log('\n--- stale message handling ---');
 

@@ -829,13 +829,17 @@ const TOOL_REGISTRY = [
 
   {
     name: 'report_progress',
-    description: 'Display a status message in the overlay. THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
+    description: 'Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
     inputSchema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
           description: 'Progress message to display to the user (e.g. "Filling out the contact form", "Searching for flights")'
+        },
+        session_token: {
+          type: 'string',
+          description: 'Optional token returned by start_visual_session. Provide this only when updating a client-owned visual session; omit it for normal narration-only progress.'
         }
       },
       required: ['message']
@@ -852,11 +856,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'complete_task',
-    description: 'Signal that the task is fully complete. ONLY call this when the user\'s requested task has been fully achieved -- all data collected, all entries made, all actions performed. Include a summary of what was accomplished.',
+    description: 'Signal that the task is fully complete. ONLY call this when the user\'s requested task has been fully achieved -- all data collected, all entries made, all actions performed. Include a summary of what was accomplished. Provide session_token only when completing a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-lifecycle semantics.',
     inputSchema: {
       type: 'object',
       properties: {
-        summary: { type: 'string', description: 'Summary of what was accomplished (e.g. "Found 50 Tesla internships and added them to Google Sheet with title, department, location columns")' }
+        summary: { type: 'string', description: 'Summary of what was accomplished (e.g. "Found 50 Tesla internships and added them to Google Sheet with title, department, location columns")' },
+        session_token: {
+          type: 'string',
+          description: 'Optional token returned by start_visual_session. Provide this only when finalizing a client-owned visual session.'
+        }
       },
       required: ['summary']
     },
@@ -868,7 +876,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'partial_task',
-    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Use this instead of fail_task when the user can still benefit from the completed work, especially for auth/manual handoff blockers after research, drafting, or data entry is already done. Auth/manual blockers include login required, no saved credentials, user skipped login, credentials failed, and manual approval, MFA, or external verification. Preserve three things clearly: what you completed, the exact blocker, and the manual next step the user should take. If the runtime offers one saved-credential or operator-prompt attempt, let that single attempt happen first; call partial_task only after that attempt is unavailable, skipped, exhausted, or fails.',
+    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Use this instead of fail_task when the user can still benefit from the completed work, especially for auth/manual handoff blockers after research, drafting, or data entry is already done. Auth/manual blockers include login required, no saved credentials, user skipped login, credentials failed, and manual approval, MFA, or external verification. Preserve three things clearly: what you completed, the exact blocker, and the manual next step the user should take. If the runtime offers one saved-credential or operator-prompt attempt, let that single attempt happen first; call partial_task only after that attempt is unavailable, skipped, exhausted, or fails. Provide session_token only when finalizing a client-owned visual session created by start_visual_session.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -879,6 +887,10 @@ const TOOL_REGISTRY = [
           type: 'string',
           description: 'Optional machine-readable blocker category. Keep it narrow and stable for blocked/manual-handoff outcomes.',
           enum: ['blocked', 'auth_required', 'credentials_missing', 'user_skipped_login', 'credentials_failed', 'manual_approval']
+        },
+        session_token: {
+          type: 'string',
+          description: 'Optional token returned by start_visual_session. Provide this only when finalizing a client-owned visual session.'
         }
       },
       required: ['summary', 'blocker']
@@ -891,11 +903,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'fail_task',
-    description: 'Signal that the task cannot be completed. Include the reason why. Call this instead of just stopping when you encounter an unrecoverable problem.',
+    description: 'Signal that the task cannot be completed. Include the reason why. Call this instead of just stopping when you encounter an unrecoverable problem. Provide session_token only when ending a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-failure semantics.',
     inputSchema: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Why the task cannot be completed (e.g. "Page requires login", "Data not found on page")' }
+        reason: { type: 'string', description: 'Why the task cannot be completed (e.g. "Page requires login", "Data not found on page")' },
+        session_token: {
+          type: 'string',
+          description: 'Optional token returned by start_visual_session. Provide this only when failing a client-owned visual session.'
+        }
       },
       required: ['reason']
     },

@@ -28,7 +28,7 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
   'invalid_client_label':
     'The MCP client label is not on the trusted visual-session allowlist. Use one of the approved client names exactly as documented.',
   'visual_session_not_found':
-    'The provided visual-session token does not match an active client-owned visual session. Start a new visual session or use the latest token returned by start_visual_session.',
+    'The provided visual-session token does not match an active client-owned visual session. The token may be stale, already finalized, or already cleared. Start a new visual session or use the latest token returned by start_visual_session.',
   'visual_surface_busy':
     'The active visual surface is already owned by an FSB automation session. Wait for the current run to finish or stop it before starting a client-owned visual session.',
 };
@@ -209,8 +209,8 @@ function buildLayeredDetail(
     case 'visual_session_not_found':
       return {
         detected: LAYER_LABELS.visualSession,
-        why: 'The provided visual-session token does not match an active client-owned visual session.',
-        nextAction: 'Start a new visual session or retry with the latest token returned by start_visual_session.',
+        why: 'The provided visual-session token does not match an active client-owned visual session, which usually means it is stale, already finalized, or already cleared.',
+        nextAction: 'Start a new visual session or retry with the latest token returned by start_visual_session before sending more progress or final-status updates.',
       };
     case 'visual_surface_busy':
       return {

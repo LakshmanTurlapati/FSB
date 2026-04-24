@@ -524,7 +524,7 @@ function getActiveSessionsMap() {
   return (typeof activeSessions !== 'undefined' && activeSessions instanceof Map) ? activeSessions : new Map();
 }
 
-function callCallbackHandler(handlerName, request, sender = {}) {
+function callCallbackHandler(handlerName, request, sender = {}, routeFamily = 'autopilot') {
   const handler = typeof globalThis !== 'undefined' ? globalThis[handlerName] : null;
   const directHandler = typeof handler === 'function'
     ? handler
@@ -535,7 +535,7 @@ function callCallbackHandler(handlerName, request, sender = {}) {
         : null;
 
   if (typeof directHandler !== 'function') {
-    return Promise.resolve(createMcpRouteError(request?.action || handlerName, 'autopilot', MCP_ROUTE_RECOVERY_HINT, { error: `${handlerName} unavailable` }));
+    return Promise.resolve(createMcpRouteError(request?.action || handlerName, routeFamily, MCP_ROUTE_RECOVERY_HINT, { error: `${handlerName} unavailable` }));
   }
 
   return new Promise((resolve) => {
@@ -812,6 +812,21 @@ async function handleReportProgressRoute({ params }) {
     return createMcpInvalidParamsError('report_progress', 'report_progress requires message', { routeFamily: 'task-status' });
   }
 
+  const sessionToken = boundedString(params?.session_token || params?.sessionToken, 200);
+  if (sessionToken) {
+    return callCallbackHandler(
+      'handleMcpVisualSessionTaskStatus',
+      {
+        action: 'mcpVisualSessionTaskStatus',
+        tool: 'report_progress',
+        sessionToken,
+        message
+      },
+      {},
+      'visual-session'
+    );
+  }
+
   if (typeof automationLogger !== 'undefined' && automationLogger?.info) {
     automationLogger.info('MCP progress report', { message });
   }
@@ -823,6 +838,21 @@ async function handleCompleteTaskRoute({ params }) {
   const summary = boundedString(params?.summary, 2000);
   if (!summary) {
     return createMcpInvalidParamsError('complete_task', 'complete_task requires summary', { routeFamily: 'task-status' });
+  }
+
+  const sessionToken = boundedString(params?.session_token || params?.sessionToken, 200);
+  if (sessionToken) {
+    return callCallbackHandler(
+      'handleMcpVisualSessionTaskStatus',
+      {
+        action: 'mcpVisualSessionTaskStatus',
+        tool: 'complete_task',
+        sessionToken,
+        summary
+      },
+      {},
+      'visual-session'
+    );
   }
 
   return { success: true, tool: 'complete_task', status: 'completed', hadEffect: false, summary };
@@ -837,6 +867,24 @@ async function handlePartialTaskRoute({ params }) {
 
   const nextStep = boundedString(params?.next_step, 1000);
   const reason = boundedString(params?.reason, 100);
+  const sessionToken = boundedString(params?.session_token || params?.sessionToken, 200);
+  if (sessionToken) {
+    return callCallbackHandler(
+      'handleMcpVisualSessionTaskStatus',
+      {
+        action: 'mcpVisualSessionTaskStatus',
+        tool: 'partial_task',
+        sessionToken,
+        summary,
+        blocker,
+        ...(nextStep ? { nextStep } : {}),
+        ...(reason ? { reason } : {})
+      },
+      {},
+      'visual-session'
+    );
+  }
+
   return {
     success: true,
     tool: 'partial_task',
@@ -853,6 +901,21 @@ async function handleFailTaskRoute({ params }) {
   const reason = boundedString(params?.reason, 1000);
   if (!reason) {
     return createMcpInvalidParamsError('fail_task', 'fail_task requires reason', { routeFamily: 'task-status' });
+  }
+
+  const sessionToken = boundedString(params?.session_token || params?.sessionToken, 200);
+  if (sessionToken) {
+    return callCallbackHandler(
+      'handleMcpVisualSessionTaskStatus',
+      {
+        action: 'mcpVisualSessionTaskStatus',
+        tool: 'fail_task',
+        sessionToken,
+        reason
+      },
+      {},
+      'visual-session'
+    );
   }
 
   return { success: false, tool: 'fail_task', status: 'failed', hadEffect: false, error: reason, reason };

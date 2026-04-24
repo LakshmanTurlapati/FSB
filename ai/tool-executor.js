@@ -498,9 +498,12 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
         if (typeof dataHandler === 'function') {
           const response = await dataHandler(tool.name, params, tabId);
           const success = response && response.success !== false;
+          const explicitHadEffect = typeof response?.hadEffect === 'boolean'
+            ? response.hadEffect
+            : null;
           return makeResult({
             success: success,
-            hadEffect: success,
+            hadEffect: success && (explicitHadEffect !== null ? explicitHadEffect : true),
             error: response?.error || null,
             result: response
           });

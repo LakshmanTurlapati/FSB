@@ -145,6 +145,7 @@
 
   function getDefaultDetail(phase, result) {
     if (result === 'success') return 'Task completed';
+    if (result === 'partial') return 'Task partially completed';
     if (result === 'error') return 'Task ended with an error';
     if (result === 'stopped') return 'Task stopped';
 
@@ -292,8 +293,16 @@
       return computeSheetsProgress(session);
     }
 
-    if (lifecycle === 'final' && result === 'success') {
-      return { mode: 'determinate', percent: 100, label: 'Done', eta: null };
+    if (lifecycle === 'final') {
+      if (result === 'success') {
+        return { mode: 'determinate', percent: 100, label: 'Done', eta: null };
+      }
+      if (result === 'partial') {
+        return { mode: 'indeterminate', percent: null, label: 'Partial', eta: null };
+      }
+      if (result === 'error') {
+        return { mode: 'indeterminate', percent: null, label: 'Error', eta: null };
+      }
     }
 
     return {
