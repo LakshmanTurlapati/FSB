@@ -1,589 +1,653 @@
-# Architecture: MCP Platform Install Flags
+# Architecture: Vault, Payments & Secure MCP Access
 
-**Domain:** CLI subcommand and config-file auto-writing for MCP platform onboarding
-**Researched:** 2026-04-15
-**Overall Confidence:** HIGH (based on direct analysis of existing CLI entry point + verified platform config schemas)
+**Domain:** Credential vault unlock wiring, payment method management, secure MCP/autopilot tool integration
+**Researched:** 2026-04-20
+**Overall Confidence:** HIGH (based on direct code analysis of all integration points)
 
 ---
 
 ## Executive Summary
 
-The `fsb-mcp-server` CLI (v0.4.0) already has a well-structured command routing architecture in `index.js` with a `parseArgs` function feeding a `switch` statement. Adding an `install` subcommand with `--<platform>` flags is a clean extension of this pattern -- no restructuring required.
+The v0.9.34 milestone wires up an already-implemented backend (`secure-config.js` has full credential vault + payment method CRUD) to three consumers: (1) background.js message handlers (vault lifecycle + payment CRUD), (2) AI autopilot tools (`fill_credential`, `fill_payment_method`), and (3) MCP tools (`list_credentials`, `fill_credential`, `list_payment_methods`, `use_payment_method`). The critical architectural constraint is the **security boundary**: passwords and full card numbers must NEVER traverse the WebSocket bridge between the MCP server and the extension. The extension fills sensitive values directly into page DOM via `chrome.scripting.executeScript` in the MAIN world -- the same proven pattern used by the existing `fillCredentialsOnPageDirect()` function (background.js:6318).
 
-The core architectural decision is: use a **platform registry map** where each platform entry declares its config file path (per OS), config format (JSON/TOML/YAML), root key (`mcpServers` vs `servers` vs `context_servers` vs `mcp_servers`), and the FSB server entry shape. A single `ConfigWriter` handles read-merge-write for all JSON-based platforms (8 of 10), with thin adapters for TOML (Codex) and YAML (Continue). The existing `setup` command becomes a fallback that prints instructions when no `--<platform>` flag is given, and the `install` subcommand replaces copy-paste with one-command auto-configuration.
+The architecture introduces no new transport layers, no new processes, and no new storage mechanisms. It extends three existing communication channels:
+
+1. **chrome.runtime.sendMessage** (UI <-> background.js) -- add vault unlock/lock/status + 5 payment method handlers
+2. **WebSocket bridge message routing** (MCP server -> mcp-bridge-client.js -> background.js) -- add credential/payment MCP message types
+3. **MCP tool registration** (mcp-server/src/tools/) -- add a new `vault.ts` tool registration module
+
+The data flow enforces a strict **redact-at-source** pattern: any response that leaves the service worker over the WebSocket bridge strips passwords, full card numbers, and CVVs before serialization. The `secureConfig` singleton already returns metadata-only objects from `getAllCredentials()` and `getAllPaymentMethods()`. For fill operations, the MCP server sends a command like "fill credential for domain X" and background.js resolves the credential locally, fills via `chrome.scripting.executeScript`, and returns only success/failure status.
 
 ---
 
-## Existing CLI Architecture
+## Current Architecture (Annotated)
 
-### Entry Point: `mcp-server/build/index.js`
+### Data Flow: MCP Tool Execution (Existing)
 
 ```
-#!/usr/bin/env node
-
-parseArgs(argv) -> { command: string, flags: Record<string,string|boolean> }
-                          |
-                          v
-main() switch(command):
-  'stdio'              -> runStdioServer()        [default]
-  'serve' / 'http'     -> runHttpMode(flags)
-  'status'             -> runStatus(flags)
-  'doctor'             -> runDoctor(flags)
-  'setup'              -> printSetup()             [sync, prints text]
-  'wait-for-extension' -> runWaitForExtension(flags)
-  'help'               -> printHelp()              [sync, prints text]
+MCP Host (Claude Code, Cursor, etc.)
+  |
+  | (stdio or HTTP)
+  v
+MCP Server (Node.js)
+  |
+  | (WebSocket on port 7225)
+  v
+WebSocketBridge (hub/relay)
+  |
+  | (WebSocket frame)
+  v
+MCPBridgeClient (ws/mcp-bridge-client.js, in service worker)
+  |
+  | _routeMessage() switch
+  |   case 'mcp:execute-action' -> _handleExecuteAction()
+  |     | checks _route field
+  |     | 'content' -> sendToContentScript(tab.id, ...)
+  |     | 'background' -> _dispatchToBackground({action, ...})
+  |     |                    -> chrome.runtime.sendMessage(request)
+  |     |                         -> background.js onMessage handler
+  v
+background.js  chrome.runtime.onMessage  (switch on request.action)
+  |
+  | case 'getCredential': secureConfig.getCredential(domain)
+  | case 'saveCredential': secureConfig.saveCredential(domain, data)
+  | case 'getAllCredentials': secureConfig.getAllCredentials()
+  | ... (6 credential cases wired, 0 vault lifecycle, 0 payment method)
+  v
+secureConfig (config/secure-config.js singleton)
+  |
+  | AES-256-GCM encryption/decryption
+  | Session key in chrome.storage.session
+  | Encrypted records in chrome.storage.local
+  v
+chrome.storage.local / chrome.storage.session
 ```
 
-### Key Characteristics
+### What Exists vs What Is Missing
 
-1. **`parseArgs` already supports `--key value`, `--key=value`, and bare `--flag`** -- platform flags like `--claude-desktop` work without parser changes.
-2. **First non-flag argument becomes the command** -- `fsb-mcp-server install --claude-desktop` sets `command = 'install'`.
-3. **Flags are a flat `Record<string, string | boolean>`** -- no nested parsing, no positional args after the command.
-4. **Helper functions `readStringFlag`, `readNumberFlag`, `isJson`** exist for typed flag access.
-5. **No external CLI framework** (no yargs, commander, etc.) -- the parser is ~35 lines of hand-written code. Keep it that way.
-
-### Existing `setup` Command
-
-`printSetup()` is a sync function that writes a large template string to stdout with copy-paste install snippets for Claude Code, Claude Desktop, Cursor, and generic stdio/HTTP. It does NOT write any files. It includes a `buildCursorDeeplink()` helper.
+| Component | Exists | Missing |
+|-----------|--------|---------|
+| `SecureConfig.createCredentialVault()` | YES | No background.js handler |
+| `SecureConfig.unlockCredentialVault()` | YES | No background.js handler |
+| `SecureConfig.lockCredentialVault()` | YES | No background.js handler |
+| `SecureConfig.getCredentialVaultStatus()` | YES | No background.js handler |
+| `SecureConfig.getPaymentVaultStatus()` | YES | No background.js handler |
+| `SecureConfig.savePaymentMethod()` | YES | No background.js handler |
+| `SecureConfig.getAllPaymentMethods()` | YES | No background.js handler |
+| `SecureConfig.getFullPaymentMethod()` | YES | No background.js handler |
+| `SecureConfig.updatePaymentMethod()` | YES | No background.js handler |
+| `SecureConfig.deletePaymentMethod()` | YES | No background.js handler |
+| `SecureConfig.unlockPaymentMethods()` | YES | No background.js handler |
+| `SecureConfig.lockPaymentMethods()` | YES | No background.js handler |
+| `ui/unlock.js` sends `action:'unlock'` | YES | No `case 'unlock'` in background.js |
+| `fillCredentialsOnPageDirect()` | YES | Not exposed as MCP tool |
+| Payment field DOM detection | YES (dom-analysis.js) | No `fillPaymentOnPageDirect()` |
+| MCP tool-definitions.cjs | YES (49 tools) | No credential/payment tools |
+| MCP bridge client _routeMessage | YES (13 cases) | No vault/credential/payment cases |
+| Sidepanel login prompt dialog | YES | No payment confirmation dialog |
+| Options page credential manager UI | YES | No payment method management UI |
 
 ---
 
 ## Proposed Architecture
 
-### Command Routing Extension
+### Component 1: background.js Message Handler Additions
 
-Add two new cases to the `main()` switch:
+Add to the existing `chrome.runtime.onMessage` switch statement. These are pure passthrough handlers calling `secureConfig` methods, following the exact same pattern as the existing 6 credential cases (lines 4287-4352).
+
+**Vault lifecycle handlers (4 cases):**
 
 ```
-main() switch(command):
-  ...existing cases...
-  'install'   -> runInstall(flags)    [NEW: async, writes config files]
-  'uninstall' -> runUninstall(flags)  [NEW: async, removes FSB entry from config files]
+case 'createCredentialVault':  -> secureConfig.createCredentialVault(request.passphrase)
+case 'unlockCredentialVault':  -> secureConfig.unlockCredentialVault(request.passphrase)
+case 'lockCredentialVault':    -> secureConfig.lockCredentialVault()
+case 'getCredentialVaultStatus': -> secureConfig.getCredentialVaultStatus()
 ```
 
-**Why separate `install`/`uninstall` commands instead of `install --uninstall`:** Destructive operations deserve their own verb. `fsb-mcp-server uninstall --claude-desktop` is clearer than `fsb-mcp-server install --uninstall --claude-desktop`. It also prevents accidental uninstall from a misplaced flag.
+**Payment method handlers (7 cases):**
 
-**Alternative considered (rejected): `setup --write --claude-desktop`** -- Overloading `setup` mixes its existing role (print instructions) with destructive file writes. The `install` command is an explicit opt-in to file modification.
+```
+case 'getPaymentVaultStatus':  -> secureConfig.getPaymentVaultStatus()
+case 'unlockPaymentMethods':   -> secureConfig.unlockPaymentMethods(request.passphrase)
+case 'lockPaymentMethods':     -> secureConfig.lockPaymentMethods()
+case 'savePaymentMethod':      -> secureConfig.savePaymentMethod(request.data)
+case 'getAllPaymentMethods':   -> secureConfig.getAllPaymentMethods()
+case 'updatePaymentMethod':    -> secureConfig.updatePaymentMethod(request.id, request.updates)
+case 'deletePaymentMethod':    -> secureConfig.deletePaymentMethod(request.id)
+```
 
-### Platform Registry Pattern
+**Vault unlock handler for ui/unlock.js:**
 
-A static map defining all supported platforms. Each entry contains everything needed to locate, read, merge, and write the config file for that platform.
+```
+case 'unlock':  -> secureConfig.initialize(request.password)
+                   + store in chrome.storage.session if request.remember
+```
+
+Note: The existing `ui/unlock.js` sends `{action: 'unlock', password, remember}` but there is NO matching case in background.js. This is the root cause of the broken vault unlock flow.
+
+### Component 2: fillPaymentOnPageDirect() Function
+
+New function in background.js, parallel to the existing `fillCredentialsOnPageDirect()`. Uses `chrome.scripting.executeScript` with `world: 'MAIN'` to fill payment fields directly in the page DOM without sending card data over any message channel.
+
+**Data flow:**
+
+```
+background.js  fillPaymentOnPageDirect(tabId, paymentRecord, fieldMap)
+  |
+  | chrome.scripting.executeScript({
+  |   target: { tabId },
+  |   world: 'MAIN',
+  |   func: (fields) => {
+  |     // nativeInputValueSetter pattern (same as credentials)
+  |     // Map intent -> selector from DOM analysis
+  |     // Fill: cc-number, cc-name, cc-exp-month, cc-exp-year, cc-csc
+  |     // Fill: billing name, address, city, state, zip, country
+  |   },
+  |   args: [serializedFieldData]
+  | })
+  v
+Page DOM (filled directly, no intermediary)
+```
+
+The `fieldMap` parameter comes from `extractPaymentFields(domData)`, a new function parallel to `extractLoginFields(domData)` that uses the existing payment field detection in `content/dom-analysis.js` (lines 389-428).
+
+### Component 3: MCP Tool Registration (vault.ts)
+
+New file: `mcp-server/src/tools/vault.ts`
+
+Registered in `runtime.ts` alongside the existing 5 tool modules. These tools use a NEW set of MCP message types routed through the WebSocket bridge.
+
+**MCP Tools (4 tools):**
+
+| MCP Tool | MCP Message Type | background.js Handler | Response Content |
+|----------|-----------------|----------------------|------------------|
+| `list_credentials` | `mcp:list-credentials` | `secureConfig.getAllCredentials()` | domain + username only (NO password) |
+| `fill_credential` | `mcp:fill-credential` | `fillCredentialsOnPage()` | success/failure (password NEVER leaves SW) |
+| `list_payment_methods` | `mcp:list-payment-methods` | `secureConfig.getAllPaymentMethods()` | last4 + brand only (NO full number, NO CVV) |
+| `use_payment_method` | `mcp:use-payment-method` | `fillPaymentOnPageDirect()` | success/failure (card data NEVER leaves SW) |
+
+**Registration pattern:**
 
 ```typescript
-interface PlatformConfig {
-  /** Display name for user messages */
-  displayName: string;
-
-  /** CLI flag name (e.g., 'claude-desktop' -> --claude-desktop) */
-  flag: string;
-
-  /** Config file path per OS. null = not supported on that OS. */
-  configPath: {
-    darwin: string | null;
-    win32: string | null;
-    linux: string | null;
-  };
-
-  /** Config file format */
-  format: 'json' | 'toml' | 'yaml';
-
-  /** Root key for the server map inside the config file */
-  serverMapKey: string;
-
-  /** The FSB server entry to merge into the server map */
-  serverEntry: Record<string, unknown>;
-
-  /** Optional: CLI command alternative (e.g., Claude Code uses `claude mcp add`) */
-  cliAlternative?: {
-    command: string;
-    description: string;
-  };
+// mcp-server/src/tools/vault.ts
+export function registerVaultTools(
+  server: McpServer,
+  bridge: WebSocketBridge,
+  queue: TaskQueue,
+): void {
+  server.tool(
+    'list_credentials',
+    'List saved credentials (domain and username only, passwords never exposed)',
+    { domain: z.string().optional().describe('Filter to a specific domain') },
+    async (params) => {
+      const result = await bridge.sendAndWait({
+        type: 'mcp:list-credentials',
+        payload: { domain: params.domain },
+      });
+      return mapFSBError(result);
+    },
+  );
+  // ... similar for other 3 tools
 }
 ```
 
-### The Registry (All 10 Platforms)
+### Component 4: MCPBridgeClient Route Additions
 
-| Platform | Flag | Format | Root Key | Path (macOS) | Path (Windows) | Path (Linux) |
-|----------|------|--------|----------|-------------|----------------|-------------|
-| Claude Desktop | `--claude-desktop` | JSON | `mcpServers` | `~/Library/Application Support/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` |
-| Claude Code | `--claude-code` | n/a (CLI) | n/a | n/a | n/a | n/a |
-| Cursor | `--cursor` | JSON | `mcpServers` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` |
-| VS Code | `--vscode` | JSON | `servers` | `~/.vscode/mcp.json` (user) | `~/.vscode/mcp.json` (user) | `~/.vscode/mcp.json` (user) |
-| Windsurf | `--windsurf` | JSON | `mcpServers` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` |
-| Cline | `--cline` | JSON | `mcpServers` | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
-| Zed | `--zed` | JSON | `context_servers` | `~/.zed/settings.json` | `%APPDATA%\Zed\settings.json` | `~/.config/zed/settings.json` |
-| Codex | `--codex` | TOML | `mcp_servers` | `~/.codex/config.toml` | `~/.codex/config.toml` | `~/.codex/config.toml` |
-| Gemini CLI | `--gemini` | JSON | `mcpServers` | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `~/.gemini/settings.json` |
-| Continue | `--continue` | YAML | `mcpServers` | `~/.continue/config.yaml` | `~/.continue/config.yaml` | `~/.continue/config.yaml` |
+Add cases to `ws/mcp-bridge-client.js` `_routeMessage()` switch:
 
-### FSB Server Entry Shapes
+```javascript
+case 'mcp:list-credentials':
+  return this._handleListCredentials(payload);
 
-Most platforms use identical entry shapes (command + args). Notable exceptions:
+case 'mcp:fill-credential':
+  return this._handleFillCredential(payload);
 
-**Standard (8 platforms):**
-```json
+case 'mcp:list-payment-methods':
+  return this._handleListPaymentMethods(payload);
+
+case 'mcp:use-payment-method':
+  return this._handleUsePaymentMethod(payload);
+
+case 'mcp:get-vault-status':
+  return this._handleGetVaultStatus();
+
+case 'mcp:unlock-vault':
+  return this._handleUnlockVault(payload);
+```
+
+**Critical: `_handleFillCredential` and `_handleUsePaymentMethod` operate entirely within the service worker.** They call `secureConfig.getFullCredential(domain)` / `secureConfig.getFullPaymentMethod(id)` locally, call `fillCredentialsOnPageDirect()` / `fillPaymentOnPageDirect()`, and return ONLY `{success: true/false}` over the WebSocket. The secret material is resolved, used, and discarded entirely within the service worker process boundary.
+
+### Component 5: Autopilot Tool Definitions
+
+Add to `ai/tool-definitions.js` and `mcp-server/ai/tool-definitions.cjs`:
+
+```javascript
 {
-  "command": "npx",
-  "args": ["-y", "fsb-mcp-server"]
-}
-```
-
-**Windows variant (auto-detected by OS, not user-facing):**
-```json
+  name: 'fill_credential',
+  description: 'Fill saved username/password credentials into login form fields on the current page. The extension looks up the credential by domain and fills directly -- the password is never exposed to the AI. Requires vault to be unlocked.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      domain: { type: 'string', description: 'Domain to look up credentials for. Defaults to current page domain.' }
+    },
+    required: []
+  },
+  _route: 'background',
+  _readOnly: false,
+  _contentVerb: null,
+  _cdpVerb: null
+},
 {
-  "command": "cmd",
-  "args": ["/c", "npx", "-y", "fsb-mcp-server"]
+  name: 'fill_payment_method',
+  description: 'Fill a saved payment method into payment form fields on the current page. The extension fills card number, expiry, CVV, and billing address directly -- sensitive card data is never exposed to the AI. Requires vault and payment access to be unlocked. The user must confirm in the sidepanel before filling.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      payment_method_id: { type: 'string', description: 'ID of the saved payment method to use. Use list_payment_methods first to get available IDs.' }
+    },
+    required: ['payment_method_id']
+  },
+  _route: 'background',
+  _readOnly: false,
+  _contentVerb: null,
+  _cdpVerb: null
 }
 ```
 
-**Zed requires no "source" field for direct settings.json entries:**
-```json
-{
-  "command": "npx",
-  "args": ["-y", "fsb-mcp-server"],
-  "env": {}
-}
+### Component 6: Sidepanel Confirmation Dialog
+
+Extends the existing `showLoginPrompt()` pattern for payment confirmation. When `fill_payment_method` or `use_payment_method` is invoked, background.js sends a `paymentConfirmationRequired` message to the sidepanel. The sidepanel shows a confirmation card with:
+
+- Card brand icon + masked last 4
+- Merchant/domain name
+- "Confirm" and "Cancel" buttons
+
+The sidepanel sends back `paymentConfirmationApproved` or `paymentConfirmationDenied`. Background.js has a `waitForPaymentConfirmation(sessionId)` function parallel to the existing `waitForLoginResponse(sessionId)`.
+
+```
+background.js                    sidepanel.js
+     |                                |
+     | chrome.runtime.sendMessage({   |
+     |   action: 'paymentConfirmationRequired',
+     |   sessionId, paymentMetadata   |
+     | })                             |
+     |------------------------------->|
+     |                                | Show confirmation card
+     |                                | User clicks Confirm/Cancel
+     |<-------------------------------|
+     | chrome.runtime.sendMessage({   |
+     |   action: 'paymentConfirmed'   |
+     |   or 'paymentDenied'           |
+     | })                             |
+     |                                |
+     | if confirmed:                  |
+     |   fillPaymentOnPageDirect()    |
+     |   return {success: true}       |
+     | else:                          |
+     |   return {success: false,      |
+     |     error: 'user_denied'}      |
 ```
 
-**Codex (TOML):**
-```toml
-[mcp_servers.fsb]
-command = "npx"
-args = ["-y", "fsb-mcp-server"]
+### Component 7: Payment Management UI (Options Page)
+
+Add a "Payment Methods" section to `ui/control_panel.html` and `ui/options.js`, parallel to the existing "Credentials Manager" section. Uses the same card layout pattern with:
+
+- List view showing masked card numbers (last 4), brand, nickname, expiry
+- Add/Edit modal with card number, cardholder name, expiry, CVV, billing address
+- Delete confirmation
+- Lock/Unlock toggle for payment access (separate from vault unlock)
+
+All communication via `chrome.runtime.sendMessage` to the new background.js handlers.
+
+---
+
+## Security Boundary Enforcement
+
+### The Iron Rule
+
+**Sensitive data (passwords, full card numbers, CVVs) NEVER cross the WebSocket bridge.**
+
+This is enforced at three levels:
+
+1. **Source-level redaction:** `secureConfig.getAllCredentials()` returns `{domain, username, notes}` -- no password field. `secureConfig.getAllPaymentMethods()` returns `{id, last4, cardBrand, maskedNumber}` -- no full number, no CVV.
+
+2. **Bridge client filtering:** The `_handleListCredentials()` and `_handleListPaymentMethods()` methods in `mcp-bridge-client.js` call only the metadata methods. The `_handleFillCredential()` method resolves the full credential via `secureConfig.getFullCredential()`, uses it in `chrome.scripting.executeScript`, and returns only `{success: true}`.
+
+3. **MCP tool descriptions:** Tool descriptions explicitly state "password is never exposed" / "card data is never exposed" so the AI understands the boundary.
+
+### Threat Model
+
+| Threat | Mitigation |
+|--------|-----------|
+| MCP host reads credential password | Password never included in any WebSocket response |
+| Malicious MCP tool calls fill_credential on wrong site | fill_credential matches credential by current page domain, not user-supplied domain. AI-supplied domain parameter is optional hint, but actual lookup uses `tab.url` |
+| Payment fill without user consent | Payment fill requires explicit sidepanel confirmation dialog |
+| Service worker restart loses vault session | Session key stored in `chrome.storage.session` (cleared on browser close, survives SW restart) |
+| WebSocket message interception | Bridge is localhost-only (ws://localhost:7225). Additionally, sensitive payloads are never serialized. |
+
+### Redacted Logging
+
+All `automationLogger` calls for credential/payment operations must use redacted values:
+
+```javascript
+automationLogger.info('Credential fill', {
+  domain: domain,
+  username: cred.username,
+  // password: NEVER logged
+  success: result.success
+});
+
+automationLogger.info('Payment fill', {
+  paymentMethodId: id,
+  cardBrand: metadata.cardBrand,
+  last4: metadata.last4,
+  // cardNumber: NEVER logged
+  // cvv: NEVER logged
+  success: result.success
+});
 ```
 
-**Continue (YAML in mcpServers list, not map):**
-```yaml
-mcpServers:
-  - name: fsb
-    type: stdio
-    command: npx
-    args:
-      - "-y"
-      - "fsb-mcp-server"
+---
+
+## Data Flow Diagrams
+
+### Flow 1: MCP `fill_credential` (Secure Path)
+
+```
+Claude Code: "Fill in the login form"
+  |
+  | MCP tool call: fill_credential({domain: "github.com"})
+  v
+MCP Server (vault.ts)
+  | bridge.sendAndWait({type: 'mcp:fill-credential', payload: {domain: 'github.com'}})
+  v
+WebSocket Bridge (port 7225)
+  | frame: {id, type: 'mcp:fill-credential', payload: {domain: 'github.com'}}
+  v
+MCPBridgeClient._handleFillCredential({domain: 'github.com'})
+  |
+  | 1. tab = await getActiveTab()  // get current tab
+  | 2. actualDomain = new URL(tab.url).hostname  // trust tab URL, not MCP param
+  | 3. status = await secureConfig.getCredentialVaultStatus()
+  |    if (!status.unlocked) -> return {success: false, error: 'vault_locked'}
+  | 4. cred = await secureConfig.getFullCredential(actualDomain)
+  |    if (!cred) -> return {success: false, error: 'no_credential_found'}
+  | 5. domResponse = await sendToContentScript(tab.id, {action: 'getDOM'})
+  | 6. fields = extractLoginFields(domResponse.structuredDOM)
+  | 7. result = await fillCredentialsOnPageDirect(tab.id, {
+  |      usernameSelector: fields.usernameSelector,
+  |      passwordSelector: fields.passwordSelector,
+  |      submitSelector: fields.submitSelector,
+  |      username: cred.username,
+  |      password: cred.password   // <-- STAYS in service worker
+  |    })
+  | 8. return {success: result.success, domain: actualDomain, username: cred.username}
+  v                                  // <-- password NOT in response
+WebSocket Bridge -> MCP Server -> Claude Code
+  Response: {success: true, domain: 'github.com', username: 'user@example.com'}
+            // NO password in the response
 ```
 
-**Claude Code (CLI command, not file write):**
+### Flow 2: MCP `use_payment_method` (Secure Path + Confirmation)
+
 ```
-claude mcp add fsb -- npx -y fsb-mcp-server
+Claude Code: "Pay with my Visa ending in 4242"
+  |
+  | MCP tool call: use_payment_method({payment_method_id: "pm_abc123"})
+  v
+MCP Server (vault.ts)
+  | bridge.sendAndWait({type: 'mcp:use-payment-method', payload: {id: 'pm_abc123'}})
+  v
+MCPBridgeClient._handleUsePaymentMethod({id: 'pm_abc123'})
+  |
+  | 1. status = await secureConfig.ensurePaymentAccessUnlocked()
+  |    if (!status.ok) -> return {success: false, error: status.error}
+  | 2. metadata = await secureConfig.buildPaymentMethodMetadata(...)
+  |    // Get masked info for confirmation dialog
+  | 3. tab = await getActiveTab()
+  | 4. chrome.runtime.sendMessage({
+  |      action: 'paymentConfirmationRequired',
+  |      paymentMetadata: {cardBrand: 'visa', last4: '4242', ...},
+  |      domain: tab.url
+  |    })
+  | 5. confirmation = await waitForPaymentConfirmation()
+  |    if (denied) -> return {success: false, error: 'user_denied_payment'}
+  | 6. fullRecord = await secureConfig.getFullPaymentMethod('pm_abc123')
+  | 7. domResponse = await sendToContentScript(tab.id, {action: 'getDOM'})
+  | 8. fields = extractPaymentFields(domResponse.structuredDOM)
+  | 9. result = await fillPaymentOnPageDirect(tab.id, fullRecord, fields)
+  |    // card number + CVV stay in service worker
+  | 10. return {success: result.success, cardBrand: 'visa', last4: '4242'}
+  v                                // NO card number, NO CVV in response
+WebSocket Bridge -> MCP Server -> Claude Code
+  Response: {success: true, cardBrand: 'visa', last4: '4242'}
 ```
+
+### Flow 3: Vault Unlock (UI -> background.js, Currently Broken)
+
+```
+CURRENT (broken):
+  ui/unlock.js -> chrome.runtime.sendMessage({action: 'unlock', password, remember})
+              -> NO handler in background.js -> message silently dropped
+
+FIXED:
+  ui/unlock.js -> chrome.runtime.sendMessage({action: 'unlock', password, remember})
+              -> background.js case 'unlock':
+                   -> secureConfig.unlockCredentialVault(request.password)
+                   -> if (request.remember) chrome.storage.session.set({...})
+                   -> sendResponse({success: true, unlocked: true})
+  ui/unlock.js -> window.close()
+```
+
+Note: The existing `ui/unlock.js` also tries to decrypt with `secureConfig.decrypt()` directly (line 28), but this is the old API key unlock flow, not the credential vault flow. The credential vault uses a completely different mechanism (`unlockCredentialVault()` which derives a session key via PBKDF2). The unlock.js needs to be updated to use the vault-specific unlock path.
 
 ---
 
 ## Component Boundaries
 
-### New Modules
-
-| Module | Path | Responsibility | Exports |
-|--------|------|---------------|---------|
-| `platforms.ts` | `mcp-server/src/platforms.ts` | Platform registry map, OS path resolution, server entry shapes | `PLATFORMS`, `resolvePlatformConfigPath()`, `getPlatformServerEntry()` |
-| `config-writer.ts` | `mcp-server/src/config-writer.ts` | Read-merge-write logic for JSON, TOML, YAML config files | `installToConfig()`, `uninstallFromConfig()` |
-| `install.ts` | `mcp-server/src/install.ts` | CLI handler for `install`/`uninstall` commands, orchestrates platform detection + config writing | `runInstall()`, `runUninstall()` |
-
-### Modified Modules
-
-| Module | Path | Change |
-|--------|------|--------|
-| `index.ts` | `mcp-server/src/index.ts` | Add `'install'` and `'uninstall'` cases to the main switch, import `runInstall`/`runUninstall`, update `printHelp()` and `printSetup()` |
-| `version.ts` | `mcp-server/src/version.ts` | No change needed (version already exported) |
-
-### Unchanged Modules
-
-All existing modules (`runtime.ts`, `server.ts`, `bridge.ts`, `queue.ts`, `diagnostics.ts`, `errors.ts`, `http.ts`, `tools/*`, `resources/*`, `prompts/*`) are completely untouched. The install feature is purely a CLI-side addition with zero runtime impact.
+| Component | Responsibility | Communicates With |
+|-----------|---------------|-------------------|
+| `config/secure-config.js` | Encryption, storage, CRUD, validation | chrome.storage.local/session |
+| `background.js` (message handler) | Route UI/MCP messages to secureConfig | secureConfig, chrome.scripting, content scripts |
+| `ws/mcp-bridge-client.js` | Route MCP WebSocket messages, enforce security boundary | background.js (via sendMessage), secureConfig (direct access in SW scope) |
+| `mcp-server/src/tools/vault.ts` | MCP tool registration, schema, bridge messaging | WebSocketBridge |
+| `ai/tool-definitions.js` | Autopilot tool schema for fill_credential, fill_payment_method | agent-loop.js (tool executor) |
+| `ui/sidepanel.js` | Payment confirmation dialog, login prompt | background.js (via sendMessage) |
+| `ui/options.js` + `ui/control_panel.html` | Payment method management UI | background.js (via sendMessage) |
+| `ui/unlock.js` | Vault unlock popup | background.js (via sendMessage) |
+| `content/dom-analysis.js` | Payment field detection (existing) | content script message handler |
 
 ---
 
-## Data Flow: Install
+## Files Modified vs Files Created
 
-```
-User: npx fsb-mcp-server install --claude-desktop
-  |
-  v
-parseArgs(argv) -> { command: 'install', flags: { 'claude-desktop': true } }
-  |
-  v
-runInstall(flags)
-  |
-  +-- 1. Detect which platform flags are set
-  |     (iterate PLATFORMS registry, check flags[platform.flag])
-  |
-  +-- 2. For each matched platform:
-  |     |
-  |     +-- a. resolvePlatformConfigPath(platform, process.platform)
-  |     |     -> Expand ~ to os.homedir(), %APPDATA% to env var
-  |     |     -> Returns absolute path or null (unsupported OS)
-  |     |
-  |     +-- b. installToConfig(configPath, platform)
-  |     |     |
-  |     |     +-- Read existing file (if exists) or start with {}
-  |     |     +-- Parse based on platform.format (JSON/TOML/YAML)
-  |     |     +-- Check if FSB entry already exists under platform.serverMapKey
-  |     |     |   -> If exists and identical: skip, print "already configured"
-  |     |     |   -> If exists and different: warn, ask or overwrite with --force
-  |     |     +-- Deep-merge: preserve all other server entries
-  |     |     +-- Serialize back to original format
-  |     |     +-- Write file (create parent dirs if needed)
-  |     |     +-- Return result { status: 'created' | 'updated' | 'skipped', path }
-  |     |
-  |     +-- c. Print result for this platform
-  |
-  +-- 3. If no platform flags given:
-  |     -> Print available platforms and usage hint
-  |     -> Suggest `fsb-mcp-server setup` for manual instructions
-  |
-  +-- 4. Special case: --claude-code
-        -> Shell out: `claude mcp add fsb -- npx -y fsb-mcp-server`
-        -> Or print the command if `claude` is not in PATH
-```
+### Modified Files (8)
 
-## Data Flow: Uninstall
+| File | Changes |
+|------|---------|
+| `background.js` | Add ~15 message handler cases (vault lifecycle, payment CRUD, unlock), add `fillPaymentOnPageDirect()`, add `extractPaymentFields()`, add `waitForPaymentConfirmation()` |
+| `ws/mcp-bridge-client.js` | Add ~6 route cases for MCP vault/credential/payment messages, add handler methods |
+| `ai/tool-definitions.js` | Add `fill_credential` and `fill_payment_method` tool definitions |
+| `mcp-server/ai/tool-definitions.cjs` | Mirror the same 2 tool definitions (this is the CJS copy for MCP server) |
+| `mcp-server/src/runtime.ts` | Add `import { registerVaultTools }` and call it in `createRuntime()` |
+| `ui/sidepanel.js` | Add payment confirmation dialog (parallel to `showLoginPrompt()`) |
+| `ui/options.js` | Add payment method management section (list, add, edit, delete) |
+| `ui/control_panel.html` | Add payment methods HTML section |
+| `ui/unlock.js` | Fix to use `unlockCredentialVault()` path instead of direct decrypt |
 
-```
-User: npx fsb-mcp-server uninstall --claude-desktop
-  |
-  v
-parseArgs(argv) -> { command: 'uninstall', flags: { 'claude-desktop': true } }
-  |
-  v
-runUninstall(flags)
-  |
-  +-- 1. Same platform detection as install
-  |
-  +-- 2. For each matched platform:
-  |     |
-  |     +-- a. Resolve config path
-  |     +-- b. uninstallFromConfig(configPath, platform)
-  |     |     |
-  |     |     +-- Read existing file
-  |     |     +-- Parse based on format
-  |     |     +-- Check if 'fsb' key exists under serverMapKey
-  |     |     |   -> If not found: print "not configured", skip
-  |     |     +-- Delete the 'fsb' key from the server map
-  |     |     +-- If server map is now empty, delete the serverMapKey too
-  |     |     +-- Serialize and write back
-  |     |     +-- Return result { status: 'removed' | 'not-found', path }
-  |     |
-  |     +-- c. Print result
-  |
-  +-- 3. Special case: --claude-code
-        -> Shell out: `claude mcp remove fsb`
-```
+### New Files (1)
+
+| File | Purpose |
+|------|---------|
+| `mcp-server/src/tools/vault.ts` | MCP tool registration for list_credentials, fill_credential, list_payment_methods, use_payment_method |
 
 ---
 
-## ConfigWriter Design: Shared Abstraction, Not Per-Platform Handlers
+## Suggested Build Order
 
-**Decision: One `ConfigWriter` module with format-specific read/write helpers, NOT per-platform handler classes.**
+The dependency chain dictates this order:
 
-Rationale:
-- 8 of 10 platforms use JSON with identical read-merge-write logic; only the root key name and file path differ.
-- TOML (Codex) and YAML (Continue) need format-specific parsing but the merge logic is identical (find key in map, insert/delete entry).
-- Per-platform handler classes would create 10 files with 95% identical code. A registry map + format-aware ConfigWriter is far cleaner.
+### Phase 1: Vault Unlock Fix (Foundation)
 
-### ConfigWriter Internal Structure
+**Everything depends on the vault being unlockable.**
 
-```typescript
-// config-writer.ts
+1. Add `case 'unlock'` (or `case 'unlockCredentialVault'`) handler to background.js
+2. Add `case 'createCredentialVault'`, `case 'lockCredentialVault'`, `case 'getCredentialVaultStatus'` handlers
+3. Fix `ui/unlock.js` to call the vault-specific unlock path
+4. Verify: vault creates, unlocks, locks, survives service worker restart
 
-/** Read a config file, returning parsed object + raw string */
-function readConfig(path: string, format: 'json' | 'toml' | 'yaml'): { data: object; raw: string } | null
+### Phase 2: Payment Method Background Wiring
 
-/** Write a config object back to file */
-function writeConfig(path: string, data: object, format: 'json' | 'toml' | 'yaml'): void
+**Payment CRUD depends on vault being unlockable (Phase 1).**
 
-/** Merge FSB server entry into a parsed config, under the given root key */
-function mergeServerEntry(config: object, rootKey: string, serverName: string, entry: object): MergeResult
+5. Add 7 payment method message handlers to background.js
+6. Add `case 'getPaymentVaultStatus'`, `case 'unlockPaymentMethods'`, `case 'lockPaymentMethods'`
+7. Verify: payment methods save, list, update, delete when vault+payment unlocked
 
-/** Remove FSB server entry from a parsed config */
-function removeServerEntry(config: object, rootKey: string, serverName: string): RemoveResult
+### Phase 3: Payment Management UI
 
-/** High-level: read + merge + write */
-export function installToConfig(path: string, platform: PlatformConfig): InstallResult
+**UI depends on background handlers being wired (Phase 2).**
 
-/** High-level: read + remove + write */
-export function uninstallFromConfig(path: string, platform: PlatformConfig): UninstallResult
-```
+8. Add payment methods section to `ui/control_panel.html`
+9. Add payment management JS to `ui/options.js` (list, add modal, edit, delete, lock toggle)
+10. Add masked card display, brand detection icon, expiry validation in UI
+11. Verify: full CRUD cycle through options page UI
 
-### Format-Specific Parsing
+### Phase 4: Autopilot Tools
 
-**JSON (8 platforms):** `JSON.parse` / `JSON.stringify` with 2-space indent. Native Node.js, zero dependencies.
+**fill_credential and fill_payment_method for the AI agent loop.**
 
-**TOML (Codex):** Use a lightweight TOML library. Options:
-- `@iarna/toml` (5KB, well-maintained, parse+stringify)
-- `smol-toml` (3KB, modern, ESM-native)
+12. Add `fill_credential` and `fill_payment_method` to `ai/tool-definitions.js` and `.cjs`
+13. Add `fillPaymentOnPageDirect()` to background.js
+14. Add `extractPaymentFields()` to background.js (using dom-analysis.js intents)
+15. Wire autopilot tool executor to handle these as background-routed tools
+16. Add payment confirmation dialog to sidepanel.js + `waitForPaymentConfirmation()`
+17. Verify: autopilot can fill credentials on login pages, fill payment on checkout pages
 
-Recommendation: `smol-toml` -- smaller, ESM-native (matches the project's ESM output), actively maintained.
+### Phase 5: MCP Tools
 
-**YAML (Continue):** Use `yaml` (npm package, ~70KB but tree-shakeable to ~20KB for parse+stringify). The standard choice; `js-yaml` is older and less maintained.
+**MCP tools depend on all background functions being implemented (Phases 1-4).**
 
-**Dependency impact:** Two new dependencies (`smol-toml`, `yaml`) for two platforms. These are dev/build-time only -- they get bundled by esbuild into the single `index.js` output. No runtime dependency increase for npm consumers.
+18. Create `mcp-server/src/tools/vault.ts` with 4 tool registrations
+19. Register in `mcp-server/src/runtime.ts`
+20. Add MCP message routes to `ws/mcp-bridge-client.js` (6 new cases)
+21. Add MCP handler methods that enforce security boundary (no secrets in responses)
+22. Verify: MCP tools work from Claude Code, secrets never appear in MCP responses
 
-### Continue YAML Special Case
+### Phase 6: Redacted Logging & Hardening
 
-Continue uses a YAML list for `mcpServers` (array of objects with `name` field), not a map. The merge logic must:
-1. Parse the YAML
-2. Find or create the `mcpServers` array
-3. Search for an entry where `name === 'fsb'`
-4. If found, replace it. If not, append it.
-5. For uninstall, filter out the entry where `name === 'fsb'`
-
-This is handled inside `mergeServerEntry`/`removeServerEntry` with a branch for `format === 'yaml' && platform.flag === 'continue'`.
-
-### Zed settings.json Special Case
-
-Zed's `settings.json` may contain settings beyond just MCP servers (editor settings, theme, keybindings, etc.). The merge must be surgical:
-1. Read entire settings.json
-2. Navigate to `context_servers` key (create if absent)
-3. Add/remove only the `fsb` entry
-4. Write back the entire file, preserving all other keys
-
-This is the same pattern as all JSON platforms -- just a different root key.
-
-### VS Code mcp.json Root Key Difference
-
-VS Code uses `"servers"` as the root key, not `"mcpServers"`. This is the single most common setup mistake when copying configs between platforms. The registry map encodes this correctly so users never encounter this problem.
-
----
-
-## Interaction with Existing `setup` Command
-
-### Migration Path
-
-The `setup` command currently prints copy-paste snippets. It should NOT be removed or broken -- it remains valuable as a reference and for platforms not yet in the registry.
-
-**Changes to `setup`:**
-1. Add a header line: `"Tip: Use 'fsb-mcp-server install --<platform>' for automatic setup."`
-2. For each platform that has an `install` flag, add: `"Or auto-install: npx fsb-mcp-server install --claude-desktop"`
-3. Keep all existing copy-paste snippets intact (they serve as documentation)
-
-**No flag overlap.** `setup` is read-only (prints text). `install` is write (modifies files). They serve different purposes and can coexist cleanly.
-
----
-
-## File Organization within `mcp-server/src/`
-
-```
-mcp-server/src/
-  index.ts              [MODIFIED: add install/uninstall cases]
-  install.ts            [NEW: runInstall(), runUninstall() CLI handlers]
-  platforms.ts          [NEW: PLATFORMS registry, path resolution]
-  config-writer.ts      [NEW: read/merge/write logic for JSON/TOML/YAML]
-  version.ts            [unchanged]
-  runtime.ts            [unchanged]
-  server.ts             [unchanged]
-  bridge.ts             [unchanged]
-  queue.ts              [unchanged]
-  diagnostics.ts        [unchanged]
-  errors.ts             [unchanged]
-  http.ts               [unchanged]
-  types.ts              [unchanged]
-  tools/                [unchanged]
-  resources/            [unchanged]
-  prompts/              [unchanged]
-```
-
-**Three new files, one modified file.** The install feature is fully contained in its own module boundary.
-
----
-
-## Build Order Considerations
-
-### esbuild Bundling
-
-The existing build uses esbuild to produce `mcp-server/build/index.js` (single entry point, ESM output). New modules are imported from `index.ts` and automatically included in the bundle. No build config changes needed unless new npm dependencies require special handling.
-
-### New Dependencies
-
-| Dependency | Purpose | Size | Import Style |
-|------------|---------|------|-------------|
-| `smol-toml` | TOML parse/stringify for Codex | ~3KB | `import { parse, stringify } from 'smol-toml'` |
-| `yaml` | YAML parse/stringify for Continue | ~20KB bundled | `import { parse, stringify } from 'yaml'` |
-
-Both are ESM-compatible and will bundle cleanly with esbuild. They have zero transitive dependencies.
-
-**Lazy import consideration:** Since TOML and YAML are only needed for 2 of 10 platforms, consider dynamic `import()` to avoid loading them for the common JSON case. However, since esbuild bundles everything into one file anyway, the dead code is already present. The runtime overhead of parsing unused modules is negligible. Static imports are simpler -- use those.
-
-### Build Output
-
-After build, the output remains a single `mcp-server/build/index.js` file with the shebang. The `bin` field in `package.json` continues to point there. No structural change to the published npm package.
-
-### TypeScript Source Restoration
-
-The `mcp-server/src/` directory is currently empty (TypeScript sources are not committed, only build output). The new feature needs TypeScript source files to be present for development. Options:
-
-1. **Reconstruct from build output** -- The `.js` and `.d.ts` files in `build/` contain enough information to reconstruct the TypeScript source. This is a one-time effort.
-2. **Write new modules in TypeScript, existing modules stay as build-only** -- New files (`install.ts`, `platforms.ts`, `config-writer.ts`) are authored in TypeScript. Existing build output is kept as-is until a full source restoration is done.
-
-Recommendation: Option 2 is pragmatic. The new modules are self-contained and don't import from existing source files -- they only import from `./version.js` (for `FSB_MCP_VERSION`). The build step compiles the new `.ts` files and the existing `.js` files coexist in `build/`.
+23. Audit all `console.log`, `console.error`, `automationLogger` calls for credential/payment operations
+24. Ensure no raw passwords, card numbers, or CVVs in any log output
+25. Add timeout handling for payment confirmation (auto-deny after 2 minutes, like login prompt)
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Registry-Driven Platform Support
+### Pattern 1: Background Message Handler (Existing)
 
-All platform knowledge lives in the `PLATFORMS` map in `platforms.ts`. Adding a new platform means adding one entry to the map -- no new files, no new code paths. This is the same pattern used by the existing `FSB_ERROR_MESSAGES` map in `errors.ts`.
+Every handler follows this exact shape. Do not deviate.
 
-```typescript
-// platforms.ts
-export const PLATFORMS: Record<string, PlatformConfig> = {
-  'claude-desktop': {
-    displayName: 'Claude Desktop',
-    flag: 'claude-desktop',
-    configPath: {
-      darwin: '~/Library/Application Support/Claude/claude_desktop_config.json',
-      win32: '%APPDATA%/Claude/claude_desktop_config.json',
-      linux: '~/.config/Claude/claude_desktop_config.json',
-    },
-    format: 'json',
-    serverMapKey: 'mcpServers',
-    serverEntry: { command: 'npx', args: ['-y', 'fsb-mcp-server'] },
-  },
-  // ... 9 more entries
-};
+```javascript
+case 'actionName':
+  (async () => {
+    try {
+      const result = await secureConfig.someMethod(request.param);
+      sendResponse(result);
+    } catch (error) {
+      sendResponse({ success: false, error: error.message });
+    }
+  })();
+  return true; // Will respond asynchronously
 ```
 
-### Pattern 2: Read-Before-Write with Preservation
+### Pattern 2: chrome.scripting.executeScript for Sensitive Fills
 
-Never truncate or overwrite the entire config file. Always:
-1. Read existing content
-2. Parse to object
-3. Surgically modify only the FSB entry
-4. Serialize and write back
+The existing `fillCredentialsOnPageDirect()` is the template. Key characteristics:
 
-This preserves user comments (in TOML/YAML, where parsers support roundtrip), other server entries, and custom configuration.
+- `world: 'MAIN'` for full DOM access
+- `nativeInputValueSetter` trick for React compatibility
+- `dispatchEvent(new Event('input', {bubbles: true}))` for framework compatibility
+- insertText fallback
+- Return verification object, not the filled values
 
-### Pattern 3: Fail-Safe with Informative Errors
+### Pattern 3: Confirmation Dialog (Login Prompt Pattern)
 
-If a config file exists but is malformed (invalid JSON, etc.), do NOT silently overwrite it. Instead:
-1. Print the parse error with the file path
-2. Suggest the user fix the file manually or use `--force` to overwrite
-3. Exit with non-zero code
+The existing `showLoginPrompt()` / `waitForLoginResponse()` pair is the template:
 
-This prevents data loss from corrupted config files.
+- Background sends a message to sidepanel requesting user action
+- Background creates a `Promise` that resolves when sidepanel responds
+- 2-minute timeout auto-resolves as "denied"/"skipped"
+- Handler reference stored on session object for cleanup on termination
 
-### Pattern 4: Deterministic Output Messages
+### Pattern 4: MCP Bridge Client Handler
 
-Every install/uninstall operation prints exactly one status line per platform:
-
-```
-[FSB] Installed to Claude Desktop: ~/Library/Application Support/Claude/claude_desktop_config.json
-[FSB] Already configured in Cursor: ~/.cursor/mcp.json (use --force to overwrite)
-[FSB] Removed from Windsurf: ~/.codeium/windsurf/mcp_config.json
-[FSB] Claude Code: run `claude mcp add fsb -- npx -y fsb-mcp-server`
-[FSB] Skipped Codex: config file not found at ~/.codex/config.toml
+```javascript
+async _handleNewFeature(payload) {
+  // 1. Check preconditions (vault unlocked, tab available, etc.)
+  // 2. Call secureConfig method (metadata only for list, full for fill)
+  // 3. If fill: execute chrome.scripting.executeScript
+  // 4. Return REDACTED result (never include secrets)
+  // 5. Log REDACTED info
+}
 ```
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Per-Platform Handler Classes
+### Anti-Pattern 1: Passing Secrets Over WebSocket
 
-**What:** Creating `ClaudeDesktopHandler`, `CursorHandler`, `VSCodeHandler`, etc. as separate classes/files.
+**What:** Including password/card number/CVV in any WebSocket message payload
+**Why bad:** The WebSocket bridge is a plain text channel on localhost. While the risk is local-only, the design principle is defense in depth. The MCP server runs in a separate Node.js process that could be compromised or have its stdout logged.
+**Instead:** Always resolve secrets in the service worker, fill via `chrome.scripting.executeScript`, return only success/failure.
 
-**Why bad:** 10 classes with 95% identical logic. The only differences are path, root key, and format. A registry map captures these differences in data, not code.
+### Anti-Pattern 2: Trusting MCP-Supplied Domain for Credential Lookup
 
-**Instead:** One `PLATFORMS` map + one `ConfigWriter` module.
+**What:** Using `payload.domain` from MCP tool call as the credential lookup key
+**Why bad:** A compromised MCP host could request credentials for any domain
+**Instead:** Use `tab.url` from `chrome.tabs.get(activeTab)` as the authoritative domain. The `payload.domain` parameter is optional and used only as a hint/filter, not as the lookup key for fill operations.
 
-### Anti-Pattern 2: Interactive Prompts
+### Anti-Pattern 3: Creating New Message Transport
 
-**What:** Adding interactive confirmation prompts ("Are you sure you want to modify ~/.cursor/mcp.json? [y/n]").
+**What:** Adding a new communication channel between MCP server and extension
+**Why bad:** The existing WebSocket bridge + message routing is battle-tested. Adding another channel creates maintenance burden and security surface.
+**Instead:** Add new message types to the existing `_routeMessage()` switch in mcp-bridge-client.js.
 
-**Why bad:** The CLI is invoked via `npx` -- it must work non-interactively for scripting, CI, and MCP host auto-install flows. Interactive prompts break `npx -y fsb-mcp-server install --cursor` in automated contexts.
+### Anti-Pattern 4: Storing Vault Passphrase in chrome.storage.local
 
-**Instead:** Default to safe behavior (skip if already configured, never overwrite without `--force`). Print clear status messages so the user knows what happened.
-
-### Anti-Pattern 3: Backup Files
-
-**What:** Creating `claude_desktop_config.json.bak` before modifying.
-
-**Why bad:** Leaves orphan files in platform-specific config directories that confuse users and may be picked up by other tools. The merge logic is already safe (read-modify-write preserves existing content).
-
-**Instead:** If the user is concerned, they can use version control or manual backup. The tool's job is surgical, predictable modification.
-
-### Anti-Pattern 4: Modifying `setup` to Write Files
-
-**What:** Adding `--write` or `--auto` flags to the existing `setup` command to make it write config files.
-
-**Why bad:** `setup` is established as a read-only informational command. Adding write semantics to it violates user expectations and the principle of least surprise.
-
-**Instead:** `install` is the write command. `setup` remains read-only reference material.
+**What:** Persisting the vault passphrase beyond the browser session
+**Why bad:** Defeats the purpose of the vault. The passphrase should be ephemeral.
+**Instead:** Store only the derived session key in `chrome.storage.session` (already implemented in SecureConfig). Session storage is cleared when the browser closes.
 
 ---
 
-## Edge Cases
+## Scalability Considerations
 
-### 1. Config File Does Not Exist
-
-Create it with just the FSB entry under the appropriate root key. Create parent directories as needed with `fs.mkdirSync(dir, { recursive: true })`.
-
-### 2. Config File Exists But Is Empty
-
-Treat as if it does not exist (start with `{}`).
-
-### 3. Config File Exists With Other Servers
-
-Preserve all other entries. Only add/modify/remove the `fsb` key.
-
-### 4. FSB Entry Already Exists With Identical Config
-
-Print "already configured" and skip. No file write.
-
-### 5. FSB Entry Already Exists With Different Config
-
-Print warning showing the difference. Skip unless `--force` is passed. This handles the case where the user has customized their FSB entry (e.g., added env vars) and does not want it overwritten.
-
-### 6. Platform Not Available on Current OS
-
-If `configPath[process.platform]` is `null`, print that the platform is not supported on this OS and skip.
-
-### 7. Multiple Platform Flags
-
-`fsb-mcp-server install --claude-desktop --cursor --vscode` should install to all three. Process them sequentially, print status for each.
-
-### 8. No Platform Flags Given
-
-`fsb-mcp-server install` (no flags) should print usage help listing all available platforms, not silently do nothing.
-
-### 9. Windows Path Resolution
-
-`%APPDATA%` must be expanded from `process.env.APPDATA`. If the env var is not set, print an error and skip that platform.
-
-### 10. `--all` Convenience Flag
-
-`fsb-mcp-server install --all` installs to every platform whose config path exists on the current OS. Useful for power users who use multiple editors.
-
----
-
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| CLI routing integration | HIGH | Direct analysis of existing `parseArgs` + `main()` in `index.js` |
-| Platform config paths | HIGH | Verified via official docs for all 10 platforms |
-| Config file formats | HIGH | JSON (8 platforms) is trivial; TOML/YAML verified via official docs |
-| Root key names | HIGH | `mcpServers` (6), `servers` (1 - VS Code), `context_servers` (1 - Zed), `mcp_servers` (1 - Codex), list (1 - Continue) |
-| Server entry shapes | HIGH | Standard `{ command, args }` for 9/10; Continue uses array-of-objects |
-| Build integration | MEDIUM | esbuild bundling assumed from existing build output; no build config file found in repo to verify |
+| Concern | Current Scale | At Scale |
+|---------|--------------|----------|
+| Number of stored credentials | Tens | Hundreds: `getAllCredentials()` decrypts all -- consider pagination or index-only cache |
+| Number of payment methods | Single digits | Tens: Not a concern, `getAllPaymentMethods()` is fine |
+| Concurrent MCP tool calls | Sequential (TaskQueue) | Vault operations are fast (<50ms). No bottleneck. |
+| Service worker lifecycle | Restarts after 5min idle | Session key in `chrome.storage.session` survives restarts. Vault stays unlocked until browser close. |
 
 ---
 
 ## Sources
 
-- Direct analysis of `mcp-server/build/index.js` (CLI entry point, parseArgs, command routing)
-- Direct analysis of `mcp-server/build/version.js` (constants, version)
-- Direct analysis of `mcp-server/build/runtime.js` (createRuntime pattern)
-- Direct analysis of `mcp-server/build/diagnostics.js` (status/doctor patterns)
-- Direct analysis of `mcp-server/build/errors.js` (error map registry pattern)
-- Direct analysis of `mcp-server/build/server.js` (server creation)
-- [Claude Desktop config docs](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- config file paths, JSON format
-- [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) -- `claude mcp add` CLI command
-- [Cursor MCP docs](https://cursor.com/docs/context/mcp) -- `~/.cursor/mcp.json`, `mcpServers` key
-- [VS Code MCP configuration reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `mcp.json` with `servers` root key (NOT `mcpServers`)
-- [Windsurf Cascade MCP Integration](https://docs.windsurf.com/windsurf/cascade/mcp) -- `~/.codeium/windsurf/mcp_config.json`
-- [Cline MCP server configuration docs](https://docs.cline.bot/mcp/configuring-mcp-servers) -- VS Code globalStorage path
-- [Zed MCP docs](https://zed.dev/docs/ai/mcp) -- `context_servers` in `settings.json`
-- [Codex config reference](https://developers.openai.com/codex/config-reference) -- TOML format, `mcp_servers` table
-- [Gemini CLI MCP docs](https://geminicli.com/docs/tools/mcp-server/) -- `~/.gemini/settings.json`, `mcpServers` key
-- [Continue MCP docs](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML config, `mcpServers` list
+All findings are based on direct code analysis of the existing codebase:
+
+- `config/secure-config.js` (1138 lines) -- vault encryption, credential + payment CRUD
+- `background.js` (lines 4287-4352) -- existing credential message handlers
+- `background.js` (lines 6170-6385) -- login detection, credential fill, extractLoginFields
+- `background.js` (lines 8400-8500) -- autopilot auth flow with credential fill
+- `ws/mcp-bridge-client.js` (593 lines) -- MCP bridge client with _routeMessage switch
+- `mcp-server/src/bridge.ts` (608 lines) -- WebSocket bridge hub/relay
+- `mcp-server/src/tools/manual.ts` (83 lines) -- tool registration pattern
+- `mcp-server/src/tools/schema-bridge.ts` (169 lines) -- JSON Schema to Zod conversion
+- `mcp-server/src/runtime.ts` (38 lines) -- tool registration orchestration
+- `ui/unlock.js` (90 lines) -- broken vault unlock popup
+- `ui/sidepanel.js` (lines 1231-1390) -- login prompt dialog pattern
+- `ui/options.js` (lines 2525+) -- credential manager UI pattern
+- `content/dom-analysis.js` (lines 389-428) -- payment field detection
+- `ai/tool-definitions.js` / `mcp-server/ai/tool-definitions.cjs` -- tool schema registry

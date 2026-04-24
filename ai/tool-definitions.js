@@ -922,40 +922,10 @@ const TOOL_REGISTRY = [
   },
 
   // =========================================================================
-  // VAULT FILL TOOLS (2 tools)
+  // VAULT FILL TOOLS -- registered separately via vault.ts (security boundary)
+  // Tools: list_credentials, fill_credential, list_payment_methods, use_payment_method
+  // NOT in this registry to avoid duplicate registration errors.
   // =========================================================================
-
-  {
-    name: 'fill_credential',
-    description: 'Fill a login form with saved credentials from the vault. The extension looks up username and password for the given domain and fills them into the detected login fields. No user confirmation needed. When to use: when a login page is detected and user wants to sign in with saved credentials. Related: read_page (verify login form exists before filling).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string', description: 'Domain to look up credentials for (e.g. "github.com")' }
-      },
-      required: ['domain']
-    },
-    _route: 'background',
-    _readOnly: false,
-    _contentVerb: null,
-    _cdpVerb: null
-  },
-
-  {
-    name: 'fill_payment_method',
-    description: 'Fill a checkout form with a saved payment method from the vault. Shows a confirmation dialog in the sidepanel before filling. User must approve before any card data is entered. When to use: when a checkout page is detected and user wants to pay with a saved card. Related: read_page (verify checkout form exists before filling).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        paymentMethodId: { type: 'string', description: 'ID of the saved payment method to use' }
-      },
-      required: ['paymentMethodId']
-    },
-    _route: 'background',
-    _readOnly: false,
-    _contentVerb: null,
-    _cdpVerb: null
-  }
 ];
 
 // =========================================================================

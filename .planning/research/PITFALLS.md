@@ -1,617 +1,394 @@
-# Pitfalls Research: MCP Platform Install Flags
+# Domain Pitfalls: Vault, Payments & Secure MCP Access
 
-**Domain:** Cross-platform config auto-writing for MCP server CLI (`fsb-mcp-server` npm package)
-**Researched:** 2026-04-15
-**Confidence:** HIGH (verified against official docs for 10 target platforms, cross-referenced with npm/write-file-atomic issues, MCP connector poisoning research, and Node.js cross-platform file path documentation)
+**Domain:** Adding credential/payment vault management and secure MCP access to a Chrome Extension (MV3) with an existing WebSocket-bridged MCP server
+**Researched:** 2026-04-20
+**Context:** FSB v0.9.34 milestone -- 49 existing MCP tools, ~11,558-line background.js, 38 passing secure-config tests, plaintext localhost WebSocket bridge on ws://localhost:7225
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that silently corrupt user configs, break existing MCP setups, or cause data loss.
+Mistakes that cause credential leaks, data loss, or require architectural rework.
 
 ---
 
-### Pitfall 1: Destroying Existing Config by Naive JSON.stringify Write-back
+### Pitfall 1: Plaintext Password Leak via MCP Bridge Logging and Wire
 
-**What goes wrong:**
-The tool reads a config file, parses it with `JSON.parse()`, merges the FSB server entry, then writes back with `JSON.stringify(obj, null, 2)`. This silently destroys:
-- **Comments** in JSONC files (VS Code `mcp.json`, Zed `settings.json`, Claude Desktop config all tolerate or use comments)
-- **Trailing commas** that the user or editor inserted (VS Code settings commonly have trailing commas)
-- **Property ordering** that the user carefully arranged (servers grouped by project, etc.)
-- **Custom formatting** (indentation preferences, empty lines between sections)
+**What goes wrong:** The `type_text` MCP tool sends text content (including passwords) through the WebSocket bridge to the content script. The bridge logs params in three confirmed locations: (1) `mcp-server/src/tools/manual.ts:30` logs `params=${JSON.stringify(params).slice(0, 150)}` which includes the `text` field in full, (2) `automationLogger.logActionExecution` in background.js passes full params as `details` spread into the log entry, (3) content script action results echo back the typed text in the result payload. When `fill_credential` or `fill_payment_method` reuse the `type_text` code path, passwords traverse every layer: Node.js stderr (captured by Claude Code terminal scrollback), Chrome extension service worker console, automation-logger action records (persisted in memory and exportable), and raw WebSocket frames on localhost (sniffable by any local process).
 
-After the write-back, the user's file is technically valid JSON but looks completely different, and all their annotations are gone.
+**Why it happens:** The existing logging was designed for general browser automation where all typed text is benign (search queries, form fields). Adding credential operations changes the threat model but reuses the same code path.
 
-**Why it happens:**
-`JSON.parse()` strips comments and trailing commas (it throws on them in strict mode). `JSON.stringify()` produces canonical output with no memory of the original formatting. Developers test with clean files and never notice because their test fixtures have no comments or trailing commas.
+**Consequences:** Passwords appear in at minimum four places: MCP server stderr, extension console, logger records, WebSocket frames. A local process monitoring port 7225 or reading stderr can harvest credentials. This is documented as a real attack vector -- recent research found Chrome extensions transmitting sensitive data over unencrypted channels.
 
-**How to avoid:**
-1. Use a JSONC-aware parser for all JSON config reads. The `jsonc-parser` package (used by VS Code itself, ~50KB) handles comments and trailing commas correctly and provides an `edit` function that returns minimal text edits rather than a full rewrite.
-2. Never round-trip through `JSON.parse()` / `JSON.stringify()`. Instead, use text-level surgical insertion: find the right location in the file text, insert the new key-value pair, preserve everything else byte-for-byte.
-3. The `jsonc-parser` `modify()` function does exactly this: it computes minimal edits to insert/replace a path in a JSONC document without touching surrounding content.
-4. If a full rewrite is unavoidable (file was malformed), warn the user and create a backup first.
+**Prevention:**
+- **Architecture rule: No raw secrets cross the WebSocket boundary. Period.** MCP credential/payment tools send only opaque references (`{domain, username}` or `{paymentMethodId}`). The extension resolves secrets from its local encrypted vault and fills directly via content script. The MCP server NEVER sees a password.
+- In `manual.ts:30`, add a redaction allowlist: if tool name matches `fill_credential`, `fill_payment_method`, or `use_payment_method`, replace the params JSON with `[REDACTED - sensitive operation]` before logging.
+- Add a `sensitive: true` field to the action execution metadata so `automationLogger.logActionExecution` and `logActionRecord` redact the `text` parameter: `text: '[REDACTED]'`.
+- MCP tool result payloads for credential operations must return only metadata: `{success: true, domain, username}` for credentials, `{success: true, last4, brand}` for payments. Never include `password`, `cvv`, or `cardNumber`.
+- Content script fill actions for credentials should not include the filled text in their response -- return `{success: true, action: 'fillCredential', fieldsFilledCount: 2}` not `{success: true, text: 'hunter2'}`.
 
-**Warning signs:**
-- Unit tests only use `JSON.parse()` to read config files
-- No JSONC-aware dependency in the project
-- Test fixtures contain no comments, no trailing commas
+**Detection:** After implementing, run a credential fill via MCP, then search: MCP server stderr output, `chrome.runtime.getBackgroundPage()` console, `automationLogger` records, and a WebSocket frame capture (e.g., `websocat ws://localhost:7225`). If the actual password appears ANYWHERE, the firewall has leaked.
 
-**Phase to address:**
-Core config read/write engine phase (Phase 1) -- the foundational read-modify-write logic must use JSONC-aware editing from day one, not retrofitted later.
+**Phase:** FIRST phase. This architectural boundary must be established before any MCP credential tool is registered.
 
 ---
 
-### Pitfall 2: Different Top-Level Keys Across Platforms
+### Pitfall 2: The Orphaned Unlock Flow -- Messages Sent to Nowhere
 
-**What goes wrong:**
-The developer assumes all platforms use `"mcpServers"` as the top-level key (since Claude Desktop and Cursor do), then writes `{"mcpServers": {"fsb": {...}}}` into every platform's config. This silently fails on platforms that use different keys:
-- **VS Code** uses `"servers"` (NOT `"mcpServers"`)
-- **Zed** uses `"context_servers"` (NOT `"mcpServers"`)
-- **Codex** uses `[mcp_servers.fsb]` in TOML (underscore, not camelCase)
-- **Continue** uses a YAML list under `mcpServers:` with `- name:` entries (array, not object)
+**What goes wrong:** `ui/unlock.js` (line 45-49) sends `chrome.runtime.sendMessage({ action: 'unlock', password, remember })` after successful local decryption. But `background.js` has NO case handler for `action: 'unlock'` in its `chrome.runtime.onMessage.addListener` switch statement (verified: zero matches for 'unlock' in the message handler starting at line 4065). The unlock popup works superficially -- it decrypts a test value locally and stores `masterPassword` in `chrome.storage.session` -- but the background.js service worker singleton `secureConfig` never gets initialized with the credential vault session key.
 
-The config file is modified, the user sees "installed successfully," but the platform never loads FSB because it's looking for a different key.
+**Why it happens:** Two separate unlock flows were built independently: (1) the old API key encryption flow (stores raw `masterPassword` in session storage for `secureConfig.initialize()`), and (2) the new credential vault flow (derives a session key via 120K-iteration PBKDF2 and stores it as `fsbCredentialVaultSessionKey` in session storage). The unlock popup addresses flow (1) but never calls `secureConfig.unlockCredentialVault(password)` for flow (2). The `masterPassword` stored in session is useless for credential vault operations because `_loadCredentialSessionKey()` looks for `fsbCredentialVaultSessionKey`, not `masterPassword`.
 
-**Why it happens:**
-Claude Desktop and Cursor both use `"mcpServers"` and are the most common MCP hosts, so the developer generalizes from these two. The MCP protocol has no mandated config format -- each host invented its own.
+**Consequences:** Users think they've unlocked the extension. All API-key-encrypted operations work. But credential vault operations (`getCredential`, `saveCredential`, `getFullCredential`, all payment methods) fail with "Credential vault is locked" because the derived session key was never stored. The user has no visible feedback about what's wrong.
 
-**How to avoid:**
-Build a platform registry with strict per-platform config schemas:
+**Prevention:**
+- Add `case 'unlockCredentialVault':` to background.js that: (a) calls `secureConfig.unlockCredentialVault(request.passphrase)` for the credential vault flow, (b) optionally calls `secureConfig.initialize(request.passphrase)` for the legacy API key flow, (c) responds with combined status.
+- Update `unlock.js` to also call `secureConfig.unlockCredentialVault(password)` directly (it can import the module via dynamic import) before sending the message. This handles both flows in one place.
+- Handle the case where credential vault is not yet configured (first-time setup) -- `unlockCredentialVault()` returns `vault_not_configured`, which is not an error condition for the unlock popup.
+- Add an integration test: simulate unlock popup flow -> verify `secureConfig.getCredentialVaultStatus()` returns `{ configured: true, unlocked: true }`.
 
-| Platform | File Format | Top-Level Key | Server Entry Shape |
-|----------|-------------|---------------|--------------------|
-| Claude Desktop | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
-| Claude Code | JSON (via `claude mcp add` CLI or `.claude.json`) | N/A (use CLI) | CLI-based, not file write |
-| Cursor | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
-| VS Code | JSON | `servers` | `{"type": "stdio", "command": ..., "args": [...]}` |
-| Windsurf | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
-| Cline | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
-| Zed | JSON (settings.json) | `context_servers` | `{"command": ..., "args": [...]}` |
-| Codex | TOML | `[mcp_servers.fsb]` | `command = "npx"`, `args = [...]` |
-| Gemini CLI | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
-| Continue | YAML (config.yaml) or JSON (.continue/mcpServers/) | `mcpServers` (YAML list) | `- name: fsb`, `command: npx` |
+**Detection:** After unlock via popup, call `secureConfig.getCredentialVaultStatus()` from the service worker console. If it returns `{ unlocked: false }`, the wiring is broken.
 
-Each platform flag must use its own template. No shared "generic MCP config" path.
-
-**Warning signs:**
-- A single `buildServerEntry()` function used for all platforms
-- No per-platform test fixtures
-- Any platform install path that doesn't have an explicit schema definition
-
-**Phase to address:**
-Platform registry phase (Phase 1) -- define all 10 platform schemas before writing any config mutation code.
+**Phase:** FIRST phase. This blocks all downstream credential and payment functionality.
 
 ---
 
-### Pitfall 3: Windows Path and Environment Variable Expansion Failures
+### Pitfall 3: Trusting MCP-Supplied Domain for Credential Lookup
 
-**What goes wrong:**
-The tool hardcodes `~/Library/Application Support/Claude/claude_desktop_config.json` for macOS or uses `process.env.HOME` on Windows, where `HOME` is often undefined. Or it uses `%APPDATA%` as a literal string in `path.join()` instead of resolving it. The file write fails silently or creates a directory literally named `%APPDATA%` in the current working directory.
+**What goes wrong:** The `fill_credential` MCP tool accepts a `domain` parameter from the AI/MCP host. A developer uses `secureConfig.getFullCredential(payload.domain)` directly, allowing any MCP caller to request credentials for any domain regardless of what page the user is actually viewing.
 
-**Why it happens:**
-Node.js does NOT expand `~` in file paths. `os.homedir()` works cross-platform but the config paths themselves differ across OS. Windows uses `%APPDATA%` (which resolves to `C:\Users\<user>\AppData\Roaming`), macOS uses `~/Library/Application Support/`, and Linux uses `~/.config/` or `$XDG_CONFIG_HOME`. Developers test on macOS, ship, and Windows users get broken installs.
+**Why it happens:** The MCP tool schema naturally includes a `domain` parameter for flexibility. It seems efficient to use it directly. But MCP tool parameters come from the AI model or an external host -- they are not authenticated inputs.
 
-**How to avoid:**
-1. Use `os.homedir()` as the base, never raw `~` or `$HOME`.
-2. On Windows, use `process.env.APPDATA` (NOT the literal string `%APPDATA%`) for APPDATA-based paths.
-3. On Linux, check `process.env.XDG_CONFIG_HOME` first, fall back to `path.join(os.homedir(), '.config')`.
-4. Build a `resolveConfigPath(platform)` function that returns the absolute path per-OS-per-platform:
+**Consequences:** A compromised, confused, or prompt-injected AI agent could request credentials for `bankofamerica.com` while the user is on `malicious-phishing-site.com`. The extension would happily look up and fill real banking credentials into the wrong page.
 
-```
-Claude Desktop:
-  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json')
-  Windows: path.join(process.env.APPDATA, 'Claude', 'claude_desktop_config.json')
-  Linux:   path.join(xdgConfig(), 'Claude', 'claude_desktop_config.json')
+**Prevention:**
+- For ALL fill operations, use `chrome.tabs.get(activeTabId).url` as the authoritative domain. The `payload.domain` parameter should be used only as a hint for list/filter operations (never for fill).
+- The fill handler pattern must be: `const tab = await getActiveTab(); const actualDomain = new URL(tab.url).hostname; const cred = await secureConfig.getFullCredential(actualDomain);`
+- Show the actual domain in the confirmation dialog: "Fill credentials for: login.bankofamerica.com" so the user verifies.
+- If the MCP-supplied domain doesn't match the active tab's domain, return a clear error: "Cannot fill credentials: requested domain (x.com) does not match active tab domain (y.com)."
 
-Cursor:
-  All:     path.join(os.homedir(), '.cursor', 'mcp.json')
+**Detection:** Code review: `_handleFillCredential` must derive domain from `tab.url`, not from `payload.domain`. Test with mismatched domains.
 
-VS Code (user-level):
-  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'mcp.json')
-  Windows: path.join(process.env.APPDATA, 'Code', 'User', 'mcp.json')
-  Linux:   path.join(xdgConfig(), 'Code', 'User', 'mcp.json')
-
-Windsurf:
-  macOS/Linux: path.join(os.homedir(), '.codeium', 'windsurf', 'mcp_config.json')
-  Windows:     path.join(process.env.USERPROFILE, '.codeium', 'windsurf', 'mcp_config.json')
-
-Cline:
-  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
-  Windows: path.join(process.env.APPDATA, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
-  Linux:   path.join(xdgConfig(), 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
-
-Zed:
-  macOS:   path.join(os.homedir(), '.zed', 'settings.json')
-  Linux:   path.join(xdgConfig(), 'zed', 'settings.json')
-  Windows: path.join(process.env.APPDATA, 'Zed', 'settings.json')
-
-Codex:
-  All:     path.join(os.homedir(), '.codex', 'config.toml')
-
-Gemini CLI:
-  All:     path.join(os.homedir(), '.gemini', 'settings.json')
-
-Continue:
-  All:     path.join(os.homedir(), '.continue', 'config.yaml')
-```
-
-5. Always log the resolved absolute path before writing so the user can verify it.
-
-**Warning signs:**
-- `~` character appearing in `path.join()` calls
-- `process.env.HOME` used without `os.homedir()` fallback
-- No `process.platform` branching in path resolution
-- Path tests only run on one OS
-
-**Phase to address:**
-Core path resolution phase (Phase 1) -- path resolution is the foundation for all subsequent config writes.
+**Phase:** MCP tool implementation phase. Enforce in the first credential tool.
 
 ---
 
-### Pitfall 4: Non-Atomic Writes Cause Config Corruption on Crash or Concurrent Access
+### Pitfall 4: Session Key Loss on Service Worker Kill Without Eager Rehydration
 
-**What goes wrong:**
-The tool reads the config, modifies it in memory, then writes with `fs.writeFileSync()`. If the process crashes mid-write (user Ctrl+C, system crash, disk full), the config file is left truncated or empty. The user's existing MCP servers are gone. The platform refuses to start because the config is invalid JSON.
+**What goes wrong:** The credential vault session key lives in two places: `SecureConfig._credentialSessionKey` (in-memory on the singleton) and `chrome.storage.session` (persists across service worker restarts within the same browser session). Chrome kills the service worker after ~30 seconds of inactivity (MV3 design). On restart, `_credentialSessionKey` is `null`. The lazy-load pattern in `_loadCredentialSessionKey()` correctly rehydrates from `chrome.storage.session` -- but only when called. If the MCP bridge client sends a credential request before any `ensure*` method is invoked, or if new code checks `_credentialSessionKey` directly (bypassing the async lazy load), the vault appears locked.
 
-On Windows specifically, if the user has their IDE open (which may be watching the same config file), `fs.rename()` during atomic write can fail with EPERM because Windows Defender, the Windows Search indexer, or the IDE itself holds a transient lock on the file.
+**Why it happens:** The service worker bootstrap in `background.js` does NOT eagerly rehydrate the `secureConfig` session key. The existing code relies entirely on lazy loading through `ensureCredentialVaultUnlocked()`. This works for direct `chrome.runtime.onMessage` handlers. But the MCP bridge client operates in the same scope and may dispatch credential operations before the lazy path warms up, especially if the first message after a cold start is a credential operation.
 
-**Why it happens:**
-`fs.writeFileSync()` is not atomic -- it truncates the file first, then writes. If interrupted between truncate and write-complete, the file is corrupted. The `write-file-atomic` package solves this by writing to a temp file then renaming, but it has known EPERM issues on Windows with concurrent access.
+**Consequences:** Intermittent "vault is locked" errors that depend on timing. Works immediately after unlock, fails after 30+ seconds idle, works again if a non-credential operation happens first (warming the lazy path). Extremely confusing to debug.
 
-**How to avoid:**
-1. Write to a temp file in the same directory first (e.g., `config.json.fsb-tmp`), then rename.
-2. On Windows, implement a retry loop with exponential backoff (100ms, 200ms, 400ms) for EPERM/EACCES/EBUSY on rename.
-3. Consider using `write-file-atomic` but be aware of its Windows limitations -- wrap it with retry logic.
-4. Before writing, verify the temp file was written correctly by reading it back and checking it parses.
-5. Set appropriate file permissions after write: `0o644` on Unix (user read-write, group/other read-only).
+**Prevention:**
+- Add eager rehydration to the service worker bootstrap pipeline: after `importScripts` and initial setup, call `secureConfig._loadCredentialSessionKey()` and `secureConfig._loadPaymentAccessState()`. These are async but non-blocking -- fire them during startup so the singleton is warm before any message arrives.
+- All new code MUST call `ensureCredentialVaultUnlocked()` or `ensurePaymentAccessUnlocked()`, never read `_credentialSessionKey` directly. Enforce this as a code review rule.
+- Add a regression test: set `chrome.storage.session` with a valid session key, create a fresh `SecureConfig` instance (simulating worker restart), verify `ensureCredentialVaultUnlocked()` returns `{ ok: true }`.
+- Real flow test: unlock vault, wait 60+ seconds (worker dies), invoke MCP credential tool -- must succeed without re-unlock.
 
-**Warning signs:**
-- `fs.writeFileSync()` called directly on the target config file
-- No error handling around the write operation
-- No retry logic for Windows file locking errors
-- Tests don't simulate interrupted writes
+**Detection:** Instrument `_loadCredentialSessionKey()` with a timestamp log. If the first call comes INSIDE an MCP tool handler (not during bootstrap), the eager rehydration is missing.
 
-**Phase to address:**
-Core config write engine phase (Phase 1) -- atomic write must be the default path, not an optimization added later.
+**Phase:** Vault unlock wiring phase. Add bootstrap rehydration alongside the unlock handler.
 
 ---
 
-### Pitfall 5: Clobbering User's Existing FSB Entry Without Merge
+### Pitfall 5: Breaking Existing 49 MCP Tools with Message Handler Collisions
 
-**What goes wrong:**
-The user has already manually configured FSB with custom `env` variables (e.g., `FSB_BRIDGE_URL` pointing to a custom relay) or custom `args` (e.g., `["--port", "9999"]`). The auto-install flag overwrites their entry with the default `{"command": "npx", "args": ["-y", "fsb-mcp-server"]}`, silently destroying their customization. The user doesn't notice until their custom setup stops working.
+**What goes wrong:** Adding new message types to `mcp-bridge-client.js`'s `_routeMessage()` switch (currently 16 cases at lines 178-247) or to `background.js`'s `chrome.runtime.onMessage.addListener` switch (starts line 4065, extends 500+ lines) causes subtle regressions. The most dangerous failure modes:
 
-**Why it happens:**
-The simplest implementation does `config.mcpServers.fsb = defaultEntry`. This is a complete replacement, not a merge. The developer assumes no one has customized the entry because "it's auto-install."
+1. **Action name collision:** Background.js already has credential CRUD handlers (`getCredential`, `saveCredential`, `getAllCredentials`, `deleteCredential`, `updateCredential`, `getFullCredential`) at lines 4288-4350 but NOT vault lifecycle handlers (`createCredentialVault`, `unlockCredentialVault`, `lockCredentialVault`) or payment method CRUD handlers. Using a short name like `unlock` could conflict with future handlers.
 
-**How to avoid:**
-1. Before writing, check if an `fsb` entry already exists in the target config.
-2. If it exists, compare with the default entry. If different, prompt the user: "FSB is already configured with custom settings. Overwrite? (y/n)" or print a warning and skip.
-3. In non-interactive mode (e.g., `npx -y fsb-mcp-server install --claude-desktop`), default to SKIP if an existing entry is found. Add a `--force` flag to override.
-4. Never silently merge -- the user's custom args may be intentional and incompatible with default args.
+2. **Missing `return true`:** Every async handler in `chrome.runtime.onMessage` MUST return `true` to keep the sendResponse channel open. The existing credential handlers correctly do this. A new handler that forgets `return true` causes Chrome to close the message channel immediately -- the caller gets `undefined` instead of the result. This is the single most common Chrome Extension messaging bug.
 
-**Warning signs:**
-- No existence check before writing the server entry
-- No `--force` flag in the CLI
-- Tests don't cover the "entry already exists" case
+3. **MCP bridge routing mismatch:** New MCP message types added to `bridge.ts` (server side) but not to `mcp-bridge-client.js` (extension side) cause "Unknown MCP message type" errors that surface as tool failures in Claude Code.
 
-**Phase to address:**
-Config merge logic phase (Phase 2) -- after the write engine works, add merge/conflict detection before any platform-specific logic.
+**Why it happens:** At 11,558 lines, background.js is beyond comfortable cognitive load. The switch statement has 30+ cases. Adding to it without full context is error-prone. The MCP bridge has a separate routing table in a different file that must stay in sync.
 
----
+**Consequences:** Existing tools (click, navigate, read_page, type_text) silently fail or hang. MCP users lose core automation capability.
 
-### Pitfall 6: Writing to Zed's settings.json Breaks Non-MCP Settings
+**Prevention:**
+- Before adding ANY new case to background.js, grep the ENTIRE file for the exact action string to confirm no collision. Do this for BOTH background.js and mcp-bridge-client.js.
+- Use distinct, fully-qualified action names: `createCredentialVault`, `unlockCredentialVault`, `lockCredentialVault`, `getCredentialVaultStatus`, `getPaymentVaultStatus`, `savePaymentMethod`, `getAllPaymentMethods`, etc. These match the SecureConfig method names exactly.
+- Every new async handler MUST have `return true;` after the async IIFE. Copy the exact pattern from existing credential handlers (lines 4288-4341).
+- New MCP bridge routes must be added to BOTH `bridge.ts` server-side tool registration AND `mcp-bridge-client.js` `_routeMessage()` switch. Missing either side breaks the tool.
+- After EVERY handler change, run a 3-tool smoke test: `type_text` via MCP, `click` via MCP, `read_page` via MCP. If any hang or error, a routing regression occurred.
+- Run the existing 38 secure-config tests after every change to `secure-config.js` or its callers.
 
-**What goes wrong:**
-Zed stores ALL settings in one `settings.json` -- not just MCP servers, but editor config, themes, keybindings, language server settings, and more. A naive implementation that reads only `context_servers`, adds FSB, then writes back a file containing ONLY `{"context_servers": {"fsb": {...}}}` erases the user's entire Zed configuration. Similarly for Gemini CLI's `settings.json` which contains `selectedAuthType`, `theme`, `preferredEditor` alongside `mcpServers`.
+**Detection:** After adding handlers, invoke each existing MCP tool category. Watch for "Unknown MCP message type" errors in bridge logs or hanging tool calls.
 
-**Why it happens:**
-The developer treats the config file as if it only contains MCP server definitions. This is true for dedicated MCP config files (Claude Desktop, Cursor, Windsurf, Cline) but NOT for shared settings files (Zed, Gemini CLI, VS Code user settings).
-
-**How to avoid:**
-1. Categorize each platform's config file as either DEDICATED (only MCP config) or SHARED (mixed with other settings).
-   - **Dedicated:** Claude Desktop, Cursor (`mcp.json`), Windsurf, Cline, VS Code (`mcp.json`), Continue
-   - **Shared:** Zed (`settings.json`), Gemini CLI (`settings.json`), Codex (`config.toml`)
-2. For SHARED files, use surgical insertion that only touches the MCP-related key. The `jsonc-parser` `modify()` function handles this: it adds/modifies a specific JSON path without touching other keys.
-3. For DEDICATED files, a full write-back is safer but still use JSONC-aware editing to preserve comments.
-4. Never construct the config file from scratch for SHARED files. If the file doesn't exist, create it with only the MCP key and a comment indicating other settings can be added.
-
-**Warning signs:**
-- Same write-back function used for all platforms without distinguishing dedicated vs. shared
-- Tests use empty config files (which masks the "erase other settings" bug)
-- No test fixtures that include non-MCP settings alongside MCP config
-
-**Phase to address:**
-Platform registry phase (Phase 1) -- tag each platform as DEDICATED or SHARED in the registry metadata. Config write engine must branch on this tag.
+**Phase:** EVERY phase that touches message handlers. Non-negotiable regression testing.
 
 ---
 
-### Pitfall 7: TOML Round-Trip Destroys Comments and Formatting (Codex)
+### Pitfall 6: WebSocket Carries Secrets in Plaintext on Localhost
 
-**What goes wrong:**
-Codex uses TOML (`~/.codex/config.toml`) for configuration. The developer adds a TOML parser to handle this platform, parses the file, adds the `[mcp_servers.fsb]` section, stringifies back to TOML. TOML parsers (like `@iarna/toml`) don't preserve comments, and the stringified output reorders keys alphabetically, destroying the user's carefully organized config with inline comments like `# My primary code search server`.
+**What goes wrong:** The MCP bridge runs on `ws://localhost:7225` (not `wss://`). Every message -- including any credential/payment data that leaks into tool params or results -- travels as plaintext JSON over a local TCP socket. Any local process can sniff localhost traffic using standard tools.
 
-Additionally, TOML has subtleties: `mcp_servers` (underscore) vs `mcp-servers` (hyphen) vs `mcpServers` (camelCase) -- Codex only recognizes `mcp_servers` with underscore. Using the wrong key name means Codex silently ignores the server.
+**Why it happens:** The localhost WebSocket was designed for benign automation commands. Adding credential operations changes the threat model.
 
-**Why it happens:**
-TOML comment preservation is even harder than JSON. Most TOML libraries parse into a data structure that discards comments entirely. The developer tests with a minimal config.toml and doesn't notice the formatting destruction.
+**Consequences:** Local malware, other browser extensions with localhost network access, or any process with network sniffing capability can intercept passwords and card numbers. 2025 research documented real Chrome extensions leaking sensitive data via unencrypted HTTP.
 
-**How to avoid:**
-1. For TOML files, use text-level append rather than parse-modify-stringify. If `[mcp_servers.fsb]` doesn't exist, append the section to the end of the file.
-2. Before appending, scan the file text for existing `[mcp_servers.fsb]` to avoid duplicates.
-3. Use a regex or line-by-line scan to find the right insertion point, not a full TOML parse.
-4. If the file doesn't exist, create it with just the `[mcp_servers.fsb]` section.
-5. For uninstall, use text-level removal: find the `[mcp_servers.fsb]` header, remove all lines until the next `[` header or EOF.
-6. Avoid adding `@iarna/toml` or any TOML library as a dependency -- text-level manipulation is sufficient for adding/removing a single known section.
+**Prevention:**
+- The credential data firewall (Pitfall 1) is the primary defense: passwords and card numbers NEVER traverse the WebSocket. MCP tools send opaque references only.
+- Add a bridge-level audit function: before sending any `mcp:result`, scan the payload for fields named `password`, `cvv`, `cardNumber`, `secret`, or `apiKey`. If found, replace with `[REDACTED]` and log a security warning. This is a defense-in-depth backstop, not the primary control.
+- Document this architecture decision in a code comment at the top of `mcp-bridge-client.js`: "SECURITY: No raw credentials cross this WebSocket. Tools receive opaque identifiers; the extension resolves and fills locally."
+- Future hardening (not v0.9.34): upgrade to `wss://` with a self-signed cert, or use `chrome.runtime.connectNative`.
 
-**Warning signs:**
-- A TOML parsing library appears in `dependencies`
-- Config.toml tests don't include comments or non-MCP sections
-- The TOML section name uses `mcpServers` or `mcp-servers` instead of `mcp_servers`
+**Detection:** Run `websocat ws://localhost:7225` while executing a credential fill. If any message contains a real password, the firewall is broken.
 
-**Phase to address:**
-Codex platform implementation phase (Phase 3) -- implement after JSON platforms work, using text-level append strategy.
-
----
-
-### Pitfall 8: Continue's YAML Config Requires a Different Dependency Strategy
-
-**What goes wrong:**
-Continue.dev uses `config.yaml` (not JSON). The developer adds a YAML parser (`js-yaml`, ~100KB) to handle this single platform, bloating the npm package size. Alternatively, they try to write YAML by hand using string templates and produce invalid YAML due to indentation errors.
-
-Additionally, Continue supports TWO config approaches: (1) a `mcpServers:` section in `~/.continue/config.yaml`, and (2) dropping a JSON file into `.continue/mcpServers/`. The developer implements only one approach and misses users who use the other.
-
-**Why it happens:**
-YAML is deceptively simple to generate but easy to break with wrong indentation. Adding a YAML parser adds significant weight to what should be a lightweight CLI tool (current dependencies: `@modelcontextprotocol/sdk`, `ws`, `zod` -- all necessary).
-
-**How to avoid:**
-1. For Continue, prefer the JSON file approach: write `~/.continue/mcpServers/fsb.json` as a standard JSON file. This avoids YAML parsing entirely.
-2. The JSON file approach is officially supported by Continue and avoids modifying the user's primary config.yaml.
-3. If YAML support is needed later, use a minimal template approach: hardcode the YAML snippet as a template string with correct indentation, don't parse/modify existing YAML.
-4. Document in help text that the `--continue` flag creates a JSON file in `.continue/mcpServers/`, not modifying config.yaml.
-
-**Warning signs:**
-- `js-yaml` or `yaml` appears in `dependencies`
-- YAML generation via string concatenation without indentation validation
-- Continue support only handles one of the two config approaches
-
-**Phase to address:**
-Continue platform implementation phase (Phase 3) -- implement using the JSON mcpServers directory approach, avoiding YAML dependency entirely.
+**Phase:** Architecture decision established in FIRST phase. Audit backstop added when MCP tools are registered.
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 9: Claude Code Should Use CLI, Not File Writes
+---
 
-**What goes wrong:**
-The developer writes directly to `~/.claude.json` to add the FSB MCP server for Claude Code, mimicking how other platforms work. But Claude Code has its own MCP management via `claude mcp add`, and direct file writes may conflict with Claude Code's internal state, fail schema validation, or be overwritten on Claude Code restart.
+### Pitfall 7: Payment Unlock Gate Confusion -- Two Tiers, One UX
 
-**How to avoid:**
-1. For the `--claude-code` flag, do NOT write to `~/.claude.json` directly.
-2. Instead, print the exact CLI command: `claude mcp add fsb --scope user -- npx -y fsb-mcp-server` and optionally offer to execute it via `child_process.execSync()`.
-3. Check if `claude` CLI is available before offering to execute.
-4. Fall back to printing instructions if `claude` is not in PATH.
+**What goes wrong:** The vault has a two-tier unlock model: (1) credential vault unlock (required for ALL operations), then (2) separate payment access unlock (required specifically for payment methods, requires re-entering the same passphrase). Users don't understand why they need to "unlock twice." The payment unlock re-derives the session key and compares it to the stored one -- it's a re-authentication, not a different password.
 
-**Warning signs:**
-- Direct file writes to `~/.claude.json` for Claude Code
-- No `which claude` or `command -v claude` check
-- Tests mock file writes for Claude Code instead of CLI execution
+**Prevention:**
+- Design the unlock UI as a SINGLE flow with explicit tiers: "Unlock vault" -> success banner -> "Enable payment access" button (confirmation with optional re-auth, not a second password prompt from scratch).
+- Consider auto-prompting for payment unlock when a payment tool is first invoked, rather than requiring pre-unlock.
+- MCP tool error responses must include actionable guidance: `{ error: "Saved payment methods are locked. The credential vault is unlocked but payment access requires separate confirmation. Use unlock_payment_vault tool or open FSB settings.", errorCode: "payment_locked" }`.
 
-**Phase to address:**
-Platform-specific implementations phase (Phase 2) -- implement as CLI delegation, not file write.
+**Phase:** Payment management UI phase.
 
 ---
 
-### Pitfall 10: Missing Parent Directories
+### Pitfall 8: Confirmation Fatigue for Payment Operations
 
-**What goes wrong:**
-The config file's parent directory doesn't exist yet. The user has never opened the platform, or it's a fresh install. `fs.writeFileSync()` throws ENOENT because the directory doesn't exist. The auto-install reports a confusing error or crashes.
+**What goes wrong:** If every `use_payment_method` call requires sidepanel confirmation, users doing multi-item checkout automation see 3-5 confirmation dialogs in sequence. They click "confirm" reflexively, defeating the security purpose. If the sidepanel isn't open, the confirmation cannot be displayed and the operation times out with a cryptic error.
 
-This is especially common for:
-- `~/.cursor/mcp.json` (user hasn't created .cursor dir)
-- `~/.codeium/windsurf/mcp_config.json` (nested directories)
-- `~/.continue/mcpServers/fsb.json` (double nesting)
-- `~/.gemini/settings.json` (Gemini CLI never run)
+**Prevention:**
+- Session-scoped domain approval: "FSB wants to fill payment card ending in 4242 for checkout on amazon.com. Allow for this session?" -- one confirmation covers all payment fills on that domain for 5 minutes.
+- Handle the "sidepanel not open" case: (a) try `chrome.sidePanel.open()`, (b) fall back to browser notification, (c) return clear error after 15 seconds: "User confirmation required but sidepanel is not responding."
+- Track fatigue: if user confirms 3+ times in 60 seconds for the same domain, offer "Allow all payment operations on this domain for this session."
 
-**How to avoid:**
-1. Before writing, create parent directories with `fs.mkdirSync(dir, { recursive: true })`.
-2. When creating new directories, use mode `0o755` on Unix.
-3. Log a note to the user when creating directories: "Created ~/.cursor/ (directory did not exist)".
-4. Consider whether creating a config file for a platform the user hasn't installed is useful -- it might confuse them. Add a `--check` option that verifies the platform is installed before writing.
-
-**Warning signs:**
-- No `mkdirSync` with `recursive: true` before file writes
-- Tests run in a temp directory that already has the parent structure
-- No messaging to the user about directory creation
-
-**Phase to address:**
-Core config write engine phase (Phase 1) -- recursive directory creation must be part of the write path.
+**Phase:** Confirmation dialog implementation phase.
 
 ---
 
-### Pitfall 11: Uninstall Leaves Empty Config or Removes Too Much
+### Pitfall 9: Options Page and Service Worker Hold Different SecureConfig Singletons
 
-**What goes wrong (too much):**
-The `--uninstall --claude-desktop` flag reads the config, does `delete config.mcpServers.fsb`, writes back. If FSB was the only server, the file now contains `{"mcpServers": {}}` which is fine, but some implementations delete the entire `mcpServers` key if empty, or worse, delete the file. If it's a shared settings file (Zed, Gemini), deleting the file destroys all other settings.
+**What goes wrong:** `config/secure-config.js` exports a singleton and attaches to `self.secureConfig` (service worker) and `window.BrowserAgentSecureConfig` (pages). The options page imports it separately, creating its own instance. When the options page saves a credential, it writes to `chrome.storage.local` and invalidates its local cache. But the service worker's singleton still has the old 30-second TTL cache. An MCP tool that lists credentials immediately after an options page save sees stale data.
 
-**What goes wrong (too little):**
-The uninstall removes the FSB entry from one platform but the user had added FSB to multiple platforms. The user thinks they uninstalled FSB but it still shows up in another client.
+**Prevention:**
+- Option A: Route ALL credential/payment operations from the options page through `chrome.runtime.sendMessage` to background.js. The service worker singleton handles all state.
+- Option B: After any mutation in the options page, send `chrome.runtime.sendMessage({ action: 'invalidateCredentialCache' })`. Add a handler in background.js that nullifies both metadata caches.
+- Option B is simpler if the options page already calls `secureConfig` directly for rendering.
 
-**How to avoid:**
-1. Uninstall should ONLY remove the `fsb` key from the server list, never remove the parent key or file.
-2. For shared settings files, use surgical removal (same JSONC `modify()` with `undefined` value to delete a key).
-3. For TOML (Codex), remove only the `[mcp_servers.fsb]` section and its contents.
-4. After uninstall, print which file was modified and what was removed.
-5. If the `fsb` key isn't found, print "FSB was not configured in [platform]" rather than erroring.
-6. Consider an `--uninstall --all` flag that removes FSB from all known platforms at once.
-
-**Warning signs:**
-- Uninstall code path deletes files or parent keys
-- No "not found" handling for missing FSB entries
-- Tests only cover "remove from many servers" case, not "FSB is the only server"
-
-**Phase to address:**
-Uninstall logic phase (Phase 2) -- implement after install works, with explicit surgical removal tests.
+**Phase:** Payment management UI phase (options page integration).
 
 ---
 
-### Pitfall 12: Windows Line Endings (CRLF) in Config Files
+### Pitfall 10: fill_credential Fills Password Into Wrong Field
 
-**What goes wrong:**
-The tool writes JSON with LF line endings (`\n`) on Windows. The user opens the file in Notepad (which historically only showed CRLF correctly, though modern Notepad handles LF). More critically, if the file previously had CRLF line endings and the tool writes LF, git diff shows every line as changed, and some Windows tools may behave unexpectedly with mixed line endings.
+**What goes wrong:** Login forms vary wildly: multi-step logins (Google: email first, password second), forms with security questions, CAPTCHA fields mixed with login fields, forms where the password field is initially hidden. If the tool fills the password into a `type="text"` field (misidentified as username), the password is displayed in plaintext on screen. Research from 2025 showed even established password managers (1Password, LastPass, Bitwarden) are vulnerable to DOM-based clickjacking attacks on autofill.
 
-**How to avoid:**
-1. When reading an existing config file, detect the line ending style (check for `\r\n`).
-2. When writing back, use the same line ending style as the original.
-3. When creating a new file, use the OS default: `os.EOL` from Node.js.
-4. This is low-severity for most cases (JSON parsers don't care about line endings) but important for user experience when they inspect the file.
+**Prevention:**
+- Content script fill MUST verify `input.type === 'password'` before injecting password content. If no `type="password"` field exists, return an error: `"No password field found. Navigate to the login page first."`
+- For username, prefer inputs with `autocomplete="username"` or `autocomplete="email"`, or inputs whose label contains "email", "username", or "login".
+- Fill password LAST, after username, to handle two-step login flows.
+- Never auto-fill without user confirmation showing the exact target domain.
 
-**Warning signs:**
-- Hardcoded `\n` in JSON.stringify separator or template strings
-- No line ending detection on read
-- Tests only run on macOS/Linux
-
-**Phase to address:**
-Config write engine hardening phase (Phase 2) -- after basic writes work, add line ending preservation.
+**Phase:** AI autopilot tools implementation phase.
 
 ---
 
-### Pitfall 13: npm Package Size Bloat from Format Parsers
+### Pitfall 11: iframe Payment Forms (Stripe, Braintree, Adyen)
 
-**What goes wrong:**
-To support 10 platforms with JSON, JSONC, TOML, and YAML formats, the developer adds `jsonc-parser` (~50KB), `@iarna/toml` (~93KB), and `js-yaml` (~100KB) as production dependencies. The npm package grows from ~150KB to ~400KB+, slowing `npx -y fsb-mcp-server` cold starts (npx downloads the package on every invocation without cache).
+**What goes wrong:** Modern PCI-compliant payment forms embed card inputs in cross-origin iframes (Stripe Elements, Braintree Hosted Fields, Adyen Drop-in). `chrome.scripting.executeScript` and content script message passing cannot access cross-origin iframe content. The fill operation silently fails or throws.
 
-**Why it happens:**
-Each format needs a parser, and the obvious approach is to add a library per format. But `npx -y` downloads the full package + dependencies on every run, and package size directly affects user experience.
+**Prevention:**
+- Detect iframe-based payment forms during DOM analysis: check for iframes with `src` matching known payment processor domains (`js.stripe.com`, `assets.braintreegateway.com`, `checkoutshopper-live.adyen.com`, etc.).
+- Return a clear error: `{success: false, error: 'iframe_payment_form', message: 'This checkout uses an embedded payment form (Stripe/Braintree/Adyen) that cannot be auto-filled for security reasons. Please enter card details manually.'}` -- not a silent failure.
+- This is a known, accepted limitation. Document it in MCP tool descriptions.
 
-**How to avoid:**
-1. **JSON/JSONC**: Use `jsonc-parser` (~50KB). This is the only parser dependency that's truly needed -- it handles the majority of platforms (8 of 10).
-2. **TOML (Codex)**: Use text-level append/remove (no parser needed). Append a known TOML section template to the file. No dependency required.
-3. **YAML (Continue)**: Use the JSON mcpServers directory approach instead. No YAML parser needed.
-4. Net result: only one new dependency (`jsonc-parser`), ~50KB added.
-
-**Warning signs:**
-- More than one format parser in `dependencies`
-- `npx -y fsb-mcp-server` cold start time exceeds 3 seconds
-- `npm pack` output shows package size growing past 200KB
-
-**Phase to address:**
-Architecture decision phase (Phase 1) -- decide the format strategy before writing any platform code. Lock to "JSONC only + text-level TOML" early.
+**Phase:** MCP tool implementation phase.
 
 ---
 
-### Pitfall 14: Silently Writing Config When Platform Is Not Installed
+### Pitfall 12: Race Between MCP Tool Execution and Vault Lock
 
-**What goes wrong:**
-The user runs `npx -y fsb-mcp-server install --zed` but doesn't have Zed installed. The tool creates `~/.zed/settings.json` with just the context_servers entry. Later, when the user actually installs Zed, it finds this unexpected settings file and may behave oddly, or Zed's own initialization overwrites the file, and the user's FSB config is lost.
+**What goes wrong:** An MCP tool calls `ensureCredentialVaultUnlocked()` (succeeds), then enters an async operation (content script interaction). During the gap, the vault locks. The credential read fails partway, leaving a half-filled form.
 
-**How to avoid:**
-1. Before writing, do a lightweight check for whether the platform is actually installed:
-   - Check if the config directory exists (e.g., `~/.zed/` for Zed)
-   - Check if a known binary is in PATH (e.g., `which zed`, `which cursor`, `which code`)
-   - Check if the config FILE already exists (strongest signal)
-2. If the platform doesn't appear installed, warn: "Zed does not appear to be installed. Write config anyway? (y/N)"
-3. In non-interactive mode, default to SKIP with a message about `--force`.
+**Prevention:**
+- Resolve the session key AND fully read the credential data in a single block BEFORE dispatching to the content script:
+  ```
+  const ready = await ensureCredentialVaultUnlocked();
+  const cred = await getFullCredential(domain);
+  // Now dispatch to content script with resolved data
+  // Vault state during fill doesn't matter
+  ```
+- The content script fill is fire-and-forget after credential resolution.
 
-**Warning signs:**
-- No platform-installed check before writing
-- Tests always create the target directory in setUp
-- No user confirmation flow
-
-**Phase to address:**
-Platform detection phase (Phase 2) -- add detection heuristics before implementing auto-install for each platform.
+**Phase:** MCP tool implementation phase. Pattern established in first credential tool.
 
 ---
 
-## Security Pitfalls
+### Pitfall 13: PBKDF2 Iteration Count Mismatch
 
-### Pitfall 15: Config File Permission Escalation on Unix
+**What goes wrong:** `secure-config.js` has two PBKDF2 paths: `encrypt()`/`decrypt()` use 10,000 iterations (line 107) for legacy API keys, while `deriveCredentialSessionKey()` uses 120,000 iterations (line 348) for the vault. If new code calls `this.encrypt(data, rawPassword)` instead of `this.encrypt(data, sessionKey)`, credentials get 12x weaker key derivation.
 
-**What goes wrong:**
-The tool creates a new config file with `fs.writeFileSync()` which inherits the process umask. If the user's umask is `0o000` (rare but possible in some CI environments), the file is created with mode `0o666` (world-readable and writable). Any local user can read and modify the MCP config, potentially adding malicious MCP servers.
+**Prevention:**
+- All credential/payment encryption MUST use the vault session key from `ensureCredentialVaultUnlocked().sessionKey`, never a raw passphrase.
+- The existing `saveCredential` and `savePaymentMethod` are correct. The risk is NEW code paths.
+- Consider adding a runtime warning: if `encrypt()` receives a key shorter than 40 characters, log a warning.
 
-**How to avoid:**
-1. After creating a new file, explicitly set permissions: `fs.chmodSync(filePath, 0o644)`.
-2. For existing files, preserve the original permissions. Read the file's mode before writing, apply the same mode after.
-3. On Windows, file permissions work differently (ACLs), and `chmod` is a no-op. This is acceptable since Windows uses per-user AppData directories.
-
-**Warning signs:**
-- No `chmodSync` or `fchmodSync` call after file creation
-- No stat check for existing file permissions
-
-**Phase to address:**
-Config write engine phase (Phase 1) -- add permission handling to the write path from the start.
+**Phase:** Any phase modifying `secure-config.js` encryption calls.
 
 ---
 
-### Pitfall 16: MCP Connector Poisoning Perception Risk
+### Pitfall 14: Confirmation Timeout Without Cleanup
 
-**What goes wrong:**
-The FSB CLI auto-modifying files in the user's home directory makes it look like the MCP connector poisoning attack that security researchers have documented. The user or their security tooling sees an npm package modifying `~/.cursor/mcp.json` and flags it as suspicious behavior. Even if the modification is legitimate, the optics are bad.
+**What goes wrong:** The payment confirmation dialog shows in the sidepanel with a timeout (e.g., 2 minutes). When the timeout fires, the Promise rejects but the dialog remains visible. If the user clicks "Confirm" after timeout, the callback fires with no listener, or worse, triggers a stale operation.
 
-**How to avoid:**
-1. Make auto-install ALWAYS explicit and interactive (never as a postinstall script).
-2. The install command should clearly explain what it will do BEFORE doing it:
-   ```
-   Will write to: /Users/foo/.cursor/mcp.json
-   Changes: Add "fsb" server entry with command "npx -y fsb-mcp-server"
-   Proceed? (y/N)
-   ```
-3. Support `--dry-run` to show what would change without writing.
-4. Never use npm `postinstall` scripts to modify config files -- this is the primary attack vector for malicious packages.
-5. Log all modifications to stderr so they appear in the user's terminal.
+**Prevention:**
+- When the timeout fires, send a `paymentConfirmationExpired` message to the sidepanel to dismiss the dialog.
+- Store the handler reference on the session/request object for cleanup.
+- Follow the same pattern as the existing `session._loginHandler` in background.js (line 1006) for handler lifecycle management.
 
-**Warning signs:**
-- Any config modification happening in a lifecycle hook (postinstall, preinstall)
-- No confirmation prompt or `--dry-run` support
-- Silent writes with no terminal output
-
-**Phase to address:**
-UX/safety design phase (Phase 1) -- design the confirmation and dry-run flow before implementing writes.
+**Phase:** Confirmation dialog implementation phase.
 
 ---
 
-### Pitfall 17: Command Injection via Untrusted Config Values
-
-**What goes wrong:**
-Less likely for FSB (which controls its own config template), but if the tool ever reads values from environment variables or user input to construct the server entry, those values could contain shell metacharacters. If the MCP host later spawns the command via a shell (some do), this becomes a command injection vector.
-
-**How to avoid:**
-1. Hardcode all config values in the install template. Never interpolate user-provided strings into command or args fields.
-2. The `command` field should always be `"npx"` and `args` should always be `["-y", "fsb-mcp-server"]` (or `["cmd", "/c", "npx", "-y", "fsb-mcp-server"]` on Windows).
-3. If user customization is needed in the future, validate inputs strictly.
-
-**Warning signs:**
-- `process.argv` or `process.env` values being interpolated into config templates
-- Template literals used to construct JSON config entries
-
-**Phase to address:**
-All phases -- enforce template-only config values as a code review rule.
+## Minor Pitfalls
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 15: MCP Tool Registration Bypass via TOOL_REGISTRY Auto-Registration
 
-Shortcuts that seem reasonable but create long-term problems.
+**What goes wrong:** The shared `TOOL_REGISTRY` in `tool-definitions.cjs` feeds `manual.ts`'s auto-registration loop. If credential/payment tools are added to this registry, they get auto-registered as standard manual tools through the generic `execAction()` path -- which logs params, doesn't check vault state, and doesn't require confirmation.
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| `JSON.parse`/`JSON.stringify` round-trip | Simple, zero dependencies | Destroys comments, trailing commas, formatting in user configs | Never for user config files |
-| Adding TOML/YAML parser deps | Proper parsing for 2 platforms | Package size bloat, more deps to maintain | Never -- use text-level TOML append and JSON-for-Continue instead |
-| Skipping confirmation prompts | Faster UX, scriptable | Security perception issues, accidental overwrites | Only with explicit `--yes` flag |
-| Single-OS testing | Faster CI, developer convenience | Windows bugs ship undetected, path resolution failures | Never for a cross-platform tool -- at minimum use path-mocking |
-| Writing config without backup | Simpler code, faster writes | Unrecoverable config corruption if bugs exist | Only for DEDICATED config files that are trivially reconstructable |
-| Hardcoding Cline's extension ID (`saoudrizwan.claude-dev`) | Works today | Breaks if Cline changes publisher or extension ID | Acceptable with version-pinned note; monitor for changes |
+**Prevention:**
+- Register credential/payment MCP tools in a SEPARATE file (e.g., `mcp-server/src/tools/vault.ts`) with explicit handler functions, not through the schema bridge auto-registration.
+- This keeps the 49 existing tools untouched and ensures vault tools have custom security handling.
 
-## Integration Gotchas
+**Phase:** MCP tool registration phase.
 
-Common mistakes when integrating with each MCP host platform.
+---
 
-| Platform | Common Mistake | Correct Approach |
-|----------|----------------|------------------|
-| Claude Code | Writing to `~/.claude.json` directly | Use `claude mcp add` CLI with `--scope user` |
-| VS Code | Using `"mcpServers"` as top-level key | Use `"servers"` as top-level key in `mcp.json` |
-| VS Code | Writing to `settings.json` | Write to separate `mcp.json` (user-level or `.vscode/mcp.json`) |
-| Zed | Overwriting entire `settings.json` | Surgically insert into `context_servers` key only |
-| Codex | Using `mcpServers` or `mcp-servers` in TOML | Must use `mcp_servers` (underscore) -- Codex silently ignores other variants |
-| Continue | Modifying `config.yaml` (YAML) | Drop a JSON file into `~/.continue/mcpServers/fsb.json` instead |
-| Gemini CLI | Treating `settings.json` as MCP-only | It contains auth, theme, and editor preferences -- use surgical insert |
-| Cursor | Assuming only global config | Cursor reads both `~/.cursor/mcp.json` (global) and `.cursor/mcp.json` (project-level) |
-| Windsurf | Using `mcpServers` key | Windsurf also uses `mcpServers` but in `mcp_config.json` -- don't confuse with Cursor's `mcp.json` |
-| All platforms | Assuming `npx` command works on Windows | Windows needs `npx.cmd` in some environments, or `cmd /c npx` wrapper |
+### Pitfall 16: Card Brand Detection / Validation Edge Cases
 
-## Performance Traps
+**What goes wrong:** `detectCardBrand()` regex patterns may not cover all Mastercard 2-series numbers or newer virtual card issuers. `isValidCardNumber()` Luhn check is correct but the 12-19 digit length check may reject some legitimate cards.
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Parsing large settings files with regex | Timeout on Zed settings with 1000+ lines | Use `jsonc-parser` which is streaming/efficient | Settings file > 500 lines |
-| Synchronous file I/O blocking the CLI | Noticeable delay when writing to slow filesystems (network drives) | Use async I/O with `fs.promises` for the actual writes | Network-mounted home directory |
-| Cold `npx` download on every install invocation | 3-5 second startup before install begins | Accept this -- it's inherent to `npx -y`. Note in docs that `npm install -g fsb-mcp-server` is faster for repeated use | Always with `npx -y` |
+**Prevention:**
+- Make validation a warning in the UI, not a hard block. Allow saving with a "card number may be invalid" note.
+- Brand detection is best-effort cosmetic (icon display), not a save gate.
 
-## UX Pitfalls
+**Phase:** Payment management UI phase.
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No success/failure summary | User doesn't know if install worked | Print clear success message with the file path modified and a "verify" command |
-| Printing raw JSON diffs | User can't understand what changed | Print human-readable summary: "Added FSB server to Cursor config at ~/.cursor/mcp.json" |
-| Silent skip when entry already exists | User thinks install happened | Print explicit message: "FSB is already configured in Cursor. Use --force to overwrite." |
-| No `--dry-run` option | User can't preview changes safely | Always support `--dry-run` showing the exact file and diff without writing |
-| Error messages with stack traces | User is confused and alarmed | Catch errors, print friendly messages: "Could not write to ~/.cursor/mcp.json: Permission denied. Try running with sudo or check file permissions." |
-| `--uninstall` with no confirmation | User accidentally removes config | Require `--yes` flag for uninstall, or prompt interactively |
+---
+
+### Pitfall 17: Combined Expiry Fields (MM/YY vs Separate Month/Year)
+
+**What goes wrong:** Some payment forms use a single combined expiry field (MM/YY or MM/YYYY) instead of separate month and year fields. The fill function sends separate values.
+
+**Prevention:**
+- Content script payment fill should detect field type: if a single field with `autocomplete="cc-exp"` or matching pattern, format as `MM/YY` or `MM/YYYY` based on field maxlength/pattern.
+- If separate fields, fill month and year individually.
+
+**Phase:** Content script payment fill implementation.
+
+---
+
+### Pitfall 18: Subdomain Credential Matching Leaks to Attacker Subdomains
+
+**What goes wrong:** `getCredential()` falls back to parent domain with `allowSubdomains: true`. If credentials for `example.com` exist and the AI navigates to `evil.example.com`, auto-fill would inject real credentials into the attacker's page.
+
+**Prevention:**
+- MCP `fill_credential` uses active tab URL (Pitfall 3), not MCP-supplied domain.
+- Display exact domain in confirmation dialog.
+- Default `allowSubdomains` to `false` for new credentials.
+
+**Phase:** MCP tool implementation phase.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Vault unlock wiring | P2: Orphaned unlock flow | Wire background.js handler AND update unlock.js vault call FIRST |
+| Vault unlock wiring | P4: Session key loss on SW kill | Add bootstrap rehydration for session key |
+| Payment backend handlers | P5: Breaking existing tools | Search for collision, always `return true`, smoke test 3 existing tools |
+| Payment management UI | P9: Dual singletons | Route operations through background.js messages |
+| Payment management UI | P7: Two-tier unlock confusion | Design single-flow unlock UX |
+| AI autopilot tools | P1: Plaintext password leak | NEVER send secrets through WebSocket -- opaque references only |
+| AI autopilot tools | P10: Wrong field fill | Verify `type="password"` before injecting, require confirmation |
+| AI autopilot tools | P8: Confirmation fatigue | Session-scoped domain approval |
+| MCP tool registration | P15: Auto-registration bypass | Register vault tools in separate file, not TOOL_REGISTRY |
+| MCP tools | P3: Trusting MCP-supplied domain | Always derive domain from active tab URL for fill ops |
+| MCP tools | P6: Plaintext WebSocket | Opaque references only, bridge-level audit backstop |
+| MCP tools | P1: Bridge logging leak (manual.ts:30) | Redact sensitive tool params before logging |
+| MCP tools | P12: Race with vault lock | Resolve credential data fully before async dispatch |
+| MCP tools | P11: iframe payment forms | Detect and return clear error, don't silently fail |
+| All phases | P5: 49-tool regression | Smoke test existing MCP tools after every handler change |
+| All phases | P13: Iteration count mismatch | Always use vault session key for encrypt(), never raw passphrase |
+
+---
+
+## Security Threat Model Summary
+
+| Attack Surface | Threat | Severity | Mitigation | Confidence |
+|---------------|--------|----------|------------|------------|
+| WebSocket bridge (ws://localhost:7225) | Local process sniffs credentials | HIGH | Never send raw secrets over WebSocket (opaque refs only) | HIGH |
+| MCP tool result payloads | Password in response to Claude Code | HIGH | Return metadata only (domain, username, last4) | HIGH |
+| MCP server stderr (manual.ts:30) | Password in `console.error` params | HIGH | Redact sensitive tool params before logging | HIGH |
+| Extension console logs (automationLogger) | Password in action records | HIGH | Add `sensitive` flag, redact text field | HIGH |
+| MCP-supplied domain parameter | Credential lookup for wrong domain | HIGH | Derive domain from active tab URL, not payload | HIGH |
+| Content script response | Password echoed in fill result | MEDIUM | Return field count, not text content | HIGH |
+| Service worker restart | Session key lost, vault re-locks | MEDIUM | Eager rehydration from chrome.storage.session | HIGH |
+| Subdomain matching | Creds filled into attacker subdomain | MEDIUM | Confirmation dialog showing exact domain | MEDIUM |
+| DOM clickjacking | Invisible form captures autofilled creds | MEDIUM | Never auto-fill without user confirmation | MEDIUM |
+| Wrong field identification | Password filled into visible text field | MEDIUM | Verify input type="password" before injection | HIGH |
+| Cross-origin iframe | Fill fails silently on Stripe/Braintree | LOW | Detect and return clear error message | HIGH |
+| PBKDF2 iteration mismatch | Weak encryption of stored credentials | LOW | Use vault session key, never raw passphrase | HIGH |
+| chrome.storage.session budget | Keys evicted due to 1MB limit | LOW | Monitor usage, keep keys minimal | HIGH |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
-Things that appear complete but are missing critical pieces.
+- [ ] **Unlock wiring:** After unlock popup, `getCredentialVaultStatus()` returns `unlocked: true` from the SERVICE WORKER context (not just the popup context)
+- [ ] **Session key rehydration:** Kill service worker (chrome://serviceworker-internals), invoke MCP credential tool -- must succeed without re-unlock
+- [ ] **Password never in logs:** After fill_credential via MCP, search stderr output, extension console, and automationLogger records for the actual password string
+- [ ] **Password never on WebSocket:** Capture frames on ws://localhost:7225 during credential fill -- no frame contains actual password
+- [ ] **Domain from tab, not MCP:** fill_credential with mismatched payload.domain vs active tab URL returns error (not wrong-domain credentials)
+- [ ] **Existing tools unbroken:** After adding all new handlers, run type_text, click, read_page, run_task via MCP -- all succeed
+- [ ] **38 existing tests pass:** Run `node tests/secure-config-credential-vault.test.js` -- all 38 still pass
+- [ ] **Payment two-tier unlock works:** Unlock vault -> payment operations still fail -> unlock payment -> payment operations succeed
+- [ ] **Options page mutations visible to MCP:** Save credential in options -> immediately list via MCP -- credential appears
+- [ ] **iframe detection:** Navigate to Stripe checkout, invoke fill_payment -- returns clear iframe error, not silent failure
+- [ ] **Confirmation dialog for payments:** use_payment_method via MCP shows confirmation in sidepanel -- doesn't silently fill
+- [ ] **No missing `return true`:** Every new async handler in background.js has `return true` after the IIFE
 
-- [ ] **Path resolution:** Works on macOS dev machine -- verify Windows APPDATA paths actually resolve (test with `process.env.APPDATA` undefined)
-- [ ] **JSONC preservation:** Round-trip test with a config containing `//` comments, `/* */` block comments, and trailing commas
-- [ ] **Zed shared settings:** Test that writing FSB entry preserves ALL other Zed settings keys (theme, font, keybindings, language_overrides, etc.)
-- [ ] **Gemini shared settings:** Test that writing FSB entry preserves `selectedAuthType`, `theme`, `preferredEditor`
-- [ ] **Codex TOML section name:** Verify `mcp_servers` (underscore) -- not `mcpServers` or `mcp-servers`
-- [ ] **Cline deep path:** Verify the full `globalStorage/saoudrizwan.claude-dev/settings/` path chain is created
-- [ ] **Windows Defender interference:** Test write on Windows with real-time protection enabled -- watch for EPERM on rename
-- [ ] **Empty file creation:** What happens when the target config file doesn't exist at all? Each platform needs a valid initial skeleton
-- [ ] **Uninstall idempotency:** Running uninstall twice should not error or modify the file on the second run
-- [ ] **npx on Windows:** Verify `"command": "npx"` works when spawned by each platform on Windows -- some need `npx.cmd`
-
-## Recovery Strategies
-
-When pitfalls occur despite prevention, how to recover.
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Config corruption (truncated file) | MEDIUM | Restore from `.fsb-backup` if backup was created; otherwise user re-creates manually |
-| Comments destroyed by JSON.stringify | LOW | User re-adds comments; future installs use JSONC-aware editing |
-| Wrong key used (e.g., `mcpServers` in VS Code) | LOW | User manually renames key to `servers`; fix in next release |
-| Zed/Gemini settings erased | HIGH | No automated recovery. User must restore from editor backup, Time Machine, or git. Prevention is critical. |
-| TOML section name wrong | LOW | User manually renames `mcpServers` to `mcp_servers` in config.toml |
-| Windows EPERM during write | LOW | Retry the command; close IDE/antivirus temporarily |
-| Config written for uninstalled platform | LOW | Delete the created file and directory |
-
-## Pitfall-to-Phase Mapping
-
-How roadmap phases should address these pitfalls.
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| P1: JSON.stringify destroys comments | Phase 1: Config Engine | Round-trip test with commented JSONC fixture |
-| P2: Wrong top-level keys | Phase 1: Platform Registry | Per-platform schema validation tests |
-| P3: Windows path failures | Phase 1: Path Resolution | CI tests on Windows (or mock `process.platform` and env vars) |
-| P4: Non-atomic writes | Phase 1: Config Engine | Interrupt-simulation test (write to readonly target) |
-| P5: Clobbering existing entries | Phase 2: Merge Logic | Test with pre-existing custom FSB entry |
-| P6: Erasing shared settings | Phase 1: Platform Registry + Config Engine | Test with full Zed/Gemini settings fixture |
-| P7: TOML comment destruction | Phase 3: Codex Implementation | Test with commented config.toml |
-| P8: YAML dependency bloat | Phase 1: Architecture Decision | npm pack size check in CI |
-| P9: Claude Code file write | Phase 2: Platform Implementations | Test that no file write occurs for `--claude-code` |
-| P10: Missing parent directories | Phase 1: Config Engine | Test with non-existent parent dir |
-| P11: Uninstall over-removal | Phase 2: Uninstall Logic | Test uninstall on shared settings file |
-| P12: Windows CRLF | Phase 2: Write Hardening | Line ending detection test |
-| P13: Package size bloat | Phase 1: Architecture Decision | `npm pack --dry-run` size assertion |
-| P14: Writing for uninstalled platform | Phase 2: Platform Detection | Test with missing platform binary |
-| P15: File permissions | Phase 1: Config Engine | Verify file mode after write on Unix |
-| P16: Poisoning perception | Phase 1: UX Design | Confirmation prompt and `--dry-run` in CLI spec |
-| P17: Command injection | All Phases | Code review rule: no user input in templates |
+---
 
 ## Sources
 
-- [VS Code MCP Configuration Reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- verified `"servers"` key (not `"mcpServers"`)
-- [Zed MCP Documentation](https://zed.dev/docs/ai/mcp) -- verified `"context_servers"` key and settings.json structure
-- [Codex MCP Configuration](https://developers.openai.com/codex/mcp) -- verified TOML `mcp_servers` key with underscore
-- [Continue MCP Setup](https://docs.continue.dev/customize/deep-dives/mcp) -- verified JSON file in `.continue/mcpServers/` approach
-- [Gemini CLI MCP Docs](https://geminicli.com/docs/tools/mcp-server/) -- verified `mcpServers` in `~/.gemini/settings.json`
-- [Claude Code MCP Docs](https://code.claude.com/docs/en/mcp) -- verified `claude mcp add` CLI approach
-- [Windsurf MCP Integration](https://docs.windsurf.com/windsurf/cascade/mcp) -- verified `~/.codeium/windsurf/mcp_config.json`
-- [Cline MCP Configuration](https://docs.cline.bot/mcp/configuring-mcp-servers) -- verified deep `globalStorage/saoudrizwan.claude-dev/settings/` path
-- [npm/write-file-atomic Windows EPERM Issue #28](https://github.com/npm/write-file-atomic/issues/28) -- Windows rename race condition
-- [npm/write-file-atomic Windows EPERM Issue #227](https://github.com/npm/write-file-atomic/issues/227) -- fs.rename retry gap
-- [MCP Connector Poisoning (dev.to)](https://dev.to/toniantunovic/mcp-connector-poisoning-how-compromised-npm-packages-hijack-your-ai-agent-3ha0) -- postinstall attack vector
-- [Cursor MCP Documentation](https://cursor.com/docs/context/mcp) -- verified `mcpServers` key and deeplink format
-- [Claude Desktop MCP Setup](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- verified config paths per OS
-- [Node.js Cross-Platform Filesystem Guide](https://github.com/ehmicky/cross-platform-node-guide/blob/main/docs/3_filesystem/directory_locations.md) -- path resolution patterns
-- [jsonc-parser on npm](https://www.npmjs.com/package/jsonc-parser) -- JSONC-aware editing without comment loss
+### Codebase Analysis (PRIMARY -- HIGH confidence)
+- `config/secure-config.js` -- dual PBKDF2 paths (10K vs 120K iterations), vault lifecycle, payment methods, cache TTLs
+- `ui/unlock.js:45-49` -- sends `action: 'unlock'` message with no handler in background.js
+- `ws/mcp-bridge-client.js:178-247` -- 16-case routing switch, `_handleExecuteAction` passes params to content script
+- `mcp-server/src/bridge.ts:138` -- logs message types on send, plaintext WebSocket on port 7225
+- `mcp-server/src/tools/manual.ts:30` -- logs `params=${JSON.stringify(params).slice(0, 150)}` including text content
+- `background.js:4065-4350` -- message handler switch, existing credential CRUD handlers (6 cases), no vault lifecycle or payment handlers
+- `utils/automation-logger.js:504-510` -- `logActionExecution` spreads details into log entries including full params
+
+### External Research (MEDIUM confidence)
+- [Chrome Extensions Transmit Sensitive Data Over HTTP (SECURITY.COM)](https://www.security.com/threat-intelligence/chrome-extension-leaks)
+- [DOM-Based Extension Clickjacking (Marek Toth)](https://marektoth.com/blog/dom-based-extension-clickjacking/)
+- [MCP Server Security 2025 Report (Astrix)](https://astrix.security/learn/blog/state-of-mcp-server-security-2025/)
+- [MCP Security Checklist (SlowMist)](https://github.com/slowmist/MCP-Security-Checklist)
+- [WebSocket Security: 9 Common Vulnerabilities (Ably)](https://ably.com/topic/websocket-security)
+- [Chrome MV3 Service Worker Lifetime Issue](https://support.google.com/chrome/thread/372388083)
+- [chrome.storage API Documentation](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [1Password Agentic Autofill (SiliconANGLE)](https://siliconangle.com/2025/10/08/1password-tackles-ai-credential-risks-new-agentic-autofill-integration-browserbase/)
 
 ---
-*Pitfalls research for: MCP Platform Install Flags (v0.9.30)*
-*Researched: 2026-04-15*
+*Pitfalls research for: Vault, Payments & Secure MCP Access (v0.9.34)*
+*Researched: 2026-04-20*
