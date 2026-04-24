@@ -15,6 +15,10 @@ Run `$gsd-new-milestone` to define the next milestone and recreate `.planning/RE
 
 ## Phases
 
+- [x] **Phase 203: MCP Visual Session Contract** - archived in `v0.9.36` (completed 2026-04-23)
+- [x] **Phase 204: Overlay Badge & Session Persistence** - archived in `v0.9.36` (completed 2026-04-23)
+- [x] **Phase 205: Validation & MCP Usage Docs** - archived in `v0.9.36` (completed 2026-04-24)
+
 <details>
 <summary>✅ v0.9.36 MCP Visual Lifecycle & Client Identity (Phases 203-205) — SHIPPED 2026-04-24</summary>
 
