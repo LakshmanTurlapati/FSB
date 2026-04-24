@@ -4,9 +4,9 @@
 
 ## Phases
 
-- [ ] **Phase 203: MCP Visual Session Contract** - Add explicit MCP start/progress/end routes and trusted client allowlist validation for client-owned visual feedback on the active tab.
-- [ ] **Phase 204: Overlay Badge & Session Persistence** - Render approved client badges in the on-page overlay and mirrored preview surfaces while honoring navigation, reinjection, timeout, and cleanup rules.
-- [ ] **Phase 205: Validation & MCP Usage Docs** - Lock the feature with route/UI regression tests, stale-cleanup coverage, and docs for Claude/Codex/ChatGPT-style MCP clients.
+- [x] **Phase 203: MCP Visual Session Contract** - Add explicit MCP start/progress/end routes and trusted client allowlist validation for client-owned visual feedback on the active tab.
+- [x] **Phase 204: Overlay Badge & Session Persistence** - Render approved client badges in the on-page overlay and mirrored preview surfaces while honoring navigation, reinjection, timeout, and cleanup rules.
+- [x] **Phase 205: Validation & MCP Usage Docs** - Lock the feature with route/UI regression tests, stale-cleanup coverage, and docs for Claude/Codex/ChatGPT-style MCP clients.
 
 ## Phase Details
 
@@ -57,9 +57,9 @@
 
 | Phase | Requirements | Status |
 |-------|--------------|--------|
-| 203. MCP Visual Session Contract | LIFE-01, LIFE-02, LIFE-03, BADGE-01 | Planned |
-| 204. Overlay Badge & Session Persistence | LIFE-04, BADGE-02, BADGE-03, BADGE-04 | Planned |
-| 205. Validation & MCP Usage Docs | VALID-01, VALID-02, VALID-03 | Planned |
+| 203. MCP Visual Session Contract | LIFE-01, LIFE-02, LIFE-03, BADGE-01 | Completed |
+| 204. Overlay Badge & Session Persistence | LIFE-04, BADGE-02, BADGE-03, BADGE-04 | Completed |
+| 205. Validation & MCP Usage Docs | VALID-01, VALID-02, VALID-03 | Completed |
 
 ## Archive
 
@@ -95,4 +95,4 @@ See [.planning/milestones/v0.9.35-ROADMAP.md](./milestones/v0.9.35-ROADMAP.md) f
 
 ---
 *Roadmap created: 2026-04-23*
-*Last updated: 2026-04-23 after defining v0.9.36*
+*Last updated: 2026-04-24 after completing v0.9.36 execution*
