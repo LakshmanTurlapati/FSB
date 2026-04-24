@@ -29,6 +29,8 @@ const requiredSmokeTools = [
   'read_page',
   'get_dom_snapshot',
   'click',
+  'start_visual_session',
+  'end_visual_session',
   'run_task',
   'stop_task',
   'get_logs',
@@ -51,6 +53,7 @@ async function run() {
   const runtimeModule = await loadBuildModule('runtime.js');
   const readOnlyModule = await loadBuildModule(pathJoin('tools', 'read-only.js'));
   const manualModule = await loadBuildModule(pathJoin('tools', 'manual.js'));
+  const visualSessionModule = await loadBuildModule(pathJoin('tools', 'visual-session.js'));
   const autopilotModule = await loadBuildModule(pathJoin('tools', 'autopilot.js'));
   const observabilityModule = await loadBuildModule(pathJoin('tools', 'observability.js'));
 
@@ -58,6 +61,7 @@ async function run() {
   assert(typeof runtimeModule.createRuntime === 'function', 'build/runtime.js exports createRuntime');
   assert(typeof readOnlyModule.registerReadOnlyTools === 'function', 'build/tools/read-only.js exports registerReadOnlyTools');
   assert(typeof manualModule.registerManualTools === 'function', 'build/tools/manual.js exports registerManualTools');
+  assert(typeof visualSessionModule.registerVisualSessionTools === 'function', 'build/tools/visual-session.js exports registerVisualSessionTools');
   assert(typeof autopilotModule.registerAutopilotTools === 'function', 'build/tools/autopilot.js exports registerAutopilotTools');
   assert(typeof observabilityModule.registerObservabilityTools === 'function', 'build/tools/observability.js exports registerObservabilityTools');
 
@@ -67,6 +71,17 @@ async function run() {
       'mcp:execute-action': ({ payload }) => ({ success: true, executed: payload.tool }),
       'mcp:read-page': { success: true, content: 'Example page' },
       'mcp:get-dom': { success: true, elements: [{ ref: 'e5' }] },
+      'mcp:start-visual-session': ({ payload }) => ({
+        success: true,
+        sessionToken: 'visual_token_123',
+        clientLabel: payload.clientLabel,
+        tabId: 7,
+      }),
+      'mcp:end-visual-session': ({ payload }) => ({
+        success: true,
+        sessionToken: payload.sessionToken,
+        cleared: true,
+      }),
       'mcp:start-automation': { success: true, sessionId: 'smoke-session', status: 'started' },
       'mcp:stop-automation': { success: true, stopped: true },
       'mcp:get-logs': { success: true, logs: [] },
@@ -75,6 +90,7 @@ async function run() {
 
   readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue);
   manualModule.registerManualTools(harness.server, harness.bridge, harness.queue);
+  visualSessionModule.registerVisualSessionTools(harness.server, harness.bridge, harness.queue);
   autopilotModule.registerAutopilotTools(harness.server, harness.bridge, harness.queue);
   observabilityModule.registerObservabilityTools(harness.server, harness.bridge, harness.queue);
 
@@ -117,6 +133,37 @@ async function run() {
     clickCall && clickCall.message,
     { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' } } },
     'click routes through mcp:execute-action with click payload',
+  );
+
+  const startVisualSessionCall = await invokeTool(harness, 'start_visual_session', {
+    client: ' codex ',
+    task: 'Smoke test the visual lifecycle',
+    detail: 'Preparing overlay',
+  });
+  assertDeepEqual(
+    startVisualSessionCall && startVisualSessionCall.message,
+    {
+      type: 'mcp:start-visual-session',
+      payload: {
+        clientLabel: 'Codex',
+        task: 'Smoke test the visual lifecycle',
+        detail: 'Preparing overlay',
+      },
+    },
+    'start_visual_session routes through mcp:start-visual-session with canonical client label',
+  );
+
+  const endVisualSessionCall = await invokeTool(harness, 'end_visual_session', {
+    session_token: 'visual_token_123',
+    reason: 'ended',
+  });
+  assertDeepEqual(
+    endVisualSessionCall && endVisualSessionCall.message,
+    {
+      type: 'mcp:end-visual-session',
+      payload: { sessionToken: 'visual_token_123', reason: 'ended' },
+    },
+    'end_visual_session routes through mcp:end-visual-session with token payload',
   );
 
   const runTaskCall = await invokeTool(harness, 'run_task', { task: 'Smoke test the browser bridge' }, harness.createExtra({ progressToken: 'smoke-progress' }));

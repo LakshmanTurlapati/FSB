@@ -139,6 +139,22 @@ assertEqual(errorFinalState.lifecycle, 'final', 'explicit error lifecycle stays 
 assertEqual(errorFinalState.result, 'error', 'explicit error result passes through');
 assertEqual(errorFinalState.progress.label, 'Error', 'error final state gets dedicated progress label');
 
+console.log('\n--- degraded client-owned lifecycle state ---');
+
+const degradedWaitingState = overlayStateUtils.buildOverlayState({
+  phase: 'waiting',
+  lifecycle: 'running',
+  sessionToken: 'visual_token_waiting',
+  version: 9,
+  clientLabel: 'Claude',
+  statusText: 'Waiting for reconnect'
+}, null);
+
+assertEqual(degradedWaitingState.phase, 'waiting', 'degraded client-owned state keeps waiting phase');
+assertEqual(degradedWaitingState.lifecycle, 'running', 'degraded client-owned state stays running until explicit clear');
+assertEqual(degradedWaitingState.clientLabel, 'Claude', 'degraded client-owned state preserves trusted badge identity');
+assertEqual(degradedWaitingState.progress.label, 'waiting', 'degraded client-owned raw state preserves waiting progress label');
+
 console.log('\n--- stale message handling ---');
 
 assert(
@@ -163,6 +179,22 @@ assert(
     { sessionToken: 'same', version: 5, lifecycle: 'final' }
   ) === true,
   'newer version for same token is applied'
+);
+
+assert(
+  overlayStateUtils.shouldApplyOverlayState(
+    { sessionToken: 'same', version: 5, lifecycle: 'final', clientLabel: 'Codex' },
+    { sessionToken: 'same', version: 4, lifecycle: 'cleared' }
+  ) === false,
+  'older clear for same token is ignored during final freeze'
+);
+
+assert(
+  overlayStateUtils.shouldApplyOverlayState(
+    { sessionToken: 'same', version: 5, lifecycle: 'final', clientLabel: 'Codex' },
+    { sessionToken: 'same', version: 6, lifecycle: 'cleared' }
+  ) === true,
+  'newer clear for same token is applied after final freeze'
 );
 
 console.log('\n--- sanitizeActionText strips CLI tool syntax ---');

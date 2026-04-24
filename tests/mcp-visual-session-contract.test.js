@@ -136,6 +136,11 @@ async function runAllowlistAndManagerCase() {
 
   const ended = manager.endSession(replacement.session.sessionToken, { reason: 'ended' });
   assert(ended && ended.version === 2, 'endSession increments version for the clear payload');
+  assertEqual(
+    manager.endSession(replacement.session.sessionToken, { reason: 'ended' }),
+    null,
+    'repeating endSession on an already-cleared token is a safe no-op',
+  );
 
   const clearState = overlayStateUtils.buildOverlayState(
     buildMcpVisualSessionClearStatus(ended, { reason: 'ended' }),
@@ -276,6 +281,7 @@ async function runDispatcherValidationCases() {
   let capturedStart = null;
   let capturedEnd = null;
   let capturedTaskStatus = [];
+  const clearedTokens = new Set();
 
   global.handleStartMcpVisualSession = (request, sender, sendResponse) => {
     startHandlerCalled = true;
@@ -292,6 +298,18 @@ async function runDispatcherValidationCases() {
   global.handleEndMcpVisualSession = (request, sender, sendResponse) => {
     endHandlerCalled = true;
     capturedEnd = { request, sender };
+
+    if (clearedTokens.has(request.sessionToken)) {
+      sendResponse({
+        success: false,
+        errorCode: 'visual_session_not_found',
+        error: 'No active client-owned visual session found for token',
+        sessionToken: request.sessionToken,
+      });
+      return true;
+    }
+
+    clearedTokens.add(request.sessionToken);
     sendResponse({
       success: true,
       sessionToken: request.sessionToken,
@@ -436,6 +454,15 @@ async function runDispatcherValidationCases() {
     assertEqual(ended.success, true, 'end visual-session route succeeds');
     assert(endHandlerCalled, 'end visual-session route reaches the background callback');
     assertEqual(capturedEnd.request.sessionToken, 'visual_token_123', 'end visual-session route forwards the session token');
+
+    endHandlerCalled = false;
+    const endedTwice = await dispatcher.dispatchMcpMessageRoute({
+      type: 'mcp:end-visual-session',
+      payload: { sessionToken: 'visual_token_123', reason: 'ended' },
+      client: {},
+    });
+    assertEqual(endedTwice.errorCode, 'visual_session_not_found', 'repeating end visual-session returns a safe structured stale-token error');
+    assert(endHandlerCalled, 'repeat end visual-session still routes through the background callback for idempotent cleanup handling');
 
     taskStatusHandlerCalled = false;
     capturedTaskStatus = [];
