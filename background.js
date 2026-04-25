@@ -2181,6 +2181,10 @@ setInterval(async () => {
   const now = Date.now();
   const STALE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
   for (const [sessionId, session] of activeSessions) {
+    // LIFE-01: Never delete a session that is actively running
+    if (session.status === 'running') {
+      continue;
+    }
     // Remove idle sessions older than 30 minutes
     if (session.status === 'idle' && now - (session.startTime || 0) > STALE_THRESHOLD) {
       automationLogger.info('Removing stale idle session', { sessionId, ageMs: now - (session.startTime || 0) });
@@ -2194,6 +2198,10 @@ setInterval(async () => {
       try {
         await chrome.tabs.get(session.tabId);
       } catch {
+        if (session.status === 'running') {
+          automationLogger.warn('Stale cleanup: tab gone but session still running, skipping', { sessionId, tabId: session.tabId });
+          continue;
+        }
         automationLogger.info('Removing session for closed tab', { sessionId, tabId: session.tabId });
         activeSessions.delete(sessionId);
         sessionAIInstances.delete(sessionId);
@@ -2320,8 +2328,44 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   // Clean up any active sessions for this tab
   for (const [sessionId, session] of activeSessions) {
     if (session.tabId === tabId) {
+      // LIFE-02 (D-02): Notify sidepanel BEFORE removing the session
+      try {
+        chrome.runtime.sendMessage({
+          action: 'automationComplete',
+          sessionId: sessionId,
+          conversationId: session.conversationId || null,
+          historySessionId: session.historySessionId || sessionId,
+          result: 'Tab was closed during automation.',
+          partial: false,
+          stopped: true,
+          error: null,
+          reason: 'tab_closed',
+          outcome: 'stopped',
+          blocker: null,
+          nextStep: null,
+          outcomeDetails: {
+            outcome: 'stopped',
+            reason: 'tab_closed',
+            summary: 'Tab was closed during automation.',
+            blocker: null,
+            nextStep: null,
+            result: 'Tab was closed during automation.',
+            error: null
+          },
+          task: session.task || null
+        }).catch((err) => {
+          console.warn('[FSB] Tab-close automationComplete delivery failed', { sessionId, error: err && err.message });
+        });
+      } catch (_e) { /* non-fatal */ }
+
+      // LIFE-02 (D-03): Clean up visual overlays on other tabs
+      try {
+        endSessionOverlays(session, 'tab_closed');
+      } catch (_e) { /* tab already gone, overlay cleanup is best-effort */ }
+
       session.status = 'stopped';
       activeSessions.delete(sessionId);
+      removePersistedSession(sessionId);
       if (sessionAIInstances.has(sessionId)) {
         sessionAIInstances.delete(sessionId);
       }
