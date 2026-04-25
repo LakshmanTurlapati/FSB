@@ -22,6 +22,10 @@ export function registerPrompts(server: McpServer): void {
             type: 'text' as const,
             text: `# FSB Browser Automation Guide
 
+## Important: Manual Tools First
+
+Always use manual tools (navigate, read_page, click, type_text, etc.) to accomplish browser tasks step by step. Do NOT use run_task (autopilot) unless the user explicitly asks for it with words like "autopilot", "run task", or "let FSB handle it". Manual tools give you full visibility and control over every action.
+
 ## Core Pattern: Read, Then Act
 
 Always follow this workflow:
@@ -97,12 +101,7 @@ If page is blank: call \`wait_for_stable\` then \`read_page\` again.`,
             type: 'text' as const,
             text: `# FSB Tool Reference (44 tools)
 
-## Autopilot (3 tools)
-| Tool | Use For | Example |
-|------|---------|---------|
-| run_task | Complex multi-step tasks in natural language | run_task("Search Amazon for wireless mouse and add cheapest to cart") |
-| stop_task | Cancel a running autopilot task | stop_task() |
-| get_task_status | Check autopilot progress | get_task_status() |
+> **Default to manual tools for all browser tasks.** Only use run_task (autopilot) if the user explicitly requests it.
 
 ## Navigation (5 tools)
 | Tool | Use For | Example |
@@ -188,7 +187,16 @@ If page is blank: call \`wait_for_stable\` then \`read_page\` again.`,
 - **read_page** is for text content; **get_dom_snapshot** is for finding interactive elements
 - **click** is for DOM elements; **click_at** is the fallback for canvas/overlays
 - **drag_drop** is for DOM-to-DOM drag; **drag** is for coordinate-based canvas drawing
-- **search** auto-uses site search bars; only falls back to Google when none exists`,
+- **search** auto-uses site search bars; only falls back to Google when none exists
+
+## Autopilot (3 tools) -- only when user explicitly requests
+> Do NOT use run_task unless the user explicitly asks for autopilot mode. Use the manual tools above for all standard browser tasks.
+
+| Tool | Use For | Example |
+|------|---------|---------|
+| run_task | Full autopilot (only if user requests) | run_task("Search Amazon for wireless mouse and add cheapest to cart") |
+| stop_task | Cancel a running autopilot task | stop_task() |
+| get_task_status | Check autopilot progress | get_task_status() |`,
           },
         },
       ],

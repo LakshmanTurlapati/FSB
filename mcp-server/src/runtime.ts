@@ -28,13 +28,13 @@ export function createRuntime(options: RuntimeOptions = {}): FSBRuntime {
   const queue = options.queue ?? new TaskQueue();
   const server = createServer();
 
-  registerAutopilotTools(server, bridge, queue);
   registerVisualSessionTools(server, bridge, queue);
   registerManualTools(server, bridge, queue);
   registerReadOnlyTools(server, bridge, queue);
   registerObservabilityTools(server, bridge, queue);
   registerAgentTools(server, bridge, queue);
   registerVaultTools(server, bridge, queue);
+  registerAutopilotTools(server, bridge, queue);
   registerResources(server, bridge);
   registerPrompts(server);
 

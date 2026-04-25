@@ -18,7 +18,7 @@ export function registerAutopilotTools(
   // run_task -- execute a natural language automation task
   server.tool(
     'run_task',
-    'Execute a browser automation task using FSB\'s AI. Describe what you want done in natural language and FSB\'s AI decides the steps. Returns a completion summary with success status and action log. When to use: for complex multi-step tasks that are easier to describe in natural language than to script step-by-step. FSB\'s built-in AI handles navigation, element finding, clicking, typing, and verification. Related: For fine-grained control, use manual tools (navigate, read_page, click, type_text) instead.',
+    'IMPORTANT: Only use this tool if the user explicitly requests autopilot, asks to "run a task", or says "let FSB handle it". For all other browser tasks, use the manual tools (navigate, read_page, get_dom_snapshot, click, type_text, etc.) to accomplish the task step by step -- they are more reliable and give you full control. This tool hands control to FSB\'s built-in AI which decides the steps autonomously. Returns a completion summary with success status and action log.',
     { task: z.string().describe('Natural language description of the task to perform') },
     async ({ task }, extra) => {
       if (!bridge.isConnected) {
