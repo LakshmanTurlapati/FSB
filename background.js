@@ -5662,7 +5662,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             action: 'agentRunComplete',
             agentId: agent.agentId,
             result: { success: result.success, duration: result.duration, error: result.error }
-          }).catch(() => {});
+          }).catch((err) => {
+            console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId: agent.agentId, error: err && err.message });
+          });
         } catch (error) {
           sendResponse({ success: false, error: error.message });
         }
@@ -6311,7 +6313,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       action: 'statusUpdate',
       sessionId: sessionId,
       message: 'Connecting to page...'
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[FSB] statusUpdate sendMessage delivery failed', { sessionId, error: err && err.message });
+    });
 
     const isReady = await waitForContentScriptReady(targetTabId, 5000);
     automationLogger.debug('Content script readiness check complete', { sessionId, tabId: targetTabId, isReady });
@@ -6353,7 +6357,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
           sessionId: sessionId,
           error: 'Could not connect to the page. Please refresh the page and try again. If the problem persists, reload the extension from chrome://extensions.',
           task
-        }).catch(() => {});
+        }).catch((err) => {
+          console.warn('[FSB] automationError sendMessage delivery failed', { sessionId, error: err && err.message });
+        });
 
         return; // Exit early - do not start the automation loop
       }
@@ -6364,7 +6370,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       action: 'statusUpdate',
       sessionId: sessionId,
       message: 'Connected. Analyzing page...'
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[FSB] statusUpdate sendMessage delivery failed', { sessionId, error: err && err.message });
+    });
 
     // Send session status to content script for visual feedback
     sendSessionStatus(targetTabId, {
@@ -8895,7 +8903,9 @@ async function startAutomationLoop(sessionId) {
       partial: true,
       reason: 'max_iterations',
       task: session.task
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[FSB] automationComplete sendMessage delivery failed', { sessionId, reason: 'max_iterations', error: err && err.message });
+    });
 
     loopResolve?.();
     return;
@@ -8928,7 +8938,9 @@ async function startAutomationLoop(sessionId) {
       partial: true,
       reason: 'timeout',
       task: session.task
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[FSB] automationComplete sendMessage delivery failed', { sessionId, reason: 'timeout', error: err && err.message });
+    });
 
     loopResolve?.();
     return;
@@ -9058,7 +9070,9 @@ async function startAutomationLoop(sessionId) {
         sessionId: sessionId,
         error: `Failed to communicate with the page (${tabUrl}). The content script may not have loaded yet. Try refreshing the page. Error: ${healthError.message}`,
         task: session.task
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('[FSB] automationError sendMessage delivery failed', { sessionId, error: err && err.message });
+      });
 
       // Stop the session
       session.status = 'failed';
@@ -9501,7 +9515,9 @@ async function startAutomationLoop(sessionId) {
           maxIterations: session.maxIterations || 20,
           progressPercent: signinProgress.progressPercent,
           estimatedTimeRemaining: signinProgress.estimatedTimeRemaining
-        }).catch(() => {});
+        }).catch((err) => {
+          console.warn('[FSB] statusUpdate sendMessage delivery failed', { sessionId, error: err && err.message });
+        });
 
         const loginFields = extractLoginFields(domResponse.structuredDOM);
         const fillResult = await fillCredentialsOnPage(session.tabId, loginDomain, domResponse.structuredDOM);
@@ -9546,7 +9562,9 @@ async function startAutomationLoop(sessionId) {
           sessionId,
           domain: loginDomain,
           fields: loginFields
-        }).catch(() => {});
+        }).catch((err) => {
+          console.warn('[FSB] loginDetected sendMessage delivery failed', { sessionId, error: err && err.message });
+        });
 
         // PAUSE: wait for user response
         const userResponse = await waitForLoginResponse(sessionId);
@@ -9906,7 +9924,9 @@ async function startAutomationLoop(sessionId) {
         error: 'AI service error - please try again',
         message: 'Stopped due to an error',
         task: session.task
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('[FSB] automationError sendMessage delivery failed', { sessionId, error: err && err.message });
+      });
 
       return; // Stop automation loop
     }
@@ -10921,7 +10941,9 @@ async function startAutomationLoop(sessionId) {
         sessionId,
         error: 'Automation ended.',
         task: finalSession?.task
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('[FSB] automationError sendMessage delivery failed', { sessionId, error: err && err.message });
+      });
     }
   }
 }
@@ -12559,7 +12581,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         duration: result.duration,
         error: result.error
       }
-    }).catch(() => {}); // UI may not be open
+    }).catch((err) => {
+      console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId, error: err && err.message });
+    });
 
     // Sync to server if enabled
     if (updatedAgent.syncEnabled && typeof serverSync !== 'undefined') {
