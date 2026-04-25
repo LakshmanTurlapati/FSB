@@ -5047,7 +5047,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         currentActionCount: firstSession?.actionHistory?.length || 0
       });
       break;
-      
+
+    case 'checkSessionAlive': {
+      const sessionId = request.sessionId;
+      const session = activeSessions.get(sessionId);
+      const alive = !!(session && session.status === 'running');
+      sendResponse({ alive: alive, status: session?.status || null });
+      break;
+    }
+
     case 'testAPI':
       handleTestAPI(request, sender, sendResponse);
       return true; // Will respond asynchronously
