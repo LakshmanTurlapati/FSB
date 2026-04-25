@@ -1167,7 +1167,64 @@ async function runAgentIteration(sessionId, options) {
   var session = activeSessions.get(sessionId);
 
   // b. Guard: session must exist and be running
-  if (!session || session.status !== 'running') {
+  if (!session) {
+    console.warn('[agent-loop] runAgentIteration: session not found for sessionId=' + sessionId + '. Sending blind automationComplete.');
+    try {
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId: sessionId,
+        conversationId: null,
+        historySessionId: sessionId,
+        result: 'Session not found. Automation cannot continue.',
+        partial: false,
+        stopped: true,
+        error: null,
+        reason: 'session_not_found',
+        outcome: 'stopped',
+        blocker: null,
+        nextStep: null,
+        outcomeDetails: {
+          outcome: 'stopped',
+          reason: 'session_not_found',
+          summary: 'Session not found. Automation cannot continue.',
+          blocker: null,
+          nextStep: null,
+          result: 'Session not found. Automation cannot continue.',
+          error: null
+        },
+        task: null
+      }).catch(function() {});
+    } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
+    return;
+  }
+  if (session.status !== 'running') {
+    console.warn('[agent-loop] runAgentIteration: session status is "' + session.status + '" (not running) for sessionId=' + sessionId + '. Sending blind automationComplete.');
+    try {
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId: sessionId,
+        conversationId: session.conversationId || null,
+        historySessionId: session.historySessionId || sessionId,
+        result: 'Session is not running (status: ' + session.status + '). Automation cannot continue.',
+        partial: false,
+        stopped: true,
+        error: null,
+        reason: 'session_not_running',
+        outcome: 'stopped',
+        blocker: null,
+        nextStep: null,
+        outcomeDetails: {
+          outcome: 'stopped',
+          reason: 'session_not_running',
+          summary: 'Session is not running (status: ' + session.status + '). Automation cannot continue.',
+          blocker: null,
+          nextStep: null,
+          result: 'Session is not running (status: ' + session.status + '). Automation cannot continue.',
+          error: null
+        },
+        task: session.task || null
+      }).catch(function() {});
+    } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
 
