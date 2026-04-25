@@ -1112,7 +1112,7 @@ async function runAgentIteration(sessionId, options) {
           error: terminal.error || null
         },
         task: sess.task
-      }).catch(function() {});
+      }).catch(function(err) { console.warn('[agent-loop] notifySidepanel delivery failed', { sessionId: sid, error: err && err.message }); });
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
   }
 
@@ -1209,7 +1209,7 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: null
-      }).catch(function() {});
+      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_found)', { sessionId: sessionId, error: err && err.message }); });
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
@@ -1239,7 +1239,7 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: session.task || null
-      }).catch(function() {});
+      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_running)', { sessionId: sessionId, error: err && err.message }); });
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
