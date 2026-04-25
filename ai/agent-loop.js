@@ -1163,6 +1163,22 @@ async function runAgentIteration(sessionId, options) {
     }
   }
 
+  // Helper: map safety breaker reason string to structured D-01 reason constant
+  function mapSafetyReasonToConstant(reasonString) {
+    if (!reasonString) return 'safety';
+    var r = String(reasonString).toLowerCase();
+    if (r.indexOf('iteration') !== -1 && (r.indexOf('limit') !== -1 || r.indexOf('count') !== -1)) {
+      return 'iteration_limit_exceeded';
+    }
+    if (r.indexOf('cost') !== -1 || r.indexOf('budget') !== -1 || r.indexOf('spending') !== -1) {
+      return 'cost_limit_exceeded';
+    }
+    if (r.indexOf('duration') !== -1 || r.indexOf('time') !== -1) {
+      return 'time_limit_exceeded';
+    }
+    return 'safety';
+  }
+
   // a. Retrieve session
   var session = activeSessions.get(sessionId);
 
@@ -1294,7 +1310,12 @@ async function runAgentIteration(sessionId, options) {
       iteration: iterNum
     });
     if (beforeIterResult.stopped) {
-      session.status = 'stopped';
+      var safetyReason1 = mapSafetyReasonToConstant(beforeIterResult.stoppedBy);
+      var safetyTerminal1 = createTerminalOutcome('stopped', {
+        reason: safetyReason1,
+        summary: 'Automation stopped: ' + (beforeIterResult.stoppedBy || 'Safety breaker triggered')
+      });
+      applyTerminalOutcome(session, safetyTerminal1);
       // Emit onCompletion hook for safety stop
       await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
         session: session, sessionId: sessionId,
@@ -1306,17 +1327,24 @@ async function runAgentIteration(sessionId, options) {
         await endSessionOverlays(session, 'safety');
       }
       await persist(sessionId, session);
+      await finalizeSession(sessionId, session, safetyTerminal1);
       return;
     }
   } else {
     // Fallback: inline safety check when no hooks pipeline is available
     var safety = checkSafetyBreakers(session);
     if (safety.shouldStop) {
-      session.status = 'stopped';
+      var safetyReason2 = mapSafetyReasonToConstant(safety.reason);
+      var safetyTerminal2 = createTerminalOutcome('stopped', {
+        reason: safetyReason2,
+        summary: 'Automation stopped: ' + (safety.reason || 'Safety breaker triggered')
+      });
+      applyTerminalOutcome(session, safetyTerminal2);
       if (typeof endSessionOverlays === 'function') {
         await endSessionOverlays(session, 'safety');
       }
       await persist(sessionId, session);
+      await finalizeSession(sessionId, session, safetyTerminal2);
       return;
     }
   }
@@ -1911,11 +1939,17 @@ async function runAgentIteration(sessionId, options) {
       }
       // Check if safety breaker hook stopped the iteration
       if (afterIterResult.stopped) {
-        session.status = 'stopped';
+        var safetyReason3 = mapSafetyReasonToConstant(afterIterResult.stoppedBy);
+        var safetyTerminal3 = createTerminalOutcome('stopped', {
+          reason: safetyReason3,
+          summary: 'Automation stopped: ' + (afterIterResult.stoppedBy || 'Safety breaker triggered')
+        });
+        applyTerminalOutcome(session, safetyTerminal3);
         if (typeof endSessionOverlays === 'function') {
           await endSessionOverlays(session, 'safety');
         }
         await persist(sessionId, session);
+        await finalizeSession(sessionId, session, safetyTerminal3);
         return;
       }
     } else {
@@ -1934,11 +1968,16 @@ async function runAgentIteration(sessionId, options) {
       }
       // Force-stop when stuck detection escalates past threshold
       if (stuckCheck.shouldForceStop) {
-        session.status = 'stopped';
+        var stuckTerminal = createTerminalOutcome('stopped', {
+          reason: 'stuck_force_stop',
+          summary: 'Automation stopped: stuck detection escalated past threshold. ' + (stuckCheck.hint ? stuckCheck.hint.substring(0, 200) : '')
+        });
+        applyTerminalOutcome(session, stuckTerminal);
         if (typeof endSessionOverlays === 'function') {
           await endSessionOverlays(session, 'stuck');
         }
         await persist(sessionId, session);
+        await finalizeSession(sessionId, session, stuckTerminal);
         return;
       }
     }
