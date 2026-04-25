@@ -37,7 +37,7 @@ FSB MCP Server connects any MCP compatible AI client (Claude Desktop, Claude Cod
 - **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
 - **Agent mode**: create, run, inspect, and manage scheduled background agents from any MCP client
 
-### What's New in v0.7.0
+### What's New in v0.7.2
 
 - **Bridge lifecycle reconnect**: the MCP bridge re arms automatically on service worker wakes, with hub/relay handoff when multiple clients connect
 - **Centralized tool routing**: a new route aware dispatcher replaces the old direct dispatch, improving reliability and error recovery
@@ -62,7 +62,7 @@ FSB uses two local endpoints with different roles:
 | `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
 | `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
 
-The extension pairing contract did **not** change in `0.7.0`. The local HTTP server is only an additional MCP client entrypoint.
+The extension pairing contract did **not** change in `0.7.2`. The local HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 

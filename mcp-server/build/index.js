@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createRuntime } from './runtime.js';
 import { collectBridgeDiagnostics, formatDiagnosticLayerLabel, getLocalHttpEndpoint, waitForExtensionConnection, watchBridgeDiagnostics, } from './diagnostics.js';
@@ -335,14 +334,8 @@ async function main() {
             throw new Error(`Unknown command: ${command}`);
     }
 }
-function isExecutedDirectly() {
-    const entry = process.argv[1];
-    return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
-}
-if (isExecutedDirectly()) {
-    main().catch((err) => {
-        console.error('[FSB MCP] Fatal:', err);
-        process.exit(1);
-    });
-}
+main().catch((err) => {
+    console.error('[FSB MCP] Fatal:', err);
+    process.exit(1);
+});
 //# sourceMappingURL=index.js.map

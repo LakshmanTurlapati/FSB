@@ -178,7 +178,7 @@ FSB (Full Self Browsing) is a powerful Chrome extension that brings AI powered b
 
 ## MCP Server
 
-FSB also ships an MCP server (v0.7.0) for Claude Code, Codex, VS Code, Cursor, Windsurf, and other MCP capable clients. The package level guide lives in [mcp-server/README.md](mcp-server/README.md), and the current parity matrix is:
+FSB also ships an MCP server (v0.7.2) for Claude Code, Codex, VS Code, Cursor, Windsurf, and other MCP capable clients. The package level guide lives in [mcp-server/README.md](mcp-server/README.md), and the current parity matrix is:
 
 - Claude Code: use `claude mcp add --scope user fsb -- npx -y fsb-mcp-server`.
 - Codex: add FSB to `~/.codex/config.toml` under `mcp_servers`, then restart Codex or reload the MCP list.
@@ -930,7 +930,7 @@ FSB provides real time visual indicators during automation:
 
 ### Completed in v0.9.34 -- v0.9.36
 - Vault management with numeric PIN unlock, credential CRUD, and payment method storage
-- MCP server v0.7.0 with bridge lifecycle reconnect across service worker wakes
+- MCP server v0.7.2 with bridge lifecycle reconnect across service worker wakes
 - Centralized MCP tool routing contract replacing direct dispatch
 - Layered MCP diagnostics (`doctor`, `status --watch`) identifying the exact failing layer
 - Explicit visual session lifecycle for MCP clients (`start_visual_session` / `end_visual_session`)

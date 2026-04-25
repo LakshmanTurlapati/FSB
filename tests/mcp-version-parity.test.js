@@ -22,7 +22,7 @@ function assertEqual(actual, expected, msg) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const canonicalVersion = '0.6.0';
+const canonicalVersion = '0.7.2';
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');

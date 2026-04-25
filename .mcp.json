@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "fsb": {
-      "command": "node",
-      "args": ["mcp-server/build/index.js"]
-    }
-  }
-}

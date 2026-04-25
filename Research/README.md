@@ -47,7 +47,7 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 | Technology | Purpose | FSB Relevance |
 |------------|---------|---------------|
 | Claude for Chrome | Browser automation via extension | Direct competitor, architectural reference |
-| MCP | AI to system integration standard | Fully integrated (MCP v0.7.0, 62 tools) |
+| MCP | AI to system integration standard | Fully integrated (MCP v0.7.2, 62 tools) |
 | Computer Use API | Screenshot based automation | Alternative approach to DOM analysis |
 | Native Messaging | Extension to CLI communication | Integrated via MCP server |
 
@@ -57,7 +57,7 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 
 2. **Security Model**: Anthropic's site level permissions and content isolation provide a robust security model worth adopting.
 
-3. **MCP Integration**: FSB ships a full MCP server (v0.7.0) that connects Claude Code, Codex, Cursor, Windsurf, and other MCP clients to the browser with 62 tools across manual, visual session, autopilot, agent, and observability surfaces.
+3. **MCP Integration**: FSB ships a full MCP server (v0.7.2) that connects Claude Code, Codex, Cursor, Windsurf, and other MCP clients to the browser with 62 tools across manual, visual session, autopilot, agent, and observability surfaces.
 
 4. **Hybrid Approach**: Combining DOM analysis with selective screenshot capture for complex UI elements could improve reliability.
 

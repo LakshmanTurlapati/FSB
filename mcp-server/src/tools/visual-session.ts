@@ -1,28 +1,28 @@
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { mapFSBError } from '../errors.js';
 
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Approved visual-session client labels (must match the extension's allowlist)
+const MCP_VISUAL_CLIENT_LABELS: string[] = [
+  'Claude', 'Codex', 'ChatGPT', 'Perplexity', 'Windsurf',
+  'Cursor', 'Antigravity', 'OpenCode', 'OpenClaw', 'Grok', 'Gemini',
+];
 
-type VisualSessionUtils = {
-  normalizeMcpVisualClientLabel: (raw: unknown) => string | null;
-  getAllowedMcpVisualClientLabels: () => string[];
-};
+const CLIENT_LABEL_MAP: Record<string, string> = Object.create(null);
+for (const label of MCP_VISUAL_CLIENT_LABELS) {
+  CLIENT_LABEL_MAP[label.toLowerCase().replace(/[\s_-]+/g, '')] = label;
+}
 
-const visualSessionUtils = require(
-  path.resolve(__dirname, '../../../utils/mcp-visual-session.js'),
-) as VisualSessionUtils;
+function normalizeMcpVisualClientLabel(raw: unknown): string | null {
+  const key = String(raw ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return key ? (CLIENT_LABEL_MAP[key] ?? null) : null;
+}
 
-const {
-  normalizeMcpVisualClientLabel,
-  getAllowedMcpVisualClientLabels,
-} = visualSessionUtils;
+function getAllowedMcpVisualClientLabels(): string[] {
+  return MCP_VISUAL_CLIENT_LABELS.slice();
+}
 
 export function registerVisualSessionTools(
   server: McpServer,

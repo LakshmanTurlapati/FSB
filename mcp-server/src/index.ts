@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { pathToFileURL } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createRuntime } from './runtime.js';
 import {
@@ -408,14 +407,7 @@ async function main(): Promise<void> {
   }
 }
 
-function isExecutedDirectly(): boolean {
-  const entry = process.argv[1];
-  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
-}
-
-if (isExecutedDirectly()) {
-  main().catch((err: unknown) => {
-    console.error('[FSB MCP] Fatal:', err);
-    process.exit(1);
-  });
-}
+main().catch((err: unknown) => {
+  console.error('[FSB MCP] Fatal:', err);
+  process.exit(1);
+});
