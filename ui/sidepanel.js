@@ -4,6 +4,8 @@ let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+let livenessInterval = null;
+let livenessFailCount = 0;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
 
@@ -514,6 +516,33 @@ function startNewChat() {
 }
 
 
+// Liveness poll -- detects orphaned running state when all upstream notifications were lost
+function checkSessionLiveness() {
+  if (!isRunning || !currentSessionId) return;
+  chrome.runtime.sendMessage(
+    { action: 'checkSessionAlive', sessionId: currentSessionId },
+    (response) => {
+      if (chrome.runtime.lastError || !response || response.alive === false) {
+        livenessFailCount++;
+        console.warn('[FSB sidepanel] Liveness check failed', {
+          sessionId: currentSessionId,
+          failCount: livenessFailCount,
+          error: chrome.runtime.lastError?.message || null,
+          alive: response?.alive,
+          status: response?.status || null
+        });
+        if (livenessFailCount >= 2) {
+          console.warn('[FSB sidepanel] Orphan detected after 2 consecutive failures, recovering');
+          addMessage('Session ended unexpectedly. Ready for your next task.', 'error');
+          setIdleState();
+        }
+      } else {
+        livenessFailCount = 0;
+      }
+    }
+  );
+}
+
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
@@ -522,10 +551,15 @@ function setRunningState() {
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
   updateSendButtonState();
+  livenessFailCount = 0;
+  if (livenessInterval) clearInterval(livenessInterval);
+  livenessInterval = setInterval(checkSessionLiveness, 10000);
 }
 
 // Update UI for idle state
 function setIdleState() {
+  if (livenessInterval) { clearInterval(livenessInterval); livenessInterval = null; }
+  livenessFailCount = 0;
   isRunning = false;
   sendBtn.disabled = false;
   stopBtn.classList.add('hidden');
