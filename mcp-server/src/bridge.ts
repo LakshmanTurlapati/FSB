@@ -332,6 +332,13 @@ export class WebSocketBridge {
       if (!identified) {
         identified = true;
         this.handshakeTimers.delete(ws);
+        // If extension is already connected and healthy, don't replace it --
+        // this is likely a slow relay whose hello was delayed past the timeout
+        if (this.extensionClient && this.connected) {
+          console.error(`[FSB Bridge ${this.instanceId}] Unidentified connection while extension active, closing`);
+          ws.close();
+          return;
+        }
         this._registerExtensionClient(ws);
         // Process any buffered messages
         for (const raw of buffered) {
