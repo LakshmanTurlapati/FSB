@@ -4,14 +4,11 @@
 // are globals from ai/tool-definitions.js. In Node.js/tests, fall back to require().
 var _mcp_defs = (typeof TOOL_REGISTRY !== 'undefined')
   ? { TOOL_REGISTRY, getToolByName }
-  : require('../ai/tool-definitions.js');
+  : (typeof require !== 'undefined' ? require('../ai/tool-definitions.js') : {});
 var _mcp_getToolByName = _mcp_defs.getToolByName;
-var _mcp_visual_defs = (typeof normalizeMcpVisualClientLabel !== 'undefined')
-  ? {
-      normalizeMcpVisualClientLabel,
-      getAllowedMcpVisualClientLabels
-    }
-  : require('../utils/mcp-visual-session.js');
+var _mcp_visual_defs = (typeof MCPVisualSessionUtils !== 'undefined')
+  ? MCPVisualSessionUtils
+  : (typeof require !== 'undefined' ? require('../utils/mcp-visual-session.js') : {});
 var _mcp_normalizeVisualClientLabel = _mcp_visual_defs.normalizeMcpVisualClientLabel;
 var _mcp_getAllowedVisualClientLabels = _mcp_visual_defs.getAllowedMcpVisualClientLabels;
 

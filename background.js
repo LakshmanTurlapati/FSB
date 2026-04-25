@@ -1968,9 +1968,19 @@ async function restoreConversationSessions() {
 
 // Store for active automation sessions
 let activeSessions = new Map();
-const mcpVisualSessionManager = (typeof McpVisualSessionManager === 'function')
-  ? new McpVisualSessionManager()
+const mcpVisualSessionManager = (typeof MCPVisualSessionUtils !== 'undefined' && typeof MCPVisualSessionUtils.McpVisualSessionManager === 'function')
+  ? new MCPVisualSessionUtils.McpVisualSessionManager()
   : null;
+// Destructure visual-session helpers so existing call sites work without namespace prefix
+const {
+  normalizeMcpVisualClientLabel = () => null,
+  getAllowedMcpVisualClientLabels = () => [],
+  serializeMcpVisualSessionRecord = (s) => s,
+  restoreMcpVisualSessionRecord = (r) => r,
+  planMcpVisualSessionReplay = () => ({ action: 'clear' }),
+  buildMcpVisualSessionStatus = () => ({}),
+  buildMcpVisualSessionClearStatus = () => ({}),
+} = (typeof MCPVisualSessionUtils !== 'undefined') ? MCPVisualSessionUtils : {};
 const mcpVisualSessionFinalizationTimers = new Map();
 const MCP_VISUAL_SESSION_STORAGE_KEY = 'fsbMcpVisualSessions';
 
