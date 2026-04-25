@@ -2137,6 +2137,49 @@ async function restoreSessionsFromStorage() {
             status: persistedSession.status,
             task: persistedSession.task?.substring(0, 50)
           });
+
+          // LIFE-03 (D-04): If session was running, it cannot resume -- notify sidepanel
+          if (persistedSession.status === 'running') {
+            const restoredSession = activeSessions.get(persistedSession.sessionId);
+            try {
+              chrome.runtime.sendMessage({
+                action: 'automationComplete',
+                sessionId: persistedSession.sessionId,
+                conversationId: persistedSession.conversationId || null,
+                historySessionId: persistedSession.historySessionId || persistedSession.sessionId,
+                result: 'Session interrupted by service worker restart. Automation cannot resume.',
+                partial: false,
+                stopped: true,
+                error: null,
+                reason: 'service_worker_restart',
+                outcome: 'stopped',
+                blocker: null,
+                nextStep: null,
+                outcomeDetails: {
+                  outcome: 'stopped',
+                  reason: 'service_worker_restart',
+                  summary: 'Session interrupted by service worker restart. Automation cannot resume.',
+                  blocker: null,
+                  nextStep: null,
+                  result: 'Session interrupted by service worker restart. Automation cannot resume.',
+                  error: null
+                },
+                task: persistedSession.task || null
+              }).catch((err) => {
+                console.warn('[FSB] SW-wake automationComplete delivery failed', {
+                  sessionId: persistedSession.sessionId,
+                  error: err && err.message
+                });
+              });
+            } catch (_e) { /* non-fatal -- sidepanel may not be open yet */ }
+
+            // LIFE-03 (D-05): Mark session as stopped since it cannot resume
+            if (restoredSession) {
+              restoredSession.status = 'stopped';
+              // Persist the stopped status so next SW wake does not re-notify
+              persistSession(persistedSession.sessionId, restoredSession);
+            }
+          }
         } else {
           // Clean up non-running/non-idle sessions from storage
           await removePersistedSession(persistedSession.sessionId);
