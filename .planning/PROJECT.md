@@ -8,15 +8,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current State
+## Current Milestone: v0.9.45 Dashboard Control & Stream Reliability
 
-No active milestone is open right now.
+**Goal:** Fix the broken remote control and QR pairing features, and harden DOM streaming for reliable dashboard operation.
 
-**Latest ship:** v0.9.36 MCP Visual Lifecycle & Client Identity (2026-04-24)
+**Target features:**
+- Implement the 5 missing remote control handlers so dashboard click/key/scroll commands reach the browser tab
+- Restore QR code pairing (showPairingQR, countdown, cancel) so the extension can pair with the showcase dashboard
+- Harden DOM streaming: mutation queue watchdog, large-DOM truncation performance, stale mutation counter reset
+- Fix asymmetric WebSocket compression (add decompression for incoming messages)
+- Replace silent error swallowing with diagnostic logging in dialog relay and message delivery
 
-**Current focus:**
-- Define the next milestone and recreate `.planning/REQUIREMENTS.md`
-- Keep deferred Angular migration work and the next MCP follow-up requirements visible without reopening closed v0.9.36 scope
+## Previous Milestone: v0.9.40 Session Lifecycle Reliability (shipped 2026-04-25)
+
+**Shipped:** Fixed silent task abandonment across all agent loop exit paths, background session lifecycle hardening (stale cleanup, tab close, SW wake), diagnostic logging for message delivery failures, and sidepanel orphan recovery. 3 phases, 4 plans, 12 commits.
+
+## Previous State: v0.9.36 MCP Visual Lifecycle & Client Identity (shipped 2026-04-24)
 
 **Archive:** See `.planning/milestones/v0.9.36-ROADMAP.md`, `.planning/milestones/v0.9.36-REQUIREMENTS.md`, and `.planning/MILESTONES.md`.
 
@@ -165,6 +172,21 @@ No active milestone is open right now.
 - ✓ MCP docs and regression tests cover the start/progress/end contract and reject arbitrary badge labels -- v0.9.36
 
 ### Active
+
+- [ ] Remote control handlers (click, key, scroll, start, stop) implemented and wired to content script
+- [ ] QR code pairing restored (showPairingQR, countdown, cancel, server URL constant)
+- [ ] DOM streaming hardened (mutation queue watchdog, large-DOM truncation performance, stale mutation counter)
+- [ ] WebSocket compression symmetry (decompression for incoming messages)
+- [ ] Silent error swallowing replaced with diagnostic logging in dialog relay and message delivery
+
+### Validated (v0.9.40)
+
+- ✓ All agent loop exit paths (stuck force-stop, safety breakers, guard clauses) call finalizeSession() and notify the sidepanel -- Phase 206
+- ✓ Every session termination records a structured outcomeDetails.reason (safety, stuck, orphan, tab-closed, etc.) -- Phase 206
+- ✓ Stale session cleanup, tab close, and service worker wake handle running sessions without silent abandonment -- Phase 207
+- ✓ Sidepanel detects orphaned "working" state and self-heals to idle -- Phase 208
+
+### Deferred (MCP follow-up from v0.9.36)
 
 - [ ] FSB derives trusted MCP client identity from connection or handshake metadata instead of requiring callers to send an allowlisted label each time.
 - [ ] Approved MCP clients can opt into auto-wrapping manual browser tools in a visual session when visible feedback is desired.
@@ -370,4 +392,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after archiving v0.9.36*
+*Last updated: 2026-04-24 after starting milestone v0.9.45*

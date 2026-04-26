@@ -110,6 +110,56 @@ function setFSBTransportLastSnapshot(snapshot) {
 
 getFSBTransportDiagnostics();
 
+// =====================================================================
+// Remote Control State (Phase 209)
+// =====================================================================
+// Dashboard remote-control commands flow through this module. State is
+// kept at module scope so the bare-function handlers wired into the
+// _handleMessage switch (around line 608) can consult lifecycle state
+// without a `this` binding. The active WebSocket instance is exposed on
+// globalThis.__fsbWsInstance so handlers can broadcast state back to the
+// dashboard via ext:remote-control-state.
+
+var _remoteControlActive = false;
+var _lastRemoteControlState = null;
+
+function _getRemoteControlTabId() {
+  return getCurrentTransportTabId();
+}
+
+function _broadcastRemoteControlState(wsInstance, enabled, reason, tabId) {
+  var state = {
+    enabled: !!enabled,
+    attached: !!enabled,
+    tabId: typeof tabId === 'number' ? tabId : null,
+    reason: reason || (enabled ? 'ready' : 'user-stop'),
+    ownership: enabled ? 'dashboard' : 'none'
+  };
+  _lastRemoteControlState = state;
+  if (wsInstance && typeof wsInstance.send === 'function') {
+    wsInstance.send('ext:remote-control-state', state);
+  }
+  return state;
+}
+
+function handleRemoteControlStart() {
+  var tabId = _getRemoteControlTabId();
+  if (!tabId) {
+    console.warn('[FSB RC] Cannot start remote control: no active tab');
+    _broadcastRemoteControlState(globalThis.__fsbWsInstance, false, 'no-tab', null);
+    return;
+  }
+  _remoteControlActive = true;
+  console.log('[FSB RC] Remote control started for tab', tabId);
+  _broadcastRemoteControlState(globalThis.__fsbWsInstance, true, 'ready', tabId);
+}
+
+function handleRemoteControlStop() {
+  _remoteControlActive = false;
+  console.log('[FSB RC] Remote control stopped');
+  _broadcastRemoteControlState(globalThis.__fsbWsInstance, false, 'user-stop', null);
+}
+
 class FSBWebSocket {
   constructor() {
     this.ws = null;
@@ -171,6 +221,10 @@ class FSBWebSocket {
       this.reconnectDelay = 0;
       this.connected = true;
       this._startKeepalive();
+      // Phase 209: Expose this instance so bare-function remote control
+      // handlers (handleRemoteControlStart/Stop, etc.) can broadcast state
+      // back to the dashboard via ext:remote-control-state.
+      globalThis.__fsbWsInstance = this;
       recordFSBTransportReconnect('ws-open', {
         readyState: this.ws ? this.ws.readyState : null
       });
