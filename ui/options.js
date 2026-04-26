@@ -4195,6 +4195,12 @@ function initializeAgentSection() {
   if (btnCopy) btnCopy.addEventListener('click', copyHashKey);
   if (btnTest) btnTest.addEventListener('click', testServerConnection);
 
+  // QR pairing buttons (Phase 210)
+  const btnPair = document.getElementById('btnPairDashboard');
+  const btnCancelPair = document.getElementById('btnCancelPairing');
+  if (btnPair) btnPair.addEventListener('click', showPairingQR);
+  if (btnCancelPair) btnCancelPair.addEventListener('click', cancelPairing);
+
   // Load server settings
   loadServerSettings();
 
@@ -4754,6 +4760,188 @@ async function testServerConnection() {
     if (statusEl) statusEl.textContent = 'Failed';
     if (statusEl) statusEl.className = 'connection-status error';
     showToast('Cannot connect to server', 'error');
+  }
+}
+
+// ===== QR Pairing Controller (Phase 210) =====
+// Implements CONTEXT D-01 (silent hash-key auto-gen), D-02 (in-overlay
+// regenerate on expiry), D-03 (urgency at <=10s). Reuses showToast,
+// chrome.storage.local, and FSB_DEFAULT_SERVER_URL.
+
+var pairingCountdownTimer = null;     // setTimeout handle
+var pairingFetchInFlight = false;     // duplicate-click guard (Pitfall 2)
+
+function clearPairingCountdown() {
+  if (pairingCountdownTimer) {
+    clearTimeout(pairingCountdownTimer);
+    pairingCountdownTimer = null;
+  }
+}
+
+async function ensureHashKey(serverUrl) {
+  const stored = await chrome.storage.local.get(['serverHashKey']);
+  if (stored.serverHashKey) return stored.serverHashKey;
+  // D-01: silent auto-generate via existing /api/auth/register flow.
+  const resp = await fetch(serverUrl + '/api/auth/register', { method: 'POST' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (!data || !data.hashKey) throw new Error('Server did not return a hash key');
+  await chrome.storage.local.set({ serverUrl, serverHashKey: data.hashKey });
+  const keyInput = document.getElementById('serverHashKey');
+  if (keyInput) keyInput.value = data.hashKey;
+  return data.hashKey;
+}
+
+async function fetchPairingToken(serverUrl, hashKey) {
+  const resp = await fetch(serverUrl + '/api/pair/generate', {
+    method: 'POST',
+    headers: { 'X-FSB-Hash-Key': hashKey }
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (!data || !data.token || !data.expiresAt) throw new Error('Malformed pairing response');
+  return data; // { token, expiresAt }
+}
+
+function renderPairingQR(qrCodeEl, token, cleanUrl) {
+  // QR payload contract (LOCKED): { t: token, s: serverUrl }
+  const payload = JSON.stringify({ t: token, s: cleanUrl });
+  const qr = qrcode(0, 'M');
+  qr.addData(payload);
+  qr.make();
+  qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+}
+
+function startPairingCountdown(expiresAt) {
+  clearPairingCountdown();
+  const countdownEl = document.getElementById('pairingCountdown');
+  const expiry = new Date(expiresAt).getTime();
+  function tick() {
+    const remaining = Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
+    countdownEl.textContent = remaining + 's';
+    // D-03: urgency at <=10s
+    if (remaining <= 10 && remaining > 0) {
+      countdownEl.classList.add('pairing-countdown-urgent');
+    } else if (remaining > 10) {
+      countdownEl.classList.remove('pairing-countdown-urgent');
+    }
+    if (remaining <= 0) {
+      clearPairingCountdown();
+      renderExpiredState();
+      return;
+    }
+    pairingCountdownTimer = setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+function renderExpiredState() {
+  const countdownEl = document.getElementById('pairingCountdown');
+  const qrCodeEl = document.getElementById('pairingQRCode');
+  if (!countdownEl || !qrCodeEl) return;
+  // D-02: replace countdown text with Expired indicator
+  countdownEl.classList.remove('pairing-countdown-urgent');
+  countdownEl.classList.add('pairing-qr-expired');
+  countdownEl.textContent = 'Expired';
+  // D-02: replace QR slot with Generate new code button
+  qrCodeEl.innerHTML = '';
+  const regenBtn = document.createElement('button');
+  regenBtn.type = 'button';
+  regenBtn.className = 'control-btn accent';
+  regenBtn.textContent = 'Generate new code';
+  regenBtn.addEventListener('click', regeneratePairingToken);
+  qrCodeEl.appendChild(regenBtn);
+  // Overlay stays open (D-02): do NOT touch overlay.style.display here.
+}
+
+async function regeneratePairingToken() {
+  clearPairingCountdown();
+  if (pairingFetchInFlight) return;
+  const countdownEl = document.getElementById('pairingCountdown');
+  const qrCodeEl = document.getElementById('pairingQRCode');
+  const messageEl = document.getElementById('pairingQRMessage');
+  // Reset UI to live-token state before re-fetch.
+  countdownEl.classList.remove('pairing-qr-expired');
+  countdownEl.textContent = '60s';
+  qrCodeEl.innerHTML = '';
+  if (messageEl) messageEl.textContent = '';
+  try {
+    pairingFetchInFlight = true;
+    const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
+    const serverUrl = (stored.serverUrl || FSB_DEFAULT_SERVER_URL).replace(/\/+$/, '');
+    const hashKey = stored.serverHashKey || (await ensureHashKey(serverUrl));
+    const data = await fetchPairingToken(serverUrl, hashKey);
+    renderPairingQR(qrCodeEl, data.token, serverUrl);
+    startPairingCountdown(data.expiresAt);
+  } catch (error) {
+    if (messageEl) {
+      messageEl.classList.add('pairing-qr-expired');
+      messageEl.textContent = 'Could not generate pairing code. Try again.';
+    }
+    showToast('Could not generate pairing code: ' + error.message, 'error');
+  } finally {
+    pairingFetchInFlight = false;
+  }
+}
+
+async function showPairingQR() {
+  const overlay = document.getElementById('pairingQROverlay');
+  // Pitfall 2: duplicate-click guard
+  if (!overlay || overlay.style.display === 'flex' || pairingFetchInFlight) return;
+  clearPairingCountdown();
+  const qrCodeEl = document.getElementById('pairingQRCode');
+  const countdownEl = document.getElementById('pairingCountdown');
+  const messageEl = document.getElementById('pairingQRMessage');
+  if (messageEl) {
+    messageEl.classList.remove('pairing-qr-expired');
+    messageEl.textContent = '';
+  }
+  try {
+    pairingFetchInFlight = true;
+    const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
+    // Pitfall 6: strip trailing slashes
+    const serverUrl = (stored.serverUrl || FSB_DEFAULT_SERVER_URL).replace(/\/+$/, '');
+    // D-01: silent hash-key auto-gen if missing. ensureHashKey throws on failure.
+    let hashKey = stored.serverHashKey;
+    if (!hashKey) {
+      try {
+        hashKey = await ensureHashKey(serverUrl);
+      } catch (error) {
+        showToast('Could not register hash key: ' + error.message, 'error');
+        return; // abort BEFORE opening overlay
+      }
+    }
+    const data = await fetchPairingToken(serverUrl, hashKey);
+    // Reset countdown DOM state before showing
+    countdownEl.classList.remove('pairing-countdown-urgent');
+    countdownEl.classList.remove('pairing-qr-expired');
+    countdownEl.textContent = '60s';
+    renderPairingQR(qrCodeEl, data.token, serverUrl);
+    overlay.style.display = 'flex';
+    startPairingCountdown(data.expiresAt);
+  } catch (error) {
+    showToast('Could not generate pairing code: ' + error.message, 'error');
+  } finally {
+    pairingFetchInFlight = false;
+  }
+}
+
+function cancelPairing() {
+  clearPairingCountdown();
+  const overlay = document.getElementById('pairingQROverlay');
+  const qrCodeEl = document.getElementById('pairingQRCode');
+  const countdownEl = document.getElementById('pairingCountdown');
+  const messageEl = document.getElementById('pairingQRMessage');
+  if (overlay) overlay.style.display = 'none';
+  if (qrCodeEl) qrCodeEl.innerHTML = '';
+  if (countdownEl) {
+    countdownEl.classList.remove('pairing-countdown-urgent');
+    countdownEl.classList.remove('pairing-qr-expired');
+    countdownEl.textContent = '60s';
+  }
+  if (messageEl) {
+    messageEl.classList.remove('pairing-qr-expired');
+    messageEl.textContent = '';
   }
 }
 
