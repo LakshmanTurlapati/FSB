@@ -169,9 +169,42 @@
           </button>
         </div>
       </div>
+      <div class="dash-preview-urlbar" id="dash-preview-urlbar">
+        <button class="dash-preview-urlbar-btn" id="dash-preview-urlbar-back" type="button" title="Back" aria-label="Back">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <button class="dash-preview-urlbar-btn" id="dash-preview-urlbar-forward" type="button" title="Forward" aria-label="Forward">
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button class="dash-preview-urlbar-btn" id="dash-preview-urlbar-reload" type="button" title="Reload" aria-label="Reload">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+        <form class="dash-preview-urlbar-form" id="dash-preview-urlbar-form" autocomplete="off">
+          <input
+            type="text"
+            id="dash-preview-urlbar-input"
+            class="dash-preview-urlbar-input"
+            placeholder="Enter URL or search..."
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Navigate browser to URL"
+          />
+          <button class="dash-preview-urlbar-go" id="dash-preview-urlbar-go" type="submit" title="Go" aria-label="Go">
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </form>
+      </div>
       <div class="dash-preview-loading" id="dash-preview-loading">
         <div class="dash-spinner"></div>
         <span>Connecting to browser...</span>
+      </div>
+      <div id="dash-preview-restricted" class="dash-preview-restricted" style="display: none;">
+        <div class="dash-preview-restricted-card">
+          <div class="dash-preview-restricted-icon"><i class="fa-solid fa-window-maximize"></i></div>
+          <div class="dash-preview-restricted-title" id="dash-preview-restricted-title">New Tab</div>
+          <div class="dash-preview-restricted-url" id="dash-preview-restricted-url"></div>
+          <div class="dash-preview-restricted-hint">This page can't be streamed. Use the URL bar above to open a website.</div>
+        </div>
       </div>
       <iframe id="dash-preview-iframe" class="dash-preview-iframe" sandbox="allow-same-origin" title="Live page preview"></iframe>
       <div id="dash-preview-glow" class="dash-preview-glow" style="display: none;"></div>

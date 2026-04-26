@@ -52,7 +52,7 @@ interface TransportDiagnostics {
 }
 
 type TaskState = 'idle' | 'running' | 'success' | 'failed';
-type PreviewState = 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error' | 'paused' | 'frozen-disconnect' | 'frozen-complete';
+type PreviewState = 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error' | 'paused' | 'frozen-disconnect' | 'frozen-complete' | 'restricted';
 type PreviewLayoutMode = 'inline' | 'maximized' | 'pip' | 'fullscreen';
 
 interface PreviewOverlayIdentity {
@@ -244,6 +244,18 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
   private previewFrozenOverlay!: HTMLElement | null;
   private previewFrozenBadge!: HTMLElement | null;
   private previewFrozenLabel!: HTMLElement | null;
+  // URL bar (Phase 212 / NAV-01)
+  private previewUrlBar!: HTMLElement | null;
+  private previewUrlInput!: HTMLInputElement | null;
+  private previewUrlForm!: HTMLFormElement | null;
+  private previewUrlBack!: HTMLElement | null;
+  private previewUrlForward!: HTMLElement | null;
+  private previewUrlReload!: HTMLElement | null;
+  // Restricted-tab placeholder (Phase 212 / STREAM-06)
+  private previewRestricted!: HTMLElement | null;
+  private previewRestrictedTitle!: HTMLElement | null;
+  private previewRestrictedUrl!: HTMLElement | null;
+  private lastKnownStreamUrl = '';
 
   // Action feed DOM refs
   private actionFeed!: HTMLElement | null;
@@ -427,6 +439,17 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.previewFrozenOverlay = this.el('dash-preview-frozen-overlay');
     this.previewFrozenBadge = this.el('dash-preview-frozen-badge');
     this.previewFrozenLabel = this.previewFrozenOverlay ? this.previewFrozenOverlay.querySelector('.dash-preview-frozen-label') : null;
+    // Phase 212 / NAV-01: URL bar refs
+    this.previewUrlBar = this.el('dash-preview-urlbar');
+    this.previewUrlInput = this.el('dash-preview-urlbar-input') as HTMLInputElement | null;
+    this.previewUrlForm = this.el('dash-preview-urlbar-form') as HTMLFormElement | null;
+    this.previewUrlBack = this.el('dash-preview-urlbar-back');
+    this.previewUrlForward = this.el('dash-preview-urlbar-forward');
+    this.previewUrlReload = this.el('dash-preview-urlbar-reload');
+    // Phase 212 / STREAM-06: restricted-tab placeholder refs
+    this.previewRestricted = this.el('dash-preview-restricted');
+    this.previewRestrictedTitle = this.el('dash-preview-restricted-title');
+    this.previewRestrictedUrl = this.el('dash-preview-restricted-url');
     this.actionFeed = this.el('dash-action-feed');
 
     this.newAgentBtn = this.el('dash-new-agent-btn');
@@ -669,6 +692,40 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.listen(this.previewMaximizeBtn, 'click', () => this.toggleMaximize());
     this.listen(this.previewPipBtn, 'click', () => this.togglePip());
     this.listen(this.previewFullscreenBtn, 'click', () => this.toggleFullscreen());
+
+    // Phase 212 / NAV-01: URL bar event handlers
+    if (this.previewUrlForm) {
+      this.listen(this.previewUrlForm, 'submit', (e: Event) => {
+        e.preventDefault();
+        this.submitUrlBar();
+      });
+    }
+    if (this.previewUrlInput) {
+      this.listen(this.previewUrlInput, 'keydown', (e: Event) => {
+        if ((e as KeyboardEvent).key === 'Enter') {
+          e.preventDefault();
+          this.submitUrlBar();
+        }
+      });
+      this.listen(this.previewUrlInput, 'focus', () => {
+        try { this.previewUrlInput!.select(); } catch (_) { /* ignore */ }
+      });
+    }
+    this.listen(this.previewUrlBack, 'click', () => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.sendDashboardWSMessage('dash:navigate-history', { direction: 'back' });
+      }
+    });
+    this.listen(this.previewUrlForward, 'click', () => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.sendDashboardWSMessage('dash:navigate-history', { direction: 'forward' });
+      }
+    });
+    this.listen(this.previewUrlReload, 'click', () => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.sendDashboardWSMessage('dash:navigate-history', { direction: 'reload' });
+      }
+    });
 
     // Fullscreen change
     this.listen(document, 'fullscreenchange', () => {
@@ -2470,10 +2527,57 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     this.updatePreviewTooltip();
   }
 
+  // Phase 212 / NAV-01: URL bar helpers
+  private normalizeNavigateUrl(input: string): string {
+    if (typeof input !== 'string') return '';
+    const url = input.trim();
+    if (!url) return '';
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) return url;
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) return url;
+    if (/^\/\//.test(url)) return 'https:' + url;
+    return 'https://' + url;
+  }
+  private submitUrlBar(): void {
+    if (!this.previewUrlInput) return;
+    const normalized = this.normalizeNavigateUrl(this.previewUrlInput.value);
+    if (!normalized) return;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.sendDashboardWSMessage('dash:navigate', { url: normalized });
+      if (this.previewRestricted) this.previewRestricted.style.display = 'none';
+      if (this.previewState === 'restricted' || this.previewState === 'disconnected') {
+        this.setPreviewState('loading');
+      }
+    } else {
+      console.warn('[FSB-DASH] Cannot navigate -- WS not open');
+    }
+  }
+  // Phase 212 / STREAM-06: restricted-tab placeholder helpers
+  private showRestrictedPlaceholder(payload: any): void {
+    if (!this.previewRestricted) return;
+    const url = (payload && payload.url) || '';
+    const pageType = (payload && payload.pageType) || 'New Tab';
+    if (this.previewRestrictedTitle) this.previewRestrictedTitle.textContent = pageType;
+    if (this.previewRestrictedUrl) this.previewRestrictedUrl.textContent = url;
+    this.previewRestricted.style.display = 'flex';
+  }
+  private hideRestrictedPlaceholder(): void {
+    if (this.previewRestricted) this.previewRestricted.style.display = 'none';
+  }
+  private syncUrlBarFromStream(url: string): void {
+    if (!this.previewUrlInput) return;
+    if (typeof url !== 'string') return;
+    if (document.activeElement === this.previewUrlInput) return;
+    if (url && url !== this.lastKnownStreamUrl) {
+      this.lastKnownStreamUrl = url;
+      this.previewUrlInput.value = url;
+    }
+  }
+
   private handleRecoveredStreamState(payload: any): void {
     const status = payload.status || 'not-ready';
     const streamIntentActive = payload.streamIntentActive !== false;
     this.streamTabUrl = payload.url || '';
+    this.syncUrlBarFromStream(this.streamTabUrl);
     this.activePreviewTabId = typeof payload.tabId === 'number' ? payload.tabId : this.activePreviewTabId;
     this.lastRecoveredStreamState = status;
     this.previewNotReadyReason = payload.reason || '';
@@ -2483,11 +2587,20 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
       this.pageReady = false;
       this.resetPreviewGenerationState();
       this.clearPendingStreamRecovery();
-      this.setPreviewDisconnectedText(this.getPreviewNotReadyText(this.previewNotReadyReason));
-      this.setPreviewState('disconnected');
+      // Phase 212 / STREAM-06: render placeholder for restricted tabs
+      if (this.previewNotReadyReason === 'restricted-tab') {
+        this.showRestrictedPlaceholder(payload);
+        this.setPreviewState('restricted' as PreviewState);
+      } else {
+        this.hideRestrictedPlaceholder();
+        this.setPreviewDisconnectedText(this.getPreviewNotReadyText(this.previewNotReadyReason));
+        this.setPreviewState('disconnected');
+      }
       this.updatePreviewTooltip();
       return;
     }
+    // Stream ready or recovering -- clear restricted placeholder
+    this.hideRestrictedPlaceholder();
 
     if (!this.streamToggleOn || !streamIntentActive) {
       if (!this.streamToggleOn) this.clearPendingStreamRecovery();
@@ -3166,6 +3279,18 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
 
     if (msg.type === 'ext:task-progress') { this.updateTaskProgress(msg.payload); return; }
     if (msg.type === 'ext:task-complete') { this.handleTaskComplete(msg.payload); return; }
+
+    // Phase 212 / NAV-01: feedback from dashboard-initiated navigation.
+    if (msg.type === 'ext:navigate-result') {
+      const navRes = msg.payload || {};
+      if (!navRes.ok) {
+        console.warn('[FSB-DASH] Navigate failed:', navRes.error || 'unknown', navRes.reason || '');
+      } else if (navRes.url && this.previewUrlInput && document.activeElement !== this.previewUrlInput) {
+        this.lastKnownStreamUrl = navRes.url;
+        this.previewUrlInput.value = navRes.url;
+      }
+      return;
+    }
 
     if (msg.type === 'ext:status') {
       const wasExtensionOnline = this.extensionOnline;

@@ -4668,15 +4668,23 @@ function escapeHtml(text) {
 }
 
 // Server sync functions
+const FSB_DEFAULT_SERVER_URL = 'https://full-selfbrowsing.com';
+
 async function loadServerSettings() {
   try {
     const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
     const urlInput = document.getElementById('serverUrl');
     const keyInput = document.getElementById('serverHashKey');
-    if (urlInput && stored.serverUrl) urlInput.value = stored.serverUrl;
+    const resolvedUrl = stored.serverUrl || FSB_DEFAULT_SERVER_URL;
+    if (urlInput) urlInput.value = resolvedUrl;
     if (keyInput && stored.serverHashKey) keyInput.value = stored.serverHashKey;
+    if (!stored.serverUrl) {
+      try { await chrome.storage.local.set({ serverUrl: resolvedUrl }); } catch (_) { /* ignore */ }
+    }
   } catch (e) {
-    // Ignore
+    // Fall back: still populate the field with the production default so Generate/Pair/Test work
+    const urlInput = document.getElementById('serverUrl');
+    if (urlInput && !urlInput.value) urlInput.value = FSB_DEFAULT_SERVER_URL;
   }
 }
 

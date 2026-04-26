@@ -314,6 +314,131 @@ async function handleRemoteScroll(payload) {
   }
 }
 
+// =====================================================================
+// Remote Navigation (Phase 212)
+// =====================================================================
+// Dashboard sends `dash:navigate` with { url } to drive the streaming tab
+// to a new address. Unlike click/key/scroll, this does NOT require remote
+// control to be active -- typing a URL in the dashboard URL bar is a
+// distinct workflow from interacting with the page contents. The handler
+// resolves the active streaming tab via getCurrentTransportTabId(), falls
+// back to the active tab in the focused window, normalizes bare domains
+// to https://, and uses chrome.tabs.update() to navigate. Result is
+// broadcast back as `ext:navigate-result`.
+
+function _normalizeNavigateUrl(input) {
+  if (typeof input !== 'string') return null;
+  var url = input.trim();
+  if (!url) return null;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) return url; // already has scheme
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) return url;     // mailto:, chrome:, etc.
+  if (/^\/\//.test(url)) return 'https:' + url;              // protocol-relative
+  return 'https://' + url;                                   // bare domain or path
+}
+
+function _broadcastNavigateResult(wsInstance, ok, payload) {
+  if (!wsInstance || typeof wsInstance.send !== 'function') return;
+  var msg = { ok: !!ok };
+  if (payload && typeof payload === 'object') {
+    if (typeof payload.tabId === 'number') msg.tabId = payload.tabId;
+    if (typeof payload.url === 'string') msg.url = payload.url;
+    if (typeof payload.error === 'string') msg.error = payload.error;
+    if (typeof payload.reason === 'string') msg.reason = payload.reason;
+  }
+  wsInstance.send('ext:navigate-result', msg);
+}
+
+async function handleRemoteNavigateHistory(payload) {
+  var wsInstance = globalThis.__fsbWsInstance;
+  var direction = payload && typeof payload.direction === 'string' ? payload.direction : '';
+  if (direction !== 'back' && direction !== 'forward' && direction !== 'reload') {
+    _broadcastNavigateResult(wsInstance, false, { error: 'invalid-direction', reason: 'direction must be back|forward|reload' });
+    return;
+  }
+  var tabId = _getRemoteControlTabId();
+  if (typeof tabId !== 'number') {
+    try {
+      var tabs = await new Promise(function (resolve) {
+        chrome.tabs.query({ active: true, lastFocusedWindow: true }, function (t) { resolve(t || []); });
+      });
+      if (tabs && tabs[0] && typeof tabs[0].id === 'number') tabId = tabs[0].id;
+    } catch (_e) { /* ignore */ }
+  }
+  if (typeof tabId !== 'number') {
+    _broadcastNavigateResult(wsInstance, false, { error: 'no-tab', reason: 'No active tab' });
+    return;
+  }
+  try {
+    await new Promise(function (resolve, reject) {
+      var cb = function () {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve();
+      };
+      if (direction === 'back') chrome.tabs.goBack(tabId, cb);
+      else if (direction === 'forward') chrome.tabs.goForward(tabId, cb);
+      else chrome.tabs.reload(tabId, {}, cb);
+    });
+    _broadcastNavigateResult(wsInstance, true, { tabId: tabId });
+  } catch (err) {
+    var msg = err && err.message ? err.message : 'history navigation failed';
+    console.warn('[FSB NAV] History', direction, 'failed:', msg);
+    _broadcastNavigateResult(wsInstance, false, { tabId: tabId, error: 'navigate-failed', reason: msg });
+  }
+}
+
+async function handleRemoteNavigate(payload) {
+  var wsInstance = globalThis.__fsbWsInstance;
+  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
+    console.warn('[FSB NAV] Navigate rejected: invalid payload', payload);
+    _broadcastNavigateResult(wsInstance, false, { error: 'invalid-url', reason: 'Missing or empty url' });
+    return;
+  }
+  var url = _normalizeNavigateUrl(payload.url);
+  if (!url) {
+    _broadcastNavigateResult(wsInstance, false, { error: 'invalid-url', reason: 'Could not normalize url' });
+    return;
+  }
+  // Reject obviously dangerous targets. chrome://, file://, javascript:, data:, blob:
+  // are blocked by chrome.tabs.update for non-extension pages anyway, but rejecting
+  // here gives the dashboard a clear error message.
+  if (/^(javascript|data|blob|file):/i.test(url)) {
+    _broadcastNavigateResult(wsInstance, false, { url: url, error: 'unsafe-scheme', reason: 'Scheme not allowed' });
+    return;
+  }
+
+  var tabId = _getRemoteControlTabId();
+  if (typeof tabId !== 'number') {
+    // Fall back: navigate the active tab in the focused window. This lets the
+    // user steer the browser away from chrome://newtab even before streaming
+    // has resolved a candidate tab.
+    try {
+      var tabs = await new Promise(function (resolve) {
+        chrome.tabs.query({ active: true, lastFocusedWindow: true }, function (t) { resolve(t || []); });
+      });
+      if (tabs && tabs[0] && typeof tabs[0].id === 'number') tabId = tabs[0].id;
+    } catch (_e) { /* ignore */ }
+  }
+  if (typeof tabId !== 'number') {
+    _broadcastNavigateResult(wsInstance, false, { url: url, error: 'no-tab', reason: 'No active tab to navigate' });
+    return;
+  }
+
+  try {
+    await new Promise(function (resolve, reject) {
+      chrome.tabs.update(tabId, { url: url }, function (tab) {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(tab);
+      });
+    });
+    console.log('[FSB NAV] Navigated tab', tabId, 'to', url);
+    _broadcastNavigateResult(wsInstance, true, { tabId: tabId, url: url });
+  } catch (err) {
+    var msg = err && err.message ? err.message : 'navigate failed';
+    console.warn('[FSB NAV] Navigate failed:', msg);
+    _broadcastNavigateResult(wsInstance, false, { tabId: tabId, url: url, error: 'navigate-failed', reason: msg });
+  }
+}
+
 class FSBWebSocket {
   constructor() {
     this.ws = null;
@@ -725,11 +850,20 @@ class FSBWebSocket {
     var payload = details || {};
     var source = payload.source || 'ws-client';
 
+    // Phase 212 / STREAM-06: enrich restricted-tab states with pageType so the
+    // dashboard can render a friendly placeholder ("New Tab", "Chrome Settings",
+    // etc.) instead of a generic error.
+    var pageType = '';
+    if (reason === 'restricted-tab' && payload.url && typeof getPageTypeDescription === 'function') {
+      try { pageType = getPageTypeDescription(payload.url); } catch (_) { /* ignore */ }
+    }
+
     if (typeof _sendStreamState === 'function') {
       _sendStreamState(status, reason, {
         tabId: payload.tabId,
         url: payload.url || '',
-        source: source
+        source: source,
+        pageType: pageType
       });
       return;
     }
@@ -744,6 +878,7 @@ class FSBWebSocket {
       streamIntentActive: (typeof _streamingActive !== 'undefined') && !!_streamingActive,
       tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
       url: payload.url || '',
+      pageType: pageType,
       source: source
     });
   }
@@ -827,6 +962,12 @@ class FSBWebSocket {
         break;
       case 'dash:remote-scroll':
         handleRemoteScroll(msg.payload);
+        break;
+      case 'dash:navigate':
+        handleRemoteNavigate(msg.payload);
+        break;
+      case 'dash:navigate-history':
+        handleRemoteNavigateHistory(msg.payload);
         break;
       default:
         console.log('[FSB WS] Received: ' + msg.type);

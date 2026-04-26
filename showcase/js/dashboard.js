@@ -636,6 +636,18 @@
   var previewRcBtn = document.getElementById('dash-preview-rc-btn');
   var remoteOverlay = document.getElementById('dash-remote-overlay');
   var previewFsExit = document.getElementById('dash-preview-fs-exit');
+  // URL bar (Phase 212 / NAV-01)
+  var previewUrlBar = document.getElementById('dash-preview-urlbar');
+  var previewUrlInput = document.getElementById('dash-preview-urlbar-input');
+  var previewUrlForm = document.getElementById('dash-preview-urlbar-form');
+  var previewUrlBack = document.getElementById('dash-preview-urlbar-back');
+  var previewUrlForward = document.getElementById('dash-preview-urlbar-forward');
+  var previewUrlReload = document.getElementById('dash-preview-urlbar-reload');
+  // Restricted-tab placeholder (Phase 212 / STREAM-06)
+  var previewRestricted = document.getElementById('dash-preview-restricted');
+  var previewRestrictedTitle = document.getElementById('dash-preview-restricted-title');
+  var previewRestrictedUrl = document.getElementById('dash-preview-restricted-url');
+  var lastKnownStreamUrl = '';
 
   // Agent management DOM refs
   var newAgentBtn = document.getElementById('dash-new-agent-btn');
@@ -2459,10 +2471,32 @@
     updatePreviewTooltip();
   }
 
+  function showRestrictedPlaceholder(payload) {
+    if (!previewRestricted) return;
+    var url = (payload && payload.url) || '';
+    var pageType = (payload && payload.pageType) || 'New Tab';
+    if (previewRestrictedTitle) previewRestrictedTitle.textContent = pageType;
+    if (previewRestrictedUrl) previewRestrictedUrl.textContent = url;
+    previewRestricted.style.display = 'flex';
+  }
+  function hideRestrictedPlaceholder() {
+    if (previewRestricted) previewRestricted.style.display = 'none';
+  }
+  function syncUrlBarFromStream(url) {
+    if (!previewUrlInput) return;
+    if (typeof url !== 'string') return;
+    if (document.activeElement === previewUrlInput) return; // don't clobber user typing
+    if (url && url !== lastKnownStreamUrl) {
+      lastKnownStreamUrl = url;
+      previewUrlInput.value = url;
+    }
+  }
+
   function handleRecoveredStreamState(payload) {
     var status = payload.status || 'not-ready';
     var streamIntentActive = payload.streamIntentActive !== false;
     streamTabUrl = payload.url || '';
+    syncUrlBarFromStream(streamTabUrl);
     activePreviewTabId = typeof payload.tabId === 'number' ? payload.tabId : activePreviewTabId;
     lastRecoveredStreamState = status;
     previewNotReadyReason = payload.reason || '';
@@ -2477,11 +2511,22 @@
       pageReady = false;
       resetPreviewGenerationState();
       clearPendingStreamRecovery();
-      setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
-      setPreviewState('disconnected');
+      // Phase 212 / STREAM-06: render a friendly placeholder for restricted
+      // tabs (chrome://newtab, chrome://settings, etc.) so the user can use
+      // the URL bar to navigate away.
+      if (previewNotReadyReason === 'restricted-tab') {
+        showRestrictedPlaceholder(payload);
+        setPreviewState('restricted');
+      } else {
+        hideRestrictedPlaceholder();
+        setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
+        setPreviewState('disconnected');
+      }
       updatePreviewTooltip();
       return;
     }
+    // Stream is ready or recovering -- clear any restricted placeholder.
+    hideRestrictedPlaceholder();
 
     if (!streamToggleOn || !streamIntentActive) {
       if (!streamToggleOn) clearPendingStreamRecovery();
@@ -3335,6 +3380,72 @@
     });
   }
 
+  // URL bar (Phase 212 / NAV-01)
+  function normalizeNavigateUrl(input) {
+    if (typeof input !== 'string') return '';
+    var url = input.trim();
+    if (!url) return '';
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) return url;
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) return url;
+    if (/^\/\//.test(url)) return 'https:' + url;
+    return 'https://' + url;
+  }
+  function submitUrlBar() {
+    if (!previewUrlInput) return;
+    var raw = previewUrlInput.value;
+    var normalized = normalizeNavigateUrl(raw);
+    if (!normalized) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      sendDashboardWSMessage('dash:navigate', { url: normalized });
+      // Optimistic UI: hide restricted placeholder so the user sees the
+      // preview wake up the moment the new tab starts loading.
+      if (previewRestricted) previewRestricted.style.display = 'none';
+      if (previewState === 'restricted' || previewState === 'disconnected') {
+        setPreviewState('loading');
+      }
+    } else {
+      console.warn('[FSB-DASH] Cannot navigate -- WS not open');
+    }
+  }
+  if (previewUrlForm) {
+    previewUrlForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitUrlBar();
+    });
+  }
+  if (previewUrlInput) {
+    previewUrlInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitUrlBar();
+      }
+    });
+    previewUrlInput.addEventListener('focus', function () {
+      try { previewUrlInput.select(); } catch (_) { /* ignore */ }
+    });
+  }
+  if (previewUrlBack && ws !== undefined) {
+    previewUrlBack.addEventListener('click', function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendDashboardWSMessage('dash:navigate-history', { direction: 'back' });
+      }
+    });
+  }
+  if (previewUrlForward) {
+    previewUrlForward.addEventListener('click', function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendDashboardWSMessage('dash:navigate-history', { direction: 'forward' });
+      }
+    });
+  }
+  if (previewUrlReload) {
+    previewUrlReload.addEventListener('click', function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendDashboardWSMessage('dash:navigate-history', { direction: 'reload' });
+      }
+    });
+  }
+
   // PiP button
   if (previewPipBtn) {
     previewPipBtn.addEventListener('click', function() {
@@ -3516,6 +3627,21 @@
 
   function handleWSMessage(msg) {
     if (msg.type === 'pong') return; // Ignore pong responses
+
+    // Phase 212 / NAV-01: feedback for dashboard-initiated navigation. The
+    // extension echoes back the resolved URL on success or a structured
+    // error reason on failure. We log + briefly reflect failures inline; the
+    // success case is implicit (the preview will start streaming the new URL).
+    if (msg.type === 'ext:navigate-result') {
+      var navRes = msg.payload || {};
+      if (!navRes.ok) {
+        console.warn('[FSB-DASH] Navigate failed:', navRes.error || 'unknown', navRes.reason || '');
+      } else if (navRes.url && previewUrlInput && document.activeElement !== previewUrlInput) {
+        lastKnownStreamUrl = navRes.url;
+        previewUrlInput.value = navRes.url;
+      }
+      return;
+    }
 
     if (msg.type === 'ext:task-progress') {
       updateTaskProgress(msg.payload);

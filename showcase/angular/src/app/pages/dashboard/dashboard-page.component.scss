@@ -1936,6 +1936,131 @@
   background: rgba(20, 17, 16, 0.88);
 }
 
+/* URL bar (Phase 212 / NAV-01) */
+.dash-preview-urlbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(20, 17, 16, 0.92);
+  border-bottom: 1px solid rgba(255, 241, 232, 0.08);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.dash-preview-urlbar-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 241, 232, 0.10);
+  background: rgba(20, 17, 16, 0.55);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: background 150ms ease;
+}
+.dash-preview-urlbar-btn:hover {
+  background: rgba(255, 241, 232, 0.10);
+}
+.dash-preview-urlbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dash-preview-urlbar-form {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 241, 232, 0.06);
+  border: 1px solid rgba(255, 241, 232, 0.10);
+  border-radius: 999px;
+  padding: 2px 4px 2px 12px;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.dash-preview-urlbar-form:focus-within {
+  border-color: rgba(255, 241, 232, 0.35);
+  background: rgba(255, 241, 232, 0.10);
+}
+.dash-preview-urlbar-input {
+  flex: 1 1 auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  height: 24px;
+  min-width: 0;
+}
+.dash-preview-urlbar-input::placeholder {
+  color: rgba(255, 241, 232, 0.35);
+}
+.dash-preview-urlbar-go {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 241, 232, 0.18);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: background 150ms ease;
+}
+.dash-preview-urlbar-go:hover {
+  background: rgba(255, 241, 232, 0.32);
+}
+
+/* Restricted-tab placeholder (Phase 212 / STREAM-06) */
+.dash-preview-restricted {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 17, 16, 0.96);
+  z-index: 3;
+}
+.dash-preview-restricted-card {
+  max-width: 360px;
+  padding: 24px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.dash-preview-restricted-icon {
+  font-size: 32px;
+  color: rgba(255, 241, 232, 0.5);
+  margin-bottom: 4px;
+}
+.dash-preview-restricted-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dash-preview-restricted-url {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: rgba(255, 241, 232, 0.55);
+  word-break: break-all;
+}
+.dash-preview-restricted-hint {
+  font-size: 12px;
+  color: rgba(255, 241, 232, 0.45);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
 /* Responsive: mobile */
 @media (max-width: 768px) {
   .dash-preview {

@@ -129,6 +129,17 @@
       };
     }
 
+    if (previewState === 'restricted') {
+      return {
+        chipLabel: 'restricted page',
+        chipTone: 'blocked',
+        detailText: 'Restricted page -- use the URL bar to navigate',
+        showIframe: false,
+        showLoading: false,
+        showDisconnected: false
+      };
+    }
+
     return {
       chipLabel: 'disconnected',
       chipTone: 'blocked',
