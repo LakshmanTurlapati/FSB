@@ -160,6 +160,160 @@ function handleRemoteControlStop() {
   _broadcastRemoteControlState(globalThis.__fsbWsInstance, false, 'user-stop', null);
 }
 
+// =====================================================================
+// Remote Control Input Dispatch (Phase 209)
+// =====================================================================
+// Click, key, and scroll handlers translate dashboard payloads into CDP
+// input events on the active streaming tab. All handlers:
+//   - Guard on _remoteControlActive (T-209-05 elevation-of-privilege)
+//   - Validate payload shape before any CDP dispatch (T-209-01/02/03)
+//   - Wrap CDP calls in try/catch so a single failure does not crash the
+//     WebSocket client (T-209-04)
+//
+// Dashboard sends modifiers as a bitmask integer:
+//   alt = 1, ctrl = 2, meta = 4, shift = 8
+// cdpClickAt expects { shiftKey, ctrlKey, altKey } booleans, so the click
+// handler decomposes the bitmask. CDP Input.dispatchKeyEvent accepts the
+// same bitmask format the dashboard sends, so keyDown/keyUp pass it
+// through unchanged.
+
+async function handleRemoteClick(payload) {
+  if (!_remoteControlActive) {
+    console.warn('[FSB RC] Click ignored: remote control not active');
+    return;
+  }
+  if (!payload || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) {
+    console.warn('[FSB RC] Click rejected: invalid payload', payload);
+    return;
+  }
+  var tabId = _getRemoteControlTabId();
+  if (!tabId) {
+    console.warn('[FSB RC] Click failed: no active tab');
+    return;
+  }
+  // Decompose dashboard bitmask modifiers into boolean flags for cdpClickAt.
+  // Dashboard bitmask: alt=1, ctrl=2, meta=4, shift=8.
+  var mods = typeof payload.modifiers === 'number' ? payload.modifiers : 0;
+  try {
+    var result = await executeCDPToolDirect({
+      tool: 'cdpClickAt',
+      params: {
+        x: payload.x,
+        y: payload.y,
+        altKey: !!(mods & 1),
+        ctrlKey: !!(mods & 2),
+        shiftKey: !!(mods & 8)
+      }
+    }, tabId);
+    if (!result || !result.success) {
+      console.warn('[FSB RC] Click CDP dispatch failed:', result && result.error);
+    }
+  } catch (err) {
+    console.error('[FSB RC] Click error:', err && err.message ? err.message : err);
+  }
+}
+
+async function handleRemoteKey(payload) {
+  if (!_remoteControlActive) {
+    console.warn('[FSB RC] Key ignored: remote control not active');
+    return;
+  }
+  if (!payload || !payload.type) {
+    console.warn('[FSB RC] Key rejected: invalid payload', payload);
+    return;
+  }
+  var tabId = _getRemoteControlTabId();
+  if (!tabId) {
+    console.warn('[FSB RC] Key failed: no active tab');
+    return;
+  }
+  var mods = typeof payload.modifiers === 'number' ? payload.modifiers : 0;
+
+  try {
+    if (payload.type === 'insertText') {
+      // Use the established cdpInsertText verb in executeCDPToolDirect.
+      var insertResult = await executeCDPToolDirect({
+        tool: 'cdpInsertText',
+        params: { text: payload.text || payload.key || '', clearFirst: false }
+      }, tabId);
+      if (!insertResult || !insertResult.success) {
+        console.warn('[FSB RC] InsertText CDP dispatch failed:', insertResult && insertResult.error);
+      }
+    } else if (payload.type === 'keyDown' || payload.type === 'keyUp') {
+      // executeCDPToolDirect does not expose a keyDown/keyUp verb, so we
+      // dispatch the CDP keyboard event directly. Follow the same
+      // attach-with-stale-debugger-recovery pattern used by cdpClickAt.
+      var debuggerAttached = false;
+      try {
+        if (typeof keyboardEmulator !== 'undefined' && keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+          await keyboardEmulator.detachDebugger(tabId);
+        }
+        try {
+          await chrome.debugger.attach({ tabId: tabId }, '1.3');
+        } catch (attachErr) {
+          if (attachErr && attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+            try { await chrome.debugger.detach({ tabId: tabId }); } catch (_e) { /* ignore */ }
+            await chrome.debugger.attach({ tabId: tabId }, '1.3');
+          } else {
+            throw attachErr;
+          }
+        }
+        debuggerAttached = true;
+
+        await chrome.debugger.sendCommand({ tabId: tabId }, 'Input.dispatchKeyEvent', {
+          type: payload.type === 'keyDown' ? 'keyDown' : 'keyUp',
+          key: payload.key || '',
+          code: payload.code || '',
+          text: payload.type === 'keyDown' ? (payload.text || '') : '',
+          modifiers: mods
+        });
+
+        await chrome.debugger.detach({ tabId: tabId });
+        debuggerAttached = false;
+      } catch (keyErr) {
+        console.warn('[FSB RC] Key', payload.type, 'CDP dispatch failed:', keyErr && keyErr.message ? keyErr.message : keyErr);
+      } finally {
+        if (debuggerAttached) {
+          try { await chrome.debugger.detach({ tabId: tabId }); } catch (_e) { /* ignore */ }
+        }
+      }
+    } else {
+      console.warn('[FSB RC] Key rejected: unknown type', payload.type);
+    }
+  } catch (err) {
+    console.error('[FSB RC] Key error:', err && err.message ? err.message : err);
+  }
+}
+
+async function handleRemoteScroll(payload) {
+  if (!_remoteControlActive) {
+    console.warn('[FSB RC] Scroll ignored: remote control not active');
+    return;
+  }
+  if (!payload || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) {
+    console.warn('[FSB RC] Scroll rejected: invalid payload', payload);
+    return;
+  }
+  var tabId = _getRemoteControlTabId();
+  if (!tabId) {
+    console.warn('[FSB RC] Scroll failed: no active tab');
+    return;
+  }
+  var deltaX = Number.isFinite(payload.deltaX) ? payload.deltaX : 0;
+  var deltaY = Number.isFinite(payload.deltaY) ? payload.deltaY : 0;
+  try {
+    var result = await executeCDPToolDirect({
+      tool: 'cdpScrollAt',
+      params: { x: payload.x, y: payload.y, deltaX: deltaX, deltaY: deltaY }
+    }, tabId);
+    if (!result || !result.success) {
+      console.warn('[FSB RC] Scroll CDP dispatch failed:', result && result.error);
+    }
+  } catch (err) {
+    console.error('[FSB RC] Scroll error:', err && err.message ? err.message : err);
+  }
+}
+
 class FSBWebSocket {
   constructor() {
     this.ws = null;
