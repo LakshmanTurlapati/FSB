@@ -195,7 +195,11 @@ function setupWSHandler(wss) {
       }
 
       incrementRoomCounter(hashKey, 'receivedByType', messageType, 1);
-      relayToRoom(hashKey, ws, data.toString(), messageType);
+      // TEMP DEBUG (Phase 212 diagnosis): log message types flowing through the relay
+      // so we can see whether dash:dom-stream-start, ext:snapshot, ext:page-ready,
+      // ext:dom-snapshot, ext:stream-state are firing in the expected order.
+      const result = relayToRoom(hashKey, ws, data.toString(), messageType);
+      console.log(`[WS] ${role}->${role === 'extension' ? 'dashboard' : 'extension'} room=${hashKey.substring(0, 8)} type=${messageType} delivered=${result?.deliveredCount || 0} dropped=${result?.droppedCount || 0}`);
     });
 
     ws.on('close', (closeCode, closeReason) => {
