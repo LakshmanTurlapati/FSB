@@ -17,10 +17,16 @@ In scope: STREAM-01 through STREAM-04, WS-01 through WS-03, LOG-01 through LOG-0
 
 ### Plan split (3 parallel-safe plans)
 
-- **D-01:** Phase 211 decomposes into 3 plans that all run in parallel in a single executor wave (no inter-plan file conflicts):
+- **D-01:** Phase 211 decomposes into 3 plans that all run in parallel in a single executor wave:
   - **211-01: WebSocket inbound `_lz` decompression symmetry** -- single-file change in `ws/ws-client.js` lines 515-522 + outbound contract doc at line 580. Delivers WS-01, WS-02, WS-03.
   - **211-02: DOM streaming hardening** -- `content/dom-stream.js` watchdog (SW alarm + content-script timer), node-level truncation rewrite, stale counter reset + new `staleFlushCount` field on `ext:stream-state`. Delivers STREAM-01, STREAM-02, STREAM-03, STREAM-04.
   - **211-03: Diagnostic logging refactor** -- new `utils/redactForLog.js` helper, layered-prefix + rate-limited `console.warn` replacements at all silent-catch call sites in dialog relay + message delivery, ring buffer in `chrome.storage.local`, `chrome.runtime` `exportDiagnostics` message handler. Delivers LOG-01, LOG-02, LOG-03, LOG-04.
+
+  **File-overlap note (parallelism remains valid):** The three plans have minimal but real file-set overlap and remain parallel-safe because their patches do not collide:
+    - 211-01 touches `ws/ws-client.js` at lines 515-522 (inbound onmessage) + line 580 (outbound contract comment).
+    - 211-02 touches `ws/ws-client.js` at line 875 only (the `this.send('ext:stream-state', { ... })` call inside `_emitStreamState`) — byte-disjoint from 211-01's edits in the same file.
+    - 211-02 and 211-03 both touch `content/dom-stream.js`: 211-02 touches lines 12-23, 466-507, 637-657, 663-690, 695-724, 917-925; 211-03 touches lines 208, 222, 653, 718, 753, 839, 864, 897, 932. Lines 653 and 718 fall inside functions (`flushMutations`, `stopMutationStream`) that 211-02 also modifies, so 211-03 uses string-anchored Edits rather than line-anchored Edits to remain robust under 211-02's line shifts.
+    - The executor MAY serialize this wave or genuinely parallelize the three plans — both paths complete correctly because every cross-plan edit operates on a string anchor or byte-disjoint region.
 
 ### Watchdog tuning constants
 
