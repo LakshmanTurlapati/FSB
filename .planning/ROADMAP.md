@@ -61,7 +61,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
   4. Silent `.catch(() => {})` calls in dialog relay and message-delivery paths emit layered diagnostic logs (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`), are rate-limited per category (one `console.warn` per 10s with counter rollup), route through a `redactForLog` helper that logs origin/length/status only, and benign SPA-navigation catches downgrade to `automationLogger.debug`
   5. Diagnostic events persist to a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance that the Sync tab can later expose
 **Plans**: 3 plans (all wave 1 — parallel-safe; file-disjoint per ARCHITECTURE.md (c)+(d))
-- [ ] 211-01-PLAN.md — WebSocket inbound _lz decompression symmetry (WS-01, WS-02, WS-03)
+- [x] 211-01-PLAN.md — WebSocket inbound _lz decompression symmetry (WS-01, WS-02, WS-03)
 - [ ] 211-02-PLAN.md — DOM streaming hardening: two-tier watchdog, TreeWalker truncation, staleFlushCount (STREAM-01, STREAM-02, STREAM-03, STREAM-04)
 - [ ] 211-03-PLAN.md — Diagnostic logging refactor: redactForLog + rateLimitedWarn + ring buffer + exportDiagnostics handler (LOG-01, LOG-02, LOG-03, LOG-04)
 
@@ -95,7 +95,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 |-------|----------------|--------|-----------|
 | 209. Remote Control Handlers | 1/1 | Shipped (live UAT pending) | 2026-04-27 |
 | 210. QR Code Pairing Restoration | 1/1 | Shipped | 2026-04-28 |
-| 211. Stream Reliability & Diagnostic Logging | 0/3 | Planned (3 plans, wave 1) | - |
+| 211. Stream Reliability & Diagnostic Logging | 1/3 | In Progress|  |
 | 212. Background Agents Sunset | 0/? | Not started | - |
 | 213. Sync Tab Build | 0/? | Not started | - |
 

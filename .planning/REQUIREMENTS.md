@@ -38,9 +38,9 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 
 ### WebSocket Compression (WS)
 
-- [ ] **WS-01**: WebSocket inbound handler in `ws/ws-client.js:515-522` decompresses `_lz` envelope frames using `LZString.decompressFromBase64`, mirroring the dashboard decoder at `showcase/js/dashboard.js:3517-3528`; envelope is self-identifying per-frame (`{_lz: true, d: <base64>}`); plain JSON falls through unchanged
-- [ ] **WS-02**: When `LZString` is unavailable or decompression returns null, the failure is recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` instead of silently dropping the frame
-- [ ] **WS-03**: The `_lz` envelope contract is documented inline at `ws/ws-client.js:580` (outbound site) so future contributors understand the round-trip shape
+- [x] **WS-01**: WebSocket inbound handler in `ws/ws-client.js:515-522` decompresses `_lz` envelope frames using `LZString.decompressFromBase64`, mirroring the dashboard decoder at `showcase/js/dashboard.js:3517-3528`; envelope is self-identifying per-frame (`{_lz: true, d: <base64>}`); plain JSON falls through unchanged
+- [x] **WS-02**: When `LZString` is unavailable or decompression returns null, the failure is recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` instead of silently dropping the frame
+- [x] **WS-03**: The `_lz` envelope contract is documented inline at `ws/ws-client.js:580` (outbound site) so future contributors understand the round-trip shape
 
 ### Diagnostic Logging (LOG)
 
