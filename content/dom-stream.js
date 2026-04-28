@@ -216,7 +216,11 @@
             defaultValue: detail.defaultValue,
             state: 'open'
           })
-        }).catch(function() {});
+        }).catch(function(err) {
+          if (typeof rateLimitedWarn === 'function') {
+            rateLimitedWarn('DLG', 'dialog-relay', 'dialog relay sendMessage failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+          }
+        });
       } catch (err) { /* extension context invalidated */ }
     });
 
@@ -230,7 +234,11 @@
             result: detail.result,
             state: 'closed'
           })
-        }).catch(function() {});
+        }).catch(function(err) {
+          if (typeof rateLimitedWarn === 'function') {
+            rateLimitedWarn('DLG', 'dialog-relay', 'dialog relay sendMessage failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+          }
+        });
       } catch (err) { /* extension context invalidated */ }
     });
   }
@@ -711,7 +719,11 @@
         streamSessionId: streamSessionId || '',
         snapshotId: currentSnapshotId || 0,
         staleFlushCount: staleFlushCount
-      }).catch(function() {});
+      }).catch(function(err) {
+        if (typeof rateLimitedWarn === 'function') {
+          rateLimitedWarn('DOM', 'mutation-delivery', 'mutation sendMessage failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+        }
+      });
     } catch (e) {
       // Extension context may be invalidated
     }
@@ -815,7 +827,11 @@
             mutations: diffs,
             streamSessionId: streamSessionId || '',
             snapshotId: currentSnapshotId || 0
-          }).catch(function() {});
+          }).catch(function(err) {
+            if (typeof rateLimitedWarn === 'function') {
+              rateLimitedWarn('DOM', 'mutation-delivery', 'mutation sendMessage failed (stop)', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+            }
+          });
         } catch (e) { /* ignore */ }
       }
     }
@@ -850,7 +866,11 @@
           scrollY: window.scrollY,
           streamSessionId: streamSessionId || '',
           snapshotId: currentSnapshotId || 0
-        }).catch(function() {});
+        }).catch(function(err) {
+          if (typeof rateLimitedWarn === 'function') {
+            rateLimitedWarn('DOM', 'scroll-delivery', 'scroll sendMessage failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+          }
+        });
       } catch (e) { /* ignore */ }
     };
 
@@ -936,7 +956,11 @@
         progress: progress,
         streamSessionId: streamSessionId || '',
         snapshotId: currentSnapshotId || 0
-      }).catch(function() {});
+      }).catch(function(err) {
+        if (typeof rateLimitedWarn === 'function') {
+          rateLimitedWarn('DOM', 'overlay-delivery', 'overlay sendMessage failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+        }
+      });
     } catch (e) { /* ignore */ }
   }
 
@@ -961,7 +985,11 @@
           chrome.runtime.sendMessage({
             action: 'domStreamSnapshot',
             snapshot: snapshot
-          }).catch(function() {});
+          }).catch(function(err) {
+            if (typeof rateLimitedWarn === 'function') {
+              rateLimitedWarn('DOM', 'snapshot-delivery', 'snapshot sendMessage failed (start)', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+            }
+          });
         } catch (e) { /* ignore */ }
         startMutationStream();
         startScrollTracker();
@@ -994,7 +1022,11 @@
           chrome.runtime.sendMessage({
             action: 'domStreamSnapshot',
             snapshot: freshSnapshot
-          }).catch(function() {});
+          }).catch(function(err) {
+            if (typeof rateLimitedWarn === 'function') {
+              rateLimitedWarn('DOM', 'snapshot-delivery', 'snapshot sendMessage failed (resume)', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+            }
+          });
         } catch (e) { /* ignore */ }
         startMutationStream();
         startScrollTracker();
@@ -1030,7 +1062,11 @@
   // Signal background.js that this page has a DOM stream module ready
   // This triggers the ext:page-ready -> dash:dom-stream-start auto-start chain
   try {
-    chrome.runtime.sendMessage({ action: 'domStreamReady' }).catch(function() {});
+    chrome.runtime.sendMessage({ action: 'domStreamReady' }).catch(function(err) {
+      if (typeof rateLimitedWarn === 'function') {
+        rateLimitedWarn('DOM', 'ready-ping', 'domStreamReady ping failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+      }
+    });
   } catch (e) { /* ignore -- background may not be listening yet */ }
 
   logger.info('[DOM Stream] Module loaded');

@@ -6438,7 +6438,11 @@ async function handleStartAutomation(request, sender, sendResponse) {
           s.taskSummary = summary;
         }
       });
-    }).catch(() => {});
+    }).catch((err) => {
+      if (typeof rateLimitedWarn === 'function') {
+        rateLimitedWarn('BG', 'task-summarization', 'task summarization config fetch failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+      }
+    });
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
