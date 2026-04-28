@@ -1,88 +1,116 @@
-# Requirements: FSB v0.9.45 Dashboard Control & Stream Reliability
+# Requirements: FSB v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
 
-**Defined:** 2026-04-24
+**Defined:** 2026-04-28
 **Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
-## v1 Requirements
+## Milestone Goal
 
-Requirements for this milestone. Each maps to roadmap phases.
+Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control, gracefully retire background agents in favor of OpenClaw / Claude Routines, and harden the streaming pipeline the dashboard relies on.
 
-### Remote Control
+## Already Validated (counted toward this milestone)
 
-- [ ] **RC-01**: User can click elements in the browser tab from the dashboard preview via remote control
-- [ ] **RC-02**: User can type keyboard input into the browser tab from the dashboard
-- [ ] **RC-03**: User can scroll the browser tab from the dashboard preview
-- [ ] **RC-04**: Remote control has explicit start/stop lifecycle with state tracking between dashboard and extension
+- **SYNC-VALID-01**: Dashboard click/key/scroll commands reach the active streaming tab via Chrome DevTools Protocol with lifecycle state broadcast through `ext:remote-control-state` -- Phase 209 (live UAT pending: 7 human_needed items)
+- **SYNC-VALID-02**: QR code pairing restored -- `#btnPairDashboard` POSTs `/api/pair/generate`, renders QR with 60s server-driven countdown, regenerate-on-expiry affordance -- Phase 210
 
-### QR Pairing
+## v1 Requirements (in scope for v0.9.45rc1)
 
-- [ ] **QR-01**: User can generate a QR code from the extension options page that the showcase dashboard can scan to pair
-- [ ] **QR-02**: QR pairing shows a 60-second countdown with visual urgency indicator before token expiry
-- [ ] **QR-03**: User can cancel an active pairing attempt, hiding the overlay and resetting the button state
+### Sync Tab (SYNC)
 
-### Stream Hardening
+- [ ] **SYNC-01**: User can find a top-level "Sync" tab in the FSB control panel that consolidates QR pairing, hash key, server URL, and connection status into a single dedicated surface
+- [ ] **SYNC-02**: User sees a live connection-status pill in the Sync tab that reflects current `ext:remote-control-state` (replay-on-attach via `getRemoteControlState` runtime action; live updates via `remoteControlStateChanged` runtime push)
+- [ ] **SYNC-03**: Showcase home and dashboard surfaces reference the new Sync tab in their copy and pairing instructions ("Open the Sync tab in FSB")
 
-- [ ] **STRM-01**: Mutation queue has a size watchdog that force-flushes when pending mutations exceed a threshold
-- [ ] **STRM-02**: Large DOM truncation uses a pre-built element map instead of O(n^2) per-element querySelector lookups
-- [ ] **STRM-03**: Stale mutation counter resets after valid mutation batches to prevent premature resync
-- [ ] **STRM-04**: WebSocket client decompresses incoming LZString-compressed messages symmetrically with outgoing compression
+### Background Agents Sunset (AGENTS)
 
-### Diagnostics
+- [ ] **AGENTS-01**: User sees a playful "we're not reinventing this wheel" deprecation card replacing the Background Agents tab body, naming OpenClaw and Claude Routines as recommended successors with link-out and effective version
+- [ ] **AGENTS-02**: Agent-only code paths are commented out (not deleted) across `agents/*.js`, `background.js` agent surfaces, `ws/ws-client.js` agent dispatch, MCP agent tools, popup/sidepanel slash commands, and `ui/options.js` agent UI controllers, each annotated `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.`; shared utilities preserved untouched
+- [ ] **AGENTS-03**: On extension update from a prior version that had agents, user sees a one-time `fsb_sunset_notice` card listing the names of their previously created agents with a copy-to-clipboard export (NAMES ONLY, no task text -- avoid leaking credentials)
+- [ ] **AGENTS-04**: Showcase home page (Background Agents feature card) and dashboard surfaces (vanilla `dashboard.html` + Angular `dashboard-page.component.html/ts`) mirror the agents-sunset messaging consistently; `ext:remote-control-state` and `_lz` decompression paths preserved on the showcase side
+- [ ] **AGENTS-05**: `chrome.storage.local['bgAgents']` is preserved (not deleted); `chrome.alarms` `fsb_agent_*` entries are NOT proactively cleaned (accepted risk -- see Future Requirements)
+- [ ] **AGENTS-06**: The shared `chrome.alarms.onAlarm` listener in `background.js` retains its `MCP_RECONNECT_ALARM` early-return path; only the agent branch is commented out
 
-- [ ] **DIAG-01**: Dialog relay errors are logged with diagnostic context instead of silently swallowed
-- [ ] **DIAG-02**: DOM stream message delivery failures are logged with diagnostic context instead of silently discarded
+### DOM Streaming Hardening (STREAM)
 
-## v2 Requirements
+- [ ] **STREAM-01**: DOM streaming pipeline includes a two-tier watchdog -- `chrome.alarms`-backed in the service worker (survives SW idle eviction; same pattern as `ws/mcp-bridge-client.js:205`), `setTimeout` + monotonic `lastDrainTs` counter in the content script (5s stuck threshold) -- that detects stuck mutation queues and forces a flush
+- [ ] **STREAM-02**: Stale-mutation counter resets on successful flush (`flushMutations()` draining the queue); counter value is surfaced in a NEW `staleFlushCount` field on `ext:stream-state` (the existing `ext:dom-mutations` payload shape MUST NOT change)
+- [ ] **STREAM-03**: Large-DOM snapshot generation completes in under 200ms on a 5MB / ~50k-node fixture; algorithm uses a single `TreeWalker` pass with cached `getBoundingClientRect` results into a `Map<nid, top>` before any clone mutation
+- [ ] **STREAM-04**: DOM truncation operates at the node level (not byte level); the last included subtree is complete; emits a `truncated: true, missingDescendants: N` sentinel; cap is 80% of relay's per-message limit
 
-Deferred to future release. Tracked but not in current roadmap.
+### WebSocket Compression (WS)
 
-### MCP Follow-up (from v0.9.36)
+- [ ] **WS-01**: WebSocket inbound handler in `ws/ws-client.js:515-522` decompresses `_lz` envelope frames using `LZString.decompressFromBase64`, mirroring the dashboard decoder at `showcase/js/dashboard.js:3517-3528`; envelope is self-identifying per-frame (`{_lz: true, d: <base64>}`); plain JSON falls through unchanged
+- [ ] **WS-02**: When `LZString` is unavailable or decompression returns null, the failure is recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` instead of silently dropping the frame
+- [ ] **WS-03**: The `_lz` envelope contract is documented inline at `ws/ws-client.js:580` (outbound site) so future contributors understand the round-trip shape
 
-- **MCP-01**: FSB derives trusted MCP client identity from connection or handshake metadata instead of requiring callers to send an allowlisted label each time
-- **MCP-02**: Approved MCP clients can opt into auto-wrapping manual browser tools in a visual session when visible feedback is desired
-- **MCP-03**: MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions
+### Diagnostic Logging (LOG)
 
-### Angular Migration (from v0.9.29)
+- [ ] **LOG-01**: Silent `.catch(() => {})` calls in dialog relay and message-delivery paths are replaced with diagnostic logging using layered prefixes (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`); recoverable warnings stay recoverable (no implicit re-throw)
+- [ ] **LOG-02**: Hot-path diagnostic logging is rate-limited per error category (one `console.warn` per 10s with a counter-rollup summary at the rate-limit boundary) and routed through a `redactForLog` helper that logs origin only (not full URL), length+presence only (not text content), status code only (not response body)
+- [ ] **LOG-03**: Benign SPA-navigation `.catch(() => {})` (e.g. `content/lifecycle.js:462,472,480`) downgrade to `automationLogger.debug` rather than `console.warn` to avoid console spam during normal page reloads
+- [ ] **LOG-04**: Diagnostic events are stored in a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance accessible from the Sync tab
 
-- **DASH-08**: Dashboard session/auth, agent lifecycle management, and run-history views ported to Angular
-- **DASH-11**: Task execution, live preview streaming, and remote-control state handling ported to Angular
-- **MIGR-01**: Migration parity and regression checks in place
+## Future Requirements (deferred to v0.9.46+)
 
-## Out of Scope
+These items were research-flagged as P1 mitigations but were explicitly NOT selected for this rc1 cycle. They remain on the radar:
 
-| Feature | Reason |
-|---------|--------|
-| Relay server rate limiting | Server-side hardening is separate from client-side fixes |
-| Remote control multi-tab coordination | Single active tab is sufficient for v1 remote control |
-| WebSocket reconnect retry backoff | Existing reconnect logic is adequate; focus is on message handling |
-| Message ordering guarantees | Current ordering is sufficient; out-of-order is rare and non-critical |
-| End-to-end encryption for relay | Security hardening is a separate milestone concern |
+- [ ] **AGENTS-FUTURE-01**: One-time `chrome.alarms.getAll()` cleanup of `fsb_agent_*` alarms on `chrome.runtime.onInstalled` (reason=update). Risk if deferred: stranded zombie alarm fires for agents that no longer have handlers.
+- [ ] **AGENTS-FUTURE-02**: MCP agent tools (`create_agent`, `list_agents`, `run_agent`, `stop_agent`, `delete_agent`, `toggle_agent`, `agent_stats`, `agent_history`) return structured `{ ok: false, deprecated: true, message: '...' }` payloads instead of being silently registered. Risk if deferred: MCP hosts (Claude Desktop, Codex, OpenCode) may treat empty payloads as success.
+- [ ] **SYNC-FUTURE-01**: Deep-link redirect shim in `ui/options.js` rewriting legacy hashes (`#dashboard`, `#agents`, `#pair`, `#remote`) to `#sync` on `DOMContentLoaded`. Risk if deferred: bookmarks and showcase nav links to old anchors silently no-op.
+- [ ] **SYNC-FUTURE-02**: Manual fallback pairing code (small token) displayed under the QR for users without a phone camera handy.
+- [ ] **SYNC-FUTURE-03**: Last-paired timestamp + UA string persisted to `chrome.storage.local` and shown in the Sync tab.
+- [ ] **SYNC-FUTURE-04**: Manual Reconnect button visible only when status is `disconnected` or `reconnecting`.
+- [ ] **SYNC-FUTURE-05**: Live remote-control state chip ("Idle" / "Active -- clicking" / "Active -- typing") with debounced echo to avoid flicker.
+- [ ] **STREAM-FUTURE-01**: Dashboard-ack-based stale-counter reset (`dash:dom-mutation-ack` envelope with sequence id) for end-to-end delivery confirmation. Larger contract surface; explicitly deferred in favor of flush-based reset (STREAM-02).
+- [ ] **STREAM-FUTURE-02**: Stream health card UI (mutations/sec, queue depth, last flush age) for power users.
 
-## Traceability
+## Out of Scope (explicit exclusions)
 
-Which phases cover which requirements. Updated during roadmap creation.
+These are explicitly NOT being done in v0.9.45rc1:
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| RC-01 | Phase 209 | Pending |
-| RC-02 | Phase 209 | Pending |
-| RC-03 | Phase 209 | Pending |
-| RC-04 | Phase 209 | Pending |
-| QR-01 | Phase 210 | Pending |
-| QR-02 | Phase 210 | Pending |
-| QR-03 | Phase 210 | Pending |
-| STRM-01 | Phase 211 | Pending |
-| STRM-02 | Phase 211 | Pending |
-| STRM-03 | Phase 211 | Pending |
-| STRM-04 | Phase 211 | Pending |
-| DIAG-01 | Phase 211 | Pending |
-| DIAG-02 | Phase 211 | Pending |
+- **Per-message-deflate WebSocket extension negotiation** -- per-connection stateful compression has sliding-window-corruption failure modes (RFC 7692). Stay at the app-layer `_lz` envelope.
+- **Migration to `pako` or `DecompressionStream("deflate-raw")`** -- LZ-string is a custom LZW variant, NOT RFC 1951 DEFLATE; switching transports is a multi-phase migration with feature-flag handshake. Reuse the already-loaded `LZString`.
+- **Deletion of `chrome.storage.local['bgAgents']`** -- permanent loss of user-created agent definitions. Preservation costs nothing; user can revive later if scope reverses.
+- **Angular 19 -> 20 migration** -- new build pipeline + router APIs + signal-component conventions; multi-week migration. Pin `^19.0.0`. Schedule as separate milestone before EOL 2026-05-19.
+- **New build system / bundler / transpiler** -- project explicitly forbids it (CLAUDE.md). Continue to vendor minified files; load directly.
+- **New UI framework (React, Vue, Svelte, Lit, Alpine)** -- forces a build system; 30 lines of HTML do not need a framework. Use plain `document.createElement` + the existing `data-section` pattern.
+- **Rewrite of the pairing protocol** -- Phase 210 is shipped and working. Strict relocation + polish only.
+- **CAPTCHA detection improvements** -- already on backlog, not in this milestone.
+- **Multi-tab management** -- already on backlog, not in this milestone.
 
-**Coverage:**
-- v1 requirements: 13 total
-- Mapped to phases: 13
-- Unmapped: 0
+## Known Tech Debt
+
+- **Angular 19 EOL: 2026-05-19** -- the showcase Angular shell must migrate to Angular 20 before this date. Out of scope for v0.9.45rc1; explicit milestone-after-next deadline.
+- **Phase 209 has 7 human_needed UAT items** -- live CDP click/keyboard/scroll delivery, extension-side visual state, runtime tab-id resolution. Accepted as rc1 debt; address ad-hoc once Sync tab lands.
+- **`mcp-server/src/tools/visual-session.ts.bak-openclaw-crab`** -- prior aborted sunset artifact noted by architecture research. One-line check during AGENTS-02 planning: safe to leave or remove?
+
+## Traceability (filled by roadmap)
+
+(Populated when roadmap is created -- maps each REQ-ID to the phase that delivers it.)
+
+| REQ-ID | Phase | Plan | Status |
+|--------|-------|------|--------|
+| SYNC-VALID-01 | 209 | 209-01 | shipped (live UAT pending) |
+| SYNC-VALID-02 | 210 | 210-01 | shipped |
+| SYNC-01 | TBD | TBD | active |
+| SYNC-02 | TBD | TBD | active |
+| SYNC-03 | TBD | TBD | active |
+| AGENTS-01 | TBD | TBD | active |
+| AGENTS-02 | TBD | TBD | active |
+| AGENTS-03 | TBD | TBD | active |
+| AGENTS-04 | TBD | TBD | active |
+| AGENTS-05 | TBD | TBD | active |
+| AGENTS-06 | TBD | TBD | active |
+| STREAM-01 | TBD | TBD | active |
+| STREAM-02 | TBD | TBD | active |
+| STREAM-03 | TBD | TBD | active |
+| STREAM-04 | TBD | TBD | active |
+| WS-01 | TBD | TBD | active |
+| WS-02 | TBD | TBD | active |
+| WS-03 | TBD | TBD | active |
+| LOG-01 | TBD | TBD | active |
+| LOG-02 | TBD | TBD | active |
+| LOG-03 | TBD | TBD | active |
+| LOG-04 | TBD | TBD | active |
 
 ---
-*Requirements defined: 2026-04-24*
-*Last updated: 2026-04-25 after roadmap creation with full traceability*
+*Defined: 2026-04-28*
