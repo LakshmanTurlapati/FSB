@@ -514,10 +514,39 @@ class FSBWebSocket {
 
     this.ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        this._handleMessage(msg);
+        var raw = JSON.parse(event.data);
+        // Self-identifying _lz envelope: { _lz: true, d: <base64> }.
+        // Mirrors showcase/js/dashboard.js:3517-3528. Stateless per-frame.
+        // Do NOT introduce permessage-deflate or alternative deflate libraries
+        // (PITFALLS.md P9 -- sliding-window corruption on bad frame requires
+        // reconnect to recover).
+        if (raw && raw._lz === true && typeof raw.d === 'string') {
+          if (typeof LZString === 'undefined') {
+            recordFSBTransportFailure('decompress-unavailable', {
+              target: 'inbound',
+              type: '_lz',
+              tabId: getCurrentTransportTabId(),
+              error: 'LZString not loaded (importScripts may have failed at background.js:37)',
+              len: raw.d.length
+            });
+            return;
+          }
+          var decoded = LZString.decompressFromBase64(raw.d);
+          if (!decoded) {
+            recordFSBTransportFailure('decompress-failed', {
+              target: 'inbound',
+              type: '_lz',
+              tabId: getCurrentTransportTabId(),
+              error: 'LZString.decompressFromBase64 returned null/empty',
+              len: raw.d.length
+            });
+            return;
+          }
+          raw = JSON.parse(decoded);
+        }
+        this._handleMessage(raw);
       } catch (err) {
-        console.warn('[FSB WS] Failed to parse message:', err.message);
+        console.warn('[FSB WS] Failed to parse message:', err && err.message ? err.message : err);
       }
     };
 
@@ -577,6 +606,14 @@ class FSBWebSocket {
       return false;
     }
 
+    // _lz envelope contract (round-trip):
+    //   Outbound: { _lz: true, d: LZString.compressToBase64(JSON.stringify({type, payload, ts})) }
+    //             emitted when raw > 1024 bytes AND compressed.length < raw.length.
+    //   Inbound:  symmetric branch in onmessage at lines 515-522 above. Self-identifying.
+    //   Stateless per-frame. Do NOT replace LZString with stateful deflate compression
+    //   -- per-connection stateful compression (RFC 7692 permessage-deflate) corrupts the
+    //   sliding window on any bad frame and forces a full WebSocket reconnect to recover
+    //   (PITFALLS.md P9).
     try {
       var raw = JSON.stringify({ type, payload, ts: Date.now() });
       // Compress payloads larger than 1KB to avoid relay message size limits
