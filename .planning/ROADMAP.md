@@ -95,7 +95,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 |-------|----------------|--------|-----------|
 | 209. Remote Control Handlers | 1/1 | Shipped (live UAT pending) | 2026-04-27 |
 | 210. QR Code Pairing Restoration | 1/1 | Shipped | 2026-04-28 |
-| 211. Stream Reliability & Diagnostic Logging | 3/3 | Complete   | 2026-04-28 |
+| 211. Stream Reliability & Diagnostic Logging | 3/3 | Complete    | 2026-04-28 |
 | 212. Background Agents Sunset | 0/? | Not started | - |
 | 213. Sync Tab Build | 0/? | Not started | - |
 
