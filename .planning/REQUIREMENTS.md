@@ -83,34 +83,37 @@ These are explicitly NOT being done in v0.9.45rc1:
 - **Phase 209 has 7 human_needed UAT items** -- live CDP click/keyboard/scroll delivery, extension-side visual state, runtime tab-id resolution. Accepted as rc1 debt; address ad-hoc once Sync tab lands.
 - **`mcp-server/src/tools/visual-session.ts.bak-openclaw-crab`** -- prior aborted sunset artifact noted by architecture research. One-line check during AGENTS-02 planning: safe to leave or remove?
 
-## Traceability (filled by roadmap)
+## Traceability
 
-(Populated when roadmap is created -- maps each REQ-ID to the phase that delivers it.)
+Every v1 requirement maps to exactly one phase. Validated requirements are mapped to the phase that shipped them.
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
 | SYNC-VALID-01 | 209 | 209-01 | shipped (live UAT pending) |
 | SYNC-VALID-02 | 210 | 210-01 | shipped |
-| SYNC-01 | TBD | TBD | active |
-| SYNC-02 | TBD | TBD | active |
-| SYNC-03 | TBD | TBD | active |
-| AGENTS-01 | TBD | TBD | active |
-| AGENTS-02 | TBD | TBD | active |
-| AGENTS-03 | TBD | TBD | active |
-| AGENTS-04 | TBD | TBD | active |
-| AGENTS-05 | TBD | TBD | active |
-| AGENTS-06 | TBD | TBD | active |
-| STREAM-01 | TBD | TBD | active |
-| STREAM-02 | TBD | TBD | active |
-| STREAM-03 | TBD | TBD | active |
-| STREAM-04 | TBD | TBD | active |
-| WS-01 | TBD | TBD | active |
-| WS-02 | TBD | TBD | active |
-| WS-03 | TBD | TBD | active |
-| LOG-01 | TBD | TBD | active |
-| LOG-02 | TBD | TBD | active |
-| LOG-03 | TBD | TBD | active |
-| LOG-04 | TBD | TBD | active |
+| SYNC-01 | 213 | TBD | active |
+| SYNC-02 | 213 | TBD | active |
+| SYNC-03 | 213 | TBD | active |
+| AGENTS-01 | 212 | TBD | active |
+| AGENTS-02 | 212 | TBD | active |
+| AGENTS-03 | 212 | TBD | active |
+| AGENTS-04 | 212 | TBD | active |
+| AGENTS-05 | 212 | TBD | active |
+| AGENTS-06 | 212 | TBD | active |
+| STREAM-01 | 211 | TBD | active |
+| STREAM-02 | 211 | TBD | active |
+| STREAM-03 | 211 | TBD | active |
+| STREAM-04 | 211 | TBD | active |
+| WS-01 | 211 | TBD | active |
+| WS-02 | 211 | TBD | active |
+| WS-03 | 211 | TBD | active |
+| LOG-01 | 211 | TBD | active |
+| LOG-02 | 211 | TBD | active |
+| LOG-03 | 211 | TBD | active |
+| LOG-04 | 211 | TBD | active |
+
+**Coverage:** 24/24 requirements mapped (2 validated + 22 active). No orphans, no duplicates.
 
 ---
 *Defined: 2026-04-28*
+*Traceability filled: 2026-04-28 (roadmap phases 211, 212, 213 defined)*
