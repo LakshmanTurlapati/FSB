@@ -1988,6 +1988,12 @@ const MCP_VISUAL_SESSION_STORAGE_KEY = 'fsbMcpVisualSessions';
 var _lastDashboardTaskResult = null;
 var _lastDashboardTaskResultTime = 0;
 
+// Phase 211-02 STREAM-02: SW-side cache of the last-known staleFlushCount
+// from the active streaming content script. Read by ws/ws-client.js
+// _emitStreamState at the ext:stream-state send call (line ~912).
+// Module-scope (not per-tab) is acceptable: only one streaming tab at a time.
+var _lastDomStreamStaleFlushCount = 0;
+
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
@@ -5839,6 +5845,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
 
     case 'domStreamMutations':
+      // Phase 211-02 STREAM-02: cache the last-known staleFlushCount from
+      // the content script so ws/ws-client.js _emitStreamState can include
+      // it in the ext:stream-state payload. Additive only -- the
+      // ext:dom-mutations payload shape MUST NOT change (D-14).
+      if (typeof request.staleFlushCount === 'number') {
+        _lastDomStreamStaleFlushCount = request.staleFlushCount;
+      }
+      // Phase 211-02 STREAM-01: ensure the dom-stream watchdog alarm is armed
+      // whenever streaming activity is observed. chrome.alarms.create is
+      // idempotent (recreating the same name replaces the schedule), so it is
+      // safe to call on every dispatch. Pattern mirrors ws/mcp-bridge-client.js:218.
+      try {
+        var alarmsApi = (typeof chrome !== 'undefined') ? chrome.alarms : null;
+        if (alarmsApi && typeof alarmsApi.create === 'function') {
+          var armResult = alarmsApi.create('fsb-domstream-watchdog', { periodInMinutes: 1 });
+          if (armResult && typeof armResult.catch === 'function') {
+            armResult.catch(function() { /* best-effort; in-memory watchdog still runs in content script */ });
+          }
+        }
+      } catch (e) { /* best-effort */ }
       if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
         fsbWebSocket.send('ext:dom-mutations', {
           mutations: request.mutations || [],
@@ -12536,6 +12562,16 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (isMcpReconnectAlarm) {
     armMcpBridge('alarm:' + MCP_RECONNECT_ALARM);
+    return;
+  }
+
+  // Phase 211-02 STREAM-01: dom-stream watchdog (safety net).
+  // Survives SW idle eviction (chrome.alarms.create at periodInMinutes: 1).
+  // The content-script self-watchdog is the trip wire; this alarm exists
+  // so a wedged content script does not strand the stream silently.
+  // Phase 212 owns the agent branch below; this branch slots BEFORE it.
+  if (alarm.name === 'fsb-domstream-watchdog') {
+    console.log('[FSB DOM] watchdog alarm fired (SW safety net)');
     return;
   }
 

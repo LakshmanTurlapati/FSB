@@ -709,11 +709,19 @@
         action: 'domStreamMutations',
         mutations: diffs,
         streamSessionId: streamSessionId || '',
-        snapshotId: currentSnapshotId || 0
+        snapshotId: currentSnapshotId || 0,
+        staleFlushCount: staleFlushCount
       }).catch(function() {});
     } catch (e) {
       // Extension context may be invalidated
     }
+
+    // Phase 211-02 STREAM-02: stale counter resets on successful drain.
+    // Reset is flush-based (not ack-based) per D-14 / STREAM-FUTURE-01 deferral.
+    // The peak count is captured in the sendMessage envelope above BEFORE
+    // this reset, so the SW sees the watchdog-rescue count at drain time.
+    lastDrainTs = Date.now();
+    staleFlushCount = 0;
   }
 
   /**
@@ -746,6 +754,33 @@
       attributeOldValue: true
     });
 
+    // Phase 211-02 STREAM-01: 5s content-script self-watchdog (trip wire).
+    // Detects stuck mutation queues without involving the SW. Uses a
+    // setTimeout chain (NOT setInterval) so cadence resets on every tick
+    // and on every successful drain. The SW-side chrome.alarms watchdog
+    // (background.js, alarm name 'fsb-domstream-watchdog') is the safety
+    // net for the case where the content script itself is wedged.
+    lastDrainTs = Date.now();
+    if (watchdogTimer) clearTimeout(watchdogTimer);
+    var watchdogTick = function() {
+      try {
+        if (pendingMutations.length > 0 && (Date.now() - lastDrainTs) > 5000) {
+          // Increment BEFORE forced flush so the new value is observable
+          // post-flush (per D-04). flushMutations resets staleFlushCount
+          // back to 0, so this counter only grows when the watchdog is
+          // actively rescuing a stuck queue.
+          staleFlushCount++;
+          if (batchTimer) {
+            cancelAnimationFrame(batchTimer);
+            batchTimer = null;
+          }
+          flushMutations();
+        }
+      } catch (e) { /* watchdog must not crash the content script */ }
+      watchdogTimer = setTimeout(watchdogTick, 500);
+    };
+    watchdogTimer = setTimeout(watchdogTick, 500);
+
     logger.info('[DOM Stream] MutationObserver started');
   }
 
@@ -756,6 +791,11 @@
     if (batchTimer) {
       cancelAnimationFrame(batchTimer);
       batchTimer = null;
+    }
+
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = null;
     }
 
     if (mutationObserver) {
@@ -981,6 +1021,7 @@
     startScrollTracker: startScrollTracker,
     stopScrollTracker: stopScrollTracker,
     broadcastOverlayState: broadcastOverlayState,
+    getStaleFlushCount: function() { return staleFlushCount; },
     isStreaming: function() { return streaming; }
   };
 

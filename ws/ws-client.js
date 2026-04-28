@@ -916,7 +916,12 @@ class FSBWebSocket {
       tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
       url: payload.url || '',
       pageType: pageType,
-      source: source
+      source: source,
+      // Phase 211-02 STREAM-02: peak watchdog-induced flushes since last drain.
+      // Source: SW-side cache _lastDomStreamStaleFlushCount, populated by the
+      // content-script flushMutations envelope (D-14 additive). Defaults to 0
+      // when streaming is inactive or the cache has not yet been populated.
+      staleFlushCount: (typeof _lastDomStreamStaleFlushCount === 'number') ? _lastDomStreamStaleFlushCount : 0
     });
   }
 
