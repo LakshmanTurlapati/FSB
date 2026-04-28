@@ -1294,7 +1294,7 @@ class FSBWebSocket {
         try {
           var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
             ? CONTENT_SCRIPT_FILES
-            : ['content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+            : ['utils/diagnostics-ring-buffer.js', 'utils/redactForLog.js', 'content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
           await chrome.scripting.executeScript({
             target: { tabId: tabId, allFrames: false },
             files: scriptFiles

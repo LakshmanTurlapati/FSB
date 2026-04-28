@@ -35,6 +35,11 @@ armMcpBridge('service-worker-evaluated');
 
 // Dashboard relay WebSocket client (auto-connects to full-selfbrowsing.com)
 try { importScripts('lib/lz-string.min.js'); } catch (e) { console.error('[FSB] Failed to load lz-string.min.js:', e.message); }
+// Phase 211-03 diagnostic logging: load the ring buffer BEFORE redactForLog so
+// that rateLimitedWarn sees globalThis.fsbDiagnostics on first call. Both load
+// BEFORE ws-client.js so the WebSocket layer can use the helpers.
+try { importScripts('utils/diagnostics-ring-buffer.js'); } catch (e) { console.error('[FSB] Failed to load diagnostics-ring-buffer.js:', e.message); }
+try { importScripts('utils/redactForLog.js'); } catch (e) { console.error('[FSB] Failed to load redactForLog.js:', e.message); }
 try { importScripts('ws/ws-client.js'); } catch (e) { console.error('[FSB] Failed to load ws-client.js:', e.message); }
 
 // Site-specific AI guidance modules
@@ -199,6 +204,11 @@ const bundledSiteMapCache = new Map();
 // Order matters: init.js sets up the window.FSB namespace, utils.js provides
 // shared helpers, then domain modules, then messaging/lifecycle which depend on all above.
 const CONTENT_SCRIPT_FILES = [
+  // Phase 211-03 diagnostic logging helpers MUST load FIRST so that any
+  // downstream content-script .catch handlers can call rateLimitedWarn /
+  // redactForLog / logDebugToRing without ReferenceError.
+  'utils/diagnostics-ring-buffer.js',
+  'utils/redactForLog.js',
   'utils/automation-logger.js',
   'content/init.js',
   'content/utils.js',
