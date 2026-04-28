@@ -22,6 +22,17 @@
   var streamSessionId = '';
   var currentSnapshotId = 0;
 
+  // --- Phase 211-02: stream watchdog + truncation ---
+  // RELAY_PER_MESSAGE_LIMIT_BYTES: keep in sync with the server relay's
+  // per-message size cap. The relay enforces a hard limit at
+  // server/src/ws/handler.js (compressed-envelope path); we cap our snapshot
+  // truncation at 80% of this value to leave headroom for envelope overhead
+  // and compression-resistant payloads where _lz does not reduce size (D-06).
+  var RELAY_PER_MESSAGE_LIMIT_BYTES = 1048576; // 1 MiB
+  var lastDrainTs = 0;
+  var staleFlushCount = 0;
+  var watchdogTimer = null;
+
   // Attributes that need URL absolutification
   var URL_ATTRS = ['src', 'href', 'action', 'poster', 'data'];
 
@@ -465,32 +476,81 @@
 
     var html = clone.innerHTML;
     var truncated = false;
+    var missingDescendants = 0;
 
-    // Large page safety: cap at 2MB
-    if (html.length > 2 * 1024 * 1024) {
-      // Remove elements below the fold (below 3x viewport height)
-      var viewportCutoff = window.innerHeight * 3;
-      var allEls = clone.querySelectorAll('[data-fsb-nid]');
-      for (var t = allEls.length - 1; t >= 0; t--) {
-        try {
-          // Use original element positions via nid mapping
-          var nidVal = allEls[t].getAttribute('data-fsb-nid');
-          var origByNid = document.querySelector('[data-fsb-nid="' + nidVal + '"]');
-          if (origByNid) {
-            var elRect = origByNid.getBoundingClientRect();
-            if (elRect.top > viewportCutoff) {
-              allEls[t].parentNode && allEls[t].parentNode.removeChild(allEls[t]);
-            }
+    // Phase 211-02 (STREAM-03 + STREAM-04): single TreeWalker pre-pass on the
+    // LIVE document reads getBoundingClientRect().top per [data-fsb-nid]
+    // element into a Map BEFORE any clone mutation. This collapses N forced
+    // layout flushes into 1 (web-perf folklore: read-then-write batching).
+    // The Map is the authoritative position source because the clone is not
+    // in the document tree and getBoundingClientRect() on it returns zeros.
+    var topByNid = new Map();
+    try {
+      var walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: function(el) {
+            return (el.hasAttribute && el.hasAttribute('data-fsb-nid'))
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_SKIP;
           }
-        } catch (e) { /* skip */ }
+        }
+      );
+      var liveEl;
+      while ((liveEl = walker.nextNode())) {
+        var liveNid = liveEl.getAttribute('data-fsb-nid');
+        if (liveNid) {
+          // Single getBoundingClientRect call per annotated element.
+          // All reads happen before any clone mutation -> 1 layout flush.
+          topByNid.set(liveNid, liveEl.getBoundingClientRect().top);
+        }
       }
-      html = clone.innerHTML;
+    } catch (e) { /* TreeWalker unavailable in this realm; truncation falls back to no-op */ }
+
+    var truncationCapBytes = Math.floor(RELAY_PER_MESSAGE_LIMIT_BYTES * 0.8);
+    if (html.length > truncationCapBytes) {
       truncated = true;
+      var viewportCutoff = window.innerHeight * 3;
+
+      // Pass 1: drop complete subtrees whose cached top is below 3x viewport.
+      // Iterate the clone's annotated elements; consult the Map for live top.
+      // Removing a parent later in the loop also removes its children, so we
+      // walk last-to-first to keep indices stable as we mutate.
+      var cloneEls1 = clone.querySelectorAll('[data-fsb-nid]');
+      for (var t = cloneEls1.length - 1; t >= 0; t--) {
+        var nidVal1 = cloneEls1[t].getAttribute('data-fsb-nid');
+        var top1 = topByNid.get(nidVal1);
+        if (typeof top1 === 'number' && top1 > viewportCutoff) {
+          var parent1 = cloneEls1[t].parentNode;
+          if (parent1) {
+            parent1.removeChild(cloneEls1[t]);
+            missingDescendants++;
+          }
+        }
+      }
+
+      // Re-measure; if still over cap, pass 2 walks remaining annotated
+      // elements in document order and drops complete subtrees until under
+      // cap. Only complete subtrees are removed -- never a mid-element cut.
+      html = clone.innerHTML;
+      if (html.length > truncationCapBytes) {
+        var cloneEls2 = clone.querySelectorAll('[data-fsb-nid]');
+        for (var u = cloneEls2.length - 1; u >= 0 && clone.innerHTML.length > truncationCapBytes; u--) {
+          var parent2 = cloneEls2[u].parentNode;
+          if (parent2 && cloneEls2[u].parentNode) {
+            parent2.removeChild(cloneEls2[u]);
+            missingDescendants++;
+          }
+        }
+        html = clone.innerHTML;
+      }
     }
 
     return {
       html: html,
       truncated: truncated,
+      missingDescendants: missingDescendants,
       stylesheets: stylesheets,
       inlineStyles: inlineStyles,
       scrollX: window.scrollX,
