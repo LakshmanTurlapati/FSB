@@ -63,7 +63,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 **Plans**: 3 plans (all wave 1 — parallel-safe; file-disjoint per ARCHITECTURE.md (c)+(d))
 - [x] 211-01-PLAN.md — WebSocket inbound _lz decompression symmetry (WS-01, WS-02, WS-03)
 - [x] 211-02-PLAN.md — DOM streaming hardening: two-tier watchdog, TreeWalker truncation, staleFlushCount (STREAM-01, STREAM-02, STREAM-03, STREAM-04)
-- [ ] 211-03-PLAN.md — Diagnostic logging refactor: redactForLog + rateLimitedWarn + ring buffer + exportDiagnostics handler (LOG-01, LOG-02, LOG-03, LOG-04)
+- [x] 211-03-PLAN.md — Diagnostic logging refactor: redactForLog + rateLimitedWarn + ring buffer + exportDiagnostics handler (LOG-01, LOG-02, LOG-03, LOG-04)
 
 ### Phase 212: Background Agents Sunset
 **Goal**: Retire the background-agents feature in favor of OpenClaw / Claude Routines via a playful deprecation card, comment-out (not delete) every agent-only code path with annotation, and mirror the messaging across showcase/dashboard surfaces -- preserving shared utilities, storage, and the MCP reconnect alarm path
@@ -95,7 +95,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 |-------|----------------|--------|-----------|
 | 209. Remote Control Handlers | 1/1 | Shipped (live UAT pending) | 2026-04-27 |
 | 210. QR Code Pairing Restoration | 1/1 | Shipped | 2026-04-28 |
-| 211. Stream Reliability & Diagnostic Logging | 2/3 | In Progress|  |
+| 211. Stream Reliability & Diagnostic Logging | 3/3 | Complete   | 2026-04-28 |
 | 212. Background Agents Sunset | 0/? | Not started | - |
 | 213. Sync Tab Build | 0/? | Not started | - |
 

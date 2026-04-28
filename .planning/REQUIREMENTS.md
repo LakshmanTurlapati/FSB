@@ -44,10 +44,10 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 
 ### Diagnostic Logging (LOG)
 
-- [ ] **LOG-01**: Silent `.catch(() => {})` calls in dialog relay and message-delivery paths are replaced with diagnostic logging using layered prefixes (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`); recoverable warnings stay recoverable (no implicit re-throw)
-- [ ] **LOG-02**: Hot-path diagnostic logging is rate-limited per error category (one `console.warn` per 10s with a counter-rollup summary at the rate-limit boundary) and routed through a `redactForLog` helper that logs origin only (not full URL), length+presence only (not text content), status code only (not response body)
-- [ ] **LOG-03**: Benign SPA-navigation `.catch(() => {})` (e.g. `content/lifecycle.js:462,472,480`) downgrade to `automationLogger.debug` rather than `console.warn` to avoid console spam during normal page reloads
-- [ ] **LOG-04**: Diagnostic events are stored in a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance accessible from the Sync tab
+- [x] **LOG-01**: Silent `.catch(() => {})` calls in dialog relay and message-delivery paths are replaced with diagnostic logging using layered prefixes (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`); recoverable warnings stay recoverable (no implicit re-throw)
+- [x] **LOG-02**: Hot-path diagnostic logging is rate-limited per error category (one `console.warn` per 10s with a counter-rollup summary at the rate-limit boundary) and routed through a `redactForLog` helper that logs origin only (not full URL), length+presence only (not text content), status code only (not response body)
+- [x] **LOG-03**: Benign SPA-navigation `.catch(() => {})` (e.g. `content/lifecycle.js:462,472,480`) downgrade to `automationLogger.debug` rather than `console.warn` to avoid console spam during normal page reloads
+- [x] **LOG-04**: Diagnostic events are stored in a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance accessible from the Sync tab
 
 ## Future Requirements (deferred to v0.9.46+)
 
