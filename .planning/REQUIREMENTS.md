@@ -31,10 +31,10 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 
 ### DOM Streaming Hardening (STREAM)
 
-- [ ] **STREAM-01**: DOM streaming pipeline includes a two-tier watchdog -- `chrome.alarms`-backed in the service worker (survives SW idle eviction; same pattern as `ws/mcp-bridge-client.js:205`), `setTimeout` + monotonic `lastDrainTs` counter in the content script (5s stuck threshold) -- that detects stuck mutation queues and forces a flush
-- [ ] **STREAM-02**: Stale-mutation counter resets on successful flush (`flushMutations()` draining the queue); counter value is surfaced in a NEW `staleFlushCount` field on `ext:stream-state` (the existing `ext:dom-mutations` payload shape MUST NOT change)
-- [ ] **STREAM-03**: Large-DOM snapshot generation completes in under 200ms on a 5MB / ~50k-node fixture; algorithm uses a single `TreeWalker` pass with cached `getBoundingClientRect` results into a `Map<nid, top>` before any clone mutation
-- [ ] **STREAM-04**: DOM truncation operates at the node level (not byte level); the last included subtree is complete; emits a `truncated: true, missingDescendants: N` sentinel; cap is 80% of relay's per-message limit
+- [x] **STREAM-01**: DOM streaming pipeline includes a two-tier watchdog -- `chrome.alarms`-backed in the service worker (survives SW idle eviction; same pattern as `ws/mcp-bridge-client.js:205`), `setTimeout` + monotonic `lastDrainTs` counter in the content script (5s stuck threshold) -- that detects stuck mutation queues and forces a flush
+- [x] **STREAM-02**: Stale-mutation counter resets on successful flush (`flushMutations()` draining the queue); counter value is surfaced in a NEW `staleFlushCount` field on `ext:stream-state` (the existing `ext:dom-mutations` payload shape MUST NOT change)
+- [x] **STREAM-03**: Large-DOM snapshot generation completes in under 200ms on a 5MB / ~50k-node fixture; algorithm uses a single `TreeWalker` pass with cached `getBoundingClientRect` results into a `Map<nid, top>` before any clone mutation
+- [x] **STREAM-04**: DOM truncation operates at the node level (not byte level); the last included subtree is complete; emits a `truncated: true, missingDescendants: N` sentinel; cap is 80% of relay's per-message limit
 
 ### WebSocket Compression (WS)
 

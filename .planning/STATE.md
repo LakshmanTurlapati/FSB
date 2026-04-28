@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.45
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-28T22:04:57.104Z"
+last_updated: "2026-04-28T22:14:31.680Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 ## Current Position
 
 Phase: 211 (Stream Reliability & Diagnostic Logging) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -54,6 +54,7 @@ Recent decisions affecting current work:
 - [v0.9.36]: MCP visual sessions use explicit start/end tools with trusted client labels
 - [v0.9.35]: MCP reliability first -- bridge lifecycle, diagnostics, installer parity before new features
 - [Phase 211]: Phase 211-01 closed WS compression asymmetry: inbound _lz decoder mirrors dashboard at ws-client.js:515-549, decompress-failed/decompress-unavailable categories route through recordFSBTransportFailure (D-17), WS-03 contract documented at outbound site
+- [Phase 211]: Phase 211-02 closed DOM streaming hardening: two-tier watchdog (5s setTimeout content-script + 1min chrome.alarms SW), TreeWalker + Map<nid, top> pre-pass collapses N forced layouts into 1, node-level subtree cuts under 80% RELAY_PER_MESSAGE_LIMIT_BYTES cap with missingDescendants sentinel, staleFlushCount surfaced additively on ext:stream-state via cs envelope -> SW cache -> ws-client wiring chain (D-14 ext:dom-mutations shape unchanged); 50k-node fixture + perf test wired into npm test
 
 ### Pending Todos
 
