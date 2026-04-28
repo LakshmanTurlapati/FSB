@@ -8,13 +8,20 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.45 Dashboard Control & Stream Reliability
+## Current Milestone: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
 
-**Goal:** Fix the broken remote control and QR pairing features, and harden DOM streaming for reliable dashboard operation.
+**Goal:** Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control, gracefully retire background agents in favor of OpenClaw / Claude Routines, and harden the streaming pipeline the dashboard relies on.
+
+**Already landed (counted toward this milestone):**
+- Phase 209 -- Remote control handlers (CDP click/key/scroll, lifecycle broadcast)
+- Phase 210 -- QR code pairing restoration (60s server-driven countdown, regenerate-on-expiry)
 
 **Target features:**
-- Implement the 5 missing remote control handlers so dashboard click/key/scroll commands reach the browser tab
-- Restore QR code pairing (showPairingQR, countdown, cancel) so the extension can pair with the showcase dashboard
+- Sunset background agents with a playful deprecation card in the FSB control panel pointing at OpenClaw and Claude Routines
+- Carefully comment out (not delete) background-agent-only code paths, preserving shared utilities, annotated with deprecation reason
+- Mirror agent-sunset messaging across the showcase/dashboard surfaces
+- New top-level Sync tab in the control panel -- single purpose: remote control / pairing / dashboard handshake (relocates Phase 209 + 210 UI)
+- Update showcase/dashboard navigation/copy to point at the same Sync surface
 - Harden DOM streaming: mutation queue watchdog, large-DOM truncation performance, stale mutation counter reset
 - Fix asymmetric WebSocket compression (add decompression for incoming messages)
 - Replace silent error swallowing with diagnostic logging in dialog relay and message delivery
@@ -173,8 +180,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
-- [ ] Remote control handlers (click, key, scroll, start, stop) implemented and wired to content script
-- [ ] QR code pairing restored (showPairingQR, countdown, cancel, server URL constant)
+- [ ] Background agents deprecated with playful "we're not reinventing this wheel" copy in the FSB control panel pointing at OpenClaw and Claude Routines
+- [ ] Background-agent-only code paths carefully commented out (not deleted) with deprecation annotation; shared utilities preserved
+- [ ] Showcase/dashboard surfaces mirror the agent-sunset messaging consistently
+- [ ] New top-level Sync tab in the control panel consolidates QR pairing and remote-control state into a single surface
+- [ ] Showcase/dashboard navigation/copy points at the simplified Sync surface
 - [ ] DOM streaming hardened (mutation queue watchdog, large-DOM truncation performance, stale mutation counter)
 - [ ] WebSocket compression symmetry (decompression for incoming messages)
 - [ ] Silent error swallowing replaced with diagnostic logging in dialog relay and message delivery
@@ -185,6 +195,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Every session termination records a structured outcomeDetails.reason (safety, stuck, orphan, tab-closed, etc.) -- Phase 206
 - ✓ Stale session cleanup, tab close, and service worker wake handle running sessions without silent abandonment -- Phase 207
 - ✓ Sidepanel detects orphaned "working" state and self-heals to idle -- Phase 208
+
+### Validated (v0.9.45rc1, in-flight)
+
+- ✓ Dashboard click/key/scroll commands reach the active streaming tab via Chrome DevTools Protocol with lifecycle state broadcast through ext:remote-control-state -- Phase 209 (live UAT pending)
+- ✓ QR code pairing restored: #btnPairDashboard POSTs /api/pair/generate, renders QR with 60s server-driven countdown, regenerate-on-expiry affordance -- Phase 210
 
 ### Deferred (MCP follow-up from v0.9.36)
 
@@ -231,13 +246,18 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Backlog
 
-- [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- backlog v0.9.10/P116
-- [ ] Cost & metrics pipeline -- real token/cost data in agent history -- backlog v0.9.10/P117
-- [ ] Scheduling enhancements -- cron expressions, retry with backoff -- backlog v0.9.10/P118
-- [ ] Replay intelligence -- dynamic timing, step-level recovery -- backlog v0.9.10/P119
-- [ ] Sidepanel agents UI -- dedicated tab for agent management -- backlog v0.9.10/P120
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
 - [ ] Smart multi-tab management -- context-aware navigation across multiple tabs
+
+### Sunset in v0.9.45rc1 (background agents -- defer to OpenClaw / Claude Routines)
+
+The following backlog items are formally retired in v0.9.45rc1. Better external runtimes (OpenClaw, Claude Routines) handle background-agent workflows; FSB will not reinvent that wheel. Code paths are commented out (not deleted) to allow future revival if the strategic landscape changes.
+
+- [x] MCP agent tools -- create/list/run/stop/delete agents via MCP -- retired (was v0.9.10/P116)
+- [x] Cost & metrics pipeline -- real token/cost data in agent history -- retired (was v0.9.10/P117)
+- [x] Scheduling enhancements -- cron expressions, retry with backoff -- retired (was v0.9.10/P118)
+- [x] Replay intelligence -- dynamic timing, step-level recovery -- retired (was v0.9.10/P119)
+- [x] Sidepanel agents UI -- dedicated tab for agent management -- retired (was v0.9.10/P120)
 
 ### Out of Scope
 
@@ -392,4 +412,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after starting milestone v0.9.45*
+*Last updated: 2026-04-28 after starting milestone v0.9.45rc1*
