@@ -185,9 +185,6 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - [ ] Showcase/dashboard surfaces mirror the agent-sunset messaging consistently
 - [ ] New top-level Sync tab in the control panel consolidates QR pairing and remote-control state into a single surface
 - [ ] Showcase/dashboard navigation/copy points at the simplified Sync surface
-- [ ] DOM streaming hardened (mutation queue watchdog, large-DOM truncation performance, stale mutation counter)
-- [ ] WebSocket compression symmetry (decompression for incoming messages)
-- [ ] Silent error swallowing replaced with diagnostic logging in dialog relay and message delivery
 
 ### Validated (v0.9.40)
 
@@ -200,6 +197,9 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 - ✓ Dashboard click/key/scroll commands reach the active streaming tab via Chrome DevTools Protocol with lifecycle state broadcast through ext:remote-control-state -- Phase 209 (live UAT pending)
 - ✓ QR code pairing restored: #btnPairDashboard POSTs /api/pair/generate, renders QR with 60s server-driven countdown, regenerate-on-expiry affordance -- Phase 210
+- ✓ WebSocket inbound `{_lz: true, d: <base64>}` envelopes decompress via `LZString.decompressFromBase64`; plain JSON falls through unchanged; failures recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` -- Phase 211 (WS-01..03)
+- ✓ DOM streaming hardened: two-tier watchdog (`chrome.alarms` SW-side + `setTimeout` 5s/500ms content-side), single TreeWalker pre-pass + cached rect map (1.67ms < 200ms on 5MB / 50k-node fixture), node-level truncation with `truncated: true, missingDescendants: N` sentinel, `staleFlushCount` field on `ext:stream-state` (`ext:dom-mutations` shape unchanged) -- Phase 211 (STREAM-01..04)
+- ✓ Silent `.catch(() => {})` in dialog relay and message-delivery paths replaced with redacted, rate-limited diagnostic logging: `redactForLog` helper (origin/length/status only), `[FSB DLG]/[FSB BG]/[FSB WS]/[FSB DOM]` layered prefixes, 1 warn per (prefix, category) per 10s with counter rollup, 100-FIFO ring buffer in `chrome.storage.local.fsb_diagnostics_ring`, `chrome.runtime.onMessage` `exportDiagnostics` handler (Phase 213 wires the Sync tab button) -- Phase 211 (LOG-01..04)
 
 ### Deferred (MCP follow-up from v0.9.36)
 
@@ -412,4 +412,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-28 after starting milestone v0.9.45rc1*
+*Last updated: 2026-04-28 after Phase 211 completion (Stream Reliability & Diagnostic Logging)*
