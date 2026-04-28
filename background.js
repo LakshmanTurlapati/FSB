@@ -12739,3 +12739,38 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
   }
 });
+
+// =====================================================================
+// Phase 211-03 LOG-04: exportDiagnostics handler (back-end only).
+// Phase 213's Sync tab will wire a button to call this. Phase 211 ships
+// the contract; no UI in this milestone (D-08).
+//
+// Request:  { action: 'exportDiagnostics', clear?: boolean }
+// Response: { ok: true, entries: [...], clearedAt: <ts>|null }
+//        |  { ok: false, error: '<reason>' }
+// =====================================================================
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request && request.action === 'exportDiagnostics') {
+    const wantsClear = !!(request && request.clear === true);
+    if (typeof globalThis !== 'undefined'
+        && globalThis.fsbDiagnostics
+        && typeof globalThis.fsbDiagnostics.get === 'function') {
+      globalThis.fsbDiagnostics.get({ clear: wantsClear }).then((result) => {
+        sendResponse({
+          ok: true,
+          entries: (result && result.entries) ? result.entries : [],
+          clearedAt: (result && result.clearedAt) ? result.clearedAt : null
+        });
+      }).catch((err) => {
+        sendResponse({
+          ok: false,
+          error: (err && err.message) ? err.message : 'unknown'
+        });
+      });
+      return true; // keep sendResponse open for async resolution
+    }
+    sendResponse({ ok: false, error: 'fsbDiagnostics not loaded' });
+    return false;
+  }
+  return false; // other listeners handle other actions
+});
