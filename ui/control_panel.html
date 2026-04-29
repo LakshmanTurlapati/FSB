@@ -575,7 +575,56 @@
               <span class="label">Disconnected</span>
             </span>
           </div>
-          <!-- Server Sync card relocated here in Task 2 -->
+
+          <!-- Server Sync card relocated from background-agents per Phase 213 D-05 -->
+          <div class="settings-card full-width" style="margin-top: 20px;">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <i class="fas fa-server"></i>
+              </div>
+              <div class="settings-card-title">
+                <h3>Server Sync</h3>
+                <p>Connect to FSB server for result storage and dashboard access</p>
+              </div>
+            </div>
+            <div class="settings-card-content">
+              <input type="hidden" id="serverUrl">
+              <div class="form-group">
+                <label for="serverHashKey">Hash Key</label>
+                <div class="input-with-button">
+                  <input type="text" id="serverHashKey" class="form-input" placeholder="Your server hash key" readonly>
+                  <button class="control-btn small" id="btnGenerateHashKey">Generate</button>
+                  <button class="control-btn small" id="btnCopyHashKey">Copy</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <button class="control-btn accent" id="btnPairDashboard">
+                  <i class="fas fa-qrcode"></i>
+                  Pair Dashboard
+                </button>
+              </div>
+              <div id="pairingQROverlay" class="pairing-qr-overlay" style="display: none;">
+                <div class="pairing-qr-popup">
+                  <div class="pairing-qr-popup-header">
+                    <span>Scan to Pair</span>
+                    <button class="pairing-qr-close" id="btnCancelPairing">&times;</button>
+                  </div>
+                  <div id="pairingQRCode" class="pairing-qr-code"></div>
+                  <div class="pairing-qr-countdown">
+                    <span id="pairingCountdown">60s</span> remaining
+                  </div>
+                  <div id="pairingQRMessage" class="pairing-qr-message"></div>
+                </div>
+              </div>
+              <div class="form-group">
+                <button class="control-btn" id="btnTestConnection">
+                  <i class="fas fa-plug"></i>
+                  Test Connection
+                </button>
+                <span class="connection-status" id="connectionStatus"></span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- Background Agents Section -->
@@ -625,56 +674,6 @@
               </button>
             </div>
           </aside>
-
-          <!-- Server Connection (Phase 2) -->
-          <div class="settings-card full-width" style="margin-top: 20px;">
-            <div class="settings-card-header">
-              <div class="settings-card-icon">
-                <i class="fas fa-server"></i>
-              </div>
-              <div class="settings-card-title">
-                <h3>Server Sync</h3>
-                <p>Connect to FSB server for result storage and dashboard access</p>
-              </div>
-            </div>
-            <div class="settings-card-content">
-              <input type="hidden" id="serverUrl">
-              <div class="form-group">
-                <label for="serverHashKey">Hash Key</label>
-                <div class="input-with-button">
-                  <input type="text" id="serverHashKey" class="form-input" placeholder="Your server hash key" readonly>
-                  <button class="control-btn small" id="btnGenerateHashKey">Generate</button>
-                  <button class="control-btn small" id="btnCopyHashKey">Copy</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <button class="control-btn accent" id="btnPairDashboard">
-                  <i class="fas fa-qrcode"></i>
-                  Pair Dashboard
-                </button>
-              </div>
-              <div id="pairingQROverlay" class="pairing-qr-overlay" style="display: none;">
-                <div class="pairing-qr-popup">
-                  <div class="pairing-qr-popup-header">
-                    <span>Scan to Pair</span>
-                    <button class="pairing-qr-close" id="btnCancelPairing">&times;</button>
-                  </div>
-                  <div id="pairingQRCode" class="pairing-qr-code"></div>
-                  <div class="pairing-qr-countdown">
-                    <span id="pairingCountdown">60s</span> remaining
-                  </div>
-                  <div id="pairingQRMessage" class="pairing-qr-message"></div>
-                </div>
-              </div>
-              <div class="form-group">
-                <button class="control-btn" id="btnTestConnection">
-                  <i class="fas fa-plug"></i>
-                  Test Connection
-                </button>
-                <span class="connection-status" id="connectionStatus"></span>
-              </div>
-            </div>
-          </div>
         </section>
 
         <!-- Memory Section -->
