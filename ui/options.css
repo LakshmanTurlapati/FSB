@@ -4988,3 +4988,60 @@ textarea.form-input {
 .pairing-qr-success {
   color: var(--success, #22c55e);
 }
+
+/* === Phase 212: Background Agents deprecation card === */
+/* DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md */
+
+.fsb-deprecation-card {
+  margin-top: 0;
+}
+
+.fsb-deprecation-headline {
+  margin: 0 0 6px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.fsb-deprecation-body {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.fsb-deprecation-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.fsb-deprecation-cta-row .control-btn {
+  text-decoration: none;
+}
+
+.fsb-deprecation-footer {
+  display: block;
+  color: var(--text-muted, #999);
+  font-size: 0.82rem;
+}
+
+.fsb-sunset-notice {
+  margin-top: 18px;
+}
+
+.fsb-sunset-notice-list {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 8px 0 14px 0;
+}
+
+.fsb-sunset-notice-list li {
+  margin: 4px 0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.fsb-sunset-notice-dismiss {
+  align-self: flex-start;
+}

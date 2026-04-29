@@ -562,140 +562,50 @@
         <!-- Background Agents Section -->
         <section class="content-section" id="background-agents">
           <div class="section-header">
-            <h2>Background Agents <span class="feature-badge beta">Beta</span></h2>
-            <p>Configure and manage scheduled automation agents that run in the background</p>
+            <h2>Background Agents</h2>
+            <p>This feature has been retired. See below for recommended successors.</p>
           </div>
 
-          <!-- Agent Stats Bar -->
-          <div class="agent-stats-bar" id="agentStatsBar">
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statTotalAgents">0</span>
-              <span class="agent-stat-label">Agents</span>
+          <!-- DEPRECATION CARD (permanent per D-05; renders in place of the agent UI body) -->
+          <div class="settings-card full-width fsb-deprecation-card">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <i class="fas fa-flag-checkered"></i>
+              </div>
+              <div class="settings-card-title">
+                <h3 class="fsb-deprecation-headline">Background agents have left the building.</h3>
+                <p class="fsb-deprecation-body">FSB stays focused on precise single-attempt browser execution. Scheduled and recurring task work is better served by tools built for it: <strong>OpenClaw</strong> for an open-source agent loop, and <strong>Claude Routines</strong> for managed long-running automations. Pick whichever fits the way you work.</p>
+              </div>
             </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statEnabledAgents">0</span>
-              <span class="agent-stat-label">Active</span>
-            </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statRunsToday">0</span>
-              <span class="agent-stat-label">Runs Today</span>
-            </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statSuccessRate">--</span>
-              <span class="agent-stat-label">Success Rate</span>
-            </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statTotalCost">$0</span>
-              <span class="agent-stat-label">Total Cost</span>
-            </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value" id="statReplayRuns">0</span>
-              <span class="agent-stat-label">Replays</span>
-            </div>
-            <div class="agent-stat">
-              <span class="agent-stat-value cost-saved" id="statCostSaved">$0</span>
-              <span class="agent-stat-label">Cost Saved</span>
+            <div class="settings-card-content">
+              <div class="fsb-deprecation-cta-row">
+                <a class="control-btn accent" href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener noreferrer">
+                  Try OpenClaw
+                </a>
+                <a class="control-btn accent" href="https://www.anthropic.com/claude/routines" target="_blank" rel="noopener noreferrer">
+                  Try Claude Routines
+                </a>
+              </div>
+              <small class="muted fsb-deprecation-footer">Retired in v0.9.45rc1 (April 2026)</small>
             </div>
           </div>
 
-          <!-- Create Agent Button -->
-          <div class="agent-actions-bar">
-            <button class="control-btn primary" id="btnCreateAgent">
-              <i class="fas fa-plus"></i>
-              Create Agent
-            </button>
-            <button class="control-btn" id="btnRefreshAgents">
-              <i class="fas fa-sync-alt"></i>
-              Refresh
-            </button>
-          </div>
-
-          <!-- Agent Creation/Edit Form (hidden by default) -->
-          <div class="agent-form-card" id="agentFormCard" style="display: none;">
-            <div class="agent-form-header">
-              <h3 id="agentFormTitle">Create New Agent</h3>
-              <button class="agent-form-close" id="btnCloseAgentForm">&times;</button>
-            </div>
-            <div class="agent-form-body">
-              <input type="hidden" id="agentFormId" value="">
-              <div class="form-group">
-                <label for="agentName">Agent Name</label>
-                <input type="text" id="agentName" class="form-input" placeholder="e.g., Price Monitor" maxlength="60">
-              </div>
-              <div class="form-group">
-                <label for="agentTask">Task Description</label>
-                <textarea id="agentTask" class="form-input" rows="3" placeholder="Describe what the agent should do..."></textarea>
-              </div>
-              <div class="form-group">
-                <label for="agentStartMode">Start Mode</label>
-                <select id="agentStartMode" class="form-select">
-                  <option value="pinned">Pinned URL</option>
-                  <option value="ai_routed">AI decides start site</option>
-                </select>
-                <div class="form-help">Use a pinned URL for deterministic runs, or let AI choose the best starting site from the task each time.</div>
-              </div>
-              <div class="form-group" id="agentTargetUrlGroup">
-                <label for="agentTargetUrl">Target URL</label>
-                <input type="url" id="agentTargetUrl" class="form-input" placeholder="https://example.com">
-                <div class="form-help">Required only for pinned URL mode.</div>
-              </div>
-              <div class="form-group">
-                <label for="agentScheduleType">Schedule Type</label>
-                <select id="agentScheduleType" class="form-select">
-                  <option value="interval">Interval (repeat every X minutes)</option>
-                  <option value="daily">Daily (at a specific time)</option>
-                  <option value="once">Once (run one time)</option>
-                </select>
-              </div>
-              <div class="form-group" id="intervalGroup">
-                <label for="agentInterval">Interval (minutes)</label>
-                <input type="number" id="agentInterval" class="form-input" min="1" max="1440" value="30" placeholder="30">
-              </div>
-              <div class="form-group" id="dailyGroup" style="display: none;">
-                <label for="agentDailyTime">Time</label>
-                <input type="time" id="agentDailyTime" class="form-input" value="09:00">
-                <label class="mt-sm">Days of Week (leave empty for every day)</label>
-                <div class="days-of-week-selector" id="agentDaysOfWeek">
-                  <label class="day-checkbox"><input type="checkbox" value="0"><span>Sun</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="1"><span>Mon</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="2"><span>Tue</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="3"><span>Wed</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="4"><span>Thu</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="5"><span>Fri</span></label>
-                  <label class="day-checkbox"><input type="checkbox" value="6"><span>Sat</span></label>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="agentMaxIterations">Max Iterations</label>
-                <input type="number" id="agentMaxIterations" class="form-input" min="1" max="50" value="15" placeholder="15">
-              </div>
-              <div class="form-group">
-                <label class="modern-toggle compact">
-                  <input type="checkbox" id="agentReplayEnabled" checked>
-                  <span class="toggle-track">
-                    <span class="toggle-thumb"></span>
-                  </span>
-                  <div class="toggle-content">
-                    <span class="toggle-label">Session Replay</span>
-                    <span class="toggle-desc">After a successful AI run, replay the same actions without AI calls (zero cost)</span>
-                  </div>
-                </label>
-              </div>
-              <div class="agent-form-actions">
-                <button class="control-btn" id="btnCancelAgent">Cancel</button>
-                <button class="control-btn primary" id="btnSaveAgent">Save Agent</button>
+          <!-- SUNSET NOTICE (one-time names list per AGENTS-03 / D-07..D-12) -->
+          <!-- ui/options.js toggles `hidden` based on bgAgents non-empty AND fsb_sunset_notice_dismissed != true -->
+          <aside id="fsbSunsetNotice" class="settings-card full-width fsb-sunset-notice" hidden>
+            <div class="settings-card-header">
+              <div class="settings-card-title">
+                <h3>Your previous agents</h3>
+                <p>Names of agents that lived on this profile, kept here so nothing feels lost. Definitions remain in chrome.storage.local['bgAgents'] (untouched).</p>
               </div>
             </div>
-          </div>
-
-          <!-- Agent List -->
-          <div class="agent-list" id="agentList">
-            <div class="agent-empty-state" id="agentEmptyState">
-              <i class="fas fa-robot"></i>
-              <p>No background agents configured yet.</p>
-              <p>Create an agent to automate tasks on a schedule.</p>
+            <div class="settings-card-content">
+              <ul id="fsbSunsetNoticeNames" class="fsb-sunset-notice-list" aria-label="Previously created background agents"></ul>
+              <button type="button" id="fsbSunsetNoticeDismiss" class="control-btn fsb-sunset-notice-dismiss">
+                Got it
+              </button>
             </div>
-          </div>
+          </aside>
 
           <!-- Server Connection (Phase 2) -->
           <div class="settings-card full-width" style="margin-top: 20px;">
