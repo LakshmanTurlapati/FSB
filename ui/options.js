@@ -4188,7 +4188,15 @@ function initializeBackgroundAgentsDeprecation() {
   try {
     chrome.storage.local.get(['bgAgents', 'fsb_sunset_notice_dismissed'], function (stored) {
       const dismissed = stored && stored.fsb_sunset_notice_dismissed === true;
-      const agents = (stored && Array.isArray(stored.bgAgents)) ? stored.bgAgents : [];
+      // Phase 212-04 (gap-closure / WR-01): bgAgents was historically written as an object map
+      // keyed by agentId (agents/agent-manager.js:86-91 -- the only writer that ever ran).
+      // Array.isArray({}) returns false, which suppressed the notice on the only profiles
+      // that matter. Accept both shapes defensively: array as-is, object map -> Object.values,
+      // anything else -> empty array.
+      const raw = stored && stored.bgAgents;
+      const agents = Array.isArray(raw)
+        ? raw
+        : (raw && typeof raw === 'object' ? Object.values(raw) : []);
       if (dismissed) return;        // D-09: never re-render after dismiss
       if (agents.length === 0) return; // D-10: skip entirely if no agents ever existed
 
