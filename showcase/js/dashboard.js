@@ -1578,7 +1578,7 @@
   function showExpiredLogin() {
     showLogin();
     if (loginMessage) {
-      loginMessage.textContent = 'Session expired. Scan QR code to reconnect.';
+      loginMessage.textContent = 'Session expired. Open the Sync tab in FSB to scan a fresh QR code.';
       loginMessage.className = 'dash-login-message expired';
       loginMessage.style.display = 'block';
     }
