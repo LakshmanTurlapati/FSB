@@ -2005,6 +2005,17 @@ var _lastDashboardTaskResultTime = 0;
 // Module-scope (not per-tab) is acceptable: only one streaming tab at a time.
 var _lastDomStreamStaleFlushCount = 0;
 
+// ============================================================================
+// Phase 213 - Sync tab runtime cache (SYNC-02)
+// Mirrors ext:remote-control-state for replay-on-attach via the
+// 'getRemoteControlState' runtime action. Updated by the
+// 'remoteControlStateChanged' push handler below. SW-lifetime only;
+// null on cold start. Per CONTEXT D-18, disconnected is the safe default.
+// Distinct from ws/ws-client.js:124 _lastRemoteControlState which serves
+// Phase 209 snapshot recovery and remains untouched.
+// ============================================================================
+let _lastRemoteControlState = null;
+
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
@@ -5070,6 +5081,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const session = activeSessions.get(sessionId);
       const alive = !!(session && session.status === 'running');
       sendResponse({ alive: alive, status: session?.status || null });
+      break;
+    }
+
+    case 'getRemoteControlState': {
+      // Phase 213 D-16: replay-on-attach for Sync tab pill.
+      // Returns the last cached ext:remote-control-state payload or a
+      // disconnected-shaped default if no broadcast has happened yet this
+      // SW lifetime. Sync tab JS uses this to populate the pill before the
+      // first push arrives.
+      const state = (_lastRemoteControlState && typeof _lastRemoteControlState === 'object')
+        ? _lastRemoteControlState
+        : { enabled: false, attached: false, tabId: null, reason: 'unknown', ownership: 'none' };
+      sendResponse({ success: true, state: state });
+      break;
+    }
+
+    case 'remoteControlStateChanged': {
+      // Phase 213 D-17 cache update path. ws/ws-client.js
+      // _broadcastRemoteControlState fires this push after every WS emit.
+      // background.js listens to its own broadcast so the cache survives
+      // when the Sync tab is closed.
+      if (request.state && typeof request.state === 'object') {
+        _lastRemoteControlState = request.state;
+      }
+      sendResponse({ success: true });
       break;
     }
 

@@ -139,6 +139,23 @@ function _broadcastRemoteControlState(wsInstance, enabled, reason, tabId) {
   if (wsInstance && typeof wsInstance.send === 'function') {
     wsInstance.send('ext:remote-control-state', state);
   }
+  // Phase 213 D-17: parallel runtime push so the Sync tab pill (and any
+  // other extension contexts) can subscribe to live state changes.
+  // Fire-and-forget; never throws. background.js listens to this push
+  // and updates its own _lastRemoteControlState cache (Phase 213 213-02).
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      chrome.runtime.sendMessage({ action: 'remoteControlStateChanged', state: state }, function () {
+        // Read lastError to suppress the "Unchecked runtime.lastError" surface
+        // when no listener is registered. Benign and expected at SW cold start.
+        var _ = chrome.runtime.lastError;
+      });
+    }
+  } catch (e) {
+    // Defensive: never let runtime push failures break ext:remote-control-state.
+    // Per Phase 211 LOG-01, route through [FSB SYNC] prefix if logging is enabled.
+    try { console.warn('[FSB SYNC] runtime push failed', e && e.message ? e.message : 'unknown'); } catch (_e) { /* ignore */ }
+  }
   return state;
 }
 
