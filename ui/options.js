@@ -502,6 +502,8 @@ function initializeSections() {
   if (hash && document.getElementById(hash)) {
     switchSection(hash);
   }
+  // Phase 213: prime the Sync pill so it has a value even if the user lands on a non-Sync section first.
+  try { initializeSyncSection(); } catch (e) { /* benign */ }
 }
 
 // Update model options based on provider
@@ -3095,6 +3097,11 @@ function initializeCredentialManager() {
     // Refresh payment vault status when switching to payments section
     if (sectionId === 'payments') {
       loadPaymentVaultStatus();
+    }
+    // Phase 213: Sync tab pill state machine (SYNC-02)
+    if (sectionId === 'sync') {
+      try { initializeSyncSection(); } catch (e) { /* benign if pill markup absent */ }
+      try { _refreshSyncPill(); } catch (e) { /* benign */ }
     }
   };
 }
@@ -5983,6 +5990,114 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initializeAgentSection, 300);
   setTimeout(initializeMemorySection, 400);
 });
+
+// ============================================================================
+// Phase 213 - Sync tab pill state machine (SYNC-02)
+// Subscribes to remoteControlStateChanged runtime push and derives pill state
+// per CONTEXT D-19. Falls through to "disconnected" gracefully if 213-02's
+// runtime action getRemoteControlState is not yet registered (dispatch-order
+// tolerant per CONTEXT D-25).
+// ============================================================================
+
+var _syncSectionInitialized = false;
+var _syncLastRemoteControlState = null; // last payload from runtime push or replay
+
+function _isPairingOverlayVisible() {
+  var overlay = document.getElementById('pairingQROverlay');
+  if (!overlay) return false;
+  // Overlay visibility toggles via inline style.display per Phase 210
+  return overlay.style.display && overlay.style.display !== 'none';
+}
+
+function _hasServerHashKey() {
+  var input = document.getElementById('serverHashKey');
+  return !!(input && input.value && input.value.trim());
+}
+
+function _wsIsOpen() {
+  // dashboardState.wsConnected is the canonical readiness flag managed by
+  // the existing WS connect/disconnect handlers; fall back to false if absent.
+  return !!(typeof dashboardState !== 'undefined' && dashboardState && dashboardState.wsConnected === true);
+}
+
+function _deriveSyncPillState(remoteControlState) {
+  // CONTEXT D-19 derivation logic:
+  //   If remoteControlState.enabled === true -> remote-active
+  //   Else if WS open AND serverHashKey set -> connected
+  //   Else if pairing overlay visible -> connecting
+  //   Else -> disconnected
+  if (remoteControlState && remoteControlState.enabled === true) {
+    return 'remote-active';
+  }
+  if (_wsIsOpen() && _hasServerHashKey()) {
+    return 'connected';
+  }
+  if (_isPairingOverlayVisible()) {
+    return 'connecting';
+  }
+  return 'disconnected';
+}
+
+var _SYNC_PILL_LABELS = {
+  'connected': 'Connected',
+  'connecting': 'Connecting...',
+  'disconnected': 'Disconnected',
+  'remote-active': 'Remote control active'
+};
+
+function _applySyncPillState(state) {
+  var pill = document.getElementById('syncStatusPill');
+  if (!pill) return;
+  var key = (state === 'connected' || state === 'connecting' || state === 'disconnected' || state === 'remote-active')
+    ? state
+    : 'disconnected';
+  pill.setAttribute('data-state', key);
+  var labelEl = pill.querySelector('.label');
+  if (labelEl) {
+    labelEl.textContent = _SYNC_PILL_LABELS[key];
+  }
+}
+
+function _refreshSyncPill() {
+  _applySyncPillState(_deriveSyncPillState(_syncLastRemoteControlState));
+}
+
+function initializeSyncSection() {
+  if (_syncSectionInitialized) return;
+  _syncSectionInitialized = true;
+
+  // Replay-on-attach: ask background.js for the last cached ext:remote-control-state.
+  // If 213-02 has not registered the action yet, chrome.runtime.sendMessage will
+  // surface chrome.runtime.lastError and the response will be undefined -- we just
+  // fall through to the "unknown -> disconnected" default per CONTEXT D-25.
+  try {
+    chrome.runtime.sendMessage({ action: 'getRemoteControlState' }, function (response) {
+      var lastErr = chrome.runtime.lastError; // suppress lastError surface noise
+      if (lastErr) {
+        // Action not registered yet (213-02 dispatch-order tolerance). Stay disconnected.
+        _syncLastRemoteControlState = null;
+      } else if (response && typeof response === 'object') {
+        // Accept either { state: {...} } or the bare payload {...}
+        _syncLastRemoteControlState = response.state || response;
+      }
+      _refreshSyncPill();
+    });
+  } catch (e) {
+    // chrome.runtime unavailable in this context; default to disconnected
+    _refreshSyncPill();
+  }
+
+  // Live updates via runtime push from ws/ws-client.js _broadcastRemoteControlState (213-02)
+  if (chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.addListener) {
+    chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+      if (!request || request.action !== 'remoteControlStateChanged') return;
+      if (request.state && typeof request.state === 'object') {
+        _syncLastRemoteControlState = request.state;
+        _refreshSyncPill();
+      }
+    });
+  }
+}
 
 
 // Export for potential use by other scripts
