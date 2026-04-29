@@ -188,6 +188,33 @@ const emojiTargets = [
   }
 }
 
+// ---- Section 7: Gap 1 / WR-01 -- bgAgents storage-shape coercion handles BOTH legacy object-map and defensive array shapes ----
+
+{
+  const opts = read('ui/options.js');
+  const body = extractFunctionBody(opts, 'function initializeBackgroundAgentsDeprecation');
+  if (!body) {
+    fail('Gap1 could not extract initializeBackgroundAgentsDeprecation body for storage-shape check');
+  } else {
+    // Canonical legacy shape (the only writer that ever ran wrote { agentId: agent } map):
+    // the renderer MUST handle it via Object.values.
+    const handlesObjectMap = body.indexOf('Object.values(') !== -1;
+    // Defensive: the renderer MUST also handle a plain array shape.
+    const handlesArray = body.indexOf('Array.isArray(') !== -1;
+    // Regression guard: the buggy single-branch Array.isArray(stored.bgAgents) literal MUST be gone.
+    const hasBuggyOldBranch = body.indexOf('Array.isArray(stored.bgAgents)') !== -1;
+
+    if (handlesObjectMap && handlesArray && !hasBuggyOldBranch) {
+      pass('Gap1 / WR-01 storage-shape coercion handles object-map (Object.values) AND array (Array.isArray) shapes; old single-branch literal removed');
+    } else {
+      fail(
+        'Gap1 / WR-01 storage-shape coercion incomplete',
+        'handlesObjectMap=' + handlesObjectMap + ' handlesArray=' + handlesArray + ' hasBuggyOldBranch=' + hasBuggyOldBranch
+      );
+    }
+  }
+}
+
 // ---- Result ----
 
 if (failures === 0) {
