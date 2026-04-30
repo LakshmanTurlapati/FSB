@@ -34,6 +34,29 @@
 const TOOL_REGISTRY = [
 
   // =========================================================================
+  // POWER TOOL (1 tool)
+  // =========================================================================
+
+  {
+    name: 'execute_js',
+    description: 'Run JavaScript directly in the active page. The most powerful tool in FSB\'s kit -- full DOM access in the page context lets you do almost anything: read structured content, mutate state, query computed styles, strip cross-origin iframes for inspection, drive complex widgets, scrape JSON from window globals, capture a DOM screenshot via injected html2canvas, or script multi-step interactions in one shot. Code runs as a function body -- use `return` to send values back (results are stringified). Async work splits across calls: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Reach for execute_js whenever the standard tools are too rigid or the data you need isn\'t exposed by read_page / get_dom_snapshot. Related: read_page, get_dom_snapshot, navigate.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'JavaScript code to execute in the page (use `return` to send a value back, e.g., "return document.title;" or "document.querySelector(\'button\').click()")'
+        }
+      },
+      required: ['code']
+    },
+    _route: 'background',
+    _readOnly: false,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  // =========================================================================
   // NAVIGATION TOOLS (5 tools)
   // =========================================================================
 
@@ -809,27 +832,8 @@ const TOOL_REGISTRY = [
   },
 
   {
-    name: 'execute_js',
-    description: 'Run JavaScript code directly in the page. Use as a LAST RESORT when standard tools (click, type_text, select_option) fail due to overlays, zero-dimension elements, or other DOM issues. The code runs in the page context with full DOM access. Return values are captured as strings. When to use: after a standard tool returns "obscured", "zero dimensions", or similar errors. Related: click (try first), type_text (try first), get_attribute (read values without JS).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description: 'JavaScript code to execute in the page (e.g., "document.querySelector(\'button\').click()" or "document.title")'
-        }
-      },
-      required: ['code']
-    },
-    _route: 'background',
-    _readOnly: false,
-    _contentVerb: null,
-    _cdpVerb: null
-  },
-
-  {
     name: 'report_progress',
-    description: 'Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
+    description: 'Bonus pairing with start_visual_session: sends real-time narration to the overlay using the same session_token. Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
     inputSchema: {
       type: 'object',
       properties: {
