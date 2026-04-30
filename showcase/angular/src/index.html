@@ -5,9 +5,12 @@
   <title>FSB</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Prerender-safe theme bootstrap: guard requires `typeof localStorage !== 'undefined'` (PITFALLS.md P1, D-20) -->
   <script>
     (function initShowcaseTheme() {
-      const saved = localStorage.getItem('fsb-showcase-theme');
+      if (typeof localStorage === 'undefined') return;
+      if (typeof localStorage.getItem !== 'function') return;
+      var saved = localStorage.getItem('fsb-showcase-theme');
       if (saved === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
       }
