@@ -8,6 +8,7 @@
     "prebuild": "node scripts/build-crawler-files.mjs",
     "build": "ng build",
     "test": "ng test",
+    "smoke:crawler": "node scripts/smoke-crawler.mjs",
     "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs"
   },
   "dependencies": {
