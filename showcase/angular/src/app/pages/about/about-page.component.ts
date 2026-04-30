@@ -1,4 +1,10 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Renderer2, inject } from '@angular/core';
+import { Title, Meta } from '@angular/platform-browser';
+import { DOCUMENT } from '@angular/common';
+
+const HOST = 'https://full-selfbrowsing.com';
+const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
+const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
 
 type ReplayMessageType = 'user' | 'status' | 'ai';
 
@@ -31,13 +37,50 @@ interface ReplayTimelineStep {
   templateUrl: './about-page.component.html',
   styleUrl: './about-page.component.scss',
 })
-export class AboutPageComponent implements AfterViewInit, OnDestroy {
+export class AboutPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly zone = inject(NgZone);
+  private readonly title = inject(Title);
+  private readonly meta = inject(Meta);
+  private readonly renderer = inject(Renderer2);
+  private readonly doc = inject(DOCUMENT);
 
   private readonly timeouts = new Set<number>();
   private readonly observers = new Set<IntersectionObserver>();
   private destroyed = false;
+
+  ngOnInit(): void {
+    const url = `${HOST}/about`;
+    const t = 'FSB \u2014 About';
+    const d = 'Watch FSB drive Google, search Amazon, and book travel autonomously. See the open-source AI browser agent in action \u2014 your browser, your keys, your data.';
+    this.applyMeta(t, d, url);
+  }
+
+  private applyMeta(t: string, d: string, url: string): void {
+    this.title.setTitle(t);
+    this.meta.updateTag({ name: 'description', content: d });
+    this.meta.updateTag({ property: 'og:title', content: t });
+    this.meta.updateTag({ property: 'og:description', content: d });
+    this.meta.updateTag({ property: 'og:url', content: url });
+    this.meta.updateTag({ property: 'og:type', content: 'website' });
+    this.meta.updateTag({ property: 'og:image', content: OG_IMAGE });
+    this.meta.updateTag({ property: 'og:site_name', content: SITE_NAME });
+    this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+    this.meta.updateTag({ name: 'twitter:title', content: t });
+    this.meta.updateTag({ name: 'twitter:description', content: d });
+    this.meta.updateTag({ name: 'twitter:image', content: OG_IMAGE });
+    this.upsertCanonical(url);
+  }
+
+  private upsertCanonical(href: string): void {
+    let link = this.doc.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!link) {
+      link = this.renderer.createElement('link') as HTMLLinkElement;
+      this.renderer.setAttribute(link, 'rel', 'canonical');
+      this.renderer.appendChild(this.doc.head, link);
+    }
+    this.renderer.setAttribute(link, 'href', href);
+  }
 
   ngAfterViewInit(): void {
     this.zone.runOutsideAngular(() => {
