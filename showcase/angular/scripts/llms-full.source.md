@@ -1,0 +1,85 @@
+# FSB (Full Self-Browsing)
+
+## 1. Project Description
+
+FSB (Full Self-Browsing) is an open-source Chrome extension that automates the browser through natural language. You describe a task in plain English; FSB plans the clicks, types, and navigation to complete it. The extension runs entirely in your browser with your own API keys -- no backend, no telemetry, no data collection. Multi-model AI (xAI Grok, OpenAI, Anthropic Claude, Google Gemini, local providers), 50+ browser actions, 142+ site-specific guides. MIT-licensed.
+
+FSB exists because the gap between "I want the browser to do X" and "I can write a deterministic script to do X" is wide and getting wider. Modern web apps are dynamic, login-gated, and visually rich; brittle selectors and recorded macros break the moment a page reflows. FSB closes that gap by letting an LLM read the live DOM, plan an action sequence against the user's actual logged-in browser session, execute each step with verification, and recover when something shifts. The user keeps full visibility through an orange-glow overlay on every targeted element and can pause, intervene, or hand off at any point.
+
+The audience is developers, power users, and researchers who want browser automation without giving a third party their cookies, their API keys, or their attention. FSB is local-first by construction: the extension is the runtime, the user's browser is the execution surface, and the user's API keys live encrypted in Chrome's local storage and never leave the machine. There is no FSB cloud, no FSB account, no FSB telemetry. Each task is a private transaction between the user, the local extension, and the model provider the user chose.
+
+The bring-your-own-key model is deliberate. The user picks the model -- frontier reasoning model for hard tasks, fast cheap model for repetitive work, local model for fully air-gapped operation -- and pays the model provider directly for token usage. FSB takes no cut, sees no payments, and brokers no API quotas. The trade-off is setup friction (you need at least one provider key) in exchange for full control over cost, privacy, and model selection.
+
+## 2. Capabilities
+
+### Action categories
+- Navigation: navigate, searchGoogle, refresh, goBack, goForward
+- Element interaction: click, rightClick, doubleClick, hover, focus, blur
+- Text and input: type, clearInput, selectText, pressEnter, keyPress
+- Form controls: selectOption, toggleCheckbox
+- Information gathering: getText, getAttribute, setAttribute
+- Advanced: waitForElement, moveMouse, scroll, waitForDOMStable, detectLoadingState
+
+### Supported AI providers
+- xAI: grok-4-1-fast (recommended), grok-4-1, grok-4, grok-code-fast-1, grok-3, grok-3-mini, grok-2-vision
+- OpenAI: GPT-4o, ChatGPT-4o Latest, GPT-4o Mini, GPT-4 Turbo
+- Anthropic: Claude Sonnet 4.5, Claude Haiku 4.5, Claude Opus 4.1
+- Google: Gemini 2.5 Flash, Gemini 2.5 Pro, Gemini 2.0 Flash (free experimental)
+- Custom: any OpenAI-compatible endpoint
+
+### Install posture
+- Chrome 88+ (Manifest V3); also runs on Chromium-based browsers (Edge, Brave)
+- Single-user, single-machine: extension is local; no shared infrastructure
+- BYO API key: stored encrypted in Chrome local storage; never leaves the browser
+
+## 3. Install Instructions
+
+1. Clone the repository: `git clone https://github.com/lakshmanturlapati/FSB.git`
+2. Open `chrome://extensions/` in Chrome.
+3. Enable Developer Mode (top-right toggle).
+4. Click "Load unpacked" and select the cloned FSB directory.
+5. Click the FSB icon in the toolbar; open Settings; paste an API key for at least one supported provider.
+6. Pin the extension and use the popup or side panel to issue natural-language tasks.
+
+No build step is required for end users -- the extension ships as plain JavaScript per Manifest V3 conventions. Developers contributing to FSB do not need npm to install or run the extension itself; npm is only used by the showcase site under `showcase/angular/`.
+
+The extension surfaces three operator UIs that share state: the popup (quick chat-style task entry from the toolbar), the side panel (persistent task surface that survives navigation), and the options page (settings, analytics, memory inspection, site-guide browser). Pick whichever matches the workflow; all three drive the same automation engine.
+
+## 4. Key Concepts
+
+### Uniqueness-scored selectors
+FSB generates multiple CSS-selector candidates per element and ranks them by uniqueness (data-testid > aria-label > unique class > nth-child fallback). The top-ranked selector is tried first; alternates are used if the DOM has shifted between plan and execution. This is the load-bearing mechanism for reliability across DOM mutations: when a page reflows between the model's snapshot and the action's execution, FSB does not fail-fast on a stale selector -- it walks the candidate list until one resolves to a unique element matching the original intent.
+
+### Visual feedback (orange glow)
+When FSB acts on an element, the page briefly outlines that element in orange. This gives the user immediate visibility into what FSB is doing and lets them intervene by clicking pause if a mistake is in progress. The overlay renders inside a Shadow DOM so page CSS cannot interfere with the highlight, and it tears down cleanly after every action so the page DOM is left exactly as the user expects.
+
+### Action verification
+After every action, FSB checks the DOM for expected post-conditions (URL change, element disappearance, text appearance). If verification fails, FSB does not silently continue -- it surfaces the failure and lets the planner choose between retry, alternate selector, or stop. This is the second load-bearing reliability mechanism: even when a click "succeeded" mechanically, FSB only counts the action as complete when the page state reflects the intended outcome.
+
+### MCP server surface
+FSB exposes its tooling through a Model Context Protocol (MCP) server at `server/`. External AI clients (Claude Desktop, custom MCP clients) can drive FSB by speaking MCP, which lets you orchestrate browser tasks from a chat client without writing extension code. The MCP server is published to npm as `fsb-mcp-server` and runs as `npx -y fsb-mcp-server`; it pairs with the running extension over a local WebSocket bridge.
+
+### Site guides and memory
+FSB ships 142+ hand-curated site-specific guides (Notion, Google Sheets, Workday, Airtable, Trello, Greenhouse, Lever, and more) that prepend domain-specific strategy hints to the planning prompt when the user is on a known site. The extension also accumulates per-site memory across sessions: successful action sequences become procedural memory, page-structure observations become semantic memory, and consolidated reports become episodic memory. Memory and guides together let FSB get faster and more reliable on sites it has seen before without ever sending data outside the user's machine.
+
+## 5. Comparison
+
+These are factual capability summaries, not endorsements. FSB has overlap and differentiation with each project; the right tool depends on what you need.
+
+### Browser Use
+Browser Use is an open-source library and CLI for headless browser automation driven by LLMs. It runs in Node.js and Python contexts and targets server-side automation pipelines. Overlap with FSB: natural-language task execution against a browser, action-verification loops, multi-model support. Difference from FSB: Browser Use is a server-side library, not a Chrome extension; it operates a headless Chromium instance the user does not see, while FSB drives the user's actual browser session with the user's logged-in cookies. If you are building a backend automation pipeline, Browser Use fits that shape; if you are sitting at your own browser and want to delegate clicks and forms inside that session, FSB fits that shape.
+
+### Project Mariner
+Project Mariner is Google's research agent for autonomous browser tasks (announced late 2024). Overlap with FSB: same problem statement -- "AI plans clicks and types to complete a goal in a real browser." Difference from FSB: Mariner is a Google research preview tied to Google infrastructure and Gemini, not generally available, not open source. FSB is open source, BYO key, runs locally, and supports multiple model providers. Mariner is the closest conceptual neighbor in terms of UX framing; FSB is the open, multi-provider, runs-on-your-machine version of that idea.
+
+### Operator
+Operator is OpenAI's agentic browser product (2025). Overlap with FSB: end-user-facing browser automation driven by an LLM. Difference from FSB: Operator runs in OpenAI's hosted environment with its own browser instance; the user does not control which model, browser, or storage is used. FSB runs in the user's own browser with the user's own keys and storage; the user owns the session, the cookies, and the data. Operator is a managed service; FSB is a local extension. The pricing models differ accordingly -- Operator bundles model usage into a subscription, FSB charges nothing and lets the user pay any model provider directly.
+
+## 6. Links
+
+- Home: https://full-selfbrowsing.com
+- About: https://full-selfbrowsing.com/about
+- Support: https://full-selfbrowsing.com/support
+- Privacy: https://full-selfbrowsing.com/privacy
+- GitHub: https://github.com/lakshmanturlapati/FSB
+- llms.txt: https://full-selfbrowsing.com/llms.txt
