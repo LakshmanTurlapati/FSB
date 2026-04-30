@@ -8,7 +8,27 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
+## Current Milestone: v0.9.46 Site Discoverability (SEO + GEO)
+
+**Goal:** Make `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the Angular SPA marketing routes and shipping LLM/crawler-aware root files.
+
+**Target features:**
+- Static prerender of marketing routes (`/`, `/about`, `/privacy`, `/support`); `/dashboard` stays SPA
+- Per-route SEO/AEO metadata via Angular `Title`/`Meta` services (title, description, canonical, OG, Twitter card)
+- JSON-LD structured data (`Organization` + `SoftwareApplication`) embedded in prerendered HTML
+- AI-crawler root files at site root: `robots.txt` (explicit Allow for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.), `sitemap.xml`, `llms.txt`, `llms-full.txt`
+- Express SPA-fallback adjustment so per-route prerendered HTML is served before the index.html catch-all
+
+**Why now:** Verified live, `full-selfbrowsing.com` returns only the literal string "FSB" to non-JS crawlers -- empty `<app-root>`. AI search bots (GPTBot/ClaudeBot/PerplexityBot) do not execute JavaScript; the site is invisible to them today. Prerender + crawler files unblocks every downstream discoverability play.
+
+**Out of scope (deferred):**
+- FAQ page + `FAQPage` JSON-LD
+- Comparison pages (`/vs-browser-use`, `/vs-mariner`, `/vs-stagehand`, `/vs-browseros`)
+- Search Console / Bing Webmaster registration
+- Off-page push (Show HN, Reddit launch, awesome-list PRs, YouTube demo)
+- Angular Universal full SSR (overkill for static marketing pages)
+
+## Previous Milestone: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
 
 **Goal:** Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control, gracefully retire background agents in favor of OpenClaw / Claude Routines, and harden the streaming pipeline the dashboard relies on.
 
@@ -415,4 +435,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after Phase 212 completion (Background Agents Sunset)*
+*Last updated: 2026-04-30 -- milestone v0.9.46 (Site Discoverability) started*

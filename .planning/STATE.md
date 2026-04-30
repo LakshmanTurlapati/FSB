@@ -1,39 +1,39 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.45
-milestone_name: milestone
-status: executing
-last_updated: "2026-04-29T16:36:02.104Z"
-last_activity: 2026-04-29
+milestone: v0.9.46
+milestone_name: Site Discoverability (SEO + GEO)
+status: defining-requirements
+last_updated: "2026-04-30T00:00:00.000Z"
+last_activity: 2026-04-30
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-28)
+See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 213 — Sync Tab Build
+**Current focus:** Milestone v0.9.46 -- defining requirements (SEO + GEO discoverability)
 
 ## Current Position
 
-Phase: 213
-Plan: Not started
-Status: Executing Phase 213
-Last activity: 2026-04-29
+Phase: Not started (defining requirements)
+Plan: --
+Status: Defining requirements
+Last activity: 2026-04-30 -- Milestone v0.9.46 started
 
 ## Performance Metrics
 
-- Phases shipped this milestone: 2/5 (Phase 209, Phase 210)
-- Plans shipped this milestone: 2/2 known (Phase 211/212/213 plan counts TBD)
-- Active requirements remaining: 22 (3 SYNC + 6 AGENTS + 4 STREAM + 3 WS + 4 LOG + 2 already validated)
+- Phases shipped this milestone: 0/0 (roadmap pending)
+- Plans shipped this milestone: 0/0
+- Active requirements: TBD (defined in REQUIREMENTS.md after research)
 
 ## Accumulated Context
 
@@ -42,38 +42,31 @@ Last activity: 2026-04-29
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v0.9.45rc1]: Phase ordering is 211 (stream/log) -> 212 (agents sunset) -> 213 (Sync tab) by isolation -> dependency direction. Phase 211 is parallel-safe across files; Phase 213 depends on Phase 212's UI surgery.
-- [v0.9.45rc1]: Zero new dependencies. `lz-string@1.5.0` and `qrcode-generator@2.0.4` are already vendored; the WS compression "asymmetry" is a five-line addition to the inbound `onmessage` handler.
-- [v0.9.45rc1]: Comment, do not delete. Agent code preserved with `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.` annotation. `chrome.storage.local['bgAgents']` is preserved (no proactive cleanup) -- accepted risk per AGENTS-FUTURE-01.
-- [v0.9.45rc1]: Move, do not duplicate. Server Sync card and pairing overlay are RELOCATED into `#sync`; IDs unchanged so the Phase 210 controller continues to work after the section moves.
-- [v0.9.45rc1]: Use `chrome.alarms` for SW-side watchdogs, never long `setInterval`. Same pattern as `ws/mcp-bridge-client.js:205`. Preserve the `MCP_RECONNECT_ALARM` early-return at `background.js:12533-12540`.
-- [v0.9.45rc1]: Ext:dom-mutations payload shape MUST NOT change. Stale counter surfaces in a NEW `staleFlushCount` field on `ext:stream-state` -- additive only.
-- [v0.9.45rc1]: Background agents are being abandoned -- OpenClaw and Claude Routines handle this better; FSB will not reinvent the wheel
-- [v0.9.45rc1]: Remote control + QR pairing UI consolidate into a new top-level Sync tab in the control panel
+- [v0.9.46]: Static prerender via Angular 19 `@angular/build:application` (`prerender: true`). No SSR/Universal -- overkill for a marketing showcase. Marketing routes prerender; `/dashboard` stays SPA (interactive runtime state).
+- [v0.9.46]: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) do NOT execute JavaScript -- prerender is the load-bearing fix. Verified live: `curl -A GPTBot full-selfbrowsing.com` returns only the literal "FSB".
+- [v0.9.46]: Root crawler files dropped via `showcase/angular/public/` (already globbed to dist root by `angular.json`).
+- [v0.9.46]: Express SPA fallback at `server/server.js:110-117` will try per-route prerendered HTML before the index.html catch-all.
+- [v0.9.45rc1]: Phase ordering is 211 (stream/log) -> 212 (agents sunset) -> 213 (Sync tab) by isolation -> dependency direction.
+- [v0.9.45rc1]: Comment, do not delete. Agent code preserved with `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.` annotation.
 - [v0.9.40]: All agent loop exit paths now finalize properly with structured termination reasons
 - [v0.9.36]: MCP visual sessions use explicit start/end tools with trusted client labels
 - [v0.9.35]: MCP reliability first -- bridge lifecycle, diagnostics, installer parity before new features
-- [Phase 211]: Phase 211-01 closed WS compression asymmetry: inbound _lz decoder mirrors dashboard at ws-client.js:515-549, decompress-failed/decompress-unavailable categories route through recordFSBTransportFailure (D-17), WS-03 contract documented at outbound site
-- [Phase 211]: Phase 211-02 closed DOM streaming hardening: two-tier watchdog (5s setTimeout content-script + 1min chrome.alarms SW), TreeWalker + Map<nid, top> pre-pass collapses N forced layouts into 1, node-level subtree cuts under 80% RELAY_PER_MESSAGE_LIMIT_BYTES cap with missingDescendants sentinel, staleFlushCount surfaced additively on ext:stream-state via cs envelope -> SW cache -> ws-client wiring chain (D-14 ext:dom-mutations shape unchanged); 50k-node fixture + perf test wired into npm test
-- [Phase 211]: Phase 211 Plan 03 closed diagnostic logging refactor: utils/redactForLog.js redacts URLs to origin only, Errors without stack, strings to {kind, length}; utils/diagnostics-ring-buffer.js FIFO 100 at chrome.storage.local.fsb_diagnostics_ring with 6-field defensive whitelist; rateLimitedWarn one-per-(prefix, category)-per-10s with suppressed-N rollup; 13 silent catches refactored across content/dom-stream.js (9), content/lifecycle.js (3 SPA-navigation downgraded to debug+ring per D-10), background.js (1 config.getAll); 14 extractAndStoreMemories fire-and-forget preserved verbatim; chrome.runtime.onMessage exportDiagnostics handler ready for Phase 213 Sync tab
 
 ### Pending Todos
 
-- Plan Phase 211 (Stream Reliability & Diagnostic Logging) -- maximally isolated, parallel-safe across `ws/ws-client.js`, `content/dom-stream.js`, dialog/message-delivery paths.
-- Plan Phase 212 (Background Agents Sunset) -- gate constant + alarm path BEFORE UI commenting; preserve `MCP_RECONNECT_ALARM` early-return.
-- Plan Phase 213 (Sync Tab Build) -- depends on Phase 212's UI surgery; HTML structure + JS wiring as a single atomic commit.
-- Open question for Phase 211 planning: stale-counter reset boundary -- ROADMAP fixes this on successful flush per STREAM-02; dashboard-ack semantics deferred to STREAM-FUTURE-01.
-- Open question for Phase 212 planning: `mcp-server/src/tools/visual-session.ts.bak-openclaw-crab` exists -- prior aborted sunset artifact; one-line check whether to leave or remove.
-- Phase 209 has 7 human_needed UAT items (live CDP click/keyboard/scroll delivery, extension-side visual state, runtime tab-id resolution) -- accepted debt for rc1, address ad-hoc once Sync tab lands.
-- Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
+- Run 4 parallel researchers (Stack, Features, Architecture, Pitfalls) for v0.9.46.
+- Synthesize research into SUMMARY.md.
+- Define REQUIREMENTS.md by category (Prerender, Metadata, JSON-LD, Crawler files, Server fallback).
+- Spawn roadmapper starting from Phase 215.
 
 ### Blockers/Concerns
 
-- Angular 19 EOL is 2026-05-19 (~3 weeks after this milestone target). Out of scope for v0.9.45rc1; explicit milestone-after-next deadline tracked in PROJECT.md.
-- Phase 209 broadcast contract reliability across SW wake is a smoke-test concern for Phase 213 -- if the Sync pill lies after SW wake, the UX regresses below the existing passive `#connectionStatus` text. Mitigation: replay-on-attach via `getRemoteControlState`.
+- Angular 19 EOL is 2026-05-19. v0.9.46 is small enough to ship under Angular 19; future Angular 20 upgrade tracked separately.
+- `/dashboard` route inlines runtime state -- must be excluded from the prerender route list to avoid baking transient state into static HTML.
+- Express SPA fallback rewrite must preserve the existing `/dashboard` SPA behavior while serving `/about/index.html`, `/privacy/index.html`, `/support/index.html` directly.
 
 ## Session Continuity
 
-Last session ended with: Roadmap defined for v0.9.45rc1. Phases 209 and 210 already shipped (counted toward this milestone). Phases 211, 212, 213 are planned but not yet decomposed into plans.
+Last session ended with: Milestone v0.9.46 (Site Discoverability) summary confirmed. Research first selected.
 
-Next session should: Run `/gsd-plan-phase 211` to decompose Phase 211 into plans (Stream Reliability & Diagnostic Logging is the recommended starting point because it is maximally isolated and parallel-safe across files).
+Next session should: 4 parallel gsd-project-researcher agents (Stack, Features, Architecture, Pitfalls), then synthesizer, then requirements scoping, then roadmap from Phase 215.
