@@ -50,7 +50,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 215. Prerender Foundation, Per-Route Metadata & Structured Data | 0/0 | Not started | -- |
+| 215. Prerender Foundation, Per-Route Metadata & Structured Data | 3/3 | Complete    | 2026-04-30 |
 | 216. Crawler Root Files, Express Wiring & Production Validation | 0/0 | Not started | -- |
 
 ## Backlog
