@@ -33,7 +33,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
   4. The `/dashboard` route, when reached at runtime in a browser, sets `<meta name="robots" content="noindex, nofollow">` via Angular's `Meta` service so search engines that JS-render the page do not index it
   5. The inline theme bootstrap IIFE in `showcase/angular/src/index.html` (lines 8-15) is wrapped in a `typeof localStorage !== 'undefined'` guard so the prerender environment does not throw `ReferenceError: localStorage is not defined`
 **Plans:** 5 plans
-  - [ ] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
+  - [x] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
   - [ ] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
   - [ ] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
   - [ ] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
@@ -61,7 +61,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 215. Prerender Foundation, Per-Route Metadata & Structured Data | 3/3 | Complete    | 2026-04-30 |
-| 216. Crawler Root Files, Express Wiring & Production Validation | 0/5 | Planning    | -- |
+| 216. Crawler Root Files, Express Wiring & Production Validation | 1/5 | In Progress|  |
 
 ## Backlog
 

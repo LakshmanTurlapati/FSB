@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.46
 milestone_name: deferred
-status: planning
-last_updated: "2026-04-30T18:25:41.424Z"
+status: executing
+last_updated: "2026-04-30T20:55:53.172Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 8
+  completed_plans: 4
+  percent: 50
 ---
 
 # Project State
@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Milestone v0.9.46 -- roadmap created (2 phases, Phase 215 + Phase 216), ready to plan Phase 215
+**Current focus:** Phase 216 — Crawler Root Files, Express Wiring & Production Validation
 
 ## Current Position
 
-Phase: 216
-Plan: Not started
-Status: Ready to plan Phase 215
+Phase: 216 (Crawler Root Files, Express Wiring & Production Validation) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-04-30
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ Recent decisions affecting current work:
 - [v0.9.46]: Express SPA fallback at `server/server.js:110-117` will try per-route prerendered HTML before the index.html catch-all; `/dashboard` is the only whitelisted SPA-only route in the patched fallback.
 - [v0.9.45rc1]: Phase ordering was 211 -> 212 -> 213 by isolation -> dependency direction (archived).
 - [v0.9.45rc1]: Comment, do not delete. Agent code preserved with deprecation annotation (archived).
+- [Phase 216]: robots.txt is hand-authored per D-08; llms.txt opens with verbatim D-01 paragraph (no paraphrase); llms-full.source.md uses six D-04 sections with neutral comparison tone; ASCII-only across all three
 
 ### Pending Todos
 
