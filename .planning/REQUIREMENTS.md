@@ -44,9 +44,9 @@ None. v0.9.46 is a greenfield discoverability milestone -- no prior phase landed
 
 ### Express Server Wiring (SRV)
 
-- [ ] **SRV-01**: The Express SPA-fallback at `server/server.js:111-117` is replaced with `express.static({ extensions: ['html'] })` semantics (or an equivalent route-aware lookup that prefers `path.join(staticPath, req.path, 'index.html')` before falling back to root `index.html`) so that requests for `/about`, `/privacy`, `/support` return their prerendered route-specific HTML, not the root index
-- [ ] **SRV-02**: The `/dashboard` route preserves its existing SPA behavior -- the server falls back to the root `index.html` for `/dashboard` only (whitelisted in the patched fallback), so the interactive runtime continues to bootstrap from the SPA shell as it does today
-- [ ] **SRV-03**: `*.txt` files (`robots.txt`, `llms.txt`, `llms-full.txt`) and `*.xml` files (`sitemap.xml`) are served by `express.static` with `Content-Type` set correctly (`text/plain; charset=utf-8` and `application/xml; charset=utf-8` respectively) and `Cache-Control: public, max-age=3600`; no SPA-fallback shadowing
+- [x] **SRV-01**: The Express SPA-fallback at `server/server.js:111-117` is replaced with `express.static({ extensions: ['html'] })` semantics (or an equivalent route-aware lookup that prefers `path.join(staticPath, req.path, 'index.html')` before falling back to root `index.html`) so that requests for `/about`, `/privacy`, `/support` return their prerendered route-specific HTML, not the root index
+- [x] **SRV-02**: The `/dashboard` route preserves its existing SPA behavior -- the server falls back to the root `index.html` for `/dashboard` only (whitelisted in the patched fallback), so the interactive runtime continues to bootstrap from the SPA shell as it does today
+- [x] **SRV-03**: `*.txt` files (`robots.txt`, `llms.txt`, `llms-full.txt`) and `*.xml` files (`sitemap.xml`) are served by `express.static` with `Content-Type` set correctly (`text/plain; charset=utf-8` and `application/xml; charset=utf-8` respectively) and `Cache-Control: public, max-age=3600`; no SPA-fallback shadowing
 
 ### Production Validation Smoke (SMOKE)
 

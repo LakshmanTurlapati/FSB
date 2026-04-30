@@ -34,8 +34,8 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
   5. The inline theme bootstrap IIFE in `showcase/angular/src/index.html` (lines 8-15) is wrapped in a `typeof localStorage !== 'undefined'` guard so the prerender environment does not throw `ReferenceError: localStorage is not defined`
 **Plans:** 5 plans
   - [x] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
-  - [ ] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
-  - [ ] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
+  - [x] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
+  - [x] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
   - [ ] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
   - [ ] 216-05-PLAN.md -- HUMAN-UAT scaffold for Search Console + Rich Results (LD-03 + SMOKE-04)
 
@@ -50,7 +50,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
   4. Every `<loc>` in `sitemap.xml` resolves to HTTP 200 prerendered HTML when curled with a non-JS user agent; the `prebuild` npm script regenerates `sitemap.xml` `<lastmod>` and `llms-full.txt` content at build time with zero new npm dependencies
   5. Google's Rich Results Test (https://search.google.com/test/rich-results) on the deployed home URL detects exactly one `Organization` and exactly one `SoftwareApplication` block with zero errors and zero warnings; Search Console "Test live URL" passes for `/`, `/about`, `/privacy`, `/support` (rendered HTML matches prerendered HTML; no `noindex` leaks; no JavaScript-only content)
 **Plans:** 5 plans
-  - [ ] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
+  - [x] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
   - [ ] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
   - [ ] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
   - [ ] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
@@ -61,7 +61,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 215. Prerender Foundation, Per-Route Metadata & Structured Data | 3/3 | Complete    | 2026-04-30 |
-| 216. Crawler Root Files, Express Wiring & Production Validation | 1/5 | In Progress|  |
+| 216. Crawler Root Files, Express Wiring & Production Validation | 3/5 | In Progress|  |
 
 ## Backlog
 
