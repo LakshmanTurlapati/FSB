@@ -55,7 +55,11 @@
             "security": {
               "allowedHosts": []
             },
-            "prerender": true,
+            "outputMode": "static",
+            "prerender": {
+              "discoverRoutes": false,
+              "routesFile": "prerender-routes.txt"
+            },
             "ssr": {
               "entry": "src/server.ts"
             }
