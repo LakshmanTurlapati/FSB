@@ -1,4 +1,5 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, inject } from '@angular/core';
+import { Meta } from '@angular/platform-browser';
 
 /* Global CDN libraries loaded via script tags in index.html */
 declare const Html5Qrcode: any;
@@ -69,9 +70,14 @@ interface PreviewOverlayIdentity {
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss',
 })
-export class DashboardPageComponent implements AfterViewInit, OnDestroy {
+export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly zone = inject(NgZone);
+  private readonly meta = inject(Meta);
+
+  ngOnInit(): void {
+    this.meta.updateTag({ name: 'robots', content: 'noindex, nofollow' });
+  }
 
   // ---- Constants ----
   private readonly API_BASE = '';
