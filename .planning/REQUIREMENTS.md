@@ -49,6 +49,14 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 - [x] **LOG-03**: Benign SPA-navigation `.catch(() => {})` (e.g. `content/lifecycle.js:462,472,480`) downgrade to `automationLogger.debug` rather than `console.warn` to avoid console spam during normal page reloads
 - [x] **LOG-04**: Diagnostic events are stored in a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance accessible from the Sync tab
 
+### MCP Installer Expansion Regression Fixes (FIX)
+
+These requirements close regressions introduced by the in-flight 21-platform installer expansion WIP that landed alongside this milestone. They are not user-facing features; they restore invariants the WIP broke.
+
+- [ ] **FIX-01**: An MCP client labeling itself `'OpenClaw 🦀'` (crab variant added to the server allowlist at `mcp-server/src/tools/visual-session.ts:10`) round-trips through the extension without a spurious `invalid_client_label` rejection -- `utils/mcp-visual-session.js` MCP_VISUAL_CLIENT_LABELS includes the crab label so server-side and extension-side normalization agree, restoring the "must match the extension's allowlist" invariant documented at `mcp-server/src/tools/visual-session.ts:7`
+- [ ] **FIX-02**: `fsb-mcp-server setup` continues to surface an OpenClaw section in `getSetupSections()` so users see manual/unsupported fallback guidance for OpenClaw alongside the new ChatGPT/Claude.ai/Warp instructions sections; `tests/mcp-setup-guidance.test.js` returns to 35 passed / 0 failed (regression from the WIP's accidental section deletion is closed)
+- [ ] **FIX-03**: Root `README.md` version badge, document title, and the intro `Note` line reflect the active milestone (`0.9.45rc1`) instead of the stale `0.9.36` left over from the WIP rewrite, so contributors and downstream packagers see an accurate version surface
+
 ## Future Requirements (deferred to v0.9.46+)
 
 These items were research-flagged as P1 mitigations but were explicitly NOT selected for this rc1 cycle. They remain on the radar:
@@ -111,8 +119,11 @@ Every v1 requirement maps to exactly one phase. Validated requirements are mappe
 | LOG-02 | 211 | TBD | active |
 | LOG-03 | 211 | TBD | active |
 | LOG-04 | 211 | TBD | active |
+| FIX-01 | 214 | 214-01 | active |
+| FIX-02 | 214 | 214-01 | active |
+| FIX-03 | 214 | 214-01 | active |
 
-**Coverage:** 24/24 requirements mapped (2 validated + 22 active). No orphans, no duplicates.
+**Coverage:** 27/27 requirements mapped (2 validated + 25 active). No orphans, no duplicates.
 
 ---
 *Defined: 2026-04-28*

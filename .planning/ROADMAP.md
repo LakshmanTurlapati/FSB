@@ -22,6 +22,7 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 - [ ] **Phase 211: Stream Reliability & Diagnostic Logging** - WebSocket inbound `_lz` decompression symmetry, DOM streaming watchdog + node-level truncation, redacted/rate-limited diagnostic logging
 - [ ] **Phase 212: Background Agents Sunset** - Playful deprecation card replaces agents UI, agent-only code paths commented out (not deleted) with deprecation annotations, showcase mirrors the messaging
 - [ ] **Phase 213: Sync Tab Build** - New top-level Sync tab consolidates QR pairing, hash key, server URL, and live connection-status pill into a single surface; showcase copy points at it
+- [ ] **Phase 214: MCP Installer Expansion Regression Fixes** - Restore visual-session client-label parity between server and extension allowlists, restore OpenClaw setup-guidance section so `tests/mcp-setup-guidance.test.js` returns to green, and refresh root README version badge stale at 0.9.36
 
 ## Phase Details
 
@@ -75,7 +76,10 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
   3. On extension update from a prior version that had agents, the operator sees a one-time `fsb_sunset_notice` card listing the names of their previously created agents with a copy-to-clipboard export of names only (no task text)
   4. Showcase home (Background Agents feature card) and dashboard surfaces (vanilla `dashboard.html` and Angular `dashboard-page.component.html/ts`) display the same agents-sunset messaging; `ext:remote-control-state` and `_lz` decompression paths remain intact on the showcase side
   5. `chrome.storage.local['bgAgents']` data and `fsb_agent_*` `chrome.alarms` entries are preserved (not proactively cleaned), and the shared `chrome.alarms.onAlarm` listener retains its `MCP_RECONNECT_ALARM` early-return path -- only the agent branch is commented out
-**Plans**: TBD
+**Plans**: 3 plans (all wave 1 -- parallel-safe; file-disjoint per CONTEXT.md D-01 / D-24 / D-25)
+- [x] 212-01-PLAN.md -- Back-end comment-out + deprecation gate (AGENTS-02 back-end portion, AGENTS-05, AGENTS-06)
+- [x] 212-02-PLAN.md -- Control panel deprecation card + sunset notice + slash-command commenting (AGENTS-01, AGENTS-02 UI portion, AGENTS-03)
+- [x] 212-03-PLAN.md -- Showcase mirror: home feature card + vanilla/Angular dashboards + JS/TS comment-out preserving _lz + ext:remote-control-state (AGENTS-04)
 **UI hint**: yes
 
 ### Phase 213: Sync Tab Build
@@ -86,8 +90,22 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
   1. Operator finds a top-level "Sync" tab in the FSB control panel that consolidates QR pairing, hash key, server URL, and connection status into one dedicated surface (relocated from the retired Background Agents section, IDs unchanged)
   2. The Sync tab shows a live connection-status pill that reflects current `ext:remote-control-state`, with replay-on-attach via a new `getRemoteControlState` runtime action and live updates via a `remoteControlStateChanged` runtime push
   3. The showcase home page and dashboard pairing copy reference the new Sync tab by name ("Open the Sync tab in FSB") instead of the retired Background Agents location
-**Plans**: TBD
+**Plans**: 3 plans (all wave 1 -- parallel-safe; file-disjoint at the file level per CONTEXT.md D-24 / D-25 / D-26)
+- [x] 213-01-PLAN.md -- Sync tab UI: nav-item + section + Server Sync card relocation + pill markup/CSS + state-machine wiring (SYNC-01, SYNC-02 UI portion)
+- [x] 213-02-PLAN.md -- Background runtime: getRemoteControlState action + remoteControlStateChanged push + state cache + regression test (SYNC-02 runtime portion)
+- [x] 213-03-PLAN.md -- Showcase copy: vanilla dashboard + Angular dashboard + dashboard.js session-expired message reference the Sync tab (SYNC-03)
 **UI hint**: yes
+
+### Phase 214: MCP Installer Expansion Regression Fixes
+**Goal**: Close regressions introduced by the 21-platform installer expansion WIP -- restore parity between the MCP server's visual-session client-label allowlist and the extension's allowlist, restore the OpenClaw entry in `getSetupSections()` so `fsb-mcp-server setup` continues to mention OpenClaw and `tests/mcp-setup-guidance.test.js` returns to 35/35 green, and refresh the stale `0.9.36` version badge in the root README so the project's public surface tracks the active milestone
+**Depends on**: Nothing (cleanup over the in-flight installer-expansion WIP; no cross-phase code coupling)
+**Requirements**: FIX-01, FIX-02, FIX-03
+**Success Criteria** (what must be TRUE):
+  1. An MCP client labeling itself `'OpenClaw 🦀'` (with the crab variant) round-trips cleanly: server-side `normalizeMcpVisualClientLabel` accepts it AND extension-side `_mcp_normalizeVisualClientLabel` accepts it; the comment "must match the extension's allowlist" in `mcp-server/src/tools/visual-session.ts:7` is no longer a lie
+  2. `fsb-mcp-server setup` continues to surface OpenClaw as a manual/unsupported fallback; `tests/mcp-setup-guidance.test.js` reports 35 passed / 0 failed (regression from 32/35 closed)
+  3. The root `README.md` version badge and intro `Note` reflect the active milestone version instead of `0.9.36` so contributors and downstream packagers see an accurate version line
+**Plans**: 1 plan (wave 1 -- single-pass cleanup)
+- [ ] 214-01-PLAN.md -- Allowlist parity + setup-section restore + README version refresh (FIX-01, FIX-02, FIX-03)
 
 ## Progress
 
@@ -96,8 +114,9 @@ Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control
 | 209. Remote Control Handlers | 1/1 | Shipped (live UAT pending) | 2026-04-27 |
 | 210. QR Code Pairing Restoration | 1/1 | Shipped | 2026-04-28 |
 | 211. Stream Reliability & Diagnostic Logging | 3/3 | Complete    | 2026-04-28 |
-| 212. Background Agents Sunset | 0/? | Not started | - |
-| 213. Sync Tab Build | 0/? | Not started | - |
+| 212. Background Agents Sunset | 4/4 | Complete    | 2026-04-29 |
+| 213. Sync Tab Build | 3/3 | Complete    | 2026-04-29 |
+| 214. MCP Installer Expansion Regression Fixes | 0/1 | Active      | — |
 
 ## Backlog
 
@@ -135,4 +154,4 @@ Older milestone phase details live in the archived roadmap snapshots under `.pla
 
 ---
 *Roadmap reorganized: 2026-04-24*
-*Last updated: 2026-04-28 after defining v0.9.45rc1 phase structure (Phases 211, 212, 213)*
+*Last updated: 2026-04-29 after Phase 213 plan decomposition (3 plans)*

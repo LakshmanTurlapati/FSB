@@ -8,21 +8,21 @@
   <img src="https://raw.githubusercontent.com/LakshmanTurlapati/FSB/main/assets/fsb_logo_light.png" alt="FSB: Full Self Browsing" width="200" />
 </picture>
 
-![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
+![FSB](https://img.shields.io/badge/FSB-Full_Self_Browsing-000000?style=for-the-badge)
 [![npm](https://img.shields.io/npm/v/fsb-mcp-server?style=for-the-badge&color=0078D4)](https://www.npmjs.com/package/fsb-mcp-server)
 ![MCP](https://img.shields.io/badge/MCP-Server-00B4D8?style=for-the-badge)
-![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
+![License](https://img.shields.io/badge/license-BSL_1.1-F5C518?style=for-the-badge)
 
 [![npm downloads](https://img.shields.io/npm/dm/fsb-mcp-server?style=flat-square&label=Downloads)](https://www.npmjs.com/package/fsb-mcp-server)
 ![GitHub Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
 ![Surface](https://img.shields.io/badge/MCP_Surface-Manual%20%7C%20Visual%20%7C%20Autopilot-F97316?style=flat-square)
 ![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 
-**Control your browser from any MCP client**
+**Control your browser from any MCP client.**
 
-*Browser automation tools for manual control, client owned visual sessions, autopilot mode, agents, and observability*
+*Browser automation tools for manual control, client owned visual sessions, autopilot mode, agents, and observability.*
 
-[Quick Start](#quick-start) | [Tools](#tools-62-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
+[Quick Start](#quick-start) · [Tools](#tools-62-total) · [Configuration](#configuration) · [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
 
 </div>
 
@@ -30,18 +30,18 @@
 
 ## What is this?
 
-FSB MCP Server connects any MCP compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser across four operating styles:
+FSB MCP Server connects any MCP capable AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Four operating styles:
 
 - **Manual mode**: fine grained control with click, type, scroll, navigate, read page content
-- **Visual session mode**: show the trusted glow/badge while your MCP client drives the browser step by step
+- **Visual session mode**: show the trusted glow and badge while your MCP client drives the browser step by step
 - **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
 - **Agent mode**: create, run, inspect, and manage scheduled background agents from any MCP client
 
 ### What's New in v0.7.3
 
 - **Bridge lifecycle reconnect**: the MCP bridge re arms automatically on service worker wakes, with hub/relay handoff when multiple clients connect
-- **Centralized tool routing**: a new route aware dispatcher replaces the old direct dispatch, improving reliability and error recovery
-- **Layered diagnostics**: `doctor` and `status --watch` now identify the exact failing layer (package, bridge, extension, content script)
+- **Centralized tool routing**: a route aware dispatcher replaces the old direct dispatch for better reliability and error recovery
+- **Layered diagnostics**: `doctor` and `status --watch` identify the exact failing layer (package, bridge, extension, content script)
 - **Visual session persistence**: sessions survive content script reinjection so the glow stays active across navigations
 - **Trusted client badges**: the automation overlay shows the connected client name (Claude, Codex, Cursor, etc.)
 - **Vault tools**: 4 new tools for secure credential and payment method access without exposing raw secrets
@@ -55,7 +55,7 @@ FSB MCP Server connects any MCP compatible AI client (Claude Desktop, Claude Cod
 
 ### Transport Overview
 
-FSB uses two local endpoints with different roles:
+FSB uses two local endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -66,7 +66,7 @@ The extension pairing contract did **not** change in `0.7.3`. The local HTTP ser
 
 ### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -85,7 +85,7 @@ Add to your `claude_desktop_config.json`:
 claude mcp add --scope user fsb -- npx -y fsb-mcp-server
 ```
 
-Already active after add. If the tools do not appear, run `doctor` and `status --watch` before retrying.
+Active right after add. If tools do not appear, run `doctor` and `status --watch` before retrying.
 
 ### Codex CLI / Codex IDE
 
@@ -115,7 +115,7 @@ Add to `mcp.json`:
 }
 ```
 
-Then open the MCP view, trust/start the server if prompted, and reload VS Code if it does not start automatically.
+Open the MCP view, trust/start the server if prompted, and reload VS Code if it does not start automatically.
 
 ### Cursor
 
@@ -177,17 +177,17 @@ Restart OpenCode after saving the config.
 
 ### OpenClaw (manual / unsupported for now)
 
-OpenClaw's MCP config/runtime surface is still unstable, so FSB does **not** claim one command support here yet. Use the stdio command manually only if your OpenClaw build documents a stable MCP format.
+OpenClaw's MCP config and runtime surface is still unstable, so FSB does **not** claim one command support here yet. Use the stdio command manually only if your OpenClaw build documents a stable MCP format.
 
 ```text
 npx -y fsb-mcp-server
 ```
 
-Start with `doctor` and `status --watch` before trying manual restart or reinstall loops.
+Start with `doctor` and `status --watch` before any manual restart or reinstall loop.
 
 ### Local Streamable HTTP
 
-If your MCP client supports Streamable HTTP, you can run a local HTTP companion instead of a spawned stdio process:
+If your MCP client supports Streamable HTTP, run a local HTTP companion instead of a spawned stdio process:
 
 ```bash
 npx -y fsb-mcp-server serve
@@ -211,15 +211,15 @@ Auto configure FSB in any supported MCP client:
 
 ```bash
 npx -y fsb-mcp-server install --claude-desktop   # Claude Desktop
-npx -y fsb-mcp-server install --claude-code       # Claude Code
-npx -y fsb-mcp-server install --cursor            # Cursor
-npx -y fsb-mcp-server install --vscode            # VS Code
-npx -y fsb-mcp-server install --windsurf          # Windsurf
-npx -y fsb-mcp-server install --cline             # Cline
-npx -y fsb-mcp-server install --zed               # Zed
-npx -y fsb-mcp-server install --gemini            # Gemini CLI
-npx -y fsb-mcp-server install --codex             # OpenAI Codex
-npx -y fsb-mcp-server install --continue          # Continue
+npx -y fsb-mcp-server install --claude-code      # Claude Code
+npx -y fsb-mcp-server install --cursor           # Cursor
+npx -y fsb-mcp-server install --vscode           # VS Code
+npx -y fsb-mcp-server install --windsurf         # Windsurf
+npx -y fsb-mcp-server install --cline            # Cline
+npx -y fsb-mcp-server install --zed              # Zed
+npx -y fsb-mcp-server install --gemini           # Gemini CLI
+npx -y fsb-mcp-server install --codex            # OpenAI Codex
+npx -y fsb-mcp-server install --continue         # Continue
 ```
 
 Install to all detected platforms at once:
@@ -228,7 +228,7 @@ Install to all detected platforms at once:
 npx -y fsb-mcp-server install --all
 ```
 
-Preview what would change without writing:
+Preview without writing:
 
 ```bash
 npx -y fsb-mcp-server install --all --dry-run
@@ -242,13 +242,13 @@ npx -y fsb-mcp-server uninstall --cursor
 
 #### Post install host notes
 
-- Claude Code: `claude mcp add --scope user ...` is the intended cross project install path.
-- Codex: edit `~/.codex/config.toml`, then restart Codex or reload the MCP server list.
-- VS Code: after editing `mcp.json`, trust/start the server in the MCP view if prompted.
-- Cursor: restart Cursor after editing `~/.cursor/mcp.json`.
-- Windsurf: after editing either supported config path, use refresh or reload the client.
-- OpenCode: manual fallback only via the `mcp` JSON snippet above.
-- OpenClaw: manual / unsupported until its MCP surface stabilizes.
+- Claude Code: `claude mcp add --scope user ...` is the cross project install path
+- Codex: edit `~/.codex/config.toml`, then restart Codex or reload the MCP server list
+- VS Code: after editing `mcp.json`, trust/start the server in the MCP view if prompted
+- Cursor: restart Cursor after editing `~/.cursor/mcp.json`
+- Windsurf: after editing either supported config path, refresh or reload the client
+- OpenCode: manual fallback only via the `mcp` JSON snippet above
+- OpenClaw: manual / unsupported until its MCP surface stabilizes
 
 ### Helpers
 
@@ -262,12 +262,12 @@ npx -y fsb-mcp-server wait-for-extension # Wait for extension to connect
 
 ### Troubleshooting
 
-When MCP stops working, start with the built in diagnostics before reinstalling anything:
+When MCP stops working, start with the built in diagnostics before reinstalling:
 
 1. `npx -y fsb-mcp-server doctor`
 2. `npx -y fsb-mcp-server status --watch`
 
-Only move on to manual restart or reinstall steps if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content script trouble, fix that layer first instead of cycling the whole setup.
+Move on to manual restart or reinstall only if the reported layer points to package drift, bridge ownership, or extension attachment. If `doctor` reports configuration or content script trouble, fix that layer first instead of cycling the whole setup.
 
 ### Release Smoke
 
@@ -284,15 +284,15 @@ This keeps automated lifecycle/tool smoke and operator facing diagnostics aligne
 
 ## Visual Session Lifecycle
 
-Use the explicit visual session flow when your MCP client already owns the browser steps and only wants FSB to show the trusted glow, badge, and final freeze states in the browser. If you want FSB to decide and execute the steps for you, use `run_task` instead.
+Use the explicit visual session flow when your MCP client already owns the browser steps and only wants FSB to show the trusted glow, badge, and final freeze states. If you want FSB to decide and execute the steps for you, use `run_task` instead.
 
 ### Choose The Right Flow
 
 | Use case | Better fit |
 |----------|------------|
-| "FSB should decide the steps and drive the browser end to end." | `run_task` |
-| "My MCP client is already deciding the steps; I only want FSB's visible overlay and trusted client badge while I call manual tools." | `start_visual_session` + manual tools + `end_visual_session` |
-| "My runtime can also emit FSB task status tools and I want the glow to show progress and final outcome states." | `start_visual_session` + `report_progress` / `complete_task` / `partial_task` / `fail_task` + optional `end_visual_session` |
+| FSB should decide the steps and drive the browser end to end | `run_task` |
+| Your MCP client is deciding the steps; you only want FSB's visible overlay and trusted client badge while you call manual tools | `start_visual_session` + manual tools + `end_visual_session` |
+| Your runtime can also emit FSB task status tools and you want the glow to show progress and final outcome states | `start_visual_session` + `report_progress` / `complete_task` / `partial_task` / `fail_task` + optional `end_visual_session` |
 
 ### Trusted Client Labels
 
@@ -300,10 +300,10 @@ Use the explicit visual session flow when your MCP client already owns the brows
 
 ### Minimal Public Flow
 
-This is the simplest public pattern for MCP clients that want the glow/badge without handing control to autopilot:
+The simplest pattern for MCP clients that want the glow and badge without handing control to autopilot:
 
 1. Call `start_visual_session` with `client` and `task`.
-2. Drive the page with the normal manual tools such as `navigate`, `click`, `type_text`, `press_enter`, or `scroll`.
+2. Drive the page with normal manual tools such as `navigate`, `click`, `type_text`, `press_enter`, or `scroll`.
 3. Call `end_visual_session` with the returned `session_token` when you want to clear the glow explicitly.
 
 Example:
@@ -321,7 +321,7 @@ end_visual_session(session_token="visual_token_123", reason="ended")
 
 ### Extended Progress And Finalization
 
-If your runtime also has access to FSB's shared task status tools, keep the same `session_token` threaded through the rest of the lifecycle:
+If your runtime also has access to FSB's shared task status tools, keep the same `session_token` threaded through:
 
 1. `start_visual_session(client, task, detail?)`
 2. Zero or more `report_progress(session_token, message, progress_percent?)`
@@ -329,14 +329,14 @@ If your runtime also has access to FSB's shared task status tools, keep the same
    - `complete_task(session_token, summary, detail?)`
    - `partial_task(session_token, summary, blocker, next_step, reason?)`
    - `fail_task(session_token, reason, detail?)`
-4. `end_visual_session(session_token)` only when you still need an explicit clear/cancel after your own flow
+4. `end_visual_session(session_token)` only when you still need an explicit clear or cancel after your own flow
 
 Notes:
 
 - `session_token` is the ownership key for the visible lifecycle. Reuse the latest token returned by `start_visual_session`.
 - Final outcome calls preserve the short frozen overlay before the glow clears.
-- `partial_task` is the right fit for useful partial work plus an external blocker, especially login/manual approval handoffs.
-- `report_progress` is narration/status only. It does not click, type, navigate, or submit by itself.
+- `partial_task` fits useful partial work plus an external blocker, especially login or manual approval handoffs.
+- `report_progress` is narration only. It does not click, type, navigate, or submit by itself.
 
 ---
 
@@ -344,7 +344,7 @@ Notes:
 
 ### Visual Sessions (2 tools)
 
-Use these when your MCP client wants the visible glow/badge without handing control to `run_task`.
+Use these when your MCP client wants the visible glow and badge without handing control to `run_task`.
 
 | Tool | Description |
 |------|-------------|
@@ -416,14 +416,14 @@ Let FSB's AI handle the entire task autonomously.
 
 ### Manual: CDP Coordinate Tools (8 tools)
 
-For canvas elements, overlays, and elements where DOM selectors don't work.
+For canvas elements, overlays, and cases where DOM selectors do not work.
 
 | Tool | Description |
 |------|-------------|
 | `click_at` | Click at viewport coordinates using CDP trusted events. Supports modifiers. |
 | `click_and_hold` | Click and hold at coordinates for a duration (long press, record buttons). |
 | `drag` | Drag between two viewport coordinates (canvas drawing, sliders, maps). |
-| `drag_variable_speed` | Drag with ease-in-out timing curve (human like motion). |
+| `drag_variable_speed` | Drag with ease in out timing curve (human like motion). |
 | `scroll_at` | Mouse wheel at coordinates (map zoom, canvas zoom). |
 | `double_click_at` | Double click at viewport coordinates using CDP trusted events. |
 | `insert_text` | Insert text via CDP into the currently focused editable target. |
@@ -489,9 +489,9 @@ Secure access to saved credentials and payment methods. Raw secrets never cross 
 
 ## Configuration
 
-The MCP server communicates with the FSB Chrome Extension over a local WebSocket connection on port **7225**. No configuration is needed for the extension bridge; just make sure the extension is installed, enabled, and the browser is running.
+The MCP server talks to the FSB Chrome Extension over a local WebSocket on port **7225**. No configuration is needed for the extension bridge. Just install and enable the extension, and keep the browser running.
 
-If you run local Streamable HTTP mode, the MCP client talks to `http://127.0.0.1:7226/mcp` by default while the extension continues to use `ws://localhost:7225`.
+If you run local Streamable HTTP mode, the MCP client talks to `http://127.0.0.1:7226/mcp` by default while the extension keeps using `ws://localhost:7225`.
 
 ### How it works
 
@@ -517,15 +517,15 @@ graph TD
 
 ### Hub/Relay Architecture
 
-FSB still uses the same local bridge contract:
+FSB uses the same local bridge contract:
 
 - The MCP client talks to this package over stdio or Streamable HTTP
 - This package talks to the extension over `ws://localhost:7225`
-- The browser extension remains unchanged
+- The browser extension is unchanged
 
 This keeps installation simple while avoiding any MCP specific changes inside the extension.
 
-Multiple MCP clients can connect simultaneously. The first server instance becomes the **hub** (listens on port 7225). Additional instances connect as **relay clients** to the hub. If the hub disconnects, a relay automatically promotes to hub.
+Multiple MCP clients can connect at once. The first server instance becomes the **hub** (listens on port 7225). Additional instances connect as **relay clients** to the hub. If the hub disconnects, a relay automatically promotes to hub.
 
 ---
 
@@ -547,7 +547,7 @@ The server also exposes 5 live MCP resources:
 
 - [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB): the browser extension this server connects to
 - [Issues](https://github.com/LakshmanTurlapati/FSB/issues): report bugs or request features
-- [License](https://github.com/LakshmanTurlapati/FSB/blob/main/LICENSE): MIT
+- [License](https://github.com/LakshmanTurlapati/FSB/blob/main/LICENSE): BSL 1.1
 
 ---
 

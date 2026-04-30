@@ -11,6 +11,7 @@
     'Antigravity',
     'OpenCode',
     'OpenClaw',
+    'OpenClaw 🦀',
     'Grok',
     'Gemini'
   ];

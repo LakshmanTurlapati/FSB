@@ -15,6 +15,8 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 **Already landed (counted toward this milestone):**
 - Phase 209 -- Remote control handlers (CDP click/key/scroll, lifecycle broadcast)
 - Phase 210 -- QR code pairing restoration (60s server-driven countdown, regenerate-on-expiry)
+- Phase 211 -- Stream reliability & diagnostic logging (LZ decompression, two-tier watchdog, redacted rate-limited warns)
+- Phase 212 -- Background agents sunset (deprecation card + sunset notice + showcase mirror; comment-out, not delete)
 
 **Target features:**
 - Sunset background agents with a playful deprecation card in the FSB control panel pointing at OpenClaw and Claude Routines
@@ -200,6 +202,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ WebSocket inbound `{_lz: true, d: <base64>}` envelopes decompress via `LZString.decompressFromBase64`; plain JSON falls through unchanged; failures recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` -- Phase 211 (WS-01..03)
 - ✓ DOM streaming hardened: two-tier watchdog (`chrome.alarms` SW-side + `setTimeout` 5s/500ms content-side), single TreeWalker pre-pass + cached rect map (1.67ms < 200ms on 5MB / 50k-node fixture), node-level truncation with `truncated: true, missingDescendants: N` sentinel, `staleFlushCount` field on `ext:stream-state` (`ext:dom-mutations` shape unchanged) -- Phase 211 (STREAM-01..04)
 - ✓ Silent `.catch(() => {})` in dialog relay and message-delivery paths replaced with redacted, rate-limited diagnostic logging: `redactForLog` helper (origin/length/status only), `[FSB DLG]/[FSB BG]/[FSB WS]/[FSB DOM]` layered prefixes, 1 warn per (prefix, category) per 10s with counter rollup, 100-FIFO ring buffer in `chrome.storage.local.fsb_diagnostics_ring`, `chrome.runtime.onMessage` `exportDiagnostics` handler (Phase 213 wires the Sync tab button) -- Phase 211 (LOG-01..04)
+- ✓ Background agents retired: permanent deprecation card in the FSB control panel (`<section id="background-agents">` body) names OpenClaw + Claude Routines as successors with `target="_blank" rel="noopener noreferrer"` CTAs; one-time `fsb_sunset_notice` names list reads `chrome.storage.local['bgAgents']` (defensive coercion accepts array AND object-map shapes) and renders names via `textContent` only; agent-only code commented per-line with canonical `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md` annotation across `agents/*.js`, `mcp-server/src/tools/agents.ts` (no LIVE `server.tool()` calls; `registerAgentTools` shell preserved per D-16), `background.js` agent surfaces, `ws/ws-client.js` `dash:agent-run-now`, `ui/options.js` agent UI controllers, `/agent` slash commands; showcase home + both dashboards mirror the sunset; `MCP_RECONNECT_ALARM` early-return preserved byte-for-byte; `_lz` + `ext:remote-control-state` consumers preserved byte-for-byte; `bgAgents` storage and `fsb_agent_*` alarms preserved (no proactive cleanup); ROADMAP SC #3 clipboard export overridden via VERIFICATION.md `overrides:` block formally accepting D-11 -- Phase 212 (AGENTS-01..06)
 
 ### Deferred (MCP follow-up from v0.9.36)
 
@@ -412,4 +415,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-28 after Phase 211 completion (Stream Reliability & Diagnostic Logging)*
+*Last updated: 2026-04-29 after Phase 212 completion (Background Agents Sunset)*

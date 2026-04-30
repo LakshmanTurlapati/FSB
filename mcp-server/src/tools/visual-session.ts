@@ -7,7 +7,7 @@ import { mapFSBError } from '../errors.js';
 // Approved visual-session client labels (must match the extension's allowlist)
 const MCP_VISUAL_CLIENT_LABELS: string[] = [
   'Claude', 'Codex', 'ChatGPT', 'Perplexity', 'Windsurf',
-  'Cursor', 'Antigravity', 'OpenCode', 'OpenClaw', 'Grok', 'Gemini',
+  'Cursor', 'Antigravity', 'OpenCode', 'OpenClaw', 'OpenClaw 🦀', 'Grok', 'Gemini',
 ];
 
 const CLIENT_LABEL_MAP: Record<string, string> = Object.create(null);

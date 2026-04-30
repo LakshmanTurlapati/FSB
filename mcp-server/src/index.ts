@@ -90,7 +90,8 @@ Usage:
   fsb-mcp-server doctor             Diagnose the primary MCP failure layer
   fsb-mcp-server setup              Print install snippets for common MCP clients
   fsb-mcp-server wait-for-extension Wait until the extension connects
-  fsb-mcp-server install             Install FSB to an MCP client config
+  fsb-mcp-server install             Install FSB to an MCP client config (21 platforms)
+  fsb-mcp-server install --list      Show all platforms with detection status
   fsb-mcp-server uninstall           Remove FSB from an MCP client config
 
 Options:

@@ -5,7 +5,7 @@ import stripJsonComments from 'strip-json-comments';
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { getServerEntry } from './platforms.js';
-import type { ConfigFormat, ServerEntry, PlatformConfig } from './platforms.js';
+import type { ConfigFormat, MergeStrategy, PlatformConfig } from './platforms.js';
 
 /** Result of an install or remove operation */
 export interface ConfigResult {
@@ -57,34 +57,23 @@ export function serializeByFormat(data: Record<string, unknown>, format: ConfigF
 }
 
 /**
- * Detect if this platform uses Continue's YAML array format.
- * Continue has serverMapKey 'mcpServers' AND format 'yaml'.
- * @param format - Config format
- * @param serverMapKey - Root key in the config file
- * @returns True if Continue array format
- */
-function isContinueArrayFormat(format: ConfigFormat, serverMapKey: string | null): boolean {
-  return format === 'yaml' && serverMapKey === 'mcpServers';
-}
-
-/**
  * Merge a server entry into the config data under the correct key.
- * Handles both object-map format (most platforms) and array format (Continue).
+ * Handles both object-map format (most platforms) and named-array format (Continue, Goose).
  * @param data - Config data object
- * @param serverMapKey - Root key (e.g., 'mcpServers', 'servers')
+ * @param serverMapKey - Root key (e.g., 'mcpServers', 'servers', 'extensions')
  * @param serverName - Server name (e.g., 'fsb')
- * @param entry - Server entry to merge
- * @param format - Config format
+ * @param entry - Server entry to merge (shape varies by platform)
+ * @param mergeStrategy - How to merge: 'object-map' or 'named-array'
  */
 function mergeServerEntry(
   data: Record<string, unknown>,
   serverMapKey: string,
   serverName: string,
-  entry: ServerEntry,
-  format: ConfigFormat,
+  entry: Record<string, unknown>,
+  mergeStrategy: MergeStrategy,
 ): void {
-  if (isContinueArrayFormat(format, serverMapKey)) {
-    // Continue uses a YAML array format for mcpServers
+  if (mergeStrategy === 'named-array') {
+    // Array format: entries matched by 'name' field (Continue, Goose)
     if (!Array.isArray(data[serverMapKey])) {
       data[serverMapKey] = [{ name: serverName, ...entry }];
       return;
@@ -97,7 +86,7 @@ function mergeServerEntry(
       arr.push({ name: serverName, ...entry });
     }
   } else {
-    // All other platforms use object map format
+    // Object map format: config[serverMapKey][serverName] = entry
     if (!data[serverMapKey] || typeof data[serverMapKey] !== 'object' || Array.isArray(data[serverMapKey])) {
       data[serverMapKey] = {};
     }
@@ -111,17 +100,17 @@ function mergeServerEntry(
  * @param serverMapKey - Root key
  * @param serverName - Server name
  * @param entry - Server entry to compare
- * @param format - Config format
+ * @param mergeStrategy - How entries are stored: 'object-map' or 'named-array'
  * @returns True if already identically configured
  */
 function checkIdempotent(
   data: Record<string, unknown>,
   serverMapKey: string,
   serverName: string,
-  entry: ServerEntry,
-  format: ConfigFormat,
+  entry: Record<string, unknown>,
+  mergeStrategy: MergeStrategy,
 ): boolean {
-  if (isContinueArrayFormat(format, serverMapKey)) {
+  if (mergeStrategy === 'named-array') {
     if (!Array.isArray(data[serverMapKey])) return false;
     const arr = data[serverMapKey] as Array<Record<string, unknown>>;
     const found: Record<string, unknown> | undefined = arr.find(
@@ -141,16 +130,16 @@ function checkIdempotent(
  * @param data - Current config data
  * @param serverMapKey - Root key
  * @param serverName - Server name
- * @param format - Config format
+ * @param mergeStrategy - How entries are stored: 'object-map' or 'named-array'
  * @returns True if an entry exists for the given server name
  */
 function hasExistingEntry(
   data: Record<string, unknown>,
   serverMapKey: string,
   serverName: string,
-  format: ConfigFormat,
+  mergeStrategy: MergeStrategy,
 ): boolean {
-  if (isContinueArrayFormat(format, serverMapKey)) {
+  if (mergeStrategy === 'named-array') {
     return Array.isArray(data[serverMapKey]) &&
       (data[serverMapKey] as Array<Record<string, unknown>>).some(
         (item: Record<string, unknown>) => item.name === serverName,
@@ -165,7 +154,7 @@ function hasExistingEntry(
  * Handles read-merge-write with backup, idempotency, and graceful error handling.
  *
  * @param configPath - Resolved absolute path to the config file
- * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, displayName)
+ * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, mergeStrategy, displayName)
  * @param serverName - Server name key, always 'fsb'
  * @param entry - Optional server entry override; falls back to getServerEntry()
  * @returns Result with status, path, and message
@@ -174,7 +163,7 @@ export async function installToConfig(
   configPath: string,
   platform: PlatformConfig,
   serverName: string,
-  entry: ServerEntry | null = null,
+  entry: Record<string, unknown> | null = null,
 ): Promise<ConfigResult> {
   try {
     // 1. Check directory exists (INST-08, D-02) -- do NOT create it
@@ -188,7 +177,8 @@ export async function installToConfig(
     }
 
     // 2. Build the server entry (use caller-provided entry or fall back to default)
-    const serverEntry: ServerEntry = entry || getServerEntry();
+    const serverEntry: Record<string, unknown> = entry || { ...getServerEntry() };
+    const strategy: MergeStrategy = platform.mergeStrategy;
 
     // 3. Read existing file or start fresh, backup before any mutation
     let data: Record<string, unknown> = {};
@@ -201,7 +191,7 @@ export async function installToConfig(
     }
 
     // 4. Check idempotency (INST-04) -- skip if already identical
-    if (checkIdempotent(data, platform.serverMapKey!, serverName, serverEntry, platform.format)) {
+    if (checkIdempotent(data, platform.serverMapKey!, serverName, serverEntry, strategy)) {
       return {
         status: 'skipped',
         path: configPath,
@@ -210,16 +200,16 @@ export async function installToConfig(
     }
 
     // 5. Determine if this is create or update
-    const isUpdate: boolean = fileExists && hasExistingEntry(data, platform.serverMapKey!, serverName, platform.format);
+    const isUpdate: boolean = fileExists && hasExistingEntry(data, platform.serverMapKey!, serverName, strategy);
 
-    // 7. Merge (INST-02)
-    mergeServerEntry(data, platform.serverMapKey!, serverName, serverEntry, platform.format);
+    // 6. Merge
+    mergeServerEntry(data, platform.serverMapKey!, serverName, serverEntry, strategy);
 
-    // 8. Serialize and write (D-03)
+    // 7. Serialize and write
     const output: string = serializeByFormat(data, platform.format);
     await writeFile(configPath, output, 'utf-8');
 
-    // 9. Return result
+    // 8. Return result
     return {
       status: isUpdate ? 'updated' : 'created',
       path: configPath,
@@ -238,7 +228,7 @@ export async function installToConfig(
  * Remove FSB server entry from a platform's config file.
  *
  * @param configPath - Resolved absolute path to the config file
- * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, displayName)
+ * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, mergeStrategy, displayName)
  * @param serverName - Server name key, always 'fsb'
  * @returns Result with status, path, and message
  */
@@ -261,10 +251,11 @@ export async function removeFromConfig(
     // 2. Read and parse the file
     const raw: string = await readFile(configPath, 'utf-8');
     const data: Record<string, unknown> = parseByFormat(raw, platform.format);
+    const strategy: MergeStrategy = platform.mergeStrategy;
 
     // 3. Check if entry exists and remove
-    if (isContinueArrayFormat(platform.format, platform.serverMapKey)) {
-      // Continue YAML array format
+    if (strategy === 'named-array') {
+      // Named array format (Continue, Goose)
       if (!Array.isArray(data[platform.serverMapKey!])) {
         return {
           status: 'not-found',
@@ -295,14 +286,14 @@ export async function removeFromConfig(
       delete map[serverName];
     }
 
-    // 5. Backup the file
+    // 4. Backup the file
     await copyFile(configPath, configPath + '.bak');
 
-    // 6. Serialize and write
+    // 5. Serialize and write
     const output: string = serializeByFormat(data, platform.format);
     await writeFile(configPath, output, 'utf-8');
 
-    // 7. Return result
+    // 6. Return result
     return {
       status: 'removed',
       path: configPath,

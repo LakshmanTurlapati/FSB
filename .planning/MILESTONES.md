@@ -1,5 +1,27 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.40 Session Lifecycle Reliability (Shipped: 2026-04-25)
+
+**Delivered:** Fixed silent task abandonment where the agent loop exits without notifying the sidepanel. All exit paths now finalize properly, every termination records a structured reason, background.js lifecycle handles edge cases without silent loss, and the sidepanel self-heals as a last resort.
+
+**Phases completed:** 3 phases, 4 plans, 12 commits
+
+**Key accomplishments:**
+
+- All 5 broken agent-loop exit paths (stuck force-stop, 3 safety breaker paths, guard clauses) now call `finalizeSession()` with structured termination reasons (`stuck_force_stop`, `cost_limit_exceeded`, `time_limit_exceeded`, `iteration_limit_exceeded`, `session_not_found`, `session_not_running`).
+- Guard clauses send blind `automationComplete` broadcasts to the sidepanel even when the session object is missing, ensuring the sidepanel always resets to idle.
+- Stale session cleanup now guards running sessions from periodic 30-minute deletion.
+- Tab close handler sends full `automationComplete` with `reason: 'tab_closed'` and cleans up overlays before deleting the session.
+- Service worker wake immediately notifies the sidepanel with `reason: 'service_worker_restart'` for non-resumable restored sessions.
+- 15 silent `.catch(function(){})` on sendMessage calls replaced with diagnostic `console.warn` logging (3 in agent-loop.js, 12 in background.js).
+- Sidepanel 10-second liveness poll with 2-failure grace period detects orphaned "working" state and self-heals to idle.
+
+**Accepted debt:**
+
+- UAT Tests 1 and 3 (SW kill orphan recovery, interval cleanup) skipped due to MCP bridge relay timeout preventing remote observation. Code-level verification passed 4/4 must-haves. Manual testing recommended during next interactive session.
+
+---
+
 ## v0.9.36 MCP Visual Lifecycle & Client Identity (Shipped: 2026-04-24)
 
 **Delivered:** Explicit MCP visual-session ownership, trusted client badges, persisted overlay replay, and lifecycle validation/docs for MCP-driven browser work outside the built-in autopilot loop.
