@@ -95,32 +95,35 @@ Every v1 requirement maps to exactly one phase. The traceability table below is 
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| PRE-01 | TBD | TBD | active |
-| PRE-02 | TBD | TBD | active |
-| PRE-03 | TBD | TBD | active |
-| PRE-04 | TBD | TBD | active |
-| PRE-05 | TBD | TBD | active |
-| META-01 | TBD | TBD | active |
-| META-02 | TBD | TBD | active |
-| META-03 | TBD | TBD | active |
-| META-04 | TBD | TBD | active |
-| LD-01 | TBD | TBD | active |
-| LD-02 | TBD | TBD | active |
-| LD-03 | TBD | TBD | active |
-| CRAWL-01 | TBD | TBD | active |
-| CRAWL-02 | TBD | TBD | active |
-| CRAWL-03 | TBD | TBD | active |
-| CRAWL-04 | TBD | TBD | active |
-| CRAWL-05 | TBD | TBD | active |
-| SRV-01 | TBD | TBD | active |
-| SRV-02 | TBD | TBD | active |
-| SRV-03 | TBD | TBD | active |
-| SMOKE-01 | TBD | TBD | active |
-| SMOKE-02 | TBD | TBD | active |
-| SMOKE-03 | TBD | TBD | active |
-| SMOKE-04 | TBD | TBD | active |
+| PRE-01 | 215 | TBD | active |
+| PRE-02 | 215 | TBD | active |
+| PRE-03 | 215 | TBD | active |
+| PRE-04 | 215 | TBD | active |
+| PRE-05 | 215 | TBD | active |
+| META-01 | 215 | TBD | active |
+| META-02 | 215 | TBD | active |
+| META-03 | 215 | TBD | active |
+| META-04 | 215 | TBD | active |
+| LD-01 | 215 | TBD | active |
+| LD-02 | 215 | TBD | active |
+| LD-03 | 216 | TBD | active |
+| CRAWL-01 | 216 | TBD | active |
+| CRAWL-02 | 216 | TBD | active |
+| CRAWL-03 | 216 | TBD | active |
+| CRAWL-04 | 216 | TBD | active |
+| CRAWL-05 | 216 | TBD | active |
+| SRV-01 | 216 | TBD | active |
+| SRV-02 | 216 | TBD | active |
+| SRV-03 | 216 | TBD | active |
+| SMOKE-01 | 216 | TBD | active |
+| SMOKE-02 | 216 | TBD | active |
+| SMOKE-03 | 216 | TBD | active |
+| SMOKE-04 | 216 | TBD | active |
 
 **Coverage:** 24/24 requirements mapped (0 validated + 24 active). No orphans, no duplicates.
 
+**Phase distribution:** Phase 215 = 11 requirements (PRE-01..05, META-01..04, LD-01..02). Phase 216 = 13 requirements (LD-03, CRAWL-01..05, SRV-01..03, SMOKE-01..04).
+
 ---
 *Defined: 2026-04-30*
+*Traceability filled by roadmapper: 2026-04-30*

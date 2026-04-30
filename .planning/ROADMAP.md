@@ -2,156 +2,91 @@
 
 ## Status
 
-Active milestone: **v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability**.
+Active milestone: **v0.9.46 Site Discoverability (SEO + GEO)**.
 
-Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control, gracefully retire background agents in favor of OpenClaw / Claude Routines, and harden the streaming pipeline the dashboard relies on.
+Make `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the Angular SPA marketing routes (`/`, `/about`, `/privacy`, `/support`) and shipping LLM/crawler-aware root files. The site currently returns only the literal string "FSB" to non-JS crawlers; static prerender plus crawler files unblocks every downstream discoverability play.
 
 ## Milestones
 
-- 🟡 **v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability** — in progress (started 2026-04-28)
-- ✅ **v0.9.40 Session Lifecycle Reliability** — shipped 2026-04-25
-- ✅ **v0.9.36 MCP Visual Lifecycle & Client Identity** — shipped 2026-04-24
-- ✅ **v0.9.35 MCP Plug-and-Play Reliability** — shipped 2026-04-24
-- ✅ **v0.9.34 Vault, Payments & Secure MCP Access** — shipped 2026-04-22
-- ✅ **v0.9.30 MCP Platform Install Flags** — shipped 2026-04-18
+- 🟡 **v0.9.46 Site Discoverability (SEO + GEO)** -- in progress (started 2026-04-30)
+- ✅ **v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability** -- shipped 2026-04-29
+- ✅ **v0.9.40 Session Lifecycle Reliability** -- shipped 2026-04-25
+- ✅ **v0.9.36 MCP Visual Lifecycle & Client Identity** -- shipped 2026-04-24
+- ✅ **v0.9.35 MCP Plug-and-Play Reliability** -- shipped 2026-04-24
+- ✅ **v0.9.34 Vault, Payments & Secure MCP Access** -- shipped 2026-04-22
 
 ## Phases
 
-- [x] **Phase 209: Remote Control Handlers** - CDP click/key/scroll handlers with `ext:remote-control-state` lifecycle broadcast (live UAT pending)
-- [x] **Phase 210: QR Code Pairing Restoration** - `/api/pair/generate` flow with 60s server-driven countdown and regenerate-on-expiry affordance
-- [ ] **Phase 211: Stream Reliability & Diagnostic Logging** - WebSocket inbound `_lz` decompression symmetry, DOM streaming watchdog + node-level truncation, redacted/rate-limited diagnostic logging
-- [ ] **Phase 212: Background Agents Sunset** - Playful deprecation card replaces agents UI, agent-only code paths commented out (not deleted) with deprecation annotations, showcase mirrors the messaging
-- [ ] **Phase 213: Sync Tab Build** - New top-level Sync tab consolidates QR pairing, hash key, server URL, and live connection-status pill into a single surface; showcase copy points at it
-- [ ] **Phase 214: MCP Installer Expansion Regression Fixes** - Restore visual-session client-label parity between server and extension allowlists, restore OpenClaw setup-guidance section so `tests/mcp-setup-guidance.test.js` returns to green, and refresh root README version badge stale at 0.9.36
+- [ ] **Phase 215: Prerender Foundation, Per-Route Metadata & Structured Data** - Enable Angular static prerender for `/`, `/about`, `/privacy`, `/support`; per-route `Title`/`Meta`/canonical/OG/Twitter via Angular services; `Organization` JSON-LD in `index.html` + `SoftwareApplication` JSON-LD on home; `noindex` on `/dashboard`; guard `localStorage` access in `index.html` for the prerender environment
+- [ ] **Phase 216: Crawler Root Files, Express Wiring & Production Validation** - Generate `robots.txt` / `sitemap.xml` / `llms.txt` / `llms-full.txt` via prebuild Node script; patch `server/server.js` SPA fallback to prefer per-route prerendered HTML and pin `*.txt`/`*.xml` headers; live `curl -A GPTBot` smoke against production; Rich Results Test validation
 
 ## Phase Details
 
-### Phase 209: Remote Control Handlers
-**Goal**: Dashboard click/key/scroll commands reach the active streaming tab via Chrome DevTools Protocol with lifecycle state broadcast through `ext:remote-control-state`
-**Depends on**: Nothing (already shipped before milestone formalized)
-**Requirements**: SYNC-VALID-01
+### Phase 215: Prerender Foundation, Per-Route Metadata & Structured Data
+**Goal**: A production build emits per-route prerendered `index.html` files for the four marketing routes with route-specific metadata and structured data baked into the served HTML, so AI crawlers (GPTBot, ClaudeBot, PerplexityBot) and traditional search engines can read what FSB is without executing JavaScript
+**Depends on**: Nothing (keystone phase -- every other v0.9.46 deliverable depends on prerender output existing on disk)
+**Requirements**: PRE-01, PRE-02, PRE-03, PRE-04, PRE-05, META-01, META-02, META-03, META-04, LD-01, LD-02
 **Success Criteria** (what must be TRUE):
-  1. Dashboard remote-control click commands successfully dispatch to the active streaming tab via CDP
-  2. Dashboard remote-control key/scroll commands successfully dispatch to the active streaming tab via CDP
-  3. The extension broadcasts `ext:remote-control-state` with `{enabled, attached, tabId, reason, ownership}` whenever attach/detach lifecycle changes
-  4. Dashboard surfaces consume the broadcast and reflect the live attached/idle state
-**Plans**: 209-01 (shipped)
-**Status**: Shipped (live UAT pending: 7 human_needed items per `.planning/phases/209-remote-control-handlers/209-HUMAN-UAT.md`)
+  1. `npm --prefix showcase/angular run build` completes successfully and emits `dist/showcase-angular/browser/index.html`, `about/index.html`, `privacy/index.html`, and `support/index.html`; `dist/showcase-angular/browser/dashboard/index.html` does NOT exist
+  2. Opening each prerendered file in a text editor shows a route-specific `<title>` and `<meta name="description">` (no two prerendered pages share the same title), a `<link rel="canonical" href="https://full-selfbrowsing.com/<route>">`, and the full set of OpenGraph + Twitter Card tags for that route
+  3. The home page's prerendered `index.html` contains exactly one `<script type="application/ld+json">` block with `@type: "Organization"` (inherited shape, present on every prerendered route) and exactly one with `@type: "SoftwareApplication"` (home only); both JSON payloads escape `</` as `\u003c/` to defeat script-tag injection
+  4. The `/dashboard` route, when reached at runtime in a browser, sets `<meta name="robots" content="noindex, nofollow">` via Angular's `Meta` service so search engines that JS-render the page do not index it
+  5. The inline theme bootstrap IIFE in `showcase/angular/src/index.html` (lines 8-15) is wrapped in a `typeof localStorage !== 'undefined'` guard so the prerender environment does not throw `ReferenceError: localStorage is not defined`
+**Plans**: TBD
 
-### Phase 210: QR Code Pairing Restoration
-**Goal**: Restore QR-based dashboard pairing with a server-driven countdown and operator-visible regenerate-on-expiry affordance
-**Depends on**: Phase 209 (shares `ext:remote-control-state` surface)
-**Requirements**: SYNC-VALID-02
+### Phase 216: Crawler Root Files, Express Wiring & Production Validation
+**Goal**: Crawler-aware root files live at the apex (`/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt`) with correct headers, the Express server prefers per-route prerendered HTML over the SPA shell for marketing routes while preserving `/dashboard` SPA behavior, and the deployed site passes a live `curl -A GPTBot` smoke plus Google's Rich Results Test
+**Depends on**: Phase 215 (sitemap entries must point at real prerendered HTML; the Express patch is a no-op without per-route files on disk; production validation requires the prerendered output to be deployed)
+**Requirements**: LD-03, CRAWL-01, CRAWL-02, CRAWL-03, CRAWL-04, CRAWL-05, SRV-01, SRV-02, SRV-03, SMOKE-01, SMOKE-02, SMOKE-03, SMOKE-04
 **Success Criteria** (what must be TRUE):
-  1. Operator clicks `#btnPairDashboard` in the FSB control panel and the extension POSTs to `/api/pair/generate`
-  2. A QR code renders on screen using the server-issued pairing token
-  3. The displayed countdown reflects the 60-second server-issued expiry, not a hardcoded client timer
-  4. When the countdown reaches zero, an explicit "regenerate" affordance appears so the operator can request a fresh token without reopening the dialog
-**Plans**: 210-01 (shipped)
-**Status**: Shipped
-**UI hint**: yes
-
-### Phase 211: Stream Reliability & Diagnostic Logging
-**Goal**: Harden the DOM streaming pipeline and WebSocket transport before the Sync tab surfaces live state, and replace silent error swallowing with redacted, rate-limited diagnostic logging
-**Depends on**: Nothing (maximally isolated; parallel-safe plans across `ws/ws-client.js`, `content/dom-stream.js`, dialog/message-delivery paths)
-**Requirements**: STREAM-01, STREAM-02, STREAM-03, STREAM-04, WS-01, WS-02, WS-03, LOG-01, LOG-02, LOG-03, LOG-04
-**Success Criteria** (what must be TRUE):
-  1. The extension WebSocket inbound handler decompresses `{_lz: true, d: <base64>}` envelopes via `LZString.decompressFromBase64` and dispatches the inner message; plain JSON falls through unchanged
-  2. A two-tier mutation watchdog (`chrome.alarms` in the service worker plus `setTimeout` + monotonic `lastDrainTs` in the content script) detects stuck mutation queues within 5 seconds and forces a flush; the stale counter resets on successful drain and is surfaced via a new `staleFlushCount` field on `ext:stream-state` (the existing `ext:dom-mutations` payload shape is unchanged)
-  3. Snapshot generation on a 5MB / ~50k-node DOM fixture completes in under 200ms using a single `TreeWalker` pass with cached `getBoundingClientRect` results, and large-DOM truncation operates at the node level with a `truncated: true, missingDescendants: N` sentinel capped at 80% of the relay's per-message limit
-  4. Silent `.catch(() => {})` calls in dialog relay and message-delivery paths emit layered diagnostic logs (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`), are rate-limited per category (one `console.warn` per 10s with counter rollup), route through a `redactForLog` helper that logs origin/length/status only, and benign SPA-navigation catches downgrade to `automationLogger.debug`
-  5. Diagnostic events persist to a `chrome.storage.local` ring buffer (last 100 entries) with an "Export diagnostics" affordance that the Sync tab can later expose
-**Plans**: 3 plans (all wave 1 — parallel-safe; file-disjoint per ARCHITECTURE.md (c)+(d))
-- [x] 211-01-PLAN.md — WebSocket inbound _lz decompression symmetry (WS-01, WS-02, WS-03)
-- [x] 211-02-PLAN.md — DOM streaming hardening: two-tier watchdog, TreeWalker truncation, staleFlushCount (STREAM-01, STREAM-02, STREAM-03, STREAM-04)
-- [x] 211-03-PLAN.md — Diagnostic logging refactor: redactForLog + rateLimitedWarn + ring buffer + exportDiagnostics handler (LOG-01, LOG-02, LOG-03, LOG-04)
-
-### Phase 212: Background Agents Sunset
-**Goal**: Retire the background-agents feature in favor of OpenClaw / Claude Routines via a playful deprecation card, comment-out (not delete) every agent-only code path with annotation, and mirror the messaging across showcase/dashboard surfaces -- preserving shared utilities, storage, and the MCP reconnect alarm path
-**Depends on**: Phase 211 is preferable to ship first (so watchdog/decompression are present), but no hard code dependency. Must precede Phase 213 because Sync tab moves the Server Sync card OUT OF the `#background-agents` section.
-**Requirements**: AGENTS-01, AGENTS-02, AGENTS-03, AGENTS-04, AGENTS-05, AGENTS-06
-**Success Criteria** (what must be TRUE):
-  1. Operator opens the FSB control panel and the Background Agents tab body shows a playful "we're not reinventing this wheel" deprecation card naming OpenClaw and Claude Routines as recommended successors with link-out and effective version
-  2. Every agent-only code path across `agents/*.js`, `background.js` agent surfaces, `ws/ws-client.js` agent dispatch, MCP agent tools, popup/sidepanel slash commands, and `ui/options.js` agent UI controllers is commented out (not deleted) and annotated `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.`; shared utilities are untouched
-  3. On extension update from a prior version that had agents, the operator sees a one-time `fsb_sunset_notice` card listing the names of their previously created agents with a copy-to-clipboard export of names only (no task text)
-  4. Showcase home (Background Agents feature card) and dashboard surfaces (vanilla `dashboard.html` and Angular `dashboard-page.component.html/ts`) display the same agents-sunset messaging; `ext:remote-control-state` and `_lz` decompression paths remain intact on the showcase side
-  5. `chrome.storage.local['bgAgents']` data and `fsb_agent_*` `chrome.alarms` entries are preserved (not proactively cleaned), and the shared `chrome.alarms.onAlarm` listener retains its `MCP_RECONNECT_ALARM` early-return path -- only the agent branch is commented out
-**Plans**: 3 plans (all wave 1 -- parallel-safe; file-disjoint per CONTEXT.md D-01 / D-24 / D-25)
-- [x] 212-01-PLAN.md -- Back-end comment-out + deprecation gate (AGENTS-02 back-end portion, AGENTS-05, AGENTS-06)
-- [x] 212-02-PLAN.md -- Control panel deprecation card + sunset notice + slash-command commenting (AGENTS-01, AGENTS-02 UI portion, AGENTS-03)
-- [x] 212-03-PLAN.md -- Showcase mirror: home feature card + vanilla/Angular dashboards + JS/TS comment-out preserving _lz + ext:remote-control-state (AGENTS-04)
-**UI hint**: yes
-
-### Phase 213: Sync Tab Build
-**Goal**: Add a single top-level Sync tab to the FSB control panel that consolidates QR pairing, hash key, server URL, and a live connection-status pill into one dedicated surface; update showcase/dashboard copy to point at it
-**Depends on**: Phase 212 (Sync tab MOVES the Server Sync card out of the `#background-agents` section that Phase 212 sunsets)
-**Requirements**: SYNC-01, SYNC-02, SYNC-03
-**Success Criteria** (what must be TRUE):
-  1. Operator finds a top-level "Sync" tab in the FSB control panel that consolidates QR pairing, hash key, server URL, and connection status into one dedicated surface (relocated from the retired Background Agents section, IDs unchanged)
-  2. The Sync tab shows a live connection-status pill that reflects current `ext:remote-control-state`, with replay-on-attach via a new `getRemoteControlState` runtime action and live updates via a `remoteControlStateChanged` runtime push
-  3. The showcase home page and dashboard pairing copy reference the new Sync tab by name ("Open the Sync tab in FSB") instead of the retired Background Agents location
-**Plans**: 3 plans (all wave 1 -- parallel-safe; file-disjoint at the file level per CONTEXT.md D-24 / D-25 / D-26)
-- [x] 213-01-PLAN.md -- Sync tab UI: nav-item + section + Server Sync card relocation + pill markup/CSS + state-machine wiring (SYNC-01, SYNC-02 UI portion)
-- [x] 213-02-PLAN.md -- Background runtime: getRemoteControlState action + remoteControlStateChanged push + state cache + regression test (SYNC-02 runtime portion)
-- [x] 213-03-PLAN.md -- Showcase copy: vanilla dashboard + Angular dashboard + dashboard.js session-expired message reference the Sync tab (SYNC-03)
-**UI hint**: yes
-
-### Phase 214: MCP Installer Expansion Regression Fixes
-**Goal**: Close regressions introduced by the 21-platform installer expansion WIP -- restore parity between the MCP server's visual-session client-label allowlist and the extension's allowlist, restore the OpenClaw entry in `getSetupSections()` so `fsb-mcp-server setup` continues to mention OpenClaw and `tests/mcp-setup-guidance.test.js` returns to 35/35 green, and refresh the stale `0.9.36` version badge in the root README so the project's public surface tracks the active milestone
-**Depends on**: Nothing (cleanup over the in-flight installer-expansion WIP; no cross-phase code coupling)
-**Requirements**: FIX-01, FIX-02, FIX-03
-**Success Criteria** (what must be TRUE):
-  1. An MCP client labeling itself `'OpenClaw 🦀'` (with the crab variant) round-trips cleanly: server-side `normalizeMcpVisualClientLabel` accepts it AND extension-side `_mcp_normalizeVisualClientLabel` accepts it; the comment "must match the extension's allowlist" in `mcp-server/src/tools/visual-session.ts:7` is no longer a lie
-  2. `fsb-mcp-server setup` continues to surface OpenClaw as a manual/unsupported fallback; `tests/mcp-setup-guidance.test.js` reports 35 passed / 0 failed (regression from 32/35 closed)
-  3. The root `README.md` version badge and intro `Note` reflect the active milestone version instead of `0.9.36` so contributors and downstream packagers see an accurate version line
-**Plans**: 1 plan (wave 1 -- single-pass cleanup)
-- [ ] 214-01-PLAN.md -- Allowlist parity + setup-section restore + README version refresh (FIX-01, FIX-02, FIX-03)
+  1. `curl -I https://full-selfbrowsing.com/robots.txt` returns HTTP 200 with `Content-Type: text/plain; charset=utf-8` and `Cache-Control: public, max-age=3600`; the body contains explicit `User-agent: <name>` + `Allow: /` blocks for GPTBot, ChatGPT-User, OAI-SearchBot, ClaudeBot, Claude-User, Claude-SearchBot, PerplexityBot, Perplexity-User, Google-Extended, Applebot-Extended, Amazonbot, Bytespider, CCBot, Meta-ExternalAgent, DuckAssistBot plus `User-agent: *` allow-all and a final `Sitemap: https://full-selfbrowsing.com/sitemap.xml` line; the same posture holds for `/sitemap.xml` (`application/xml; charset=utf-8`), `/llms.txt`, and `/llms-full.txt` (each `text/plain; charset=utf-8`); `wc -c llms-full.txt` < 256000
+  2. `curl -A "GPTBot" https://full-selfbrowsing.com/about` returns the prerendered about-page HTML with the route-specific `<title>` and canonical (NOT the home page), and the same holds for `/privacy` and `/support`; `curl -A "GPTBot" https://full-selfbrowsing.com/` returns prerendered home HTML with non-empty `<app-root>` and at least one `<script type="application/ld+json">` block
+  3. `curl -I https://full-selfbrowsing.com/dashboard` continues to return the SPA shell (root `index.html`) so the live runtime surface bootstraps as it does today; the server fallback whitelist preserves `/dashboard` and only `/dashboard` for SPA fallback
+  4. Every `<loc>` in `sitemap.xml` resolves to HTTP 200 prerendered HTML when curled with a non-JS user agent; the `prebuild` npm script regenerates `sitemap.xml` `<lastmod>` and `llms-full.txt` content at build time with zero new npm dependencies
+  5. Google's Rich Results Test (https://search.google.com/test/rich-results) on the deployed home URL detects exactly one `Organization` and exactly one `SoftwareApplication` block with zero errors and zero warnings; Search Console "Test live URL" passes for `/`, `/about`, `/privacy`, `/support` (rendered HTML matches prerendered HTML; no `noindex` leaks; no JavaScript-only content)
+**Plans**: TBD
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 209. Remote Control Handlers | 1/1 | Shipped (live UAT pending) | 2026-04-27 |
-| 210. QR Code Pairing Restoration | 1/1 | Shipped | 2026-04-28 |
-| 211. Stream Reliability & Diagnostic Logging | 3/3 | Complete    | 2026-04-28 |
-| 212. Background Agents Sunset | 4/4 | Complete    | 2026-04-29 |
-| 213. Sync Tab Build | 3/3 | Complete    | 2026-04-29 |
-| 214. MCP Installer Expansion Regression Fixes | 0/1 | Active      | — |
+| 215. Prerender Foundation, Per-Route Metadata & Structured Data | 0/0 | Not started | -- |
+| 216. Crawler Root Files, Express Wiring & Production Validation | 0/0 | Not started | -- |
 
 ## Backlog
 
-- Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
-- Live UAT for v0.9.34 vault behavior and MCP payment approve/deny/delayed approval remains accepted validation debt unless it overlaps future verification work.
-- Phase 999.1 backlog (`mcp-tool-gaps-click-heuristics`) is unrelated to v0.9.45rc1; remains parked.
-- Phase 209 has 7 human_needed UAT items (live CDP click/keyboard/scroll delivery, extension-side visual state, runtime tab-id resolution) -- accepted debt for rc1, address ad-hoc once Sync tab lands.
+### v0.9.46 deferred (research-flagged, explicitly out of scope)
 
-### v0.9.46+ Future Requirements (research-flagged, deferred)
+- **CRAWL-FUTURE-01**: Per-route OG images (4 unique 1200x630 PNGs) -- v0.9.46 ships with one shared image; design pass deferred
+- **DISCO-FUTURE-01**: FAQ page (`/faq`) with `FAQPage` JSON-LD (15-25 definition-first Q&A pairs)
+- **DISCO-FUTURE-02**: Comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) with `Article` schema
+- **DISCO-FUTURE-03**: `BreadcrumbList` JSON-LD on every route (deferred until route depth exceeds 1)
+- **DISCO-FUTURE-04**: Off-page push -- Show HN, Reddit launches, awesome-list PRs, 90-second YouTube demo with transcript
+- **DISCO-FUTURE-05**: Search Console + Bing Webmaster Tools registration with property verification and weekly index-coverage monitoring
+- **PRE-FUTURE-01**: `provideClientHydration()` future-proofing for hybrid SSR migration
 
-- **AGENTS-FUTURE-01**: One-time `chrome.alarms.getAll()` cleanup of `fsb_agent_*` alarms on `chrome.runtime.onInstalled` (reason=update)
-- **AGENTS-FUTURE-02**: MCP agent tools return structured `{ ok: false, deprecated: true, message: '...' }` payloads instead of being silently registered
-- **SYNC-FUTURE-01**: Deep-link redirect shim in `ui/options.js` rewriting legacy hashes (`#dashboard`, `#agents`, `#pair`, `#remote`) to `#sync`
-- **SYNC-FUTURE-02**: Manual fallback pairing code (small token) displayed under the QR
-- **SYNC-FUTURE-03**: Last-paired timestamp + UA string persisted and displayed in the Sync tab
-- **SYNC-FUTURE-04**: Manual Reconnect button visible only when status is `disconnected` or `reconnecting`
-- **SYNC-FUTURE-05**: Live remote-control state chip ("Idle" / "Active -- clicking" / "Active -- typing") with debounced echo
-- **STREAM-FUTURE-01**: Dashboard-ack-based stale-counter reset (`dash:dom-mutation-ack` envelope with sequence id)
-- **STREAM-FUTURE-02**: Stream health card UI (mutations/sec, queue depth, last flush age) for power users
+### Carry-over from prior milestones
+
+- Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29
+- Live UAT for v0.9.34 vault behavior and MCP payment approve/deny/delayed approval remains accepted validation debt
+- Phase 999.1 backlog (`mcp-tool-gaps-click-heuristics`) parked
+- Phase 209 has 7 human_needed UAT items (live CDP click/keyboard/scroll delivery)
+
+### Known tech debt with milestone-after-next deadline
+
+- **Angular 19 EOL: 2026-05-19** -- the showcase Angular shell must migrate to Angular 20 before this date. Out of scope for v0.9.46; explicit milestone-after-next deadline tracked in PROJECT.md
 
 <details>
-<summary>✅ v0.9.36 MCP Visual Lifecycle & Client Identity (Phases 203-205) — SHIPPED 2026-04-24</summary>
-
-- [x] Phase 203: MCP Visual Session Contract (2/2 plans) — completed 2026-04-23
-- [x] Phase 204: Overlay Badge & Session Persistence (2/2 plans) — completed 2026-04-23
-- [x] Phase 205: Validation & MCP Usage Docs (2/2 plans) — completed 2026-04-24
+<summary>✅ v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability (Phases 209-214) -- SHIPPED 2026-04-29</summary>
 
 Archive:
-- [.planning/milestones/v0.9.36-ROADMAP.md](./milestones/v0.9.36-ROADMAP.md)
-- [.planning/milestones/v0.9.36-REQUIREMENTS.md](./milestones/v0.9.36-REQUIREMENTS.md)
+- [.planning/milestones/v0.9.45rc1-ROADMAP.md](./milestones/v0.9.45rc1-ROADMAP.md)
+- [.planning/milestones/v0.9.45rc1-REQUIREMENTS.md](./milestones/v0.9.45rc1-REQUIREMENTS.md)
 
 </details>
 
 Older milestone phase details live in the archived roadmap snapshots under `.planning/milestones/`.
 
 ---
-*Roadmap reorganized: 2026-04-24*
-*Last updated: 2026-04-29 after Phase 213 plan decomposition (3 plans)*
+*Roadmap created for v0.9.46: 2026-04-30*
+*First phase: 215 (continues numbering from v0.9.45rc1's Phase 214)*

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v0.9.46
 milestone_name: Site Discoverability (SEO + GEO)
-status: defining-requirements
+status: ready-to-plan
 last_updated: "2026-04-30T00:00:00.000Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,20 +20,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Milestone v0.9.46 -- defining requirements (SEO + GEO discoverability)
+**Current focus:** Milestone v0.9.46 -- roadmap created (2 phases, Phase 215 + Phase 216), ready to plan Phase 215
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 215 (not started)
 Plan: --
-Status: Defining requirements
-Last activity: 2026-04-30 -- Milestone v0.9.46 started
+Status: Ready to plan Phase 215
+Last activity: 2026-04-30 -- Roadmap created with 2 phases (215, 216) covering 24 v1 requirements
 
 ## Performance Metrics
 
-- Phases shipped this milestone: 0/0 (roadmap pending)
-- Plans shipped this milestone: 0/0
-- Active requirements: TBD (defined in REQUIREMENTS.md after research)
+- Phases shipped this milestone: 0/2
+- Plans shipped this milestone: 0/0 (plans decomposed at phase-plan time)
+- Active requirements: 24 (all mapped, 0 orphans)
 
 ## Accumulated Context
 
@@ -42,31 +42,40 @@ Last activity: 2026-04-30 -- Milestone v0.9.46 started
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v0.9.46]: Static prerender via Angular 19 `@angular/build:application` (`prerender: true`). No SSR/Universal -- overkill for a marketing showcase. Marketing routes prerender; `/dashboard` stays SPA (interactive runtime state).
-- [v0.9.46]: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) do NOT execute JavaScript -- prerender is the load-bearing fix. Verified live: `curl -A GPTBot full-selfbrowsing.com` returns only the literal "FSB".
+- [v0.9.46]: Two-phase shape -- Phase 215 bundles prerender + per-route metadata + JSON-LD because LD-01 lives in `index.html` and LD-02 lives in the home component, both touched in the same surgery as the prerender enablement and `Title`/`Meta` injection. Minimum-thrash atomic commits over minimum phase count.
+- [v0.9.46]: Phase 216 bundles crawler files + Express wiring + production validation because they share the same verification flow (`curl -I` headers, content-type, end-to-end sitemap entry resolution); the `llms-full.txt` generator depends on prerendered HTML existing on disk; the Express patch is meaningful only when per-route HTML exists.
+- [v0.9.46]: LD-03 (Rich Results Test validation) belongs to Phase 216 alongside SMOKE because both are operational verification gates run against the deployed site, not code-level changes.
+- [v0.9.46]: Static prerender via Angular 19 `@angular/build:application` (`outputMode: "static"`, `prerender.discoverRoutes: false`, `prerender.routesFile: "prerender-routes.txt"`). No SSR/Universal -- overkill for a marketing showcase. `/dashboard` stays SPA.
+- [v0.9.46]: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) do NOT execute JavaScript -- prerender is the load-bearing fix.
 - [v0.9.46]: Root crawler files dropped via `showcase/angular/public/` (already globbed to dist root by `angular.json`).
-- [v0.9.46]: Express SPA fallback at `server/server.js:110-117` will try per-route prerendered HTML before the index.html catch-all.
-- [v0.9.45rc1]: Phase ordering is 211 (stream/log) -> 212 (agents sunset) -> 213 (Sync tab) by isolation -> dependency direction.
-- [v0.9.45rc1]: Comment, do not delete. Agent code preserved with `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.` annotation.
-- [v0.9.40]: All agent loop exit paths now finalize properly with structured termination reasons
-- [v0.9.36]: MCP visual sessions use explicit start/end tools with trusted client labels
-- [v0.9.35]: MCP reliability first -- bridge lifecycle, diagnostics, installer parity before new features
+- [v0.9.46]: Express SPA fallback at `server/server.js:110-117` will try per-route prerendered HTML before the index.html catch-all; `/dashboard` is the only whitelisted SPA-only route in the patched fallback.
+- [v0.9.45rc1]: Phase ordering was 211 -> 212 -> 213 by isolation -> dependency direction (archived).
+- [v0.9.45rc1]: Comment, do not delete. Agent code preserved with deprecation annotation (archived).
 
 ### Pending Todos
 
-- Run 4 parallel researchers (Stack, Features, Architecture, Pitfalls) for v0.9.46.
-- Synthesize research into SUMMARY.md.
-- Define REQUIREMENTS.md by category (Prerender, Metadata, JSON-LD, Crawler files, Server fallback).
-- Spawn roadmapper starting from Phase 215.
+- Plan Phase 215 via `/gsd-plan-phase 215` (decomposes into wave-1 parallel plans where file-disjoint).
+- Likely Phase 215 plan boundaries (orchestrator decides at plan time):
+  - Plan A: `angular.json` + `prerender-routes.txt` + `localStorage` guard (PRE-01..05)
+  - Plan B: per-route `Title`/`Meta`/canonical/OG/Twitter in 4 page components + `noindex` on `/dashboard` (META-01..04)
+  - Plan C: JSON-LD `Organization` in `index.html` + `SoftwareApplication` in home component with `</` escaping (LD-01, LD-02)
+- After Phase 215 ships: plan Phase 216.
+- Likely Phase 216 plan boundaries:
+  - Plan A: `scripts/build-crawler-files.mjs` + `prebuild` wiring + `public/robots.txt`/`sitemap.xml`/`llms.txt`/`llms-full.txt` (CRAWL-01..05)
+  - Plan B: `server/server.js` SPA-fallback patch + `Content-Type`/`Cache-Control` headers (SRV-01..03)
+  - Plan C: production smoke pass + Rich Results Test evidence capture (LD-03, SMOKE-01..04)
 
 ### Blockers/Concerns
 
 - Angular 19 EOL is 2026-05-19. v0.9.46 is small enough to ship under Angular 19; future Angular 20 upgrade tracked separately.
-- `/dashboard` route inlines runtime state -- must be excluded from the prerender route list to avoid baking transient state into static HTML.
-- Express SPA fallback rewrite must preserve the existing `/dashboard` SPA behavior while serving `/about/index.html`, `/privacy/index.html`, `/support/index.html` directly.
+- `/dashboard` route inlines runtime state -- must be excluded from the prerender route list (`discoverRoutes: false` + explicit `routesFile`) to avoid baking transient state into static HTML. Build-time assertion that `dist/.../browser/dashboard/index.html` does NOT exist.
+- `localStorage` access in `showcase/angular/src/index.html` (lines 8-15) will crash prerender unless wrapped in `typeof localStorage !== 'undefined'` guard. Must land in Phase 215 before any prerender attempt.
+- Express SPA fallback rewrite must preserve the existing `/dashboard` SPA behavior while serving `/about/index.html`, `/privacy/index.html`, `/support/index.html` directly. Whitelist `/dashboard` only.
+- JSON-LD must escape `</` -> `\u003c/` to defeat script-tag injection (Pitfall 4 in research/PITFALLS.md).
+- Single-region Fly.io (`sjc`) + `auto_stop_machines = 'stop'` -- non-US AI crawlers may hit cold-start latency. Mitigation `min_machines_running = 1` already set; revisit only if crawl budget becomes a concern post-launch.
 
 ## Session Continuity
 
-Last session ended with: Milestone v0.9.46 (Site Discoverability) summary confirmed. Research first selected.
+Last session ended with: Research synthesized, requirements scoped (24 v1 items), roadmap created with 2 phases (Phase 215 + Phase 216).
 
-Next session should: 4 parallel gsd-project-researcher agents (Stack, Features, Architecture, Pitfalls), then synthesizer, then requirements scoping, then roadmap from Phase 215.
+Next session should: `/gsd-plan-phase 215` to decompose Phase 215 into wave-1 parallel plans (likely 3 plans -- prerender enablement, per-route metadata, JSON-LD).
