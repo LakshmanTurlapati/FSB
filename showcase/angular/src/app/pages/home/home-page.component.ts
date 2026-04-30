@@ -2,6 +2,7 @@ import { Component, OnInit, Renderer2, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Title, Meta } from '@angular/platform-browser';
 import { DOCUMENT } from '@angular/common';
+import { APP_VERSION } from '../../core/seo/version';
 
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
@@ -25,7 +26,7 @@ export class HomePageComponent implements OnInit {
     const t = 'FSB \u2014 Full Self-Browsing';
     const d = 'Open-source Chrome extension that automates the browser through natural language. Multi-model AI (xAI, OpenAI, Anthropic, Gemini, local), 50+ actions, 142+ site guides.';
     this.applyMeta(t, d, url);
-    // TODO(plan-03): inject SoftwareApplication JSON-LD per LD-02
+    this.injectSoftwareApplicationJsonLd();
   }
 
   private applyMeta(t: string, d: string, url: string): void {
@@ -52,5 +53,40 @@ export class HomePageComponent implements OnInit {
       this.renderer.appendChild(this.doc.head, link);
     }
     this.renderer.setAttribute(link, 'href', href);
+  }
+
+  /**
+   * Inject SoftwareApplication JSON-LD on the home route only (LD-02, D-13..D-17).
+   * publisher.@id cross-references the Organization block in src/index.html (LD-01).
+   * Escape rule per PITFALLS.md P4 + T-LD-01: JSON.stringify(...).replace(/</g, '\u003c')
+   * defeats </script> injection by escaping every '<' literal as the JSON Unicode escape \u003c.
+   * Idempotent: data-ld attribute prevents double-injection on route revisits.
+   */
+  private injectSoftwareApplicationJsonLd(): void {
+    if (this.doc.head.querySelector('script[data-ld="software-application"]')) {
+      return;
+    }
+    const payload = {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'FSB',
+      description: 'Open-source Chrome extension for AI-powered browser automation through natural language',
+      url: 'https://full-selfbrowsing.com',
+      applicationCategory: 'BrowserApplication',
+      operatingSystem: 'Chrome',
+      softwareVersion: APP_VERSION,
+      downloadUrl: 'https://github.com/lakshmanturlapati/FSB',
+      sameAs: ['https://github.com/lakshmanturlapati/FSB'],
+      publisher: { '@id': 'https://full-selfbrowsing.com/#org' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    };
+    // T-LD-01 mitigation: escape '<' as '\u003c' to defeat </script> injection (PITFALLS.md P4).
+    const json = JSON.stringify(payload).replace(/</g, '\u003c');
+    const script = this.renderer.createElement('script') as HTMLScriptElement;
+    this.renderer.setAttribute(script, 'type', 'application/ld+json');
+    this.renderer.setAttribute(script, 'data-ld', 'software-application');
+    const text = this.renderer.createText(json);
+    this.renderer.appendChild(script, text);
+    this.renderer.appendChild(this.doc.head, script);
   }
 }
