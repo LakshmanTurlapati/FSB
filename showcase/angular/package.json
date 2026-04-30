@@ -5,6 +5,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "prebuild": "node scripts/build-crawler-files.mjs",
     "build": "ng build",
     "test": "ng test",
     "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs"
