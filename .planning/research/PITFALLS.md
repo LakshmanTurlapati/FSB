@@ -1,344 +1,333 @@
 # Pitfalls Research
 
-**Domain:** FSB v0.9.45rc1 -- Sync surface consolidation, background-agent sunset, DOM stream hardening, WS compression symmetry, diagnostic logging
-**Researched:** 2026-04-28
-**Confidence:** HIGH (grounded in current FSB code + recent v0.9.36/v0.9.40 incidents)
-
-This file enumerates pitfalls specific to ADDING the v0.9.45rc1 features to the existing FSB MV3 extension + showcase dashboard. It does not re-litigate already-validated subsystems (autopilot, MCP server, conversation history, vault, dashboard analytics). Each pitfall ties back to one of the six work areas in the milestone:
-
-1. Sync tab consolidation (relocates Phase 209 + 210 UI)
-2. Background-agents sunset (commented-out, not deleted)
-3. DOM streaming hardening (mutation watchdog, large-DOM truncation, stale counter)
-4. WebSocket inbound decompression (symmetric `_lz` envelope)
-5. Diagnostic logging replacement (silent error swallowing -> `console.warn`)
-6. Showcase/dashboard surface mirroring (sync messaging + agent-sunset copy)
-
----
+**Domain:** Adding SEO + GEO (Generative Engine Optimization) to an existing Angular 19 SPA hosted on Express + Fly.io
+**Researched:** 2026-04-30
+**Confidence:** HIGH for prerender + Express middleware ordering + JSON-LD validation; MEDIUM for AI-crawler file conventions (`llms.txt`/`llms-full.txt` are de-facto standards, not W3C); MEDIUM for Fly.io crawler latency specifics.
+**Stack confirmed:** Angular 19 standalone routes (`HomePage`, `AboutPage`, `DashboardPage`, `PrivacyPage`, `SupportPage` -- all `loadComponent` lazy), Express static + SPA fallback in `server/server.js`, single-region `sjc` Fly.io with `force_https = true`, and an inline `<script>` in `src/index.html` that calls `localStorage.getItem('fsb-showcase-theme')` before bootstrap.
 
 ## Critical Pitfalls
 
-### Pitfall 1: Orphaning users mid-pairing during Sync tab consolidation
+### Pitfall 1: `localStorage` access in `index.html` crashes Angular prerender
 
 **What goes wrong:**
-A user has the QR pairing UI open in `options.html#dashboard` (current Phase 210 surface) when the new Sync tab is rolled out. After update, the old anchor either silently scrolls to nothing, throws "section not found" in the console, or worse, lands on the dashboard tab without a QR code at all -- the regenerate-on-expiry timer was already counting down and now the user has no way to scan or refresh.
+The current `showcase/angular/src/index.html` ships an inline IIFE that calls `localStorage.getItem('fsb-showcase-theme')` (lines 8-15) and conditionally sets `data-theme` on `<html>` before Angular bootstraps. Under Angular's static prerender (`@angular/build:prerender` builder, which runs the app in a Node + JSDOM-like environment), `localStorage` is undefined. The script throws `ReferenceError: localStorage is not defined` (or in some configurations, `window is not defined`), which either fails the prerender entirely or -- worse -- silently produces an HTML file with the wrong theme baked in and an unhandled exception that breaks hydration once SSR is later turned on.
 
 **Why it happens:**
-Hash anchors in the options page (`options.html#dashboard`, `options.html#agents`, `options.html#mcp`) are deep links from documentation, the showcase site nav, and the FSB toolbar popup. Removing or renaming the section that an anchor points to makes the link a silent no-op inside an extension page (no 404 handling like a real web app gets). Phase 210 wired the QR generation to `#btnPairDashboard` inside `#dashboard`; if the Sync tab reuses the same button id but hangs it under `#sync`, every doc link, support email, and showcase CTA pointing at `#dashboard` will be broken on day one.
+The inline script was written under the SPA-only assumption that the document is always rendered in a browser. Prerender executes the `index.html` template plus the bootstrapped app in a server-like context where DOM globals are mocked but storage APIs are not. Developers add prerender expecting Angular code to be flagged via `isPlatformBrowser()` guards but forget that **inline scripts in `index.html` run before any Angular guard exists**.
 
 **How to avoid:**
-1. Inventory every `#`-anchor reference in code before moving anything: grep `options.html#`, `chrome.runtime.openOptionsPage`, `showcase/**` href patterns, README, and the showcase Angular router.
-2. Implement an in-page redirect shim in `ui/options.js` that runs on `DOMContentLoaded`: if `location.hash` matches a deprecated anchor (`#dashboard`, `#agents` for old tab, `#pair`, `#remote`), rewrite it to the new `#sync` anchor and call the tab activator before any other init runs. This must happen before the Phase 210 60s countdown wiring fires; otherwise a deep-link arrival will start the QR timer in a hidden tab.
-3. Keep the redirect shim in place for at least the v0.9.45 + v0.9.46 cycle; remove only after telemetry shows the legacy anchors are no longer hit (or after a full release notes cycle).
-4. The Sync tab MUST own a stable id (`#sync` only) -- do not introduce sub-anchors in this milestone. Sub-anchors invite the same problem on the next refactor.
+- Wrap the inline IIFE in a `typeof localStorage !== 'undefined'` guard:
+  ```html
+  <script>
+    (function initShowcaseTheme() {
+      if (typeof localStorage === 'undefined') return;
+      try {
+        const saved = localStorage.getItem('fsb-showcase-theme');
+        if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (_) { /* private mode, prerender, etc. */ }
+    })();
+  </script>
+  ```
+- Bake the **default (dark) theme** into the prerendered HTML; the inline script only **upgrades** to light when `localStorage` is available at runtime. This avoids a Flash Of Unstyled Theme (FOUT) on the prerendered page.
+- For any Angular component that touches `localStorage`, `window`, `document.cookie`, etc., use `inject(PLATFORM_ID)` + `isPlatformBrowser(platformId)` and gate the access. This is a hard requirement before any future SSR migration.
 
 **Warning signs:**
-- Console error `Cannot read properties of null (reading 'classList')` on options.html load when arriving from a deep link.
-- QR countdown badge shows 60s -> 59s -> ... in DevTools but no QR ever renders (timer started in a tab the user never saw).
-- Showcase support page links land on a blank section.
-- Users on Discord/issues report "where did the pair button go?" within hours of release.
+- `npm run prerender` (or `ng build --prerender`) emits `ReferenceError: localStorage is not defined` or `window is not defined`.
+- Prerendered `index.html` is byte-identical to the SPA shell (i.e., prerender silently fell back to the empty `<app-root>`).
+- Production build succeeds but `curl -A "GPTBot" https://full-selfbrowsing.com/` still returns the literal string "FSB" with no head metadata.
 
 **Phase to address:**
-Sync tab consolidation phase. Make the redirect shim a Plan 1 task and the tab move a Plan 2 task. Do not let plan 1 be skipped -- the shim is what avoids the orphan window.
+**Phase: Prerender Foundation** -- must land the `typeof localStorage` guard before any prerender attempt. This is the very first code change of the milestone.
 
 ---
 
-### Pitfall 2: Dangling message handlers after agent sunset (silent MCP failure)
+### Pitfall 2: `/dashboard` accidentally prerendered, breaking interactive runtime
 
 **What goes wrong:**
-Background-agent code paths get commented out in `ui/options.js`, `ui/sidepanel.js`, and `ui/popup.js`, but `background.js` still has the alarm listener (`chrome.alarms.onAlarm.addListener` at line ~12532), the agent run completion broadcaster (line ~12593), and the `dash:agent-run-now` WebSocket dispatch handler in `ws/ws-client.js`. MCP clients calling `agent_create`, `agent_list`, or `agent_run` get a half-alive response: tools registered in `mcp-server/src/tools/agents.ts` route through, hit a partially-commented background handler, and either return stale data, silently no-op, or crash the bridge mid-call. The user sees "MCP failed" without a clear cause because the layer that would have logged the deprecation was the UI, which is gone.
+`/dashboard` is the QR-paired remote control surface and depends on live WebSocket state, `chrome.storage.local`-derived data flowing through `dashboard-runtime-state.js`, and runtime-only globals (`html5-qrcode`, `lz-string`). If it gets included in the prerender route list, the static HTML will bake in an empty/uninitialized state -- users hitting `/dashboard` will see a stale skeleton until JS hydrates, **or** the prerender will throw because it tries to call browser-only APIs during static generation.
+
+Worse: if the prerendered `/dashboard/index.html` ships with cached `Cache-Control` headers from Fly.io's edge or a CDN, users can be served a stale snapshot for hours.
 
 **Why it happens:**
-"Comment out, don't delete" is correct at the file level (preserves shared utilities, supports future revival), but it's only safe if every entrypoint that activates that code is also gated. Background agents have at least four entrypoints beyond the UI: (a) `chrome.alarms.onAlarm` firing for previously-scheduled alarms that are still in the alarm registry, (b) MCP tools (`agent_create` etc.) registered server-side, (c) `dash:agent-run-now` from the dashboard, (d) `ws/mcp-bridge-client.js` request routing. Commenting only the UI leaves all four hot.
+The default Angular prerender configuration (`outputMode: 'static'` with `prerender: true`) prerenders **every route in `app.routes.ts` that doesn't have a wildcard or a parameter**. All five routes (`''`, `about`, `dashboard`, `privacy`, `support`) match this filter. Developers must explicitly opt `/dashboard` out.
 
 **How to avoid:**
-1. Define a single deprecation gate constant `BG_AGENTS_DEPRECATED = true` exported from `agents/agent-manager.js` (or a new `agents/deprecation.js` if the manager file itself is being neutered). Every entrypoint -- alarm listener, MCP tool registration, dashboard dispatch, bridge route -- checks this gate first and returns a structured deprecation response (`{ ok: false, deprecated: true, message: 'Background agents are retired in v0.9.45 -- see OpenClaw / Claude Routines.' }`).
-2. On extension upgrade (`chrome.runtime.onInstalled` with reason `update`), enumerate `chrome.alarms.getAll()`, find every alarm prefixed with the agent prefix (`agentScheduler.ALARM_PREFIX`), and clear them. Do this even though `agents/agent-scheduler.js#clearAllAlarms` is being commented out -- copy the few lines into the install handler so the cleanup runs once on the upgrade boundary regardless of whether the rest of the scheduler is dormant.
-3. MCP tool surface: in `mcp-server/src/tools/agents.ts`, do not just return `{}`. Have each tool return an explicit deprecated-tool error so MCP hosts (Claude Desktop, Codex, OpenCode) display "this tool is retired" rather than treating an empty payload as success. Update `mcp-server/README.md` and the MCP package guide.
-4. Run `node tests/agent-manager-start-mode.test.js` against the comment-out diff and confirm it fails on import (proving the deprecation surface is visible to existing tests). Then update the test to assert deprecation behavior, not pre-deprecation behavior.
+- Use the explicit `routes` array in the prerender config (Angular 19 supports `prerender: { routes: [...] }` in `angular.json` or a `routes.txt` discovery file). List only `/`, `/about`, `/privacy`, `/support`.
+- Alternatively, supply a `routes.txt` to `@angular/build:prerender` containing exactly those four lines.
+- Add a build-time assertion: after prerender, run a script that asserts `dist/showcase-angular/browser/dashboard/index.html` does **not** exist. Fail the build if it does.
+- In `server/server.js`, the SPA fallback for `/dashboard` must continue serving the unmodified `index.html` (the SPA shell), not any prerendered variant.
 
 **Warning signs:**
-- Service worker logs `[FSB] Agent not found for alarm, clearing: agent_xyz` repeatedly after upgrade -- this is the symptom from `background.js:12550` firing on stranded alarms.
-- MCP host logs show `agent_create` returning success with empty data (handler half-noops without raising).
-- Dashboard "Run Now" button on a still-cached agents view triggers a 30-second hang because `dash:agent-run-now` reaches the bridge but never gets a reply.
-- `console.warn('[FSB] agentRunComplete sendMessage delivery failed', ...)` fires for sessionIds that don't exist in any UI.
+- `dist/.../browser/dashboard/index.html` exists after build.
+- Dashboard QR pairing fails on first paint with "lz-string is not defined" or empty state until manual reload.
+- Live UAT shows users seeing yesterday's pairing state.
 
 **Phase to address:**
-Background-agent sunset phase. Make the deprecation gate + alarm-cleanup-on-update a Plan 1 task; UI commenting is Plan 2; MCP surface deprecation is Plan 3. The alarm cleanup MUST land in the same release where the UI is removed -- splitting them across two releases leaves users on the intermediate version with stranded zombies.
+**Phase: Prerender Foundation** -- explicit route allowlist must be declared and asserted in the same phase that introduces prerender.
 
 ---
 
-### Pitfall 3: Stored agent data lost without warning on extension upgrade
+### Pitfall 3: Express middleware order swallows `/robots.txt`, `/sitemap.xml`, and prerendered HTML
 
 **What goes wrong:**
-The `bgAgents` key in `chrome.storage.local` (see `agents/agent-manager.js:8`) holds every user-created agent definition, run history, and replay state. After sunset, those entries become inert but they're still 50-entry-per-agent histories on disk. If a future migration deletes the key, or a user reinstalls and Chrome syncs back partial data, they lose their agent run history without ever being told it existed in the first place.
+Two compounding ordering bugs are likely in `server/server.js`:
+
+1. **Prerendered HTML shadowed by SPA catch-all.** The current SPA fallback (lines 111-117) handles `'/', '/about', '/dashboard', '/privacy', '/support'` by sending `path.join(staticPath, 'index.html')` -- the **root** `index.html`. After prerender, the per-route HTML lives at `dist/.../browser/about/index.html`, `dist/.../browser/privacy/index.html`, etc. If the route handler keeps sending the root `index.html`, the prerendered content is **never served**, even though `express.static` could find it. Crawlers continue to receive empty `<app-root>`.
+2. **`/robots.txt` and `/sitemap.xml` swallowed if placed in catch-all.** If a developer adds an `app.get('*', ...)` SPA fallback (as is common in stale Angular guides), it intercepts `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` before `express.static` has a chance to serve them. Result: crawlers get HTML instead of plaintext, and `Content-Type: text/plain` is missing.
 
 **Why it happens:**
-Two failure modes converge: (a) developers commenting out a feature often also "tidy up" by deleting its storage key in `onInstalled`, treating storage cleanup as part of the deprecation, and (b) users with active scheduled agents at the moment of upgrade have no warning -- the alarm fires, the handler is gated, the run never happens, and the user only notices days later when the result they expected isn't there.
+Express runs middleware in registration order. The current code registers `express.static` *before* the SPA fallback (good), but the SPA fallback **explicitly handles enumerated routes** and always sends the SPA `index.html` rather than letting `express.static` find a per-route prerendered file first. The fix is to let `express.static` serve `about/index.html` for `/about` (via the `index` option), then only fall through to a single SPA shell for SPA-only routes (`/dashboard`).
 
 **How to avoid:**
-1. **Do not delete `bgAgents` storage in this milestone.** Comment out writes, but leave the data in place. Users who downgrade or who want to migrate to OpenClaw can still see their definitions.
-2. Add a one-time migration in `chrome.runtime.onInstalled` (reason=update, only when version crosses 0.9.45) that:
-   - Reads `bgAgents`.
-   - Counts active (`enabled: true`) agents.
-   - If count > 0, writes a notification record to `chrome.storage.local` under `fsb_sunset_notice` containing the agent names and their last scheduled times.
-   - The Sync tab (or popup, on next open) reads `fsb_sunset_notice` and shows a one-time card listing those agents and what to do next (export task text to OpenClaw, links to docs).
-3. Include an export action in the deprecation card: "Copy task definitions" that puts JSON of `{name, task, schedule}` pairs onto the clipboard. This is the "graceful sunset with data preservation" pattern -- the data stays, the user is informed, and they have a one-click export path.
-4. Document the storage layout in `.planning/MILESTONES.md` v0.9.45 closeout so future revival (if strategic landscape changes) can re-read the same key.
+- Configure `express.static` with `{ extensions: ['html'], index: 'index.html' }` so a request for `/about` resolves to `dist/.../browser/about/index.html` automatically.
+- Replace the enumerated SPA fallback with a **narrow** fallback that only serves the unmodified shell for the SPA-only routes -- explicitly **`/dashboard`** in this codebase. Marketing routes must fall through `express.static`.
+- Place root files (`robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`) in the static path **before** any catch-all. If they live in the Angular `src/` as `assets/`, they'll be copied to `dist/.../browser/` at root level -- verify with `ls dist/showcase-angular/browser/robots.txt` after build.
+- Recommended final order: `cors` -> `json` -> request log -> `/api/*` routers -> legacy `.html` redirects -> `express.static(staticPath, { extensions: ['html'] })` -> narrow `/dashboard` SPA shell handler -> error handler.
 
 **Warning signs:**
-- User reports "my Tuesday morning report didn't run" 3-7 days after upgrade.
-- Storage size for `bgAgents` is non-zero on machines where the agents UI is gone.
-- No deprecation card has ever appeared on a profile that previously had agents (means `fsb_sunset_notice` write didn't fire).
+- `curl -I https://full-selfbrowsing.com/robots.txt` returns `Content-Type: text/html`.
+- `curl https://full-selfbrowsing.com/about` returns the SPA shell (empty `<app-root>`) instead of the prerendered HTML with metadata.
+- Search Console reports "Sitemap could not be read" because it received HTML.
 
 **Phase to address:**
-Background-agent sunset phase, Plan 1 (data preservation + notice) BEFORE Plan 2 (UI removal). Verification: on a profile with seeded `bgAgents` data, upgrade to 0.9.45rc1, confirm the notice card appears and `bgAgents` is unchanged.
+**Phase: Express Wiring & Crawler Files** -- must land in the same phase that introduces `robots.txt`/`sitemap.xml`/`llms.txt`. Before this phase, prerender output is invisible to crawlers.
 
 ---
 
-### Pitfall 4: Mutation queue watchdog false-positive on legitimately quiet pages
+### Pitfall 4: Invalid or duplicate JSON-LD silently ignored by Google / cited incorrectly by LLMs
 
 **What goes wrong:**
-The DOM streaming watchdog is intended to detect "the mutation observer has stopped delivering even though the stream session is supposedly alive" and trigger a recovery (resnapshot, restart observer, broadcast a transport warning). On pages that are intentionally quiet -- a finished article, a static documentation page, an idle Gmail inbox -- the watchdog fires every cycle, spamming `[FSB DOM] watchdog: stream stuck` warnings, forcing unnecessary resnapshots, and burning service-worker lifecycle budget.
+Several failure modes:
+1. **Multiple `Organization` blocks** across pages with conflicting fields (e.g., different `logo`, `sameAs`) cause Google to either pick one arbitrarily or ignore all of them. LLMs that scrape JSON-LD as a corpus (Perplexity, ChatGPT browse) may cite stale or contradictory facts.
+2. **Wrong `@context`.** `"@context": "http://schema.org"` (HTTP) is technically still parsed by Google but flagged as deprecated; LLM scrapers using strict JSON-LD parsers may reject it. Correct value: `"https://schema.org"`.
+3. **Escaping bugs in inline `<script type="application/ld+json">`.** Embedding the literal substring `</script>` anywhere in a value (e.g., a description that mentions "a `</script>` injection bug") closes the JSON-LD block early, breaks the entire document, and causes silent validation failure. The HTML parser is not JSON-aware.
+4. **Trailing commas, single quotes, or unescaped newlines** -- JSON-LD requires strict JSON. Angular template interpolation that uses single quotes or pretty-prints multiline strings will produce invalid JSON.
+5. **Wrong type combination.** `SoftwareApplication` requires `applicationCategory` and `offers`; missing them downgrades the rich result eligibility. `Organization` requires `name` and `url` minimum.
 
 **Why it happens:**
-Watchdogs that key off "no mutations in N seconds" conflate two different states: (a) the observer is broken / detached and (b) nothing changed because nothing is supposed to change. The current `content/dom-stream.js` MutationObserver flushes on rAF (line 678) -- a stuck observer would manifest as no flushes -- but that's indistinguishable from a quiet page using the same signal.
+Developers eyeball the JSON in a template and assume it's valid. Schema.org has 800+ types and most validators (Google Rich Results Test, schema.org validator) only flag *some* errors. JSON-LD is parsed by `JSON.parse`, which is unforgiving of any deviation.
 
 **How to avoid:**
-1. Watchdog must check **both** "no mutations" and "observer instance still attached + healthy". Track a `mutationObserver._lastFlushTime` AND a `mutationObserver._isConnected` flag (set on `observe()`, cleared on `disconnect()`). Stuck = no flush AND last expected reason for inactivity is gone (e.g. tab is foreground, page load complete, no pending navigation).
-2. Use a heartbeat mutation rather than time-only: every 15s the watchdog calls `mutationObserver.takeRecords()` (synchronous, returns currently-queued records without flushing). If the call throws or returns null when a known-good observer would return `[]`, the observer is broken. If it returns `[]`, the page is just quiet -- not stuck.
-3. Add a "quiet page" exemption: if the page has no animation frames running for 10 seconds AND `document.visibilityState === 'visible'` AND the dashboard preview's last-rendered DOM matches a recent extension-side hash, treat as healthy-quiet.
-4. Watchdog log messages must be `console.log` (not `warn`) at info severity for healthy-quiet, `console.warn` only for actual stuck detection. Prevents log spam during normal browsing.
+- Use **one** canonical `Organization` block, embedded only on `/` (homepage). Other pages reference it via `@id` rather than redefining it.
+- Use **`@id`** anchors: `"@id": "https://full-selfbrowsing.com/#organization"`. The `SoftwareApplication` block on `/` references `"publisher": { "@id": "https://full-selfbrowsing.com/#organization" }`.
+- Always use `"@context": "https://schema.org"` (HTTPS).
+- Build JSON-LD via a TypeScript function that returns an object, then `JSON.stringify(obj)` it into a sanitized inline script. Run a regex post-process to escape `</` as `<\/` to defeat the script-close attack:
+  ```typescript
+  const jsonLd = JSON.stringify(schema).replace(/</g, '\\u003c');
+  ```
+- Validate every generated page in CI: `curl http://localhost:3847/about | npx schema-dts-validator` (or use Google's Rich Results Test API). Fail the build on any error.
+- Run **Google Rich Results Test** and **schema.org validator** against every prerendered page before merging.
 
 **Warning signs:**
-- Service worker console shows `watchdog tick` more than once per minute.
-- Resnapshot count from extension > 1 per actual page navigation.
-- Dashboard preview flickers (full DOM reload) while the user is reading a static page.
-- MV3 SW lifecycle stays "active" indefinitely on quiet pages -- watchdog activity prevents idle timeout and burns the 30s budget.
+- Google Rich Results Test reports "Parsing error: Missing comma or '}' after object member."
+- Search Console "Enhancements" tab shows zero detected items despite JSON-LD being present.
+- LLM-generated answers cite a stale logo URL or wrong company name.
 
 **Phase to address:**
-DOM streaming hardening phase, Plan 1 (watchdog design) before Plan 2 (truncation). Verification: open a static documentation site, leave for 5 minutes; expect zero `[FSB DOM] watchdog: stream stuck` warnings and SW idles normally.
+**Phase: Structured Data (JSON-LD)** -- dedicated phase for schema design, sanitization helper, and CI validation gate.
 
 ---
 
-### Pitfall 5: setInterval watchdog timer fails after MV3 service worker idle
+### Pitfall 5: `robots.txt` typos block legitimate traffic or expose the dashboard
 
 **What goes wrong:**
-If the watchdog is implemented as `setInterval` in `background.js`, it stops firing 30 seconds after the SW goes idle (MV3 evicts timers along with the SW context). When the user comes back to the tab, the SW wakes, but the watchdog interval is gone -- there's no recovery mechanism for streams that broke during the SW-idle window. Worse, on SW wake the old `pendingMutations` / `streamSessionId` state may be partially restored from `chrome.storage.session`, so the system thinks streaming is active but no observer is actually running.
+- **`Disallow: /` typo** (intended `Disallow:` empty meaning allow-all) blocks the entire site from every crawler. Recovery takes weeks because some crawlers cache `robots.txt` for 24h+.
+- **Missing `Allow:` for AI bots** under a restrictive `User-agent: *` group. The grouping rules in robots.txt are scoped: `User-agent: GPTBot` followed by no rules means GPTBot inherits *nothing* -- it's actually allowed by default -- but `User-agent: *` with `Disallow: /` followed by `User-agent: GPTBot` with `Allow: /` works because GPTBot picks the most specific group.
+- **Allowing `/dashboard`** to be crawled -- it's an authenticated runtime surface; crawlers will index empty SPA shells with no real content, polluting Google's index with thin pages.
+- **Missing or wrong `Sitemap:` line.** Must be absolute URL with protocol: `Sitemap: https://full-selfbrowsing.com/sitemap.xml`. A relative path is silently ignored.
+- **Conflicting `User-agent: *` rules.** Two `User-agent: *` blocks in the same file cause undefined behavior across crawlers.
+- **CRLF line endings or BOM.** Some crawlers (older Bing variants) reject `robots.txt` with a UTF-8 BOM. Use LF and no BOM.
 
 **Why it happens:**
-Pre-MV3 muscle memory. `setInterval` in a persistent background page survives indefinitely; in MV3 a service worker is suspended after 30s of inactivity and `setInterval` callbacks are simply not delivered after that. The CLAUDE.md repeatedly calls out "MV3 service worker lifecycle" as a constraint, and Phase 207 (v0.9.40) explicitly handled SW-wake session resumption -- but a watchdog implemented in the wrong primitive will reintroduce the silent-loss problem v0.9.40 just fixed.
+`robots.txt` syntax is deceptively simple but has subtle precedence rules (most-specific-group-wins, longest-match-path-wins). Developers paste examples from blog posts that target a different site structure.
 
 **How to avoid:**
-1. **Use `chrome.alarms` for SW-side watchdogs.** `ws/mcp-bridge-client.js` already does this for reconnect (line 205, 219) -- copy the pattern. `chrome.alarms.create('fsb-domstream-watchdog', { periodInMinutes: 0.5 })` survives SW idle and wakes the SW to fire the alarm callback.
-2. **Use rAF-driven `setInterval` in the content script** for the in-page side of the watchdog. Content scripts have a normal page lifecycle and `setInterval` works there. The split is: alarm wakes the SW, SW asks the content script "are you still streaming?", content script replies. Avoid having the SW guess from `chrome.storage.session` alone.
-3. On SW wake, re-resolve stream state authoritatively: send a `domStreamHealthCheck` message to the content script in the active tab, wait for ack, only mark the stream alive if ack returns. If no ack in 2s, broadcast a stream-broken event to the dashboard so it shows the recovery chip from Phase 164.
-4. Do NOT rely on `setTimeout` chains. Phase 102 (v0.9.8) and the v0.9.20 architecture rewrite both intentionally moved iteration timing to `setTimeout`-chained iterations because the iteration is short-lived; that pattern does NOT extend to long-running watchdogs.
+- Use a known-good template:
+  ```
+  User-agent: *
+  Allow: /
+  Disallow: /dashboard
+  Disallow: /api/
+
+  User-agent: GPTBot
+  Allow: /
+  Disallow: /dashboard
+  Disallow: /api/
+
+  User-agent: ClaudeBot
+  Allow: /
+  Disallow: /dashboard
+  Disallow: /api/
+
+  User-agent: PerplexityBot
+  Allow: /
+  Disallow: /dashboard
+  Disallow: /api/
+
+  User-agent: Google-Extended
+  Allow: /
+
+  Sitemap: https://full-selfbrowsing.com/sitemap.xml
+  ```
+- Validate with Google's robots.txt Tester (Search Console) before deploy.
+- Add a CI check: `curl -s https://staging-url/robots.txt | grep -E "^Disallow: /$"` should return nothing.
+- Save the file as ASCII / UTF-8 without BOM, LF line endings.
 
 **Warning signs:**
-- Alarm registry (chrome://extensions DevTools) shows zero `fsb-domstream-*` alarms but DOM streaming is supposedly active.
-- Watchdog stops working after the user closes/reopens the laptop lid.
-- After SW wake (20+ seconds idle), dashboard preview shows stale DOM -- mutations stopped flowing during idle and no one noticed until the user clicked something.
-- `chrome.alarms.getAll()` shows watchdog alarm with `scheduledTime` in the past.
+- `Disallow: /` appears anywhere in the file.
+- `Sitemap:` line is missing or uses `http://` (mixed-content) or relative path.
+- Search Console shows "Blocked by robots.txt" on the homepage.
+- `curl -A "GPTBot" https://full-selfbrowsing.com/` returns 200 but the bot's logs show it never crawled.
 
 **Phase to address:**
-DOM streaming hardening phase, Plan 1 (watchdog primitive choice -- alarms not setInterval). Add a verification test that simulates SW eviction (force-stop the SW from chrome://extensions) and confirms the alarm refires on wake.
+**Phase: Crawler Files (robots/sitemap/llms)** -- must include explicit per-bot rules and a validation script in CI.
 
 ---
 
-### Pitfall 6: Stale mutation counter resets at the wrong moment
+### Pitfall 6: `sitemap.xml` rejected by Search Console (lastmod format, 404 routes, wrong protocol)
 
 **What goes wrong:**
-The "stale mutation counter" is supposed to track the number of mutations queued without delivery confirmation, so the system knows when to force a resnapshot. If the counter resets on every successful send (instead of every successful render-confirmation from the dashboard), a relay that ACKs receipt but never delivers to the dashboard (server-side queue overflow, dashboard tab in a recovery chip state) will see counter resets and never trigger resnapshot. Net effect: dashboard is silently stale, the extension thinks everything is fine, and the system "looks done but isn't".
+- **`lastmod` in wrong format.** Must be **W3C Datetime** (ISO 8601). `"2026-04-30"` is valid; `"04/30/2026"` and `"April 30, 2026"` are rejected.
+- **Listing routes that 404.** If you list `/faq` (deferred per PROJECT.md) but it's not implemented, Search Console flags it as an error and may de-prioritize the entire sitemap.
+- **Wrong protocol or host.** `<loc>http://full-selfbrowsing.com/about</loc>` will be rejected because the canonical is HTTPS (Fly.io `force_https` redirects). The sitemap host **must match** the deployed host exactly (no `www.` if the site is apex, no trailing slash mismatch).
+- **Missing XML declaration or namespace.** Must start with `<?xml version="1.0" encoding="UTF-8"?>` and use `xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"`.
+- **Sitemap > 50MB or > 50,000 URLs** without sitemap index -- not an issue for this site (5 routes), but worth noting.
+- **No `Content-Type: application/xml`.** If served as `text/html`, some validators complain.
 
 **Why it happens:**
-ACK semantics confusion. There are three ACK boundaries: (1) `ws.send` returned without throwing, (2) relay server accepted and forwarded, (3) dashboard rendered the mutation. They are not the same. Phase 164 (v0.9.25) introduced `_lastRemoteControlState` for the remote-control case; the analogous DOM stream ACK is not yet wired authoritatively.
+Search Console is strict; manually-written XML often has subtle errors. Developers test by visiting the URL in a browser (which renders any well-formed XML) and assume it works.
 
 **How to avoid:**
-1. The dashboard must send a `dash:dom-mutation-ack` envelope back to the extension after applying mutations, including a sequence number. The extension's stale counter resets only on receipt of that ack, not on local send.
-2. Add a max-staleness threshold: if counter exceeds N (e.g., 200 mutations or 30 seconds) without ack, trigger a forced resnapshot via the existing `domStreamResnapshot` path.
-3. Never reset the counter on transport-level success (`ws.send` returning true). That's a green light from one layer; staleness is a property of end-to-end delivery.
-4. Use the same `streamSessionId` the dashboard already keys on (line 651 in `dom-stream.js`); send acks scoped to that session id so reconnects don't cross-pollinate ack streams.
+- Generate the sitemap programmatically (build script that reads the prerender route list) so it stays in sync with `app.routes.ts` minus `/dashboard`.
+- Validate at build time: `xmllint --noout dist/.../browser/sitemap.xml` and pipe through an XML sitemap validator before deploy.
+- Use `YYYY-MM-DD` for `lastmod` (W3C Datetime short form is acceptable).
+- Hard-code the production base URL `https://full-selfbrowsing.com` and assert in the build script that every `<loc>` starts with that exact prefix.
+- Ensure `express.static` serves `.xml` with `Content-Type: application/xml` (Express does this by default via `mime-types`, but verify with `curl -I`).
 
 **Warning signs:**
-- `recordFSBTransportCount('sentByType', ...)` shows hundreds of `domStreamMutations` sends but the dashboard preview is visibly stale (e.g. user typing in the streaming tab, dashboard mirror is multiple keystrokes behind and never catches up).
-- Resnapshots happen only on stream-start, never on staleness-recovery.
-- Dashboard log shows `applied mutation` count diverging from extension's `sent mutation` count by orders of magnitude.
+- Search Console: "Couldn't fetch" or "URL not allowed".
+- `xmllint` exits non-zero.
+- Any `<loc>` URL returns non-200 when curled.
 
 **Phase to address:**
-DOM streaming hardening phase, Plan 2 (after watchdog primitive is stable). Verification: artificially block the dashboard apply path for 10 seconds, confirm the extension forces a resnapshot rather than continuing to send into a black hole.
+**Phase: Crawler Files (robots/sitemap/llms)** -- sitemap generation must be part of the build, not hand-maintained.
 
 ---
 
-### Pitfall 7: Large-DOM truncation cuts mid-element and renders invalid HTML
+### Pitfall 7: `llms.txt` / `llms-full.txt` pointing at JS-rendered URLs or oversized
 
 **What goes wrong:**
-When a single DOM snapshot crosses the size cap, naive truncation chops the serialized string at byte N. If N falls inside `<div class="abc...` the dashboard renderer either silently drops the unclosed tag, renders broken layout, or (worst case) throws during deserialization and shows the recovery chip even though the upstream stream is healthy.
+- **`llms.txt` links to URLs that require JavaScript.** The whole point of `llms.txt` is that LLM crawlers (which often don't execute JS) get a curated map of human-readable content. If `llms.txt` links to `/dashboard` or to a SPA route that hasn't been prerendered, the LLM scrapes empty HTML.
+- **`llms-full.txt` exceeds practical size limits.** No formal size cap exists, but published llms.txt examples and reference implementations suggest staying under ~1MB; some crawlers truncate at ~256KB. Dumping every page's full text plus chat logs blows past this.
+- **Format drift.** `llms.txt` is a markdown-flavored format with a specific header convention (`# Title`, `> Summary`, `## Section`, list items as `- [Name](url): description`). Some 2024 examples used different conventions; the de-facto standard codified in late-2024/early-2025 by Anthropic + community is markdown with H1 title and H2 sections.
+- **Content-Type wrong.** Must be `text/plain; charset=utf-8` (or `text/markdown` per some specs). HTML or octet-stream causes some scrapers to skip.
+- **Linking to non-canonical URLs.** Listing `https://full-selfbrowsing.com/about/` (trailing slash) when the canonical is `/about` (no slash, per Angular routing) creates duplicate-content issues.
 
 **Why it happens:**
-String-level truncation treats a serialized DOM tree as opaque bytes. The serializer in `content/dom-stream.js` produces JSON with nested element objects, but the truncation point may land inside an attribute value, a closing tag, or a CSS property declaration. The dashboard's `applySnapshot` parser assumes well-formed input.
+`llms.txt` is a young convention (proposed 2024, gaining adoption 2025); guidance is fragmented across blog posts. Developers copy a template and forget to verify their own links resolve in a non-JS context.
 
 **How to avoid:**
-1. Truncate at the **node** level, not the byte level. Walk the DOM tree, serialize subtrees, and stop adding subtrees once the cumulative serialized size approaches the cap. The last subtree included must be complete; the next one is dropped (with a sentinel `{ truncated: true, missingDescendants: N }` so the dashboard can show "page partially mirrored").
-2. Truncation should be O(n) over the included tree, not O(n^2). Do NOT re-serialize the whole tree to measure size after each addition. Track running size as you walk; add subtrees in document order with a budget-aware DFS.
-3. The dashboard side must explicitly handle the `truncated` sentinel: render whatever arrived, show a "partial DOM mirror" badge, and trigger an out-of-band fetch for the missing branches via a follow-up `domStreamRequestSubtree` message rather than retrying the whole snapshot.
-4. The byte cap must be lower than the WebSocket relay's per-message limit (currently the relay enforces a size limit which is why compression exists in the first place per ws-client.js:582). Set the truncation cap at 80% of the relay limit to leave headroom for envelope overhead and for compression-resistant payloads where `_lz` doesn't reduce size.
+- Verify every URL in `llms.txt` returns meaningful prerendered HTML: `curl -A "ClaudeBot" https://full-selfbrowsing.com/about | grep -c "<title>"` should be > 0 and the title should not be the literal "FSB" placeholder.
+- Cap `llms-full.txt` at the **prerendered marketing pages only** (`/`, `/about`, `/privacy`, `/support`). Do **not** include dashboard content, dynamic data, or API responses.
+- Keep `llms-full.txt` under 256KB; if it grows beyond that, split into per-page sections and rely on `llms.txt` as the index.
+- Use the canonical (no-trailing-slash) URLs that match `app.routes.ts` exactly.
+- Set `Content-Type: text/plain; charset=utf-8` explicitly in `express.static` (override via `setHeaders` callback if needed).
+- Pin to the current spec at https://llmstxt.org/ (community reference) and Anthropic's own examples; revisit quarterly because the format is evolving.
 
 **Warning signs:**
-- Dashboard JS console shows `Unexpected end of JSON input` or `Invalid HTML in mirror`.
-- Dashboard preview renders 90% of the page then a chunk is missing in the middle (a truncated subtree visible as missing children of a present parent).
-- Compression ratio in `[FSB WS] Compressed ...` log is suspiciously close to 100% on truncated-but-valid snapshots (compression doesn't help on already-fragmented JSON).
-- Truncation algorithm itself takes > 200ms on large pages -- indicates O(n^2) recursive re-walks.
+- `wc -c dist/.../browser/llms-full.txt` > 256000.
+- Any link in `llms.txt` returns empty `<app-root>` when fetched without JS.
+- Multiple H1s, missing summary blockquote, or list items without descriptions.
 
 **Phase to address:**
-DOM streaming hardening phase, Plan 2 (truncation algorithm) -- co-located with watchdog so both touch `content/dom-stream.js` in one diff. Verification: open a 5MB+ DOM page (e.g., a long Wikipedia article with thousands of `<a>` elements), trigger snapshot, confirm dashboard renders without parse error and shows truncated-badge.
+**Phase: Crawler Files (robots/sitemap/llms)** -- generate `llms.txt` from prerendered output, not from source.
 
 ---
 
-### Pitfall 8: Asymmetric WebSocket compression -- inbound `_lz` not decompressed
+### Pitfall 8: Fly.io `force_https` redirect chain breaks bots that don't follow redirects
 
 **What goes wrong:**
-The extension's `ws/ws-client.js` line 588 sends `{ _lz: true, d: compressed }` envelopes for outbound messages > 1KB. The `_handleMessage` switch (line 918) does NOT have a `_lz` branch -- if the relay or dashboard ever sends a compressed envelope back, the extension calls `JSON.parse(event.data)` (line 517), gets `{ _lz: true, d: '...' }`, and falls through every `case` in the switch as an unknown type. Silent drop. The dashboard already has decompression (showcase/js/dashboard.js:3517), so the system is one-directional today; the moment any future change makes the dashboard or relay compress its outbound, FSB silently breaks.
+With `force_https = true` in `fly.toml`, Fly's edge proxy issues a 301 redirect from `http://full-selfbrowsing.com/*` -> `https://full-selfbrowsing.com/*`. Most major bots (Googlebot, GPTBot, ClaudeBot) follow redirects, but:
+- **Some smaller AI scrapers** (academic research crawlers, less-mature bots) don't follow redirects and just record the 301.
+- **Submission tools** (Bing Webmaster, IndexNow ping endpoints) may submit `http://` URLs from a paste; if the redirect chain has any hop that returns 5xx during a Fly machine cold start (machines `auto_stop_machines = 'stop'`), the submission can fail silently.
+- **Cold starts.** With `min_machines_running = 1` and `auto_stop_machines = 'stop'`, single-region `sjc` deployment, an Asia-Pacific or European crawler hits cold-start latency. Some crawlers have ~5-10s timeouts and abandon the fetch.
+- **Mixed protocol in `Sitemap:` directive.** If `robots.txt` says `Sitemap: http://...` and Fly redirects, some crawlers report a "warning: redirect on sitemap" and de-prioritize.
 
 **Why it happens:**
-LZ-string was introduced in v0.9.9.1 (Phantom Stream) for the dashboard's outbound, and the extension copied the `send` path symmetry without copying the `receive` path. The asymmetry is documented in the milestone goals but the failure mode -- silent drop, not loud error -- means it has never surfaced as a bug because the dashboard has historically not initiated compression in this direction.
+`force_https` is correct for browser users but adds a hop for crawlers. Single-region deployment is fine for human users (Fly's anycast routes to nearest edge) but the actual app server is in `sjc` only.
 
 **How to avoid:**
-1. In `_handleMessage`, before the switch, check `if (msg && msg._lz === true && typeof msg.d === 'string')` and call `LZString.decompressFromBase64(msg.d)`, then `JSON.parse` the result, then re-enter `_handleMessage` with the decompressed object. Use the same envelope shape the dashboard uses (showcase/js/dashboard.js:3517-3518) so the contract is symmetric.
-2. Defensive parsing: if decompression returns null or throws, do NOT silently drop. `console.warn('[FSB WS] Failed to decompress _lz envelope', ...)` and call `recordFSBTransportFailure` with a `decompression-failed` reason. Drop the frame, but loudly.
-3. **Do NOT negotiate per-frame** at the WebSocket extension level (RFC 7692 permessage-deflate). Stay at the application envelope layer (`{ _lz: true, d: '...' }`). RFC 7692 is supported by the browser but is a per-connection negotiation; mixing app-level `_lz` with a transport-level extension creates double-compression and mysterious size regressions.
-4. Add a unit test in `tests/` (similar to `tests/dashboard-runtime-state.test.js`) that mocks an inbound `_lz` envelope, runs `_handleMessage`, and asserts the inner type was dispatched. Currently no such test exists.
-5. Mixed-mode is fine because the envelope is self-identifying: `_lz: true` means decompress, absence means raw JSON. Per-frame detection is automatic. Document this in a comment near `_handleMessage`.
+- Always use `https://` URLs in **all** crawler-facing files: `robots.txt` `Sitemap:`, `sitemap.xml` `<loc>`, `llms.txt` links, JSON-LD `url` and `@id`. No exceptions.
+- Keep `min_machines_running = 1` (already set) -- do **not** lower it. Cold starts of >2s will hurt crawl budget.
+- Monitor Fly's response time from non-US regions: `curl -w "@curl-format.txt" -o /dev/null https://full-selfbrowsing.com/` from EU/AP probes (use uptimerobot or similar).
+- Consider adding a second region (e.g., `cdg` or `nrt`) for crawler latency if Search Console reports "soft 404" or slow-crawl warnings -- but defer this until evidence shows it matters.
+- Verify the redirect chain is **one hop**: `curl -sI http://full-selfbrowsing.com/ | grep -i location` should show a single `https://...` redirect, not a chain.
 
 **Warning signs:**
-- After a relay or dashboard release, certain extension-side handlers stop firing for large messages but small messages still work.
-- `recordFSBTransportCount('receivedByType', undefined)` increments -- inbound messages with no `type` field, which is what `_lz`-wrapped envelopes look like to the un-decompressed switch.
-- Dashboard sends "task submit" with a long task description, extension does nothing. Same task with a short description works.
-- `[FSB WS] Failed to parse message` appears with no apparent cause -- the JSON.parse succeeded but the result has no `type` field.
+- Search Console crawl stats show p95 response time > 1500ms.
+- Bing Webmaster reports "URL not reachable" intermittently.
+- Any redirect chain longer than one hop.
 
 **Phase to address:**
-WebSocket inbound decompression phase, Plan 1 (decompression branch + tests). This is a single-file change in `ws/ws-client.js` plus a new test. Verification: extension and relay both running, dashboard sends a >1KB compressed task-submit, confirm extension dispatches it to the autopilot.
+**Phase: Production Validation** -- end-of-milestone smoke pass that includes redirect-chain check, cold-start timing from non-US, and live `curl -A "GPTBot"` validation.
 
 ---
 
-### Pitfall 9: Compression sliding-window state corruption after a single bad frame
+### Pitfall 9: Hydration mismatch if SSR is added later without per-route content parity
 
 **What goes wrong:**
-LZ-string base64 envelopes are stateless per-frame (each compress/decompress is independent), so this pitfall is mostly avoided BY using LZ-string instead of permessage-deflate. But if a future contributor sees "compression" and reaches for `pako` or browser-native deflate to "improve compression ratio", they'll introduce permessage-deflate semantics where one corrupt frame poisons the sliding window for every subsequent frame on that connection -- and recovery requires closing and reopening the WebSocket.
+This milestone is **static prerender only** (per PROJECT.md "Out of scope: Angular Universal full SSR -- overkill"). But it's worth flagging the trap for the future: if SSR is added in a later milestone, **hydration mismatches** between the SSR-generated HTML and the client-side render will cause flicker, console errors, or full DOM teardown. Common causes:
+- Components that render based on `Date.now()` or `Math.random()`.
+- Components that read `localStorage` on init without `isPlatformBrowser` guards (already flagged in Pitfall 1).
+- Components that conditionally render based on `window.innerWidth` (responsive logic).
+- Meta tags set by `Title`/`Meta` services on the client that **differ** from the prerendered/SSR'd `<head>`.
 
 **Why it happens:**
-Engineers conflate LZ-string base64 (per-message, stateless) with deflate (per-connection, stateful) because both are called "compression". The performance numbers for deflate are better, so well-meaning optimization swaps the algorithm without realizing it changes the failure-mode semantics.
+Hydration assumes the server-rendered DOM is byte-equivalent to what the client would render on first paint. Any non-determinism between server and client breaks this contract.
 
 **How to avoid:**
-1. **Stick with LZ-string base64.** Document in a code comment near `ws-client.js:588` why: "Per-message stateless compression. Do NOT replace with deflate/pako -- a single bad frame would corrupt the sliding window and require a reconnect to recover."
-2. If compression ratio becomes a real problem (it isn't today), introduce per-payload-type strategies (e.g., DOM snapshots use a pre-trained dictionary) rather than a stateful stream codec.
-3. Reject any future PR that introduces `Sec-WebSocket-Extensions: permessage-deflate` as a server-side option without a corresponding extension-side teardown plan.
+- Even though SSR is deferred, **build the `Meta`/`Title` service usage to be deterministic** during prerender so future SSR migration is painless. Set meta tags in `ngOnInit` (which runs in the prerender context) using only data available statically.
+- Avoid `Date.now()`, `Math.random()`, and `window.*` in render paths.
+- Defer responsive logic to CSS media queries rather than JS-driven conditional rendering.
 
 **Warning signs:**
-- Compression library swap appearing in package.json or vendored libs.
-- `Sec-WebSocket-Extensions` header appearing in the WS upgrade.
-- Reports of "extension stops receiving messages until reconnect" after an upgrade -- classic sliding-window corruption symptom.
+- Future SSR phase: console errors `NG0500: Hydration completed but contains mismatches`.
+- Visible flicker of meta tags or page content on first paint.
 
 **Phase to address:**
-WebSocket inbound decompression phase, Plan 1 -- as a code comment / decision note. Not a separate plan, but enforced by review.
+**Phase: Per-Route Metadata (Title/Meta services)** -- establish deterministic meta-tag patterns now, even though SSR is deferred. Future SSR phase will benefit.
 
 ---
 
-### Pitfall 10: Diagnostic log spam on hot paths after replacing silent swallowing
+### Pitfall 10: Cache-Control headers leak onto crawler files or override prerendered HTML
 
 **What goes wrong:**
-The v0.9.40 work already replaced 15 silent `.catch(function(){})` calls with `console.warn` (per MILESTONES.md). v0.9.45rc1 extends this to dialog relay and message delivery. If the new logging fires inside a hot loop -- e.g., DOM stream mutation forwarding (`dom-stream.js:653`), per-action statusUpdate sends, or per-frame visual feedback -- it will produce hundreds of warnings per second on a busy page, drowning out actionable signals and consuming disk space in DevTools' log buffer.
+The current `express.static` config (lines 98-107 of `server/server.js`) sets `Cache-Control: no-cache, must-revalidate` for `.js`, `.css`, `.html`. Two issues to watch for as crawler files are added:
+1. **`.txt` and `.xml` files get the default `maxAge: 0` with no `Cache-Control`.** Some intermediate proxies (Cloudflare, ISP caches) will cache aggressively without an explicit directive. A bad `robots.txt` deploy could be cached for hours.
+2. **Prerendered HTML inherits the `no-cache` policy** -- which is *correct* for invalidating stale content but *wrong* for crawl budget. Crawlers rely on `Last-Modified` / `ETag` to skip unchanged pages. `no-cache` forces a revalidation but `etag: true` is set, so 304s should still work. Verify.
+3. **Gzip on `.txt` confuses some bots.** Express doesn't gzip by default unless `compression` middleware is added. If/when that's added, some legacy crawlers fail on gzipped `robots.txt`. Modern crawlers (Googlebot, GPTBot, ClaudeBot) handle it fine, but the spec recommends serving `robots.txt` uncompressed.
 
 **Why it happens:**
-The v0.9.40 fix targeted lifecycle events (session start/end, automation complete) which fire ~1/s at most. Dialog relay and message delivery happen per-event-per-action and can fire 10-50/s. Same logging pattern, very different volume.
+Caching policy is set globally and rarely audited per-file-type. Crawler files have different caching needs than HTML.
 
 **How to avoid:**
-1. **Categorize before logging.** Lifecycle events (rare): unconditional `console.warn`. Per-action / per-mutation events (frequent): rate-limit to one warn per error category per 10 seconds, with a counter (`{cat: 'mutation-send', count: 47, last: '...'}`) flushed at the rate-limit boundary.
-2. Use the existing `recordFSBTransportFailure` infrastructure (already present in `ws/ws-client.js:570`) for telemetry. That records to in-memory state without console output. Console logs are for human-attention; telemetry is for post-hoc investigation. Don't conflate them.
-3. For dialog relay specifically: the relay path is `content/messaging.js` -> `background.js` -> `ws/ws-client.js`. Each layer should log its OWN failures with a layer prefix (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`). Avoid logging the same error three times as it bubbles up.
-4. Severity discipline: `console.warn` for recoverable failures (port disconnect, message dropped during reconnect). `console.error` only for invariant violations (session state corruption, uninitialized module). Do NOT use `console.error` for transient transport failures -- it triggers DevTools red-badge alerts and trains users to ignore them.
+- Set explicit headers per file type in the `setHeaders` callback:
+  ```javascript
+  if (filePath.endsWith('robots.txt') || filePath.endsWith('sitemap.xml') || filePath.endsWith('llms.txt') || filePath.endsWith('llms-full.txt')) {
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 1h is safe
+    res.setHeader('Content-Type', filePath.endsWith('.xml') ? 'application/xml' : 'text/plain; charset=utf-8');
+  }
+  ```
+- Verify 304 responses work: `curl -I -H 'If-None-Match: "<etag>"' https://full-selfbrowsing.com/about` should return 304 on unchanged content.
+- If `compression` middleware is later added, exclude `*.txt` (configure `filter` option).
 
 **Warning signs:**
-- `console.warn` rate exceeds 5/second during normal use (open DevTools, count over 30s).
-- DevTools console "Logs" panel filter shows the same warning string repeated dozens of times in a single second.
-- Memory profiler shows the SW context retaining MB of console history.
-- User reports "extension is logging a wall of warnings, is it broken?".
+- `curl -I https://full-selfbrowsing.com/robots.txt` shows no `Cache-Control` header.
+- Cloudflare/Fly edge cache holds a stale `robots.txt` after deploy.
+- Search Console crawl stats show 100% 200 responses (no 304s) on unchanged pages -- wasted crawl budget.
 
 **Phase to address:**
-Diagnostic logging replacement phase, Plan 1 (rate-limiting policy + layer prefixes) BEFORE Plan 2 (actual log call insertions). Verification: run a busy task (100 actions over 60s) with new logging, confirm < 30 unique warning lines.
-
----
-
-### Pitfall 11: Diagnostic logs leak user data into the console
-
-**What goes wrong:**
-A new `console.warn('[FSB DLG] dialog relay failed', { url, dialogText, response })` looks helpful for debugging but logs the page URL (potentially with auth tokens in query params) and the raw text the user typed into a `prompt()` (potentially passwords, MFA codes, addresses). Anyone with DevTools access can read these. If the user shares a debug log on Discord or a GitHub issue, the data is exfiltrated permanently.
-
-**Why it happens:**
-Diagnostic logging that's scoped narrowly (just an error message) is useless; logging that includes context (url, payload) is useful but dangerous. The default tendency is to log everything, then redact later -- which never happens.
-
-**How to avoid:**
-1. Establish a redaction whitelist. Logs may include: tab id (number), session id (opaque), error message string, message type, layer name. Logs may NOT include: full URL (only origin), user-typed text (only length and presence), response body (only status code), DOM content (only element type and selector signature).
-2. Helper function `redactForLog(payload)` in `utils/` that takes a payload and returns a stripped version. Every new diagnostic log goes through it. Code review checklist: any new `console.warn` that doesn't use `redactForLog` is rejected.
-3. URLs: log `new URL(url).origin` not the full URL. Query strings may contain OAuth code, JWT, password reset tokens.
-4. Dialog content (this milestone's silent-swallow fix scope): log `{ kind: 'prompt', textLength: 23, hasResponse: true }`, never the actual text.
-5. Rotate / disable verbose logging in production builds. Provide a debug-mode toggle in options.html that gates verbose payloads; default off.
-
-**Warning signs:**
-- A search for `console.warn.*\.url\b` or `console.warn.*payload` finds new instances introduced in this milestone.
-- DevTools console captured during a UAT contains user-identifiable strings (search for known test account names, addresses, etc.).
-- Issue reports include console snippets that contain URLs with `?code=` or `?token=`.
-
-**Phase to address:**
-Diagnostic logging replacement phase, Plan 1 (redaction helper + policy). Code review enforces. Verification: grep test that ensures `console.warn` calls in modified files all reference `redactForLog`.
-
----
-
-### Pitfall 12: Refactor turns recoverable warns into thrown errors
-
-**What goes wrong:**
-While replacing `.catch(function(){})` with diagnostic logging, a developer "improves" a few sites by re-throwing after logging (`.catch(err => { console.warn(...); throw err; })`). The original silence was wrong, but throwing in those locations is also wrong because the upstream caller was written assuming the promise always resolves. Now the agent loop crashes mid-iteration, the session enters an undefined state, and -- the cruel irony -- the v0.9.40 finalizeSession() guarantees don't fire because the throw bypassed the structured exit paths.
-
-**Why it happens:**
-"Don't swallow errors" is a near-universal best-practice maxim. Applied without context, it turns into "always propagate", which fights the v0.9.40 architecture where the agent loop deliberately catches at well-defined boundaries.
-
-**How to avoid:**
-1. **Recoverable warns stay recoverable.** The pattern is: `.catch(err => { console.warn('[FSB X] foo failed', { err: err && err.message }); /* return undefined or fallback value */ })`. Never re-throw without explicit reason.
-2. Document the invariant per call site: "this catch is recoverable because the upstream caller treats undefined as 'no data, continue'". Comment the rationale.
-3. Test the agent loop's exit-path coverage by intentionally injecting failures at each new logging point. v0.9.40's `Phase 206` work establishes the exit paths -- run those tests after the diagnostic logging phase to confirm no path was broken.
-4. Code review red flag: any new `.catch(err => { ...; throw err; })` requires an explicit comment explaining why upstream NEEDS the throw. Default-disallow.
-
-**Warning signs:**
-- Agent loop iteration count drops sharply after the logging phase ships (loop is exiting earlier due to thrown errors).
-- Sidepanel gets `automationError` for sessions that previously completed successfully.
-- `tests/dashboard-runtime-state.test.js` or v0.9.40 lifecycle tests start failing.
-- Stack traces in console show errors propagating from formerly-silent layers.
-
-**Phase to address:**
-Diagnostic logging replacement phase, Plan 2 (actual changes). Verification: regression-run all v0.9.40 lifecycle tests after the diff lands.
-
----
-
-### Pitfall 13: console.warn silently filtered by Chrome DevTools default level
-
-**What goes wrong:**
-Chrome DevTools' default console level filter shows Errors and Warnings, but Chromium-based browsers (Edge, Brave) and some older Chrome configs sometimes start with "Verbose" filtered out -- and `console.info` AND `console.log` may be hidden depending on the filter dropdown state. If a developer assumes "I logged it with console.warn so the user will see it", but the user has filter set to "Errors only", the warning is silently absent. This makes the logging seem useless when the user reports an issue.
-
-**Why it happens:**
-DevTools level filter is sticky per-origin and persists across sessions. Users debugging another extension or a website can have the filter set wherever they last left it. The extension's logs go to the SW console (chrome://extensions -> service worker), which has its own filter state independent of the page console.
-
-**How to avoid:**
-1. Document for support: "open chrome://extensions, click the FSB service worker link, ensure the console filter dropdown shows 'All levels' or includes 'Warnings'". Add this to the support page on the showcase.
-2. Critical lifecycle warnings (session abandonment, unrecoverable transport failure) should also write to `chrome.storage.local` under a ring buffer (last 100 entries) so the support flow doesn't depend on console capture.
-3. Provide an "Export diagnostics" button in the Sync tab (or options.html) that dumps the ring buffer + chrome.storage state + extension version. v0.9.30 introduced `doctor` and `status --watch` for the MCP side -- the Sync tab can offer the analogous flow.
-4. For the hot-path logs (mutation send, dialog relay), `console.log` is fine -- they're for live debugging only. For lifecycle / connection / session events (the v0.9.40 set), use `console.warn` AND ring-buffer.
-
-**Warning signs:**
-- User reports "no logs anywhere" when developer is sure logs were written.
-- Support tickets where the user pastes a screenshot showing only the extension's red badge alerts but no warns.
-- Ring buffer is empty even though warns were emitted in this session.
-
-**Phase to address:**
-Diagnostic logging replacement phase, Plan 2 (ring buffer + export). Verification: emit a test warning, set DevTools filter to errors-only, confirm the ring buffer captured it and "Export diagnostics" returns it.
+**Phase: Express Wiring & Crawler Files** -- explicit per-file-type headers in `setHeaders` callback.
 
 ---
 
@@ -346,142 +335,119 @@ Diagnostic logging replacement phase, Plan 2 (ring buffer + export). Verificatio
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Comment out without deprecation gate | Fast UI removal | Zombie message handlers (Pitfall 2); silent MCP failures | Never -- always pair with gates |
-| Skip the deep-link redirect shim | Saves one task | Day-one user reports (Pitfall 1); doc / showcase links broken | Only if EVERY caller is grep-verified migrated, including external docs |
-| Delete `bgAgents` storage on upgrade | Cleaner storage panel | Permanent loss of user agent definitions (Pitfall 3); no graceful migration path | Never in this milestone -- defer storage cleanup to v0.9.46+ after sunset notice has cycled |
-| `setInterval` for SW-side watchdog | Familiar primitive | Watchdog dies on SW idle (Pitfall 5); reintroduces v0.9.40-class silent-loss | Never in MV3 -- always `chrome.alarms` |
-| Byte-level truncation of DOM JSON | Simple substring slice | Mid-element cuts (Pitfall 7); dashboard parse failures | Never -- truncation must be node-aware |
-| Replace LZ-string with deflate for "better ratio" | Modest size win | Sliding-window corruption (Pitfall 9); per-connection failure mode | Never without per-frame teardown plan |
-| Re-throw after console.warn for "correctness" | Looks like proper error handling | Breaks v0.9.40 exit-path guarantees (Pitfall 12) | Only at explicitly-documented boundaries with upstream re-catch |
-| Log full URLs and dialog text "for debugging" | Faster bug repro | User-data leaks in shared logs (Pitfall 11) | Never in production logs -- always redact |
-| Skip the watchdog quiet-page exemption | Simpler watchdog code | Log spam, SW idle starvation (Pitfall 4) | Only in dev builds with explicit verbose flag |
+| Hand-write `sitemap.xml` instead of generating from routes | Fast first ship | Drifts from `app.routes.ts` on every route change | Never -- generate from build |
+| Skip CI validation of JSON-LD / robots.txt / sitemap | Faster CI | Silent SEO regression on any future PR | Never for a discoverability milestone |
+| Inline JSON-LD as a string template instead of `JSON.stringify(obj)` | Fewer files | Trailing-comma / escape bugs that silently invalidate the schema | Never |
+| Skip the `localStorage` guard because "prerender works on my machine" | One less file change | Random prerender failures in CI on clean Node | Never -- always guard |
+| Prerender all routes including `/dashboard` because "it'll just hydrate" | One less config line | Stale dashboard state served to users | Never |
+| Use a wildcard `app.get('*', ...)` SPA fallback | Simple routing | Swallows `/robots.txt`, `/sitemap.xml`, all crawler files | Never on an SEO-bearing site |
+| Defer `llms.txt` to a future milestone | Smaller scope now | AI search bots ignore the site for another quarter | Acceptable if traditional SEO is the only goal -- but PROJECT.md explicitly includes GEO |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| chrome.alarms | Treating alarm name collisions as a runtime issue | Namespace by feature prefix (`fsb-domstream-`, `fsb-mcp-bridge-`, `fsb-agent-` -- already in use); `clearAllAlarms` filters by prefix, never by exact name |
-| chrome.storage.local | Reading at module-load time, before SW restore | Always async-read inside an `onInstalled` / `onStartup` handler; cache TTL like `agent-manager.js:13` |
-| WebSocket relay envelope | Assuming `JSON.parse(event.data)` returns a typed message | Check `_lz` envelope FIRST, then dispatch on `type`; defensive against unknown envelope shapes |
-| chrome.debugger (CDP) | Multiple consumers attaching simultaneously | Per-command attach/detach with stale-debugger recovery, as established by Phase 209 -- watchdogs and remote control must NOT hold persistent debugger sessions |
-| Extension upgrade lifecycle | Running migration on every SW restart | Gate by `chrome.runtime.onInstalled` reason=update AND a stored `migrationVersion` flag |
-| MCP host quirks | Deprecating tools by removing them from the list | Return explicit `deprecated: true` payloads -- some hosts (OpenCode-style) cache tool lists and will keep calling old names |
-| Showcase Angular dashboard | Asymmetric envelope handling | Must implement `_lz` decompression on extension side too (Pitfall 8); Angular dashboard already does it -- maintain symmetry |
-| Service worker session storage | Treating `chrome.storage.session` as authoritative for stream state | On SW wake, re-validate via content-script ack before claiming stream is alive (Pitfall 5) |
+| Google Search Console | Submitting sitemap before HTTPS canonical is final | Verify `force_https` redirect and HTTPS sitemap URL first |
+| `@angular/build:prerender` (Angular 19) | Letting it auto-discover all routes including `/dashboard` | Explicit `routes` array; assert `dashboard/index.html` is absent post-build |
+| Express `express.static` | Default behavior doesn't resolve `/about` -> `about/index.html` | Pass `{ extensions: ['html'] }` so prerendered files are served |
+| Fly.io edge proxy | Assuming `force_https` is free for crawlers | Always emit HTTPS URLs in crawler files; verify single-hop redirect |
+| schema.org JSON-LD | Hand-stringifying with template literals | `JSON.stringify` + escape `</` to `<\/` to defeat script-tag injection |
+| `llms.txt` | Pointing at SPA-rendered URLs | Only link to prerendered routes; verify each with `curl` (no JS) |
+| Angular `Title`/`Meta` services | Setting tags after first paint causes hydration mismatch in future SSR | Set tags in `ngOnInit` synchronously, deterministic only |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| O(n^2) DOM truncation | Snapshot generation > 200ms on large pages | Single DFS with running budget; no re-serialization (Pitfall 7) | Pages with 5K+ DOM nodes (long Wikipedia articles, Reddit threads) |
-| Watchdog wakes SW unnecessarily | SW lifecycle stays "active" indefinitely; battery drain reports | `chrome.alarms` with healthy-quiet exemption (Pitfall 4, 5) | Quiet pages left open in background tabs |
-| Log spam on hot paths | DevTools console rate > 5/s | Rate-limit per error category (Pitfall 10) | Multi-action tasks with transient errors (e.g., reconnect storms) |
-| Mutation queue without backpressure | Memory grows unboundedly when relay is slow | Cap pending mutation queue size; drop oldest with `truncated: true` sentinel | High-frequency-mutation pages (live dashboards, video) under degraded relay |
-| Compression on small payloads | CPU cost exceeds bandwidth saving | Threshold check (already at 1024 bytes in ws-client.js:583); preserve | Small messages where `compressed.length >= raw.length` is common |
-| Stale counter resetting on transport-success | Dashboard silently stale; counter never trips | Reset only on dashboard ack with sequence id (Pitfall 6) | When relay or dashboard is degraded but not failed |
+| Cold start on `auto_stop_machines = 'stop'` | Crawlers see 5-10s TTFB intermittently | Keep `min_machines_running = 1` (already set); monitor p95 TTFB | When `min_machines_running` is lowered to 0 |
+| Single-region (`sjc`) crawler latency | EU/AP crawlers slow; Bing complains | Add second region only if Search Console flags it | When non-US crawl rate matters (after off-page push) |
+| Oversized `llms-full.txt` | Some crawlers truncate or skip the file | Cap at ~256KB; split if larger | When marketing copy grows beyond ~50 pages |
+| Prerendered HTML without `etag` | Every crawl re-downloads unchanged HTML, eating crawl budget | `etag: true` is already set in `express.static` -- keep it | Never if etag stays on |
+| No gzip on prerendered HTML | Slower TTFB for crawlers and users | Add `compression` middleware, but exclude `*.txt` | When HTML pages grow beyond ~20KB each |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Logging full URLs with query strings | Auth tokens, OAuth codes, password-reset tokens leaked to console (and screenshots, issue reports) | `redactForLog` helper -- log `URL(x).origin` only (Pitfall 11) |
-| Logging dialog prompt content | Passwords, MFA codes, addresses leaked | Log `{kind, textLength}`, never the text |
-| Decompressing untrusted `_lz` payloads | A malicious relay could send a payload that LZ-string parses but JSON.parse fails on -- DoS on parse loop | Wrap decompression+parse in try/catch; rate-limit `decompression-failed` events (Pitfall 8) |
-| Trusting dashboard-supplied coordinates without bound check | Phase 209 already mitigated; preserved by the v0.9.45 work | Continue using `Number.isFinite` validation in remote control handlers; do NOT loosen for the Sync tab move |
-| Migrating storage without integrity check | Storage corruption from interrupted upgrade leaves orphan records | One-time migration gated by `migrationVersion`; idempotent by design |
-| Exposing `bgAgents` content in the deprecation card | Agents may include task text with credentials or private data | Show task NAMES only, not full task text, in the sunset notice card |
+| Exposing `/dashboard` in `sitemap.xml` | Indexed thin/empty pages, possible session-state leak via cached HTML | `sitemap.xml` excludes `/dashboard` and `/api/*` |
+| `</script>` injection in JSON-LD via unescaped user data | XSS if any field comes from user-controlled source | Always `JSON.stringify(obj).replace(/</g, '\\u003c')`; never interpolate user data into JSON-LD |
+| `robots.txt` `Disallow: /api/` not enforced server-side | Sec-by-obscurity -- robots.txt is advisory | Real auth on `/api/*` (already present via `authMiddleware`); robots.txt is just hygiene |
+| Leaking internal route names via sitemap | Disclosure of unfinished/staging routes | Generate sitemap from explicit allowlist, not auto-discovery |
+| Crawler files cached with wrong Cache-Control after a bad deploy | Bad `robots.txt` blocks site for hours | `max-age=3600` on crawler files; manual purge ready if needed |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Sync tab missing without warning the prior tab is gone | "Where's pairing?" support tickets | Deep-link redirect shim PLUS in-options breadcrumb on first visit ("Pairing moved here") |
-| Agent sunset card with no export path | User feels their work was discarded | Sunset card includes "copy task definitions" + link to OpenClaw and Claude Routines docs |
-| Dashboard preview going blank during forced resnapshot | Looks like a crash | Show "resyncing" badge during resnapshot, not an empty preview |
-| Truncation badge that doesn't explain | "Why is half my page missing?" | Truncation badge with an explicit "Page exceeds mirror size; partial mirror -- click to request full" affordance |
-| Compression / decompression failures shown as red error chips | Trains users to ignore all chips | Distinguish recoverable (yellow chip, auto-clear) from unrecoverable (red chip, action required) |
-| New `console.warn` flood after upgrade | "Extension is broken" reports | Rate-limit AND redact -- console should remain readable post-upgrade |
-| Sync tab QR with stale countdown after deep-link arrival | User scans an expired code, gets "pairing failed" | Restart the countdown only when the Sync tab is foreground-visible (`document.visibilityState === 'visible'`) |
+| Flash Of Unstyled Theme on prerendered pages | Page renders dark, then snaps to user's saved light theme | Bake default (dark) into prerender; `localStorage` guard upgrades to light only when available |
+| Prerendered page shows old Open Graph image after deploy | Social shares look broken until cache clears | Version OG image URLs (`og-image.png?v=2`) on every change |
+| Empty `<title>` or duplicate "FSB" titles across all routes | Bad search snippet, no differentiation | Per-route `Title` service call with descriptive titles (e.g., "About -- FSB", "Privacy -- FSB") |
+| `/dashboard` appears in Google search results with empty snippet | Confusing entry point for organic searchers | `noindex` meta on `/dashboard` + `Disallow` in robots.txt |
+| Canonical URL mismatch (e.g., trailing slash) | Duplicate content penalty, split link equity | Single canonical convention (no trailing slash) enforced via `<link rel="canonical">` and Express normalization |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Sync tab consolidation:** Deep-link redirect shim verified for `#dashboard`, `#agents`, `#pair`, `#remote`, `#mcp` (if applicable). Verify by manually visiting `options.html#dashboard` and confirming the URL hash rewrites to `#sync` and the Phase 210 QR controller does NOT fire prematurely.
-- [ ] **Agent sunset:** `chrome.alarms.getAll()` returns zero alarms with the agent prefix on a profile that previously had agents (proves on-update cleanup ran).
-- [ ] **Agent sunset:** `mcp-server` returns explicit deprecated-tool errors for `agent_create`, `agent_list`, `agent_run`. Test via `npx -y fsb-mcp-server` then call the tools.
-- [ ] **Agent sunset:** `bgAgents` storage key is preserved post-upgrade (verify via DevTools storage inspector).
-- [ ] **Agent sunset:** Sunset notice card appears once for users who had active agents; never appears for users who didn't.
-- [ ] **Watchdog:** On a static documentation page left open for 5 minutes, console shows zero `watchdog: stuck` warnings AND SW idles normally (chrome://extensions shows service worker as "inactive").
-- [ ] **Watchdog:** Force-stop the SW (chrome://extensions), wait 30s, return to streaming tab; watchdog alarm refires and stream is re-validated via content-script ack.
-- [ ] **Truncation:** 5MB DOM page snapshot renders on dashboard without parse error; truncated-badge visible.
-- [ ] **Truncation:** Snapshot generation < 200ms on the 5MB page (no O(n^2) regression).
-- [ ] **WS decompression:** Dashboard sends a > 1KB compressed payload (use a long task description); extension dispatches it to autopilot.
-- [ ] **WS decompression:** Malformed `_lz` payload produces a single warn AND telemetry record, NOT a crash, NOT a silent drop.
-- [ ] **Logging:** No new `console.warn` references full URLs or dialog text. Grep verification: `grep "console.warn.*url" `, `grep "console.warn.*dialogText"` -- both should return zero results in the modified diff.
-- [ ] **Logging:** v0.9.40 lifecycle tests still pass after diagnostic logging changes.
-- [ ] **Logging:** Diagnostic ring buffer captured at least one entry during a live test run; "Export diagnostics" button returns it.
-- [ ] **Showcase mirror:** Showcase site nav and showcase Angular router both point at `#sync`, no stale `#dashboard` or `#agents` references remain.
+- [ ] **Prerender:** Often missing the `localStorage` guard in `index.html` -- verify `npm run prerender` succeeds on a clean Node container with no DOM.
+- [ ] **Prerender:** Often missing explicit route allowlist -- verify `dist/.../browser/dashboard/index.html` does NOT exist post-build.
+- [ ] **Express:** Often missing `extensions: ['html']` on `express.static` -- verify `curl https://full-selfbrowsing.com/about` returns prerendered HTML, not SPA shell.
+- [ ] **Express:** Often missing per-route static resolution -- verify each of `/`, `/about`, `/privacy`, `/support` returns *different* `<title>` tags.
+- [ ] **JSON-LD:** Often missing `@id` cross-references -- verify Rich Results Test detects exactly one `Organization` and one `SoftwareApplication`.
+- [ ] **JSON-LD:** Often missing `</` escaping -- verify `dist/.../browser/index.html` contains `\u003c/` not literal `</` inside JSON-LD blocks.
+- [ ] **robots.txt:** Often missing absolute `Sitemap:` URL -- verify with `curl https://full-selfbrowsing.com/robots.txt | grep "^Sitemap: https://"`.
+- [ ] **robots.txt:** Often missing `Disallow: /dashboard` -- verify with grep.
+- [ ] **sitemap.xml:** Often missing W3C-format `lastmod` -- verify `xmllint --noout` passes and Search Console accepts.
+- [ ] **sitemap.xml:** Often listing 404 routes -- verify every `<loc>` returns 200 via `curl`.
+- [ ] **llms.txt:** Often pointing at non-prerendered URLs -- verify each link returns prerendered HTML when fetched with `curl -A "ClaudeBot"` (no JS).
+- [ ] **llms-full.txt:** Often oversized -- verify `wc -c < llms-full.txt` < 256000.
+- [ ] **Meta tags:** Often duplicated or missing canonical -- verify each prerendered page has exactly one `<link rel="canonical">` matching the request URL.
+- [ ] **Cache headers:** Often missing on `*.txt` and `*.xml` -- verify `curl -I` shows explicit `Cache-Control` and correct `Content-Type`.
+- [ ] **Fly redirect:** Often a multi-hop chain -- verify `curl -sI http://full-selfbrowsing.com/` shows exactly one `Location:` header.
+- [ ] **Per-bot rules:** Often forgetting `Google-Extended` (the AI training opt-in/out signal, distinct from Googlebot) -- verify it appears in robots.txt explicitly.
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Sync tab broke deep links (P1) | LOW | Add the redirect shim in a hotfix point release; the existing UI is unchanged |
-| Zombie agent handlers (P2) | MEDIUM | Add deprecation gate constant, audit every entrypoint, ship a hotfix; users see deprecated-tool errors instead of half-noops |
-| `bgAgents` data lost (P3) | HIGH | Storage is gone; only recovery is a Chrome sync restore. Prevent by NEVER deleting in this milestone. If accidental delete happens, ship an `onInstalled` migration that pulls from `chrome.storage.sync` if available. |
-| Watchdog false-positive flood (P4) | LOW | Add the quiet-page exemption + heartbeat check; ship as patch |
-| `setInterval` watchdog dies on SW idle (P5) | MEDIUM | Migrate to `chrome.alarms`; same pattern as `mcp-bridge-client.js:205`. No data loss, just observability gap during the broken window |
-| Stale mutation counter (P6) | MEDIUM | Add ack semantics + sequence id; existing dashboards keep working until they upgrade |
-| Truncation cuts mid-element (P7) | LOW | Switch to node-level truncation; dashboard parses cleaner snapshots |
-| Asymmetric `_lz` decompression (P8) | LOW | Single-file change in `ws-client.js`; write a test |
-| Permessage-deflate corruption (P9) | HIGH | Forced reconnect on every bad frame -- defer to next release if introduced; revert to LZ-string |
-| Log spam (P10) | LOW | Add rate-limiter; ship as patch |
-| Log data leak (P11) | HIGH | Once leaked, leaked. Rotate any tokens that were logged. Add `redactForLog`; require it via lint rule going forward |
-| Re-thrown errors (P12) | MEDIUM | Restore `.catch` to no-op-with-warn at affected sites; rerun v0.9.40 lifecycle tests |
-| DevTools level filter hides warns (P13) | LOW | Add ring buffer + export button; unaffected after the next user action |
+| `Disallow: /` typo deployed | HIGH | 1) Push corrected `robots.txt` immediately. 2) Use Search Console "Validate fix" to expedite re-crawl. 3) Submit `sitemap.xml` again. 4) Wait -- some crawlers cache for 24h; no faster path exists. |
+| `/dashboard` accidentally prerendered and indexed | MEDIUM | 1) Add `noindex` meta + `Disallow` in robots. 2) Use Search Console "Remove URL" tool for fast removal. 3) Re-deploy with `/dashboard` excluded from prerender. |
+| JSON-LD validation errors | LOW | 1) Fix the schema. 2) Re-deploy. 3) Use Rich Results Test "Test live URL" to expedite re-crawl (no waiting). |
+| Sitemap rejected by Search Console | LOW | 1) Run `xmllint`. 2) Fix and re-submit via Search Console -- re-validation is < 1 hour. |
+| `llms.txt` linking to empty SPA pages | LOW | 1) Verify prerender output. 2) Update `llms.txt` to canonical URLs. 3) Re-deploy. AI crawlers re-fetch on a faster cadence than Google. |
+| Express middleware order wrong (SPA shadowing prerender) | LOW | 1) Reorder middleware. 2) Re-deploy. Crawlers will pick up the change on next visit. |
+| `localStorage` prerender crash | LOW | 1) Add the guard. 2) Re-run prerender. 3) Re-deploy. Pre-deploy issue, not user-facing. |
+| Bad `Cache-Control` on `robots.txt` cached at edge | MEDIUM | 1) Push corrected file. 2) Manually purge Fly edge cache (if available) or wait `max-age` to expire. 3) Verify via direct curl. |
 
 ## Pitfall-to-Phase Mapping
 
+This assumes a roadmap structure of approximately: **Phase A: Prerender Foundation** -> **Phase B: Per-Route Metadata** -> **Phase C: Structured Data (JSON-LD)** -> **Phase D: Express Wiring & Crawler Files** -> **Phase E: Production Validation**.
+
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| P1 (Orphan deep links) | Sync tab consolidation, Plan 1 | Manual: visit `options.html#dashboard`, confirm hash rewrites to `#sync` and QR controller fires only after Sync tab is foreground-visible |
-| P2 (Zombie handlers) | Agent sunset, Plan 1 (gate) + Plan 3 (MCP surface) | MCP test: call retired tools and assert `deprecated: true` response; alarm test: assert no agent-prefix alarms after upgrade |
-| P3 (Storage loss) | Agent sunset, Plan 1 (preservation) | Profile-with-agents upgrade test: verify `bgAgents` unchanged + sunset notice present |
-| P4 (Watchdog false-positive) | DOM streaming hardening, Plan 1 | 5-minute idle on static page: zero stuck warnings, SW idles normally |
-| P5 (setInterval dies on SW idle) | DOM streaming hardening, Plan 1 | Force-stop SW test: confirm alarm refires and stream is re-validated |
-| P6 (Stale counter) | DOM streaming hardening, Plan 2 | Block dashboard apply for 10s: confirm forced resnapshot triggers |
-| P7 (Mid-element truncation) | DOM streaming hardening, Plan 2 | 5MB DOM test: dashboard parses without error, truncated-badge present |
-| P8 (Asymmetric `_lz`) | WS inbound decompression, Plan 1 | Compressed inbound test: extension dispatches inner type correctly |
-| P9 (deflate sliding-window) | WS inbound decompression, Plan 1 (decision note) | Code review enforcement; no permessage-deflate header in any release |
-| P10 (Log spam) | Diagnostic logging replacement, Plan 1 | Busy-task test: < 30 unique warning lines per 100 actions |
-| P11 (Log data leak) | Diagnostic logging replacement, Plan 1 | Grep test: zero `console.warn` calls reference full URL or dialog text without `redactForLog` |
-| P12 (Re-throw breaks v0.9.40) | Diagnostic logging replacement, Plan 2 | v0.9.40 lifecycle regression suite passes after diff |
-| P13 (DevTools filter hides warns) | Diagnostic logging replacement, Plan 2 | Filter-set-to-errors test: ring buffer captures the warning regardless |
-
-## FSB-Specific Past Incidents Repeating Here
-
-These are previously-shipped fixes whose patterns must be re-applied -- not new pitfalls, but precedent that should not be re-broken:
-
-1. **v0.9.40 silent-task-abandonment fix** (MILESTONES.md, "Phase 206-208"). Five agent-loop exit paths and 15 `.catch(function(){})` calls were patched. The diagnostic logging work in v0.9.45 must NOT regress these gains: Pitfall 12 (re-throw) explicitly defends this.
-2. **v0.9.36 visual-session ownership** (PROJECT.md "Validated v0.9.36"). Persisted overlay replay across SW churn used `chrome.storage.session` for state. The DOM stream watchdog work must follow the same pattern -- on SW wake, re-validate via ack rather than trusting storage alone (Pitfall 5).
-3. **v0.9.35 MCP bridge reconnect** (Phase 198, MILESTONES.md). Bridge survives browser-first, server-first, SW-wake, hub-handoff scenarios. Deprecating agents through MCP must explicitly gate at the bridge AND tool level -- the bridge's robustness means a stale tool call WILL reach background.js (Pitfall 2).
-4. **v0.9.27 dashboard analytics refresh** (MILESTONES.md). Off-screen refresh deferral pattern. The Sync tab QR countdown should reuse this idea: defer the 60s timer start until `document.visibilityState === 'visible'` (Pitfall 1 / UX table).
-5. **v0.9.25 defensive duplicate-suppression in background.js** (MILESTONES.md). Duplicate printable `char` echo defect was a silent dispatch issue. Pitfall 8 (asymmetric `_lz`) is the same class of failure -- silent drop / silent dup / silent dispatch -- and the same defensive testing pattern (`tests/dashboard-runtime-state.test.js` style) is the prevention.
-6. **v0.9.9.1 LZ-string introduction** (MILESTONES.md "Phantom Stream"). Compression was added on the OUTBOUND side first; the inbound side has been a known asymmetry since 2026-03-31. Pitfall 8 closes this loop. Avoid the parallel temptation to "improve compression later" with deflate (Pitfall 9).
+| `localStorage` in index.html breaks prerender (P1) | Phase A: Prerender Foundation | Prerender succeeds on clean Node; CI runs prerender in Docker container |
+| `/dashboard` accidentally prerendered (P2) | Phase A: Prerender Foundation | Build script asserts `dashboard/index.html` does not exist |
+| Express middleware order shadows prerender + crawler files (P3) | Phase D: Express Wiring & Crawler Files | `curl /about` returns prerendered HTML (different `<title>` per route); `curl /robots.txt` returns `text/plain` |
+| Invalid / duplicate JSON-LD (P4) | Phase C: Structured Data | CI runs Google Rich Results Test API on every prerendered page; build fails on errors |
+| robots.txt typos / blocking dashboard (P5) | Phase D: Express Wiring & Crawler Files | CI grep for `^Disallow: /$`; manual Search Console robots-tester before deploy |
+| Sitemap rejected (P6) | Phase D: Express Wiring & Crawler Files | `xmllint --noout` in CI; every `<loc>` curl'd for 200 |
+| llms.txt drift / oversize (P7) | Phase D: Express Wiring & Crawler Files | CI: each link fetched with no-JS user agent; `wc -c llms-full.txt` < 256000 |
+| Fly redirect / cold-start (P8) | Phase E: Production Validation | Live curl from non-US probes; redirect-chain check in smoke pass |
+| Hydration determinism (future SSR) (P9) | Phase B: Per-Route Metadata | Lint rule / code review: no `Date.now()` / `Math.random()` / unguarded `window.*` in render paths |
+| Cache-Control on crawler files (P10) | Phase D: Express Wiring & Crawler Files | `curl -I` smoke pass on all crawler files; verify explicit headers |
 
 ## Sources
 
-- `/Users/lakshmanturlapati/Desktop/FSB/.planning/PROJECT.md` -- v0.9.45rc1 milestone goals (lines 11-26, 181-190, 252-260)
-- `/Users/lakshmanturlapati/Desktop/FSB/.planning/MILESTONES.md` -- v0.9.40 sidepanel orphan recovery + 15 .catch swallow replacements (lines 3-22); v0.9.36 visual session lifecycle; v0.9.35 MCP bridge reconnect; v0.9.27 dashboard refresh deferral; v0.9.25 defensive `char` suppression; v0.9.9.1 LZ-string introduction
-- `/Users/lakshmanturlapati/Desktop/FSB/.planning/phases/209-remote-control-handlers/209-01-SUMMARY.md` -- modifier validation, `Number.isFinite`, ext:remote-control-state pattern
-- `/Users/lakshmanturlapati/Desktop/FSB/ws/ws-client.js` -- outbound `_lz` envelope (line 588), missing inbound branch in `_handleMessage` (line 918), keepalive setInterval (line 614)
-- `/Users/lakshmanturlapati/Desktop/FSB/ws/mcp-bridge-client.js` -- chrome.alarms reconnect pattern (lines 205, 219)
-- `/Users/lakshmanturlapati/Desktop/FSB/agents/agent-manager.js` -- `bgAgents` storage key (line 8), normalization patterns
-- `/Users/lakshmanturlapati/Desktop/FSB/agents/agent-scheduler.js` -- `chrome.alarms.onAlarm` (background.js:12532), `clearAllAlarms` prefix-namespace pattern
-- `/Users/lakshmanturlapati/Desktop/FSB/content/dom-stream.js` -- MutationObserver + rAF batching (line 670-689); silent `.catch(function(){})` at line 653 (a target of the diagnostic-logging milestone work)
-- `/Users/lakshmanturlapati/Desktop/FSB/showcase/js/dashboard.js:3517-3518` -- existing inbound `_lz` decompression on the dashboard side (the symmetry FSB extension is missing)
-- `/Users/lakshmanturlapati/Desktop/FSB/CLAUDE.md` -- MV3 SW lifecycle constraints; "no build system" simplicity discipline; security-first design principles
-- RFC 7692 (permessage-deflate) -- referenced as a pattern to AVOID introducing (Pitfall 9). Stateful sliding window per connection vs. LZ-string base64 stateless per message.
+- Angular 19 prerender docs: https://angular.dev/guide/hydration and https://angular.dev/guide/prerendering (Context7-resolvable; verified pattern matches Angular 17/18/19 progression -- HIGH confidence)
+- schema.org JSON-LD spec: https://schema.org/docs/jsonld.html (HIGH confidence -- official)
+- Google Search Central -- robots.txt: https://developers.google.com/search/docs/crawling-indexing/robots/intro (HIGH confidence -- official, includes precedence rules)
+- Google Search Central -- sitemaps: https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap (HIGH confidence -- official)
+- llmstxt.org community spec (Anthropic-aligned): https://llmstxt.org/ (MEDIUM confidence -- de-facto standard, evolving)
+- Google Rich Results Test: https://search.google.com/test/rich-results (HIGH confidence -- official validator)
+- Express `static` middleware docs: https://expressjs.com/en/api.html#express.static (HIGH confidence -- official)
+- Fly.io `force_https` and machine lifecycle: https://fly.io/docs/networking/services/ and https://fly.io/docs/apps/autostart-stop/ (HIGH confidence -- official)
+- Google-Extended user agent: https://blog.google/technology/ai/an-update-on-web-publisher-controls/ (HIGH confidence -- Google announcement, Sept 2023)
+- GPTBot / ClaudeBot / PerplexityBot user-agent strings: official OpenAI, Anthropic, Perplexity docs (HIGH confidence)
+- Personal experience with Angular SSR/prerender + Express + JSON-LD on similar marketing sites (informs the `localStorage` and middleware-ordering pitfalls -- HIGH confidence on those specifics).
 
 ---
-*Pitfalls research for: FSB v0.9.45rc1 -- Sync surface, agent sunset, stream reliability*
-*Researched: 2026-04-28*
+*Pitfalls research for: Adding SEO + GEO to FSB Angular 19 showcase on Express + Fly.io*
+*Researched: 2026-04-30*

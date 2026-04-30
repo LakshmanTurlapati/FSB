@@ -1,327 +1,411 @@
-# Architecture Integration Map -- v0.9.45rc1
+# Architecture Research -- v0.9.46 Site Discoverability (SEO + GEO)
 
-**Project:** FSB v0.9.45rc1 -- Sync surface, Agent sunset, Stream reliability
-**Mode:** Project Research (architecture)
-**Confidence:** HIGH (all findings confirmed by direct file inspection)
+**Domain:** Angular 19 SPA + Express static host -- prerender / per-route metadata / crawler files integration
+**Researched:** 2026-04-30
+**Confidence:** HIGH (verified against Angular v19 prerender docs + direct read of repo wiring)
 
 ## Executive Summary
 
-- **Tab convention is sidebar nav, NOT tabs.** The control panel uses `<li class="nav-item" data-section="X">` paired with `<section class="content-section" id="X">`. Activation toggles `.active` on both. Adding a "Sync" surface = add 1 nav-item + 1 content-section + an `initializeSyncSection()` JS function. No tab framework.
-- **Pairing logic already exists at the function level** (`showPairingQR`, `cancelPairing`, `regeneratePairingToken`, `ensureHashKey`, `fetchPairingToken`, `renderPairingQR`, `startPairingCountdown`) in `ui/options.js` lines 4766-4946. They are bound to DOM IDs that currently live inside the `background-agents` section. Sync tab can re-host these IDs without rewriting the controller.
-- **Remote-control state is a one-way broadcast contract.** `ws/ws-client.js:130-161` sends `ext:remote-control-state` to dashboard. There is no inbound listener to options.js for that event today; the Sync tab will need a NEW pull-model API (`chrome.runtime.sendMessage({action:'getRemoteControlState'})`) plus an in-extension push (`chrome.runtime.sendMessage({action:'remoteControlStateChanged', state})`).
-- **Agent code is cleanly file-isolated.** `agents/agent-manager.js`, `agents/agent-scheduler.js`, `agents/agent-executor.js`, `agents/server-sync.js` are imported only at `background.js:160-163`. Message router cases live in `background.js:5586-5752`. The alarm handler at `background.js:12532-12606` is partially shared (MCP reconnect alarm handled in same listener -- preserve early-return). Agent UI is concentrated in `ui/control_panel.html:563-749` and `ui/options.js:4160-4665`, plus slash commands in `ui/sidepanel.js:1928-2013` and `ui/popup.js:846-930`.
-- **Compression is asymmetric, confirmed.** Outbound compresses payloads >1024 bytes via `LZString.compressToBase64` (`ws/ws-client.js:580-606`). Inbound at `ws-client.js:515-522` does `JSON.parse(event.data)` then dispatches; no `_lz` envelope check. Dashboard does decompress (`showcase/js/dashboard.js:3517-3518` and `dashboard-page.component.ts:3204-3205`).
-- **Mutation pipeline has no watchdog and no stale counter.** `content/dom-stream.js:670-679` uses `requestAnimationFrame(flushMutations)`. If page is backgrounded and rAF is throttled, `pendingMutations` grows unbounded. The 2MB truncation at lines 467-489 is brute-force `clone.querySelectorAll('[data-fsb-nid]')` + per-element `getBoundingClientRect` (O(n) DOM thrash).
+This is an **integration architecture**, not a greenfield design. The existing Angular 19 + Express + Fly.io stack already has every hook the milestone needs:
 
----
+- `@angular/build:application` builder supports prerender natively in v19 (no Universal needed for static marketing pages).
+- `angular.json` already globs `showcase/angular/public/**/*` to dist root and `showcase/assets/**/*` to `dist/.../assets/`, so root crawler files have a zero-config home.
+- `express.static(staticPath, ...)` is registered BEFORE the SPA fallback, so any prerendered `about/index.html` is served by static middleware automatically -- the SPA fallback only fires when static misses.
+- The catch-all SPA fallback is currently scoped (`['/', '/about', '/dashboard', '/privacy', '/support']`), not global `app.get('*')`, so it already coexists cleanly with future static prerender output.
 
-## (a) Sync Tab Integration
+The minimal-disruption integration is: (1) enable prerender in `angular.json`, (2) inject `Title`/`Meta` per route component, (3) drop crawler root files into `showcase/angular/public/`, (4) tweak the Express SPA fallback to prefer per-route `index.html` over the root.
 
-### Convention discovered
-
-**HTML pattern** (`ui/control_panel.html`):
-- Nav item: `<li class="nav-item" data-section="<id>"><i class="fas fa-..."></i><span>Label</span></li>` inside `<ul class="nav-list">` at lines 53-90.
-- Content section: `<section class="content-section" id="<id>"> ... </section>` inside `<main class="dashboard-content">` at lines 95-1542.
-- Default-active section: add `active` class to BOTH nav-item and section.
-
-**CSS pattern** (`ui/options.css`):
-- `.nav-item` base styling at lines 335-365; `.nav-item.active` at 354-360.
-- `.content-section { display: none; }` at 376; `.content-section.active { display: block; }` at 382.
-- Layout is grid-driven by `.dashboard-sidebar` + `.dashboard-content`.
-
-**JS activation** (`ui/options.js`):
-- Element collection at lines 127-128: `elements.navItems = querySelectorAll('.nav-item')`, `elements.contentSections = querySelectorAll('.content-section')`.
-- Click wiring at line 199.
-- `switchSection(sectionId)` at lines 482-497 toggles `.active`, updates `dashboardState.currentSection`, updates URL hash.
-- `initializeSections()` at 499-505 reads `window.location.hash.slice(1)` and calls `switchSection`.
-- Per-tab lazy refresh hook at lines 3082-3099: `switchSection` is monkey-patched in `initializeCredentialManager()` to call section-specific loaders. **Canonical extension point for "on Sync tab open, refresh remote-control state".**
-
-### Existing pairing/remote-control surface
-
-**Pairing module** (already factored in `ui/options.js`):
-- `ensureHashKey` (4781), `fetchPairingToken` (4795), `renderPairingQR` (4806), `startPairingCountdown` (4815), `renderExpiredState` (4838), `regeneratePairingToken` (4857), `showPairingQR` (4887), `cancelPairing` (4929), `generateHashKey` (4697), `copyHashKey` (4719), `testServerConnection` (4733).
-- Module state vars: `pairingCountdownTimer`, `pairingFetchInFlight` (4771-4772).
-- DOM IDs (raw `getElementById`): `serverUrl`, `serverHashKey`, `pairingQROverlay`, `pairingQRCode`, `pairingCountdown`, `pairingQRMessage`, `btnPairDashboard`, `btnCancelPairing`, `btnGenerateHashKey`, `btnCopyHashKey`, `btnTestConnection`, `connectionStatus`. **IDs are document-scoped, will continue to work if relocated to a Sync section.**
-- Initial wiring in `initializeAgentsSection()` at lines 4189-4205. **This wiring needs to migrate to a new `initializeSyncSection()`.**
-
-**Remote-control state contract:**
-- Outbound only today. `ws/ws-client.js:130-161`: `_broadcastRemoteControlState(wsInstance, enabled, reason, tabId)` sends `ext:remote-control-state` with `{enabled, attached, tabId, reason, ownership}`.
-- Module-scope: `_remoteControlActive`, `_lastRemoteControlState`.
-- Dashboard handlers: `showcase/js/dashboard.js:3811`, `showcase/angular/.../dashboard-page.component.ts:3386`.
-- Test contract: `tests/dashboard-runtime-state.test.js:195-208`, `tests/remote-control-handlers.test.js:61`.
-- **Gap:** `options.js` does NOT subscribe to `ext:remote-control-state`. Sync tab needs a fresh state-getter or a runtime message bus.
-
-### Recommended Sync tab integration
+## Existing System Map (file:line)
 
 ```
-ui/control_panel.html:
-  + <li class="nav-item" data-section="sync"><i class="fas fa-link"></i><span>Sync</span></li>
-    (insert after nav-item dashboard, before api-config; ~line 57)
-  + <section class="content-section" id="sync"> ... </section>
-    Move (do NOT copy) Server Sync settings card (701-748) and pairingQROverlay
-    out of #background-agents into #sync.
-
-ui/options.js:
-  + initializeSyncSection() that wires btnGenerate/btnCopy/btnTest/btnPair/btnCancelPair
-    using the EXISTING handler functions (do not duplicate).
-  + Extend the switchSection monkey-patch (3082-3099) with
-      if (sectionId === 'sync') { refreshRemoteControlState(); }
-  + refreshRemoteControlState() asks background.js for current state via runtime.sendMessage.
-  + chrome.runtime.onMessage listener for action 'remoteControlStateChanged' for live updates.
-
-background.js:
-  + New action 'getRemoteControlState' returns _lastRemoteControlState.
-  + In ws-client.js _broadcastRemoteControlState, also chrome.runtime.sendMessage(
-      {action:'remoteControlStateChanged', state}).catch(...)
+showcase/angular/angular.json:35-50          assets globs (public/ + ../assets/ -> dist)
+showcase/angular/angular.json:22-27          builder + outputPath base/browser
+showcase/angular/src/index.html:5            <title>FSB</title>          <-- single static title today
+showcase/angular/src/index.html:6            <base href="/">              <-- required for prerender
+showcase/angular/src/app/app.routes.ts:3-10  5 lazy routes; '**' redirectTo ''
+showcase/angular/src/app/app.config.ts:5-10  provideRouter(routes), no provideClientHydration yet
+showcase/angular/src/main.ts:5               bootstrapApplication              <-- prerender hook target
+server/server.js:73-83                       staticPath resolution (public OR dist)
+server/server.js:86-95                       legacy .html -> clean URL 301 redirects
+server/server.js:97-108                      express.static (cache headers)
+server/server.js:110-117                     SCOPED SPA fallback (5 routes)         <-- patch target
 ```
 
-**Integration risk:** Sync section invisible until clicked. If `_broadcastRemoteControlState` fires before `options.js` loads, options misses the broadcast and shows stale state. **Mitigation:** Sync tab activation MUST pull last-known state via `getRemoteControlState`; do not rely on broadcast-only delivery (replay-on-attach pattern).
+## Standard Architecture (Post-Integration)
 
----
+```
++--------------------------------------------------------------------------+
+|                      BUILD TIME (npm run build)                          |
++--------------------------------------------------------------------------+
+|   src/index.html  --+                                                    |
+|                     |                                                    |
+|   app.routes.ts  ---+--> @angular/build:application (prerender: true)    |
+|                     |                                                    |
+|   *Page.component --+                                                    |
+|                     v                                                    |
+|        +-----------------------------+                                   |
+|        | Prerender executes routes,  |  ngOnInit fires; Title/Meta       |
+|        | invokes appConfig, runs     |  services write into <head> of    |
+|        | each component to ngOnInit, |  the captured HTML snapshot.      |
+|        | serializes DOM to HTML      |                                   |
+|        +--------------+--------------+                                   |
+|                       v                                                  |
+|   public/  --+        dist/showcase-angular/browser/                     |
+|   robots.txt |        +-- index.html              (route '')             |
+|   sitemap.xml+------> +-- about/index.html        (route 'about')        |
+|   llms.txt   |        +-- privacy/index.html      (route 'privacy')      |
+|   llms-full  |        +-- support/index.html      (route 'support')      |
+|              |        +-- robots.txt              (from public/)         |
+|              |        +-- sitemap.xml             (from public/)         |
+|              |        +-- llms.txt, llms-full.txt (from public/)         |
+|              |        +-- assets/                 (from ../assets/)      |
+|              |        +-- main-<hash>.js, *.css                          |
++--------------------------------------------------------------------------+
+                                  |
+                                  v
++--------------------------------------------------------------------------+
+|                  REQUEST TIME (Fly.io / Express)                         |
++--------------------------------------------------------------------------+
+|  GET /robots.txt                                                         |
+|     -> express.static finds dist/browser/robots.txt   [HIT, served]      |
+|                                                                          |
+|  GET /about                                                              |
+|     -> express.static checks /about (no extension)    [default index]    |
+|     -> express.static checks /about/index.html        [HIT, served]      |
+|        (express.static index option defaults to 'index.html'; this       |
+|         normally would resolve. BUT the scoped fallback at line 111      |
+|         is registered for /about and would take over if static misses    |
+|         for any reason. Patch makes the fallback prerender-aware.)       |
+|                                                                          |
+|  GET /dashboard                                                          |
+|     -> /dashboard EXCLUDED from prerender list, no per-route file.       |
+|     -> express.static misses; SPA fallback serves root index.html        |
+|        (same as today -- /dashboard remains live SPA shell).             |
++--------------------------------------------------------------------------+
+```
 
-## (b) Background-Agent Dependency Graph
+## Component Responsibilities (Integration Touch Points)
 
-### Agent-only files (entire file SAFE-TO-COMMENT)
+| Component | Existing Responsibility | New Responsibility | File:Line |
+|-----------|-------------------------|--------------------|-----------|
+| `angular.json` build target | Bundle, asset glob | Add `prerender` block under build options | `showcase/angular/angular.json:23-54` |
+| `app.routes.ts` | 5 lazy routes | Unchanged. Source of truth for explicit prerender route list | `showcase/angular/src/app/app.routes.ts:3-10` |
+| `app.config.ts` | `provideRouter`, zone config | Optional: `provideClientHydration()` if any client-side state needs preserving across hydration. Not required for static marketing pages. | `showcase/angular/src/app/app.config.ts:5-10` |
+| `index.html` | Hard-coded `<title>FSB</title>` | Drop or keep as fallback; per-route Title service overrides at render time | `showcase/angular/src/index.html:5` |
+| `*-page.component.ts` (5 files) | Lazy route view | Inject `Title`, `Meta`; call in `ngOnInit` (or constructor for prerender) | NEW behavior in existing files |
+| `showcase/angular/public/` | Asset glob source (icons today) | Host `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` | NEW files |
+| `server/server.js` static | `express.static(staticPath)` cache headers | Unchanged | `server/server.js:97-108` |
+| `server/server.js` SPA fallback | `app.get(['/','/about',...])` -> root `index.html` | Prefer `staticPath/<route>/index.html` if present; fall back to root for `/dashboard` | `server/server.js:110-117` |
 
-| File | What | Status |
-|------|------|--------|
-| `agents/agent-manager.js` | CRUD (`createAgent`, `updateAgent`, `deleteAgent`, `listAgents`, `toggleAgent`, `getAgent`, `recordRun`, `getStats`, `getRunHistory`, `clearRecordedScript`). Storage key `'bgAgents'` (line 8). | SAFE-TO-COMMENT (whole file) |
-| `agents/agent-scheduler.js` | Alarm management. Alarm prefix `'fsb_agent_'` (line 9). | SAFE-TO-COMMENT (whole file) |
-| `agents/agent-executor.js` | Background-tab execution + replay engine. `MAX_CONCURRENT=3`, `EXECUTION_TIMEOUT=4min`. | SAFE-TO-COMMENT (whole file) |
-| `agents/server-sync.js` | `serverSync.syncRun(agent, result)` for dashboard mirroring. | SAFE-TO-COMMENT (whole file) |
-| `mcp-server/src/tools/agents.ts` | MCP tools `create_agent`, `list_agents`, `run_agent`, `stop_agent`, `delete_agent`, `toggle_agent`, `agent_stats`, `agent_history`. | SAFE-TO-COMMENT (whole file) + remove `registerAgentTools` import (`mcp-server/src/runtime.ts:10, 35`) |
+## Recommended Integration Layout
 
-### Agent-only entry points inside SHARED files
+```
+showcase/
+  angular/
+    angular.json                  [MOD] add "prerender" block under build options
+    src/
+      index.html                  [MOD] drop hard-coded <title>; keep <base href="/">
+      app/
+        app.config.ts             [MAYBE] add provideClientHydration() (optional)
+        app.routes.ts             [UNCHANGED]
+        pages/
+          home/home-page.component.ts        [MOD] Title/Meta + JSON-LD (Org + SoftwareApplication)
+          about/about-page.component.ts      [MOD] Title/Meta + canonical
+          privacy/privacy-page.component.ts  [MOD] Title/Meta + canonical
+          support/support-page.component.ts  [MOD] Title/Meta + canonical
+          dashboard/dashboard-page.component.ts [MOD] noindex meta only; NOT prerendered
+    public/                       [NEW FILES, glob already configured]
+      robots.txt
+      sitemap.xml
+      llms.txt
+      llms-full.txt
+server/
+  server.js                       [PATCH] SPA-fallback handler (see Pattern 4 below)
+```
 
-| File | Range | What | Status |
-|------|-------|------|--------|
-| `background.js` | 160-163 | importScripts of agent files | SAFE-TO-COMMENT |
-| `background.js` | 5586-5752 | Message router cases (createAgent, updateAgent, deleteAgent, listAgents, toggleAgent, runAgentNow, getAgentStats, getAgentRunHistory, clearAgentScript, getAgentReplayInfo, toggleAgentReplay) | SAFE-TO-COMMENT (whole switch block) |
-| `background.js` | 12531-12606 | `chrome.alarms.onAlarm` -- **MIXED**. 12533-12540 handle `MCP_RECONNECT_ALARM` (PRESERVE early-return). 12542-12605 handle agent alarms (SAFE-TO-COMMENT). | PARTIAL |
-| `background.js` | 12634, 12652 | `agentScheduler.rescheduleAllAgents()` calls in onInstalled/onStartup | SAFE-TO-COMMENT (2 lines) |
-| `ws/ws-client.js` | 934-936 | `case 'dash:agent-run-now'` | SAFE-TO-COMMENT |
-| `ws/ws-client.js` | 1181-1203 | `_handleAgentRunNow(payload)` | SAFE-TO-COMMENT |
-| `ui/control_panel.html` | 62-65 | `<li class="nav-item" data-section="background-agents">` | SAFE-TO-COMMENT (replace nav with sunset card or hide) |
-| `ui/control_panel.html` | 563-749 | Entire `<section id="background-agents">`, EXCEPT 700-748 (Server Sync card + pairing overlay) which **MUST MOVE** to `#sync` | PARTIAL: comment agent UI; relocate Server Sync block |
-| `ui/options.js` | 4160-4221 | `initializeAgentsSection()` -- **MIXED**. 4160-4188 agent form wiring. 4189-4205 pairing wiring (MOVE to initializeSyncSection). 4207-4221 agent list/stats + agentRunComplete listener. | PARTIAL |
-| `ui/options.js` | 4224-4665 | `showAgentForm`, `saveAgent`, `loadAgentList`, `renderAgentCard`, `loadAgentStats`, `toggleAgent`, etc. | SAFE-TO-COMMENT |
-| `ui/sidepanel.js` | 378-379, 1928-2013 | `/agent` slash command | SAFE-TO-COMMENT |
-| `ui/popup.js` | 203-204, 846-930 | Same slash-command pattern | SAFE-TO-COMMENT |
-| `showcase/dashboard.html` | 67, 99-181, 252, 278-435 | Vanilla dashboard agent UI | SAFE-TO-COMMENT (replace with sunset card) |
-| `showcase/js/dashboard.js` | ~226 hits | Click handlers (`dash-new-agent-btn` 653, `dash-save-agent-btn` 702, `stat-agents` 1747) | SAFE-TO-COMMENT |
-| `showcase/angular/.../dashboard-page.component.ts` | ~221 hits | Angular agent mirror | SAFE-TO-COMMENT (preserve `ext:remote-control-state` and `_lz` paths) |
-| `showcase/angular/.../dashboard-page.component.html` | 8, 40-181, 252, 278-435 | Angular agent UI mirror | SAFE-TO-COMMENT |
-| `showcase/angular/.../home-page.component.html` | 60-63 | "Background Agents" feature card | REPLACE with sunset/relocation messaging pointing at OpenClaw + Claude Routines |
-| `mcp-server/src/runtime.ts` | 10, 35 | Import + call `registerAgentTools` | SAFE-TO-COMMENT (2 lines) |
+### Why this layout
 
-### SHARED-DO-NOT-TOUCH
+- **`public/` not `../assets/`:** root crawler files MUST live at site root, not under `/assets/`. The `public/` glob in `angular.json:36-39` (`{glob: "**/*", input: "public"}` with no `output:` field) outputs to `browser/` root. The `../assets/` glob (`angular.json:40-44`) writes to `browser/assets/` due to its explicit `"output": "assets"`. Wrong location for crawler files.
+- **No new components:** Title/Meta injection happens inside the existing 5 page components. Angular's built-in `Title` and `Meta` services from `@angular/platform-browser` are sufficient for v0.9.46.
+- **JSON-LD as inline `<script type="application/ld+json">`:** add via direct DOM injection in component `ngOnInit`, OR introduce a tiny `MetaService` helper. Either is a 5-line helper, not a new architectural layer. Recommend inline for v0.9.46 -- only one route (`/`) needs JSON-LD per scope.
 
-| Resource | Used by agents via | Used by non-agents via |
-|----------|---------------------|--------------------------|
-| `chrome.alarms.onAlarm` listener | Agent alarms (`fsb_agent_<id>`) | MCP reconnect alarm (`MCP_RECONNECT_ALARM`) -- **PRESERVE listener with MCP guard, delete agent branch only** |
-| `activeSessions` Map | `_handleAgentRunNow` checks `[...activeSessions.values()]` | Autopilot/dashboard tasks/MCP visual sessions all use it. **DO NOT TOUCH** |
-| `chrome.runtime.sendMessage({action:'startAutomation'})` | Indirectly via executor | Dashboard task submit, popup, sidepanel. **DO NOT TOUCH** |
-| `serverUrl`/`serverHashKey` storage keys | `agents/server-sync.js` | ws-client.js auto-register, dashboard pairing. **DO NOT TOUCH** |
-| `_streamingTabId`, `_dashboardTaskTabId` | n/a | Dashboard task routing. **DO NOT TOUCH** |
-| `ext:remote-control-state` contract | n/a | Phase 209 + dashboard. **DO NOT TOUCH** |
+## Architectural Patterns
 
-### Agent storage keys (preserve, don't delete)
+### Pattern 1: Static Prerender via `@angular/build:application`
 
-- `chrome.storage.local['bgAgents']` -- agent definitions and run history (`agents/agent-manager.js:8`).
-- `chrome.alarms` named `fsb_agent_<id>` (`agents/agent-scheduler.js:9`).
+**What:** Angular 19's unified `@angular/build:application` builder supports prerender as a build-time option. It boots the app inside Node, resolves each route from `app.routes.ts`, executes the component lifecycle through `ngOnInit`, snapshots the resulting DOM, and writes one HTML file per route.
 
-Both can stay populated during deprecation. Data preservation costs nothing; user can re-enable later if scope reverses.
+**When to use:** Marketing routes with stable content. Perfect for FSB's `/`, `/about`, `/privacy`, `/support`. NOT for `/dashboard` (auth, runtime state, WebSocket).
 
----
+**Trade-offs:**
+- Pro: zero Express/Universal runtime overhead; output is plain HTML; works on any static host or with `express.static`.
+- Pro: prerender executes the same Angular code that runs in the browser, so Title/Meta injected in `ngOnInit` lands in the served HTML.
+- Con: prerender is build-time. Sitemap and content updates require a redeploy.
+- Con: prerender does NOT wait indefinitely for async observables. For FSB's static marketing pages this doesn't matter -- all metadata is static strings.
 
-## (c) DOM Streaming Pipeline
+**`angular.json` minimal patch (under `architect.build.options`):**
+```json
+"prerender": {
+  "discoverRoutes": false,
+  "routes": ["/", "/about", "/privacy", "/support"]
+}
+```
+Explicit `routes` list excludes `/dashboard` and avoids `discoverRoutes` crawling the `'**'` redirect entry in `app.routes.ts:9`.
 
-### Mutation observer pipeline
+### Pattern 2: Per-Route Title/Meta Injection
 
-**File:** `content/dom-stream.js`
+**What:** Inject `Title` and `Meta` from `@angular/platform-browser` in each page component's constructor or `ngOnInit`. Prerender executes through `ngOnInit`, so writes to `<head>` are captured in the snapshot.
 
-| Stage | Location | Detail |
-|-------|----------|--------|
-| Module state | 13-23 | `mutationObserver`, `batchTimer`, `pendingMutations[]`, `nextNodeId`, `streamSessionId`, `currentSnapshotId` |
-| Observer creation | 670-688 (`startMutationStream`) | `MutationObserver(cb)` accumulates into `pendingMutations`, then `requestAnimationFrame(flushMutations)`. Observes `document.body` with full subtree. |
-| Batch processing | 552-632 (`processMutationBatch`) | Builds `{op:'add'\|'rm'\|'attr'\|'text', ...}` diffs, skips FSB overlay nodes |
-| Outbound | 637-657 (`flushMutations`) | `chrome.runtime.sendMessage({action:'domStreamMutations', ...}).catch(()=>{})` -- **silent catch** |
-| Forwarding to relay | `background.js:5841-5850` | `fsbWebSocket.send('ext:dom-mutations', ...)` |
-| Stop + flush | 695-724 (`stopMutationStream`) | Cancels rAF, flushes pending, silent `.catch(()=>{})` at 718 |
+**When to use:** Always, for every prerendered route. Without it, every route gets the same `<title>FSB</title>` from `src/index.html:5`.
 
-### Outbound frame batching
+**Critical detail re: prerender lifecycle:**
+- Prerender **does** wait for `ngOnInit` synchronous code.
+- Prerender **does** execute inside Angular's injection context (component DI works normally).
+- `runInInjectionContext` is NOT required for component-scoped DI. It's only needed if you call DI from outside an injection context (e.g., a top-level function). Title/Meta services are constructor-injected in components, so the standard pattern applies.
+- Prerender does NOT wait indefinitely for async observables. All FSB metadata is synchronous strings -- no awaits needed.
 
-**Single rAF batching only.** Each `MutationObserver` callback overwrites `batchTimer`. Result: at most one flush per paint frame. **No secondary watchdog** -- if rAF stalls (backgrounded tab, throttled paints), `pendingMutations` grows without bound.
+**Example (home-page.component.ts):**
+```typescript
+import { Component, OnInit, inject } from '@angular/core';
+import { Title, Meta } from '@angular/platform-browser';
 
-### Large-DOM truncation
+@Component({ /* ... */ })
+export class HomePageComponent implements OnInit {
+  private title = inject(Title);
+  private meta = inject(Meta);
 
-**File:** `content/dom-stream.js`, lines 467-489.
-**Trigger:** `clone.innerHTML.length > 2 * 1024 * 1024` (2MB).
-**Mechanism:**
-1. `viewportCutoff = window.innerHeight * 3`
-2. `clone.querySelectorAll('[data-fsb-nid]')` -- walks entire annotated DOM
-3. Per element: `document.querySelector('[data-fsb-nid="..."]')` + `getBoundingClientRect()`
-4. Removes elements with `top > viewportCutoff`
-5. Re-reads `clone.innerHTML`
-6. Sets `truncated: true`
-
-**Performance issues:**
-- O(n) `querySelector` round-trips with attribute selectors
-- O(n) layout-thrashing `getBoundingClientRect` reads
-- Single-pass; if still >2MB after viewport-3x cull, no second pass
-
-### Stale counter
-
-**No stale counter today.** Searching for `stale`, `staleCount` returns nothing.
-
-**Recommended:** module-scope `pendingFlushAge`, `staleFlushCount`, plus a `chrome.alarms`-backed watchdog (NOT `setInterval` -- v0.9.40 lessons re: SW lifecycle). Watchdog fires if `pendingMutations.length > 0 && Date.now() - lastFlushAt > 1000`. Reset `staleFlushCount = 0` after a successful empty-queue flush. Surface `staleFlushCount` in `ext:stream-state`, NOT in `ext:dom-mutations` (do not change existing payload shape).
-
-### Integration risk
-
-If watchdog fires while rAF still scheduled, double-flush. **Mitigation:** watchdog must `cancelAnimationFrame(batchTimer); batchTimer = null;` before calling `flushMutations`. `flushMutations` already idempotent on empty queue (line 639).
-
----
-
-## (d) WebSocket Frame Handling
-
-### Inbound frame handler
-
-**File:** `ws/ws-client.js`
-- Receive entry: `this.ws.onmessage` at 515-522 -- `JSON.parse(event.data); _handleMessage(msg)`. **No `_lz` check.**
-- Dispatcher: `_handleMessage(msg)` at 918-976 -- switch on `msg.type` (cases: `pong`, `dash:task-submit`, `dash:stop-task`, `dash:request-status`, `dash:agent-run-now`, `dash:dom-stream-*`, `dash:remote-control-*`, `dash:remote-click/key/scroll`, `dash:navigate`, etc.).
-
-### Outbound compression
-
-**File:** `ws/ws-client.js`, function `send(type, payload)` at 568-606.
-1. `var raw = JSON.stringify({type, payload, ts:Date.now()})`
-2. If `raw.length > 1024 && typeof LZString !== 'undefined'`:
-   - `compressed = LZString.compressToBase64(raw)`
-   - If `compressed.length < raw.length`: `this.ws.send(JSON.stringify({_lz:true, d:compressed}))`
-3. Otherwise: `this.ws.send(raw)`
-
-`LZString` loaded via `importScripts('lib/lz-string.min.js')` at `background.js:37` (try/catch wrapped).
-
-### Round-trip envelope
-
-| Direction | Compressed | Uncompressed |
-|-----------|-----------|---------------|
-| Outbound (extension -> relay -> dashboard) | `{_lz:true, d:<base64 LZ>}` decoded body = `{type, payload, ts}` | `{type, payload, ts}` |
-| Inbound (dashboard -> relay -> extension) | TODO: dashboard does not currently compress, but relay may re-emit compressed if added server-side. Today's relay (`server/src/ws/handler.js:190`) at minimum identifies `'compressed-envelope'`. | `{type, payload, ts}` |
-
-### Symmetric fix
-
-```js
-this.ws.onmessage = (event) => {
-  try {
-    var raw = JSON.parse(event.data);
-    if (raw && raw._lz === true && typeof raw.d === 'string' && typeof LZString !== 'undefined') {
-      var decompressed = LZString.decompressFromBase64(raw.d);
-      if (!decompressed) {
-        recordFSBTransportFailure('decompress-failed', { type: '_lz', target: 'inbound', error: 'LZString returned null' });
-        return;
-      }
-      raw = JSON.parse(decompressed);
-    }
-    this._handleMessage(raw);
-  } catch (err) {
-    console.warn('[FSB WS] Failed to parse message:', err.message);
+  ngOnInit() {
+    this.title.setTitle('FSB - Full Self-Browsing AI Browser Automation');
+    this.meta.updateTag({ name: 'description', content: '...' });
+    this.meta.updateTag({ property: 'og:title', content: 'FSB' });
+    this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    // canonical link via Meta service or direct head manipulation
+    this.meta.updateTag({ rel: 'canonical', href: 'https://full-selfbrowsing.com/' }, "rel='canonical'");
   }
-};
+}
 ```
 
-**Integration risk:** If `LZString` failed to load (importScripts try/catch), today the extension silently drops compressed inbound frames. Fix must guard `typeof LZString !== 'undefined'` and emit `recordFSBTransportFailure('decompress-unavailable', ...)`.
+**JSON-LD pattern (one-time, on `/`):**
+```typescript
+ngOnInit() {
+  // ...title/meta...
+  const ld = document.createElement('script');
+  ld.type = 'application/ld+json';
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'FSB',
+    /* ... */
+  });
+  document.head.appendChild(ld);
+}
+```
+During prerender this runs against the synthetic DOM and is serialized into the static HTML output.
+
+### Pattern 3: Crawler Files as Public Static Assets
+
+**What:** Place `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` under `showcase/angular/public/`. The existing `angular.json:36-39` glob copies them to `dist/showcase-angular/browser/` root unchanged.
+
+**When to use:** Always for root-level crawler files. Never use `showcase/assets/` -- that glob has `"output": "assets"`, which is the wrong URL path.
+
+**Trade-offs:**
+- Pro: zero server changes. `express.static(staticPath)` (server/server.js:98) finds and serves them with correct content-type before any SPA fallback can intercept.
+- Pro: no MIME-type issues -- `.txt` and `.xml` are recognized by Express's built-in `mime` lookup.
+- Con: hand-maintained sitemap requires a redeploy on route changes. With 5 routes (4 prerendered + dashboard) and low churn, this is the right trade.
+
+### Pattern 4: SPA Fallback That Prefers Per-Route Prerender
+
+**What:** Update the catch-all so it serves `staticPath/<route>/index.html` when present, else falls back to root `index.html`. This preserves `/dashboard` SPA behavior.
+
+**When to use:** Whenever you mix prerendered routes with SPA-only routes in the same Express server.
+
+**Why this matters even though `express.static` would normally find `/about/index.html` automatically:**
+
+The current handler at `server/server.js:111-117` is registered for `['/','/about','/dashboard','/privacy','/support']` and returns the root `index.html` unconditionally. Express middleware order (server.js:97 static, then 111 SPA fallback) means: `express.static` is tried FIRST. Express's `serveStatic` `index` option defaults to `'index.html'`, so `/about` -> `/about/index.html` IS resolved automatically when present. **However**, when static cannot find it (e.g., `/dashboard` is excluded from prerender), the explicit handler at line 111 catches the request. The patch below makes the explicit handler ALSO prerender-aware as a defensive measure -- so even if static-middleware behavior shifts (e.g., a future express upgrade) the fallback still serves the right HTML.
+
+**Minimal patch (server/server.js:110-117):**
+```javascript
+// SPA fallback -- prefer per-route prerendered HTML, fall back to root index.html for SPA-only routes
+app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
+  if (!staticPath) {
+    res.status(503).type('text/plain')
+       .send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
+    return;
+  }
+  // Prefer prerendered per-route index.html (e.g., /about/index.html)
+  if (req.path !== '/') {
+    const perRoute = path.join(staticPath, req.path, 'index.html');
+    if (fs.existsSync(perRoute)) {
+      return res.sendFile(perRoute);
+    }
+  }
+  // Fall back to root index.html (SPA shell -- /dashboard, '/' if not prerendered, etc.)
+  res.sendFile(path.join(staticPath, 'index.html'));
+});
+```
+
+**Why minimal:**
+- Preserves the 503 guard for missing builds (server.js:112-115).
+- Preserves `/` behavior (root `index.html` serves whether or not `/` is prerendered, since prerendered `/` writes to root `index.html` already).
+- Preserves `/dashboard` SPA behavior: if `/dashboard/index.html` is not in dist (because we excluded it from prerender), `fs.existsSync` returns false and we fall through to root `index.html` -- same as today.
+- `fs.existsSync` is sync and runs in-process; the prerender output set is small (4 paths). For a stricter perf posture, build a `Set` at startup and check membership -- documented as a deferred optimization, not required for v0.9.46.
+- `fs` is already required at `server/server.js:75`, so no new imports.
+
+## Data Flow
+
+### Build-Time Flow (new)
+
+```
+npm --prefix showcase/angular run build
+   |
+   v
+@angular/build:application reads angular.json
+   |
+   +-- bundles main.ts, lazy chunks, styles
+   |
+   +-- copies assets per glob:
+   |     public/**/*       -> browser/                 (no output prefix)
+   |     ../assets/**/*    -> browser/assets/          (output: "assets")
+   |
+   +-- if prerender.routes set:
+   |       for each route in [/, /about, /privacy, /support]:
+   |          boot app, navigate, run ngOnInit (Title/Meta/JSON-LD writes)
+   |          serialize DOM -> browser/<route>/index.html
+   |
+   v
+dist/showcase-angular/browser/  (includes robots.txt, sitemap.xml, llms.txt, llms-full.txt verbatim)
+```
+
+### Request-Time Flow (post-patch)
+
+```
+Cloudflare/Fly edge -> Express :3847
+   |
+   v
+[server.js:41]  request logger
+   |
+   v
+[server.js:53-66] /api/* routers          -- short-circuit for API
+   |
+   v (non-API)
+[server.js:93]  htmlRedirects /about.html -> 301 /about
+   |
+   v
+[server.js:98]  express.static(staticPath)
+   - finds robots.txt, sitemap.xml, llms*.txt at root: SERVE
+   - finds /about/index.html via default index resolution: SERVE
+   - finds /assets/icon48.png: SERVE
+   - misses /dashboard (no /dashboard/index.html in dist): NEXT
+   |
+   v
+[server.js:111 patched] SPA fallback (5 routes)
+   - /dashboard: existsSync(/dashboard/index.html) = false -> root index.html (SPA shell)
+   - / : root index.html (already prerendered as root)
+   |
+   v
+[server.js:120] error handler
+```
+
+## Suggested Build Order (Phase Sequencing)
+
+The milestone has natural data-dependency ordering. **Build prerender first, then JSON-LD, then Express patch, then crawler files.**
+
+| Phase Order | Phase | Why this order | Dependencies |
+|-------------|-------|----------------|--------------|
+| **1** | **Prerender enablement + per-route Title/Meta** | Prerender output is the foundation. Without it, sitemap entries point at empty `<app-root>` shells and AI crawlers see nothing. JSON-LD also requires prerendered HTML to land in the snapshot. Doing this first means every subsequent phase can verify against real prerendered HTML in `dist/.../browser/about/index.html`. | None (only repo). |
+| **2** | **JSON-LD structured data** | Adds Organization + SoftwareApplication blocks via `ngOnInit` DOM injection. Verifies in `view-source` of prerendered HTML. | Requires phase 1 (prerender executes the `ngOnInit` that writes JSON-LD). |
+| **3** | **Express SPA-fallback patch** | Once per-route HTML exists in dist, the patch becomes meaningful. If you patch first with no prerender output, the patch is a no-op AND you can't verify it works. | Requires phase 1 (per-route files must exist for `existsSync` to ever return true). |
+| **4** | **Crawler root files (`robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`)** | Sitemap MUST point at canonical URLs. `llms.txt` should reference real prerendered content. Building these last means each `<url>` entry is verified against an actual file. | Requires phase 1 for sitemap entry validation; soft-depends on phase 3 for the smoke test (`curl /about` returns prerendered HTML). |
+
+**Reasoning against doing crawler files first:** A `sitemap.xml` shipped before prerender is a sitemap of empty shells. AI crawlers fetch the sitemap, follow URLs, get HTML with empty `<app-root>`, and the discoverability problem is unchanged. The whole point of v0.9.46 is non-JS crawler visibility -- sitemap is the LAST link in the chain, not the first.
+
+**Reasoning against doing the Express patch first:** The patch is defensive (preserves `/dashboard`). It can be written and tested independently, but verifying it requires per-route files in dist. So it pairs naturally with phase 3 once prerender output exists. Phases 1 and 3 can also be combined into a single phase if the orchestrator prefers fewer phase boundaries -- they touch different files and don't conflict.
+
+## Sitemap Strategy: Static File vs Build-Step Generator
+
+**Recommendation: hand-maintained static file in `showcase/angular/public/sitemap.xml`.**
+
+| Criterion | Static (recommended) | Generated |
+|-----------|----------------------|-----------|
+| Route count | 5 routes (4 in sitemap, dashboard noindex) -- trivially manageable | overkill |
+| Churn | Marketing routes are extremely stable; new routes happen at milestone cadence (~monthly) | overkill |
+| Build complexity | Zero -- file is in `public/`, glob copies it | New build script, new package.json target, new failure mode |
+| Verification | grep + eyeball | Requires running the script |
+| Future-proofing | If we add comparison pages (`/vs-mariner`) deferred per PROJECT.md:25-26, hand-edit one file once | Generator pays off if route count exceeds ~20 or `getPrerenderParams`-style dynamic routes are introduced |
+
+**Trigger to revisit:** if comparison pages or FAQ land (currently deferred per PROJECT.md:25-26) and route count crosses ~15-20, write a generator that reads `app.routes.ts` and emits `sitemap.xml` to `showcase/angular/public/` as a `prebuild` npm script. Until then, static file is the right call.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Putting crawler files in `../assets/` (`showcase/assets/`)
+
+**What people do:** Drop `robots.txt` in `showcase/assets/` because that's where icons live.
+**Why it's wrong:** `angular.json:40-44` globs `../assets/**/*` to `output: "assets"`, producing `browser/assets/robots.txt` -- which is reachable at `/assets/robots.txt`, not `/robots.txt`. Crawlers only check site root.
+**Do this instead:** Put crawler root files in `showcase/angular/public/`. That glob (`angular.json:36-39`) has no `output:` prefix, so files land at dist root.
+
+### Anti-Pattern 2: Setting Title/Meta in app.component.ts
+
+**What people do:** Centralize title/meta in `AppComponent.ngOnInit` with a giant route-to-title map keyed by URL.
+**Why it's wrong:** During prerender, `AppComponent` constructs once but Angular renders different child components per route. A central map duplicates the routing logic that already exists in `app.routes.ts`. Worse, prerender may snapshot before the route's child component has resolved its title write.
+**Do this instead:** Each page component owns its own metadata in its own `ngOnInit`. Co-located with the page content, no central registry.
+
+### Anti-Pattern 3: Replacing the SPA fallback with `app.get('*')`
+
+**What people do:** Convert `app.get(['/','/about',...])` to `app.get('*')` for "future-proofing."
+**Why it's wrong:** Wildcard catches `/api/*` if API routers don't fully consume the request, and it catches arbitrary URLs that should 404. The current scoped allowlist is a feature, not a limitation.
+**Do this instead:** Keep the scoped list at server.js:111. Add new routes to the allowlist explicitly when added to `app.routes.ts`. The patch above preserves this discipline.
+
+### Anti-Pattern 4: Prerendering `/dashboard`
+
+**What people do:** Add `/dashboard` to the prerender route list so "everything is consistent."
+**Why it's wrong:** `/dashboard` is the live remote-control surface (Phase 209-211: WebSocket, QR pairing, DOM stream). Prerendering produces a snapshot HTML that confuses runtime hydration of the dashboard's stateful UI, and SEO is irrelevant for an auth-walled control surface.
+**Do this instead:** Explicit `prerender.routes` list in `angular.json` excludes `/dashboard`. Add `<meta name="robots" content="noindex">` in `dashboard-page.component.ts` `ngOnInit` for belt-and-suspenders coverage.
+
+### Anti-Pattern 5: Globbing `discoverRoutes: true` for prerender
+
+**What people do:** Let the builder discover routes from `app.routes.ts` automatically.
+**Why it's wrong:** Discovery includes the `'**'` wildcard redirect entry (`app.routes.ts:9`) and lazy-chunk paths in confusing ways. With only 5 routes, explicit is clearer and prevents accidental `/dashboard` prerender.
+**Do this instead:** `discoverRoutes: false` + explicit `routes: ["/", "/about", "/privacy", "/support"]`.
+
+## Integration Points
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) | Static `robots.txt` Allow rules at `/robots.txt` | Zero runtime cost; bot identification is by User-Agent on their side |
+| Search engines (Googlebot, Bingbot) | Static `sitemap.xml` referenced from `robots.txt`'s `Sitemap:` directive | Hand-maintained file, 4 entries |
+| Fly.io edge | Existing `force_https`, single region SJC | No changes needed; static files cache via Express headers (server.js:101-106) |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `angular.json` -> `@angular/build:application` | Build config | New `prerender` block; assets globs unchanged |
+| Page component -> `@angular/platform-browser` (`Title`, `Meta`) | DI inject | Standard injection context; no `runInInjectionContext` needed |
+| `prerender` runtime -> component `ngOnInit` | Lifecycle | Synchronous Title/Meta writes captured in HTML snapshot; async work needs explicit await (not required for FSB v0.9.46) |
+| `express.static` -> SPA fallback | Middleware order | Static at server.js:98 runs FIRST; fallback at server.js:111 runs only on miss; patch makes fallback prerender-aware as defense-in-depth |
+
+## Confidence Notes
+
+- **HIGH** on prerender output structure (`browser/<route>/index.html`): verified against [Angular v19 prerender docs](https://v19.angular.dev/guide/prerendering); v18 -> v19 retained the folder + `index.html` convention.
+- **HIGH** on `angular.json` glob behavior: read the file directly; `public/**/*` with no `output:` writes to dist root, matches Angular CLI conventions.
+- **HIGH** on Express middleware order and static-vs-fallback resolution: read `server/server.js:97-117` directly. Current scoped fallback is intentional and the patch preserves its semantics.
+- **HIGH** on Title/Meta injection during prerender: Angular's prerender runs `ngOnInit` inside the standard component injection context; this is documented behavior of `@angular/build:application`.
+- **MEDIUM** on JSON-LD via direct `document.createElement` during prerender: works because prerender runs in a DOM-emulated environment, but if Angular ever swaps to a stricter platform, switch to `Renderer2` or pre-define in component template via `[innerHTML]` with `DomSanitizer.bypassSecurityTrustHtml`. For v0.9.46 the simple approach is fine.
+- **MEDIUM** on `provideClientHydration()` necessity: not required for static prerender (no hydration-of-server-state needed), but adding it future-proofs if the team later moves to true SSR. Not required for v0.9.46 scope.
+
+## Sources
+
+- [Build-time prerendering -- Angular v19 docs](https://v19.angular.dev/guide/prerendering)
+- [Server-side and hybrid-rendering -- Angular](https://angular.dev/guide/ssr)
+- [What's new in Angular 19.0 -- Ninja Squad](https://blog.ninja-squad.com/2024/11/19/what-is-new-angular-19.0)
+- Local file: `showcase/angular/angular.json` (assets globs lines 35-50, builder config 22-77)
+- Local file: `server/server.js` (static + fallback lines 73-117)
+- Local file: `showcase/angular/src/app/app.routes.ts` (route table)
+- Local file: `showcase/angular/src/index.html` (current static head)
+- Local file: `.planning/PROJECT.md` (milestone scope, lines 11-30)
 
 ---
-
-## (e) Showcase Dashboard Mirror
-
-### Sync surface link/copy updates
-
-| File | Section | Update |
-|------|---------|--------|
-| `showcase/angular/.../home-page.component.html` | 70-72 (Remote Dashboard feature card) | Update copy to point at the new Sync tab name |
-| `showcase/angular/.../dashboard-page.component.html` | 6 (`fa-qrcode` header), 11-16 (Scan QR tab) | Update copy to "Open the Sync tab in FSB" instead of "Background Agents" |
-| `showcase/angular/.../dashboard-page.component.ts` | 5, 3204-3205, 3386 | Already handles `ext:remote-control-state` and `_lz`. **No code change needed; copy/labels only.** |
-| `showcase/dashboard.html` | 6-7 (`<title>`, meta), 67 (`<h2>`) | Replace title and primary heading with sync-focused copy |
-| `showcase/js/dashboard.js` | 653, 702, 1747 | Hide agent-specific UI elements once HTML block is removed |
-
-### Agents-sunset card
-
-| File | Section | Update |
-|------|---------|--------|
-| `showcase/angular/.../home-page.component.html` | 59-63 (Background Agents feature card) | **Replace** body: "Background agents are now handled by [OpenClaw](link) and [Claude Routines](link). FSB stays focused on precise execution." Keep `fa-robot` icon for visual continuity. |
-| `showcase/dashboard.html` | 99-181, 278-435 | Replace `#dash-agent-container` block with single sunset card pointing at OpenClaw / Claude Routines |
-| `showcase/angular/.../dashboard-page.component.html` | 40-181, 278-435 | Same replacement as vanilla |
-| `showcase/angular/.../dashboard-page.component.ts` | (~221 hits) | Comment out agent-related component methods/state. **Do not delete `ext:remote-control-state` or `_lz` paths.** |
-| `showcase/js/dashboard.js` | (~226 hits) | Same: comment agent block, preserve transport + remote-control + decompression |
-
-### Showcase nav (no changes)
-
-`showcase-shell.component.html` and `app.routes.ts` have no agent or sync references.
-
----
-
-## Suggested Build Order
-
-### Phase 1 -- Stream Reliability (parallel-safe, isolated)
-
-**Why first:** No coupling to Sync tab or agent sunset. Pure content-script + ws-client.js work.
-
-1. **Phase 1A -- WebSocket compression symmetry** (`ws/ws-client.js:515-522`). Add `_lz` envelope decompression to inbound `onmessage`. Single-file change, low risk.
-2. **Phase 1B -- Diagnostic logging for silent catches**: `content/dom-stream.js:208,222,653,718,753,839,864,897,932`, `background.js:6358,6405,6641,8901,8936,9090,9922,10557,10593,10639,10686,10724,10869,10922`, `content/lifecycle.js:462,472,480`. Replace `.catch(()=>{})` with `.catch((err)=>console.warn('[FSB <module>] <action> sendMessage delivery failed', err && err.message))`. **Skip `extractAndStoreMemories.catch`** -- intentional fire-and-forget. Lifecycle.js SPA-navigation catches likely become `automationLogger.debug`, not `console.warn` (fire on every reload).
-3. **Phase 1C -- DOM streaming hardening** (`content/dom-stream.js`). Watchdog timer (chrome.alarms-backed, NOT setInterval) flushes if `pendingMutations.length > 0 && Date.now() - lastFlushAt > 1000`. Reset `staleFlushCount` on successful empty flush. Smarter truncation: replace per-element `getBoundingClientRect` loop with TreeWalker pass + cached positions, OR tiered cliffs (1MB -> 2MB -> 4MB with progressive culling). Surface `staleFlushCount` in `ext:stream-state` (NEW field, do NOT modify `ext:dom-mutations` shape).
-
-### Phase 2 -- Background Agent Sunset (must precede Sync tab)
-
-**Why second:** Sync tab moves Server Sync card OUT OF background-agents section. Sunsetting agents first means the destination is already comment-fenced when migration happens.
-
-4. **Phase 2A -- Comment out agent code**:
-   - `agents/*.js` (4 whole files)
-   - `background.js:160-163, 5586-5752, 12542-12605, 12634, 12652`
-   - `ws/ws-client.js:934-936, 1181-1203`
-   - `mcp-server/src/runtime.ts:10, 35` + whole `mcp-server/src/tools/agents.ts`
-   - `ui/sidepanel.js:378-379, 1928-2013`, `ui/popup.js:203-204, 846-930`
-   - `ui/options.js:4222-4665` (NOT 4189-4205 server-sync wiring)
-   Annotate every comment block: `// DEPRECATED v0.9.45rc1: Background agents retired in favor of OpenClaw / Claude Routines. See PROJECT.md.`
-5. **Phase 2B -- Update HTML** in `ui/control_panel.html`: replace `#background-agents` body (563-697) with sunset card. **Preserve Server Sync card (701-748) for relocation in Phase 3.** Update sidebar nav-item label/icon.
-6. **Phase 2C -- Showcase sunset mirror**: `home-page.component.html:59-63`, both dashboards. Comment `dashboard.js` and `dashboard-page.component.ts` agent blocks. **Preserve `ext:remote-control-state` and `_lz` paths.**
-
-### Phase 3 -- Sync Tab Build (depends on Phase 2B)
-
-7. **Phase 3A -- Add Sync nav-item + section** to `ui/control_panel.html`. **Move** Server Sync card (formerly 701-748) and pairingQROverlay block (727-739) into new section. IDs unchanged.
-8. **Phase 3B -- Add `initializeSyncSection()`** in `ui/options.js`. Re-wire btnGenerate/btnCopy/btnTest/btnPair/btnCancelPair. Extend `switchSection` monkey-patch with `sync` case calling `refreshRemoteControlState()`.
-9. **Phase 3C -- Remote-control state push**: in `_broadcastRemoteControlState`, also `chrome.runtime.sendMessage({action:'remoteControlStateChanged', state}).catch(...)`. New `case 'getRemoteControlState'` in `background.js` returns `_lastRemoteControlState`. New `chrome.runtime.onMessage` listener in `options.js` for live updates.
-10. **Phase 3D -- Showcase Sync surface copy**: home-page Remote Dashboard card mention new Sync tab. QR-pairing copy: "Open the Sync tab in FSB."
-
-### Parallelism opportunities
-
-- Phase 1A, 1B, 1C run in parallel (different modules)
-- Phase 2A, 2B, 2C run in parallel (different layers)
-- Phase 3A and 3B = single atomic commit (co-dependent IDs + handlers)
-- Phase 3C and 3D in parallel (extension <-> showcase)
-
-### Critical sequencing
-
-- Phase 3 MUST follow Phase 2B (Server Sync relocation requires source location commented out)
-- Phase 1A does NOT block any other phase (purely additive)
-- Phase 1C MUST NOT change `ext:dom-mutations` payload shape -- dashboard at `dashboard-page.component.ts:3386` and `dashboard.js:3811` consume it. Stale counter additions must be in NEW field (e.g. `staleFlushCount` in `ext:stream-state`)
-
-### Per-area integration risks
-
-| Area | Risk | Mitigation |
-|------|------|------------|
-| Sync tab | Extension just opened: state broadcast fires before options.js attaches listener -> stale "Disconnected" UX | Sync tab activation MUST pull last state via new `getRemoteControlState` action (replay-on-attach pattern) |
-| Agent sunset | `chrome.alarms.onAlarm` listener guards MCP reconnect alarms on same dispatch | Preserve `if (isMcpReconnectAlarm) {...}` early-return at `background.js:12533-12540`. Regression test: fire `MCP_RECONNECT_ALARM`, assert routes to `armMcpBridge` |
-| Agent sunset | `_handleAgentRunNow` references `activeSessions` (shared) and `startAgentRunNow` (commented) | When commenting `_handleAgentRunNow`, also comment `case 'dash:agent-run-now'` to avoid runtime ReferenceError. Better: respond with `ext:agent-run-complete {error:'agents-retired'}` |
-| DOM streaming | New watchdog double-flushing if rAF lands at same tick | Watchdog must cancel rAF before flush; `flushMutations` stays idempotent on empty (line 639) |
-| WebSocket | `LZString` may have failed to load | Decompression guards `typeof LZString !== 'undefined'`, emits `recordFSBTransportFailure('decompress-unavailable', ...)` |
-| Diagnostic logging | Replacing silent catches with `console.warn` could swamp dev console (extension context invalidation is benign + frequent) | Use `automationLogger.debug` for in-extension paths; reserve `console.warn` for paths where caller would not retry. Lifecycle.js SPA-navigation catches (462/472/480) -> `automationLogger.debug` |
-| Showcase mirror | Removing `dash-new-agent-btn` HTML while leaving JS handlers causes silent no-ops | Comment HTML AND JS handlers in same commit per surface |
-
----
-
-## Open Questions for Roadmapper
-
-- "Stale counter reset path" requirement in PROJECT.md is ambiguous: (a) reset on successful flush, (b) reset on stream-state-change, or (c) both. Roadmapper should clarify with user before Phase 1C planning.
-- `mcp-server/src/tools/visual-session.ts.bak-openclaw-crab` exists -- possibly prior aborted sunset attempt. One-line check during Phase 2A: safe to leave or remove?
-- The `_lz` envelope contract is undocumented. Phase 1A should add code comment at `ws/ws-client.js:580` to spec the envelope shape.
+*Architecture research for: v0.9.46 Site Discoverability (SEO + GEO) integration*
+*Researched: 2026-04-30*

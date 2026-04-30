@@ -1,388 +1,287 @@
-# Stack Research: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
+# Stack Research — v0.9.46 Site Discoverability (SEO + GEO)
 
-**Domain:** Chrome MV3 extension (vanilla JS, no build) + WebSocket relay + Angular 19 showcase
-**Researched:** 2026-04-28
-**Confidence:** HIGH (most additions are zero-dependency runtime tweaks; one library already present and only needs to be re-applied symmetrically)
-
-## Executive Summary
-
-This milestone is **mechanics, not greenfield**. The right answer for almost every question below is "no new dependency, reuse what is already vendored." The single existing dependency that matters is `lz-string` (already at `lib/lz-string.min.js`, version 1.5.0) -- the WebSocket "compression asymmetry" the milestone calls out is **not** a per-message-deflate problem. It is the extension's inbound `onmessage` handler not running the `_lz` envelope through `LZString.decompressFromBase64()` while the dashboard side already does. The fix is a five-line change in `ws/ws-client.js`, not a new library.
-
-For DOM-streaming hardening, large-DOM truncation, and the mutation-queue watchdog, the constraint is hard: the extension has **no build system** and the service worker context has **no `requestIdleCallback`**. Recommendations stick to platform primitives (TreeWalker, `chrome.alarms`, `setTimeout` watchdogs in content scripts, `requestAnimationFrame` for content-script idle scheduling).
-
-For the deprecation-card UI and the new Sync tab, the existing `<li class="nav-item" data-section="...">` pattern in `ui/control_panel.html` is the canonical extension point. No framework, no templating engine, no router. Vanilla DOM only -- the rest of the control panel is built that way and the milestone explicitly preserves the no-build constraint.
+**Domain:** Static prerender + crawler/AI-bot discoverability for an Angular 19 SPA marketing site served behind a custom Express on Fly.io
+**Researched:** 2026-04-30
+**Confidence:** HIGH (Angular configuration verified against angular.dev v19 docs; Express/Fly behaviour verified against current `server/server.js`)
 
 ---
 
-## Recommended Stack (Final)
+## TL;DR
 
-### Runtime additions to the FSB extension
-
-| Technology | Version | Where it lands | Why |
-|------------|---------|----------------|-----|
-| `lz-string` (already vendored) | 1.5.0 | Re-used at `ws/ws-client.js` `onmessage` for inbound symmetry | Server relay only stamps a `_lz` envelope when the **extension** sends it (server is dumb relay). The dashboard already decompresses; the extension does not. Reusing the same library closes the loop without inventing a second compression path. **No new dependency.** |
-| Native `TreeWalker` (`NodeFilter.SHOW_ELEMENT`) | Web Platform | `content/dom-stream.js` truncation hot path replacing `clone.querySelectorAll('[data-fsb-nid]')` + reverse `getBoundingClientRect()` walk | The current truncation calls `getBoundingClientRect()` per off-viewport node which forces synchronous layout per call. A `TreeWalker` skips the layout flush, and a single `Map<nid, rect>` snapshot built **before** mutating the clone removes 50k synchronous reflows on large pages. |
-| Native `chrome.alarms` | MV3 built-in | Background-driven watchdog tickle for the per-tab mutation queue | `requestIdleCallback` is unavailable in service workers (W3C #790, MDN); `chrome.alarms` survives SW suspension, fires on a 30s+ minimum interval, and is the only timer Google guarantees won't be killed by SW idle eviction. |
-| Native `setTimeout` + monotonic counter | Web Platform | Content-script side of the watchdog (per-tab, per-stream) | Inside the content script, `setTimeout` is not killed by SW eviction. A monotonic "last drain ts" + 5s threshold is enough to detect a stuck queue without taking on a scheduling library. |
-| Native `requestAnimationFrame` | Web Platform | Idle batching for mutation flushes inside the content script | `rIC` is fine in content scripts but unreliable in long-running tabs (Chrome may starve it on background tabs). `rAF` is consistent and we only need a single-frame deferral, not true idle. |
-| Existing `qrcode-generator` 2.0.4 | already vendored at `ui/lib/qrcode-generator.min.js` | Sync tab QR rendering (relocated from popup) | Phase 210 already validated this. No change. |
-
-### Showcase / Angular dashboard
-
-| Technology | Version | Status | Notes |
-|------------|---------|--------|-------|
-| `@angular/*` | 19.0.x | **Pin, do not upgrade in this milestone** | Angular 19 enters EOL **2026-05-19** (~3 weeks after this milestone ships). That's a **separate milestone's problem**, not v0.9.45rc1's. The agent-sunset copy mirror on the showcase is a *content* change, not a framework change. |
-| `lz-string` | 1.5.0 | Already loaded at `showcase/js/lz-string.min.js` and referenced from `showcase/angular/src/index.html` | Reuse. No change. |
-
-### What is **not** added
-
-| Avoid | Why | Use instead |
-|-------|-----|-------------|
-| **Any build system / bundler / transpiler** (webpack, vite, rollup, esbuild) | Project constraint -- explicitly stated in CLAUDE.md ("No build system: direct JavaScript execution"). The extension loads vendored libs via `importScripts()` in the service worker and `<script src=...>` in HTML. Adding a bundler would invalidate every `importScripts` line and force the extension into a different deployment shape. | Continue to vendor minified files into `lib/` and load them directly. |
-| **React, Vue, Svelte, Lit, Alpine.js** for the Sync tab or deprecation card | The control panel is **vanilla DOM** with `data-section` tab routing already in place. Introducing a framework for one card and one tab creates a hybrid UI nobody can maintain and would require either runtime JSX (slow, fragile) or the build system the project rejects. | Plain `document.createElement` + `template` literals, in line with the existing `ui/options.js` pattern. |
-| **`pako`** (zlib in JS) | We already have `lz-string` for the exact use case (text compression of WebSocket envelopes). Adding `pako` would mean two compression libraries on the inbound path, ~45 KB of dead weight, and a new compatibility matrix between extension + dashboard + relay. | Reuse the vendored `lz-string`. |
-| **`DecompressionStream("deflate-raw")`** | Available in MV3 service workers (Chrome ≥ 80 / 103 for `deflate-raw`) but **does not** decode lz-string output. lz-string is a custom LZW-based format, not RFC 1951 DEFLATE. Wiring `DecompressionStream` here would require also switching the **outbound** path to native `CompressionStream`, which is a much larger blast radius and breaks compatibility with already-deployed dashboards. | Reuse `LZString.decompressFromBase64`. If we later want to migrate compression formats, that's a separate milestone with a clean cutover. |
-| **`ws` / `socket.io-client`** in the extension | The extension already uses the platform-native `WebSocket` constructor in `ws/ws-client.js`. Service workers cannot run Node-targeted libraries. | Native `WebSocket`. |
-| **Idle-task scheduler libraries** (`idle-task`, `scheduler-polyfill`, `requestIdleCallback`-shim) | All of them assume `requestIdleCallback` semantics that the SW cannot provide; in the content script we don't need that level of sophistication for a single-flush deferral. | `requestAnimationFrame` (content script) + `chrome.alarms` (service worker). |
-| **Mutation observer libraries** (`mutation-summary`, `dom-mutations`, etc.) | Existing `content/dom-stream.js` already runs a hand-rolled `MutationObserver`. The watchdog is a counter + timestamp problem, not an observer-pattern problem. | Plain `MutationObserver` + monotonic counter. |
-| **State / pub-sub libraries** (`zustand`, `nanostores`, `mitt`) for the new Sync tab | The control panel uses Chrome's `chrome.runtime.onMessage` + `chrome.storage.onChanged` as the canonical event bus. The Sync tab consumes the existing `ext:remote-control-state` message that other surfaces already wire up. | Existing message bus. |
-| **`qrcode`** (the heavy `node-qrcode` package) | Phase 210 deliberately picked `qrcode-generator` (2.0.4, ~12 KB) over `qrcode` (~150 KB w/ canvas). Already shipped. | Keep `qrcode-generator`. |
+- Use Angular's first-party prerender path (`@angular/ssr` + `outputMode: "static"`) under the existing `@angular/build:application` builder. No Webpack-era packages, no full SSR runtime, no third-party prerender services.
+- Add ONE devDependency (`@angular/ssr@^19.0.0`) and ONE small Node script in `showcase/angular/scripts/` that emits `sitemap.xml` and `llms.txt` / `llms-full.txt` into `public/` before `ng build`. No new framework, no new runtime.
+- Express needs ONE focused change: stop serving the root `index.html` for routes that now have a real per-route `index.html` on disk (e.g. `dist/.../browser/about/index.html`). The broken piece is the explicit SPA-fallback handler at `server/server.js:111` which currently overrides the prerendered files. Replace it with a route-aware handler that prefers per-route prerendered HTML and falls back to the root `index.html` only for SPA routes (`/dashboard`).
+- Set `Content-Type: text/plain; charset=utf-8` and a short `Cache-Control: public, max-age=3600` on `*.txt` and `Content-Type: application/xml; charset=utf-8` on `sitemap.xml`. No exotic headers needed. AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) read these as plain HTTP files; they do not require auth, CORS, or custom headers.
 
 ---
 
-## Domain-by-domain rationale
+## Recommended Stack
 
-### (a) WebSocket inbound decompression in the MV3 service worker
+### Core Technologies (additions to existing stack)
 
-**Conclusion: re-use the existing `LZString.decompressFromBase64`. Do not introduce per-message-deflate or `DecompressionStream`.**
+| Technology | Version | Purpose | Why Recommended |
+|---|---|---|---|
+| `@angular/ssr` | `^19.0.0` (match existing `@angular/*` major) | Provides the prerender machinery wired into `@angular/build:application` (creates `main.server.ts`, `app.config.server.ts`, optional `server.ts`) | Verified in angular.dev v19 prerender guide as the supported path. The `prerender` build option is non-functional unless `@angular/ssr` is installed via `ng add`. This is the only first-party option for the modern (esbuild-based) `@angular/build:application` builder you already use. |
+| `outputMode: "static"` (angular.json key, no package) | n/a (Angular 19 feature) | Tells the builder to emit pure static HTML per route at build time, with NO Node server entry generated for runtime SSR | Marketing routes (`/`, `/about`, `/privacy`, `/support`) are 100% static. AI crawlers (GPTBot/ClaudeBot/PerplexityBot) do not execute JS, so static HTML is exactly what they need. `static` mode means no runtime SSR cost on Fly, no Express integration churn -- the existing Express server keeps serving files from disk. |
+| `@angular/router` route-aware `Title` + `Meta` services | already installed (`@angular/platform-browser` `^19.0.0`) | Per-route `<title>`, `<meta name="description">`, OG, Twitter, canonical -- captured into prerendered HTML at build time | Native, zero-dependency. `Meta` and `Title` mutations executed during route resolvers / `ngOnInit` are baked into prerendered HTML. No need for `@ngx-meta/core` or similar wrappers. |
+| Build-time generator script (Node, native ESM) | n/a (one local file) | Emits `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt` into the build assets pipeline | Routes are statically known (`app.routes.ts`). A small Node script reading those routes + a hand-curated content map is far simpler than `sitemap-generator-cli` or `angular-prerender`. Fewer deps = fewer supply-chain vectors. |
 
-**Evidence from the codebase:**
-- `ws/ws-client.js:580-593` -- outbound: builds raw JSON, wraps as `{ _lz: true, d: LZString.compressToBase64(raw) }` when raw > 1024 B and the compressed form is smaller.
-- `ws/ws-client.js:515-522` -- inbound `onmessage`: `JSON.parse(event.data)` then `_handleMessage(msg)`. **There is no `_lz` branch.** This is the asymmetry. Any `_lz` envelope arriving at the extension is dispatched as a malformed message because `msg.type` is `undefined` (the relay log already calls these `'compressed-envelope'` at `server/src/ws/handler.js:188-190`).
-- `showcase/js/dashboard.js:3516-3528` -- the dashboard *correctly* sniffs `envelope._lz` and runs `LZString.decompressFromBase64(envelope.d)`. We are mirroring the dashboard's already-validated logic.
-- `background.js:37` -- `lz-string.min.js` is already loaded into the service worker via `importScripts`. **The library is loaded; we simply aren't calling decompress on inbound.**
-- `server/src/ws/handler.js:175-203` -- the relay does **not** compress; it forwards `data.toString()` verbatim. So the only producer of `_lz` envelopes that the extension might receive is *another* extension-side actor (the dashboard, or a future MCP-bridged producer). For now, the dashboard does not produce compressed payloads to the extension, but the milestone explicitly calls out that this asymmetry needs fixing for forward compatibility.
+### Supporting Libraries
 
-**Why not `DecompressionStream("deflate-raw")`** even though it's available in MV3 service workers (Chrome 80+ for the constructor, 103+ for `deflate-raw`):
-- lz-string is **not** RFC 1951 DEFLATE. It's a custom LZW variant that emits UTF-16 codepoints (or, in our usage, a base64-encoded bitstream). `DecompressionStream("deflate-raw")` will throw or produce garbage on `_lz` input.
-- Switching to native `CompressionStream`/`DecompressionStream` end-to-end means changing the outbound serializer, the dashboard deserializer, and adding a feature-flag handshake so old dashboards keep working. That is a multi-phase migration, not a bugfix, and is out of scope.
+| Library | Version | Purpose | When to Use |
+|---|---|---|---|
+| `jsonld` (npm) | n/a — DO NOT install | Generate JSON-LD | Not needed. JSON-LD is just JSON inside `<script type="application/ld+json">`. Author it as a TypeScript constant in a service (e.g. `src/app/seo/structured-data.ts`) and inject via `Renderer2` or `Meta` at component init. The prerender step bakes the script tag into the HTML. |
+| `xmlbuilder2` | `^3.x` | Build sitemap.xml | Optional. The sitemap is small (4-5 URLs). String templating in the build script is fine. Only reach for `xmlbuilder2` if the sitemap grows past ~20 URLs or needs `<image:image>` / `<news:news>` namespaces. |
+| `schema-dts` | `^1.x` | TypeScript types for Schema.org JSON-LD shapes | Optional, type-safety only. Useful if you want compile-time checking that your `Organization` / `SoftwareApplication` JSON-LD shapes are well-formed. Adds zero runtime weight (types-only package). |
 
-**Why not `pako`:** redundant. Already ruled out under "what is not added."
+### Development Tools
 
-**Integration point:** `ws/ws-client.js`, replace lines 515-522 with:
-
-```javascript
-this.ws.onmessage = (event) => {
-  try {
-    let msg = JSON.parse(event.data);
-    if (msg && msg._lz === true && typeof msg.d === 'string' && typeof LZString !== 'undefined') {
-      const decoded = LZString.decompressFromBase64(msg.d);
-      if (!decoded) {
-        console.warn('[FSB WS] Failed to decompress _lz envelope (length=' + msg.d.length + ')');
-        recordFSBTransportFailure('inbound-decompress-failed', { len: msg.d.length });
-        return;
-      }
-      msg = JSON.parse(decoded);
-    }
-    this._handleMessage(msg);
-  } catch (err) {
-    console.warn('[FSB WS] Failed to parse message:', err.message);
-  }
-};
-```
-
-That's the entire library-side change.
-
-**Confidence:** HIGH. Code path inspected; mirrors the dashboard's already-shipping decoder; no new dependency.
+| Tool | Purpose | Notes |
+|---|---|---|
+| `ng add @angular/ssr` | One-time scaffolding command that installs `@angular/ssr`, creates `src/main.server.ts`, `src/app/app.config.server.ts`, and `server.ts`, and edits `angular.json` to add `server`, `ssr`, `prerender` (and optionally `outputMode`) keys | Run this once. Then manually flip `outputMode` to `"static"` and (optionally) delete the generated `server.ts` -- Fly.io serves through the existing custom `server/server.js`, so the Angular-generated server file is unused. |
+| Curl-based prerender smoke check | `curl -A "GPTBot" https://full-selfbrowsing.com/about \| head` to confirm the `<head>` contains real metadata and the `<body>` contains real content (not an empty `<app-root>`) | Add to release smoke checklist. This is the gate that fails today and must pass after the milestone. |
 
 ---
 
-### (b) Efficient large-DOM truncation in content scripts
-
-**Conclusion: replace the `clone.querySelectorAll('[data-fsb-nid]')` + per-node `getBoundingClientRect()` reverse loop with a TreeWalker over the **original** document that builds an `nid -> {top, bottom}` rect map in one pass, then mutates the clone using that map.**
-
-**Evidence from the codebase:** `content/dom-stream.js:466-489` -- when `html.length > 2 * 1024 * 1024`, the current code does:
-
-```javascript
-var allEls = clone.querySelectorAll('[data-fsb-nid]');
-for (var t = allEls.length - 1; t >= 0; t--) {
-  var nidVal = allEls[t].getAttribute('data-fsb-nid');
-  var origByNid = document.querySelector('[data-fsb-nid="' + nidVal + '"]');  // O(n) per call
-  if (origByNid) {
-    var elRect = origByNid.getBoundingClientRect();                            // forces layout per node
-    if (elRect.top > viewportCutoff) {
-      allEls[t].parentNode && allEls[t].parentNode.removeChild(allEls[t]);
-    }
-  }
-}
-```
-
-That's O(n²) `querySelector` lookups *and* a forced sync layout per node. On a 50k-node page, that's the slow path the milestone is calling out.
-
-**Recommended pattern (no new library):**
-
-```javascript
-// Phase 1: walk the original (live) document ONCE to snapshot positions.
-const rectByNid = new Map();
-const walker = document.createTreeWalker(
-  document.body,
-  NodeFilter.SHOW_ELEMENT,
-  {
-    acceptNode(el) {
-      return el.hasAttribute && el.hasAttribute('data-fsb-nid')
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_SKIP;
-    }
-  }
-);
-let n;
-while ((n = walker.nextNode())) {
-  // getBoundingClientRect is unavoidable, but at least we batch reads
-  // BEFORE any writes, so the browser only flushes layout once.
-  const r = n.getBoundingClientRect();
-  rectByNid.set(n.getAttribute('data-fsb-nid'), r.top);
-}
-
-// Phase 2: mutate the clone using the cached map. No more layout flushes.
-const cloneEls = clone.querySelectorAll('[data-fsb-nid]');
-for (let i = cloneEls.length - 1; i >= 0; i--) {
-  const top = rectByNid.get(cloneEls[i].getAttribute('data-fsb-nid'));
-  if (top !== undefined && top > viewportCutoff) {
-    cloneEls[i].parentNode && cloneEls[i].parentNode.removeChild(cloneEls[i]);
-  }
-}
-```
-
-**Why TreeWalker over `querySelectorAll('[data-fsb-nid]')`:**
-- TreeWalker is a streaming API; it doesn't allocate the full NodeList up-front. On 50k+ nodes, the NodeList allocation alone is meaningful.
-- The filter callback can short-circuit on subtree boundaries with `FILTER_REJECT` if we ever want to skip whole branches (e.g., `data-fsb-skip` markers).
-- Benchmarks vary, but for "iterate everything that matches an attribute" TreeWalker is consistently within 5-20% of querySelectorAll-then-loop and avoids the NodeList allocation.
-
-**Why batch-read-then-write:**
-- Modern browsers run "layout invalidation" lazily. If you read `getBoundingClientRect()` *after* a write (any DOM mutation), the browser must flush the pending layout *now*. The current code reads a rect, then conditionally removes a node, then reads the next rect -- forcing a sync layout per iteration. Reading all rects first into the Map collapses 50k layout flushes into 1.
-- Critical: read from the **live** `document`, not the clone. The clone has no layout box (it's not in the document tree); `getBoundingClientRect()` on it returns all zeros.
-
-**Why not `DocumentFragment`:**
-- A DocumentFragment is helpful for bulk *insertion* (avoids reflow on each appendChild). Here we are *removing*, and we want the rect data from the live document, so a DocumentFragment doesn't help.
-
-**Why not structured cloning:**
-- `structuredClone()` is for serialization across realms; it doesn't preserve DOM identity and is roughly the same cost as `cloneNode(true)` for a tree of this size. The existing `cloneNode(true)` on the body subtree is the right primitive.
-
-**Integration point:** `content/dom-stream.js`, the truncation block at line 466-489. Replace as above.
-
-**Confidence:** HIGH on the algorithmic approach (DOM perf folklore is consistent here); MEDIUM on exact magnitude of speedup -- it depends on how many `data-fsb-nid` elements the page has. We should measure on a 50k-node fixture before declaring victory.
-
----
-
-### (c) Mutation queue watchdog patterns (no `requestIdleCallback` in the SW)
-
-**Conclusion: use a two-tier watchdog -- `chrome.alarms` in the service worker for cross-suspension wake-up, plus a `setTimeout`-based monotonic counter in the content script for in-process stuck detection.**
-
-**Why not `requestIdleCallback`:**
-- W3C ServiceWorker issue #790 explicitly notes `requestIdleCallback` is **not** exposed in `ServiceWorkerGlobalScope`. Confirmed by MDN.
-- Even if it were, the SW would suspend before the idle callback fires reliably (typical SW suspension is 30s).
-
-**Why not `setTimeout` alone in the SW:**
-- Any `setTimeout` longer than ~30s is killed by SW eviction. We can't run a 5-minute "queue stuck" check off `setTimeout` in the worker.
-
-**Recommended primitives:**
-
-| Primitive | Where | Job |
-|-----------|-------|-----|
-| `MutationObserver` (existing) | content script | Enqueue mutation records into the pending buffer (already done). |
-| `lastDrainTs` monotonic counter | content script | Updated every time the queue is flushed to the WS bridge. |
-| `setTimeout(checkQueue, 5000)` (recursive) | content script | If `now - lastDrainTs > stuckThreshold` AND queue length > 0, log a `mutation-queue-stuck` diagnostic and force-drain. Self-rescheduling, cancelled on tab teardown. |
-| `chrome.alarms.create('fsb-stream-watchdog', { periodInMinutes: 1 })` | background.js | Wakes the SW once a minute and pokes each known streaming tab with a `'sw:watchdog-ping'` message. If the tab fails to ack within 2s, mark the stream as suspect and emit `'ext:stream-state'` with `health: 'degraded'`. |
-| `staleMutationCounter` reset on snapshot boundary | content script | The milestone explicitly calls out "stale mutation counter reset" -- a counter that increments on every mutation since last snapshot must be zeroed when the next `ext:snapshot` is sent. Currently it's not reset on the snapshot boundary, only on session teardown. |
-
-**Why this layering:**
-- The content script can self-detect a stuck queue in real time (5s granularity) without involving the SW. This catches tab-local hangs (the page is alive but the bridge isn't draining).
-- The SW alarm catches the worse case: content script is dead or unloaded but the SW thinks the stream is still healthy. Once a minute is enough -- the alarm is the safety net, the content-script timer is the trip wire.
-- Both are pure platform primitives; no dependency.
-
-**Caveat on `chrome.alarms`:** the **minimum** period is 30s as of Chrome 117+ and 1 minute on older Chrome versions. We pick 1 minute for compatibility. Alarms also do not fire if Chrome is fully shut down -- that's fine; we don't need to watchdog a closed browser.
-
-**Integration points:**
-- `content/dom-stream.js` -- add `lastDrainTs`, `staleMutationCounter`, and the `setTimeout` watchdog. Reset counter at the same point that emits `ext:snapshot` (the existing snapshot path).
-- `background.js` -- register `chrome.alarms.create('fsb-stream-watchdog', ...)` near the existing keepalive setup; wire the alarm handler to ping each entry in the existing `_streamingTabId` registry.
-
-**Confidence:** HIGH on primitive choice (these are the only options MV3 gives us). MEDIUM on exact thresholds -- 5s stuck threshold and 1 minute alarm cadence are reasonable defaults but should be tuned from real-world telemetry.
-
----
-
-### (d) Deprecation-card UI in the options page (vanilla DOM, no framework)
-
-**Conclusion: a single new `<section data-section="background-agents">` in `ui/control_panel.html` containing a deprecation card composed of plain HTML + CSS, with copy injected by `ui/options.js`. No framework, no template engine.**
-
-**Evidence from the codebase:** `ui/control_panel.html:54-86` already declares the navigation pattern:
-
-```html
-<li class="nav-item active" data-section="dashboard">...</li>
-<li class="nav-item" data-section="api-config">...</li>
-<li class="nav-item" data-section="background-agents">...</li>   <!-- THIS becomes the deprecation card host -->
-<li class="nav-item" data-section="passwords">...</li>
-...
-```
-
-The mechanism is already there: clicking a `nav-item` toggles visibility on the matching `<section data-section="X">`. We do **not** add a router, a state library, or a templating layer -- we simply replace the *content* of the `background-agents` section with a card.
-
-**The new top-level "Sync" tab follows the identical pattern:**
-
-```html
-<li class="nav-item" data-section="sync">
-  <i class="fas fa-mobile-screen"></i>
-  Sync
-</li>
-```
-
-paired with `<section data-section="sync">` containing the QR pairing UI (relocated from popup) and the remote-control state panel (relocated from wherever Phase 209 placed it).
-
-**Card pattern (vanilla):**
-
-```html
-<section data-section="background-agents" class="content-section">
-  <div class="deprecation-card">
-    <div class="deprecation-card__header">
-      <i class="fas fa-flag-checkered"></i>
-      <h2>Background agents have left the building</h2>
-    </div>
-    <p class="deprecation-card__lede">
-      We're not reinventing this wheel. <strong>OpenClaw</strong> and
-      <strong>Claude Routines</strong> already nail scheduled, headless
-      agent runs -- so FSB is bowing out of the agent business and going
-      back to what it does best: real-time, in-tab automation you can watch.
-    </p>
-    <div class="deprecation-card__cta">
-      <a class="btn btn-primary" href="https://openclaw.dev" target="_blank" rel="noopener">
-        Try OpenClaw
-      </a>
-      <a class="btn btn-secondary" href="https://claude.ai/routines" target="_blank" rel="noopener">
-        Try Claude Routines
-      </a>
-    </div>
-    <details class="deprecation-card__why">
-      <summary>What happened to my saved agents?</summary>
-      <p>Your agent configs are still on disk and not deleted. If you
-      ever need to revive them, the code paths are commented out, not
-      removed. Open an issue and we'll point you at the right spot.</p>
-    </details>
-  </div>
-</section>
-```
-
-**Styling:** add a `deprecation-card` block to the existing `ui/options.css`. No design tokens to pull in -- the control panel already has dark/light theme tokens via `shared/fsb-ui-core.css`.
-
-**Tone (per milestone): playful/witty.** Sample copy bank:
-- Header: "Background agents have left the building"
-- Lede: "We're not reinventing this wheel."
-- Sub: "FSB is bowing out of the agent business and going back to what it does best."
-- Mirror in showcase: same headline, same two CTAs, dark/light parity.
-
-**Why not React / Vue / Lit / Web Components:**
-- Adding any framework forces a build system. Project constraint forbids that.
-- The card is 30 lines of HTML and ~50 lines of CSS. A framework is two orders of magnitude more setup than the feature.
-- Web Components without a framework are technically possible but awkward without a templating helper. The existing UI is `document.createElement` + `innerHTML` (sanitized via `purify.min.js` already in `lib/`); we stay consistent.
-
-**Showcase mirror:** the Angular showcase already has a `pages/about` and `pages/dashboard` component pattern. The deprecation copy lands as a new Angular component (e.g., `pages/agents-sunset/agents-sunset.component.ts`) following the existing component conventions. **No new dependency on the showcase side either** -- Angular 19 standalone components, signals, and the existing router are sufficient.
-
-**Integration points:**
-- `ui/control_panel.html` -- (i) add `<li data-section="sync">` to the nav, (ii) replace existing `<section data-section="background-agents">` with deprecation card markup, (iii) add new `<section data-section="sync">` for the consolidated Sync tab.
-- `ui/options.js` -- (i) wire the Sync tab activation to call into the existing QR pairing controller (Phase 210) and the remote-control state controller (Phase 209), (ii) remove the QR pairing wiring from its old home (popup), (iii) no JS changes for the deprecation card -- it's static markup.
-- `ui/options.css` -- new `.deprecation-card` rules.
-- `showcase/angular/src/app/pages/agents-sunset/` -- new component matching existing page conventions; routed via existing `app.routes.ts`.
-- `showcase/angular/src/app/pages/dashboard/` -- update copy/nav to point at the new agents-sunset page and at the consolidated Sync surface.
-
-**Confidence:** HIGH. This is exactly how the rest of the control panel is built; we are extending an existing pattern.
-
----
-
-### (e) Showcase / Angular dashboard
-
-**Conclusion: pin Angular 19.0.x. Do not upgrade in this milestone.**
-
-**Evidence:**
-- `showcase/angular/package.json` shows `@angular/* ^19.0.0`, `rxjs ~7.8.0`, `zone.js ~0.15.0`, `typescript ~5.6.0`. Angular 19 went LTS on 2025-05-19 and exits LTS on **2026-05-19** (~3 weeks after this milestone target).
-- The milestone scope is **content + nav** changes on the showcase (mirroring agent-sunset messaging, pointing at the new Sync surface). It is **not** an Angular upgrade milestone.
-- An Angular 19 -> 20 upgrade involves changes to the build pipeline (`@angular/build` 20), router APIs, and signal-component conventions. That is its own milestone.
-
-**Recommendation:** add `engines` constraint to `showcase/angular/package.json` if not already present, but do not change the dependency line ranges. Schedule "Angular 19 -> 20 migration" as a separate milestone before 2026-05-19 to avoid running on an EOL framework.
-
-**Showcase-only library additions for this milestone:** none. The agent-sunset page and the Sync-surface copy update are pure Angular component + template work using the existing toolchain.
-
-**Confidence:** HIGH on "no upgrade now." MEDIUM on Angular 19's exact EOL date -- the search result was consistent across multiple sources (HeroDevs, endoflife.date, angular.dev) but worth confirming with `https://angular.dev/reference/releases` before tagging release notes.
-
----
-
-### (f) Silent error swallowing replacement (cross-cutting, not really stack)
-
-This is not a library decision but the milestone explicitly groups it. **No new dependency.** The pattern is the v0.9.40-established replacement of `.catch(() => {})` with `.catch((err) => console.warn('[FSB ...] context:', err && err.message ? err.message : err))`.
-
-Files most likely affected (based on grep): `ui/sidepanel.js`, `background.js`, `mcp-server/src/tools/autopilot.ts`, `ws/mcp-bridge-client.js`, `mcp-server/src/http.ts`, `utils/site-explorer.js`, `mcp-server/src/tools/agents.ts` (likely commented out anyway as part of the agent sunset), `lib/memory/memory-manager.js`, `content/lifecycle.js`, `showcase/angular/src/app/pages/dashboard/dashboard-page.component.ts`. The phase scope is "dialog relay and message delivery" -- so the priority targets are the WS/runtime message paths, not memory or autopilot.
-
-**Confidence:** HIGH (mechanical refactor, established pattern from v0.9.40).
-
----
-
-## Installation / dependency changes
-
-**Extension (`package.json`):** none. `axios` 1.6.x stays. No new `dependencies`. No new `devDependencies`.
-
-**Showcase (`showcase/angular/package.json`):** none. Pin remains at `^19.0.0`.
-
-**Vendored libs in `lib/` and `ui/lib/`:** none. `lz-string.min.js` 1.5.0 stays. `qrcode-generator.min.js` 2.0.4 stays.
+## Installation
 
 ```bash
-# Nothing to install. The milestone is zero-dependency.
+# From showcase/angular/
+
+# 1. Scaffold @angular/ssr (installs package, creates server bootstrap files,
+#    edits angular.json to add prerender/server/ssr keys)
+npx ng add @angular/ssr@^19
+
+# 2. After ng add finishes, manually edit angular.json (see snippet below)
+#    to set outputMode: "static" -- this is the lever that switches from
+#    "build a Node SSR server" to "emit pure static HTML per route".
+
+# No other npm installs required. The build-time sitemap/llms.txt generator
+# is a local Node script in scripts/generate-discovery-files.mjs and uses
+# only Node built-ins (fs, path, url).
 ```
 
 ---
 
-## Alternatives considered (and why rejected)
+## angular.json keys to add (verified against Angular 19 schema)
 
-| Need | Recommended | Alternative considered | Why we rejected the alternative |
-|------|-------------|------------------------|---------------------------------|
-| Inbound WS decompression | Existing `LZString.decompressFromBase64` | `DecompressionStream("deflate-raw")` (native, MV3-supported) | lz-string is not RFC 1951; would require swapping outbound to native CompressionStream and a feature-flag handshake. Multi-phase migration. |
-| Inbound WS decompression | Existing `LZString.decompressFromBase64` | `pako` (zlib in JS) | Doesn't decode lz-string output. Would mean two compression libs co-existing. |
-| Inbound WS decompression | Existing `LZString.decompressFromBase64` | Switch entire transport to per-message-deflate at the ws:// layer | Browser `WebSocket` API does not expose per-message-deflate negotiation; it's transparent if the server negotiates it. Our relay is a passthrough; turning it on would require server changes and would be redundant with our app-layer compression. |
-| Large-DOM truncation | TreeWalker + cached rect map | Keep current `querySelectorAll` reverse loop | Already shown to be slow on 50k-node pages -- that's the bug the milestone is fixing. |
-| Large-DOM truncation | TreeWalker + cached rect map | `IntersectionObserver` to pre-tag off-viewport nodes | Adds an observer that runs continuously even when no truncation is happening. The truncation path runs on a 2 MB threshold; observer cost would dominate. |
-| Mutation queue watchdog | `chrome.alarms` + content-script `setTimeout` | `requestIdleCallback` shim/polyfill | Not available in SW; polyfills in worker contexts are misleading. |
-| Mutation queue watchdog | `chrome.alarms` + content-script `setTimeout` | Web Locks API for stuck-detection | Web Locks expire only on tab close, not on a "queue stuck" semantic. Wrong primitive. |
-| Deprecation card UI | Vanilla DOM in existing `data-section` pattern | Lit web component | Requires either a build step or a runtime template helper; benefit is zero for a single card. |
-| Deprecation card UI | Vanilla DOM in existing `data-section` pattern | `htm` + `preact` (no-build React-alike) | Adds 12 KB and a new mental model; the card has no state or props worth abstracting. |
+After `ng add @angular/ssr` runs, the `architect.build.options` block under `projects.showcase-angular` will gain server/prerender keys. Adjust them to match the static-only intent:
+
+```jsonc
+"build": {
+  "builder": "@angular/build:application",
+  "options": {
+    "outputPath": {
+      "base": "../dist/showcase-angular",
+      "browser": "browser"
+      // ng add will also add "server": "server" -- safe to leave; nothing reads it in static mode
+    },
+    "index": "src/index.html",
+    "browser": "src/main.ts",
+    "server": "src/main.server.ts",         // added by ng add
+    "outputMode": "static",                  // KEY: emits pure static HTML, no Node SSR runtime
+    "prerender": {
+      "discoverRoutes": false,               // do NOT auto-discover -- /dashboard must stay SPA
+      "routesFile": "prerender-routes.txt"
+    },
+    "ssr": {
+      "entry": "src/server.ts"               // present after ng add; harmless in static mode (not invoked)
+    },
+    "polyfills": ["zone.js"],
+    // ... existing assets / styles / tsConfig unchanged ...
+  }
+}
+```
+
+`prerender-routes.txt` (new file at `showcase/angular/prerender-routes.txt`) contains exactly:
+
+```
+/
+/about
+/privacy
+/support
+```
+
+**Critical detail (verified):** `discoverRoutes: true` enumerates unparameterized `Routes` from `app.routes.ts`. The wildcard route (`path: '**'`) is ignored. But `/dashboard` IS unparameterized, so leaving discovery on would prerender it -- and that route depends on `chrome.storage`, runtime DOM streaming, and `dashboard-runtime-state.js`, which would produce broken HTML. Setting `discoverRoutes: false` + an explicit `routesFile` is the safer posture. PROJECT.md "Target features" line confirms: prerender `/`, `/about`, `/privacy`, `/support`; `/dashboard` stays SPA.
+
+**Output layout (verified Angular 19 behaviour):** With `outputMode: "static"`, the build emits:
+
+```
+dist/showcase-angular/browser/
+  index.html                      <- prerendered "/"
+  about/index.html                <- prerendered "/about"
+  privacy/index.html              <- prerendered "/privacy"
+  support/index.html              <- prerendered "/support"
+  main-<hash>.js, styles-<hash>.css, etc.
+  assets/...
+  sitemap.xml, robots.txt, llms.txt, llms-full.txt   <- copied via assets glob from public/
+```
+
+This is the layout `express.static` serves correctly without any code changes. The problem is the explicit SPA-fallback handler that currently OVERRIDES it.
 
 ---
 
-## Version compatibility
+## Express integration (`server/server.js` changes — minimal diff)
 
-| Package | Compatible with | Notes |
-|---------|-----------------|-------|
-| `lz-string@1.5.0` | extension SW (`importScripts`), dashboard (script tag), Angular showcase (script tag in `index.html`) | All three already load this exact version. |
-| `qrcode-generator@2.0.4` | options page only | Already loaded at `ui/lib/qrcode-generator.min.js`. |
-| `@angular/*@^19.0.0` | `rxjs@~7.8.0`, `zone.js@~0.15.0`, `typescript@~5.6.0` | Locked combo from `showcase/angular/package.json`. **Do not bump in this milestone.** |
-| Chrome MV3 service worker | `chrome.alarms` (period >= 30s on Chrome 117+, >= 1m on older), `DecompressionStream` (Chrome 80+, deflate-raw on Chrome 103+), no `requestIdleCallback` | All recommendations stay within these constraints. |
+**Current code (server/server.js:97-117):**
+
+```js
+if (staticPath) {
+  app.use(express.static(staticPath, { maxAge: 0, etag: true, setHeaders: ... }));
+}
+
+// SPA fallback -- serve Angular index.html for all showcase routes (per D-04)
+app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
+  if (!staticPath) { res.status(503).type('text/plain').send(...); return; }
+  res.sendFile(path.join(staticPath, 'index.html'));
+});
+```
+
+**The bug after prerender lands:** `app.get('/about', ...)` is registered BEFORE the more-specific path `/about/index.html` would be matched by `express.static` for a bare `/about` request, so the explicit handler always sends the ROOT `index.html` (the prerendered home page) instead of the prerendered about page. (Note: `express.static` does match `/about/` -> `about/index.html` via its directory-index lookup, but the explicit `app.get` handler short-circuits that path.)
+
+**Recommended diff (replace lines ~110-117):**
+
+```js
+// Per-route prerendered HTML lookup, with SPA fallback for /dashboard only.
+// /dashboard is intentionally not prerendered -- it's the live runtime surface
+// requiring chrome.storage hydration and dashboard-runtime-state.js.
+const PRERENDERED_ROUTES = new Set(['/', '/about', '/privacy', '/support']);
+const SPA_ONLY_ROUTES = ['/dashboard'];
+
+app.get([...PRERENDERED_ROUTES, ...SPA_ONLY_ROUTES], (req, res) => {
+  if (!staticPath) {
+    res.status(503).type('text/plain').send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
+    return;
+  }
+  // Prerendered route: serve the per-route index.html (root for "/", subdir for the rest).
+  if (PRERENDERED_ROUTES.has(req.path)) {
+    const file = req.path === '/'
+      ? path.join(staticPath, 'index.html')
+      : path.join(staticPath, req.path.replace(/^\//, ''), 'index.html');
+    if (fs.existsSync(file)) { res.sendFile(file); return; }
+  }
+  // SPA fallback (dashboard, or prerendered file unexpectedly missing).
+  res.sendFile(path.join(staticPath, 'index.html'));
+});
+```
+
+This stays surgical: same route registration shape, same fallback contract for `/dashboard`, but per-route prerendered HTML now wins for marketing routes. Legacy `.html` redirect block (server.js:86-95) remains untouched.
+
+**Static file headers for crawler artifacts:** Place `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` under `showcase/angular/public/` (already wired into the `assets` glob in angular.json:36-40). The existing `express.static` block at server.js:98-107 sets `Cache-Control: no-cache, must-revalidate` only for `.js/.css/.html`. For `*.txt` and `*.xml`, `express.static` already maps the right `Content-Type` via `mime-db` (`.txt` -> `text/plain; charset=utf-8`, `.xml` -> `application/xml`).
+
+Optionally tighten with explicit cache hints (recommended -- AI crawlers re-fetch frequently and a 1h TTL hits a sweet spot):
+
+```js
+// Inside the existing express.static setHeaders callback, add:
+if (filePath.endsWith('robots.txt') || filePath.endsWith('llms.txt') || filePath.endsWith('llms-full.txt')) {
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+}
+if (filePath.endsWith('sitemap.xml')) {
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+}
+```
+
+No CORS, no `X-Robots-Tag`, no auth. AI bots make plain GETs from documented user agents.
+
+---
+
+## Build-script changes (sitemap.xml + llms.txt regeneration)
+
+Add a single Node ESM script `showcase/angular/scripts/generate-discovery-files.mjs` (~80 lines):
+
+- Reads a small hand-authored manifest (JSON or TS-as-data) describing each prerendered route's title, description, summary, and "this page is for AI" excerpt.
+- Emits `public/sitemap.xml` (4 `<url>` entries with `<lastmod>` set to build time).
+- Emits `public/robots.txt` with explicit `Allow:` lines for `GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`, `Bytespider`, `CCBot`, plus the standard `Sitemap:` directive.
+- Emits `public/llms.txt` (short index per the [llmstxt.org](https://llmstxt.org) convention) and `public/llms-full.txt` (concatenated marketing-page content for one-shot AI ingestion).
+
+Wire it into `package.json` (`showcase/angular/package.json`):
+
+```jsonc
+"scripts": {
+  "ng": "ng",
+  "start": "ng serve",
+  "prebuild": "node scripts/generate-discovery-files.mjs",
+  "build": "ng build",
+  "test": "ng test"
+}
+```
+
+`prebuild` runs automatically before `build`, so every Fly.io image rebuild emits fresh files. No CI/CD changes required.
+
+The files land in `public/` -> picked up by the existing `assets` rule in `angular.json:36-40` (`{"glob": "**/*", "input": "public"}`) -> copied into `dist/.../browser/` -> served by `express.static` from `staticPath`.
+
+---
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|---|---|---|
+| `@angular/ssr` + `outputMode: "static"` | Full Angular Universal SSR (`outputMode: "server"`) with Node SSR runtime on Fly | Only if routes need per-request data (logged-in user state, A/B variants, geo-localized copy). None of `/`, `/about`, `/privacy`, `/support` need this. PROJECT.md explicitly lists "Angular Universal full SSR" as out of scope. |
+| `@angular/ssr` + `outputMode: "static"` | `@nguniversal/express-engine` (the legacy Webpack-era SSR) | Never for this project. `@nguniversal/*` packages are deprecated in favour of `@angular/ssr` since Angular 17 and are incompatible with the `@angular/build:application` (esbuild) builder you already use. |
+| `@angular/ssr` + `outputMode: "static"` | Third-party static prerender (`prerender.io`, Rendertron, headless-Chrome services) | Only for unmaintained legacy SPAs that can't be rebuilt. You control the build, so doing it at build time is strictly cheaper, faster, and more cacheable. |
+| Native `Title` / `Meta` services | `@ngrx/router-store` + side-effecting selectors for SEO | Overkill. NgRx adds runtime weight for a problem that resolvers + `Meta.updateTag` solves directly. |
+| Native `<script type="application/ld+json">` injection | `schema-dts` + `jsonld` runtime serializer | `schema-dts` only provides TypeScript types; it adds zero runtime weight beyond compile-time checks. Use it only if you want compile-time checking of JSON-LD shapes. Optional, not required. |
+| 80-line Node script for sitemap/llms.txt | `sitemap` (npm), `next-sitemap`, `angular-prerender` | These pull in 5-30 transitive deps each for output that's a few hundred bytes of XML. Net negative. |
+
+---
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|---|---|---|
+| `@nguniversal/express-engine`, `@nguniversal/builders` | Deprecated since Angular 17. Tied to the legacy Webpack `@angular-devkit/build-angular:server` builder. Will not work with `@angular/build:application` (your current esbuild-based builder). | `@angular/ssr` -- the official replacement, supported in `@angular/build:application`. |
+| `prerender.io`, headless-Chrome SaaS, Rendertron | Adds an external service in the request path. Wastes the fact that your routes are statically determinable at build time. Costs latency, money, and a SPOF. | Build-time prerender via `@angular/ssr`. |
+| `outputMode: "server"` (full SSR runtime) | Requires running a Node SSR process on Fly.io alongside your existing Express. Cold-start latency, more memory, more crash surfaces, no benefit for static marketing copy. PROJECT.md explicitly defers this as overkill. | `outputMode: "static"`. |
+| Manual `<head>` editing in `src/index.html` for per-route metadata | The bare `index.html` is the SPA shell and only one of N prerendered HTML outputs. Per-route metadata MUST be set via `Title` + `Meta` services in component code so each prerendered file gets the right tags. | `Title.setTitle()` + `Meta.updateTag()` in each page component's `ngOnInit` (or via a route resolver). The current bare `<title>FSB</title>` in `src/index.html:5` should be replaced with sensible defaults that get overridden per-route. |
+| Generic `User-agent: *` + blanket `Disallow:` posture in `robots.txt` | AI crawlers honour `Allow:` and bot-specific user agents. A blanket `Disallow:` -- or worse, no `robots.txt` at all -- means GPTBot/ClaudeBot/PerplexityBot may treat the site as off-limits or skip it for crawl-budget reasons. | Explicit `Allow:` per AI bot user agent + `Sitemap:` directive. |
+| `<meta name="robots" content="noindex">` left in any prerendered output | Easy to leak from a dev/staging build. Hard to detect post-hoc. | Add a smoke check (curl + grep) to release UAT that confirms no `noindex` on `/`, `/about`, `/privacy`, `/support`. |
+| `discoverRoutes: true` (the prerender default) | Will sweep up `/dashboard`, which depends on `chrome.storage` / runtime DOM streaming -- prerender will produce a broken or misleading HTML snapshot. | `discoverRoutes: false` + explicit `routesFile: "prerender-routes.txt"`. |
+
+---
+
+## Stack Patterns by Variant
+
+**If `/dashboard` should be discoverable later:**
+- Move it into the `routesFile` list.
+- Provide a server-rendered "what FSB is" view that doesn't depend on `chrome.storage` -- otherwise prerender will produce broken HTML.
+- Out of scope for v0.9.46 per PROJECT.md.
+
+**If you later add comparison pages (`/vs-browser-use`, etc — listed as deferred):**
+- Add the explicit paths to `prerender-routes.txt`. Same pattern; zero new infrastructure.
+
+**If you later add an FAQ page with `FAQPage` JSON-LD (deferred):**
+- Same `<script type="application/ld+json">` injection pattern as `Organization` / `SoftwareApplication`. No new dependencies.
+
+**If you later need parameterized routes (e.g. `/blog/:slug`):**
+- Use the existing `prerender-routes.txt` populated by a script that lists each slug, as documented in the Angular v19 prerendering guide. No SSR runtime required.
+
+---
+
+## Version Compatibility
+
+| Package A | Compatible With | Notes |
+|---|---|---|
+| `@angular/ssr@^19.0.0` | `@angular/core@^19.0.0`, `@angular/build@^19.0.0` | Must match the Angular major. Mixing `@angular/ssr@18` with `@angular/build@19` will fail at scaffold time. |
+| `@angular/build:application` builder (already in use, line 22 of angular.json) | `@angular/ssr@^19` | Confirmed compatible. The `prerender` / `outputMode` / `ssr` / `server` keys are first-class options on the application builder in Angular 19. The legacy `@angular-devkit/build-angular:application` builder also supports them but you're already on `@angular/build:application` -- no migration needed. |
+| `zone.js@~0.15.0` (already installed) | `@angular/ssr@^19` | Compatible. `@angular/ssr` uses zone.js for change detection during the prerender pass. No upgrade required. |
+| Node `>=20.11` (existing Fly image baseline) | All of the above | Angular 19 + `@angular/ssr` requires Node 18.19+ or 20.11+; Fly image already satisfies this. |
+| Existing `legacy .html redirects` block (server.js:86-95) | New per-route handler | No interaction. Redirects fire first, hit `res.redirect(301, ...)`, never fall through. |
+| Existing WebSocket / pairing / DOM-stream paths | Per-route prerender handler | Zero overlap. Prerender only changes `GET /`, `/about`, `/privacy`, `/support`. WS endpoints, `/api/*`, and `/dashboard` are untouched. |
 
 ---
 
 ## Sources
 
-- `ws/ws-client.js:515-522, 580-593` (FSB repo) -- the asymmetry root cause; HIGH confidence (direct code).
-- `showcase/js/dashboard.js:3516-3528` (FSB repo) -- the dashboard's already-validated decompression path; HIGH confidence (direct code).
-- `server/src/ws/handler.js:175-203` (FSB repo) -- relay confirmed passthrough, no compression; HIGH confidence.
-- `content/dom-stream.js:466-489` (FSB repo) -- the slow truncation block; HIGH confidence.
-- `background.js:37` (FSB repo) -- confirms `lz-string.min.js` already loaded into the service worker; HIGH confidence.
-- `ui/control_panel.html:50-86` (FSB repo) -- canonical `data-section` nav pattern; HIGH confidence.
-- `showcase/angular/package.json` (FSB repo) -- Angular 19 pin; HIGH confidence.
-- W3C ServiceWorker issue #790 ("requestIdleCallback (equivalent) for ServiceWorkerGlobalScope") -- HIGH confidence on absence in SW.
-- MDN, "Window: requestIdleCallback() method" -- HIGH confidence on Window-only availability.
-- MDN, "DecompressionStream" -- HIGH confidence on availability in workers; MEDIUM on whether it's officially listed for `ServiceWorkerGlobalScope` (MDN excerpt mentioned Web Workers explicitly, did not enumerate SW; chromium.org and web.dev cross-confirm SW availability).
-- web.dev / Chrome for Developers blog, "Compression and decompression in the browser with the Compression Streams API" -- HIGH confidence on `deflate-raw` Chrome 103+ availability.
-- npm registry, `lz-string` page -- HIGH confidence: latest 1.5.0, no churn.
-- npm registry, `qrcode-generator` page -- HIGH confidence: latest 2.0.4.
-- angular.dev releases page + endoflife.date -- HIGH confidence Angular 19 EOL 2026-05-19.
-- MeasureThat.net benchmarks, "TreeWalker vs querySelectorAll" -- MEDIUM confidence (microbenchmarks vary by harness; the *direction* of the performance argument -- batch reads before writes -- is web-perf folklore confirmed across multiple sources).
+- [Angular v19 Build-time prerendering guide](https://v19.angular.dev/guide/prerendering) — verified `prerender` accepts `discoverRoutes` (boolean, default true) and `routesFile` (path to newline-separated route list); confirmed `ng add @angular/ssr` is the install path. HIGH confidence.
+- [Angular SSR / hybrid rendering guide](https://angular.dev/guide/ssr) — verified `outputMode: "static"` produces static HTML with no Node server file required, suitable for static hosting. HIGH confidence.
+- [feat(@angular/build): introduce outputMode option (commit 3b00fc9)](https://github.com/angular/angular-cli/commit/3b00fc908d4f07282e89677928e00665c8578ab5) — confirms `outputMode` is a first-class option on `@angular/build:application` and replaces ad-hoc `appShell`/`prerender` toggles in Angular 19. HIGH confidence.
+- [angular-cli issue #28712](https://github.com/angular/angular-cli/issues/28712) — corroborates that `prerender` is wired into the application builder schema in Angular 19. MEDIUM confidence (issue is bug-report context, not docs).
+- [llmstxt.org spec](https://llmstxt.org) — informal but widely-adopted convention for `llms.txt` / `llms-full.txt`. Used by Anthropic, Cloudflare, Hugging Face, etc. MEDIUM confidence (no W3C standard; convention only).
+- Existing repo files (`showcase/angular/angular.json`, `showcase/angular/package.json`, `showcase/angular/src/app/app.routes.ts`, `showcase/angular/src/index.html`, `server/server.js:60-130`) — read directly to ground all integration recommendations. HIGH confidence.
 
 ---
 
-*Stack research for: FSB v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability*
-*Researched: 2026-04-28*
+*Stack research for: Angular 19 SPA static prerender + crawler/AI-bot discoverability behind custom Express on Fly.io*
+*Researched: 2026-04-30*

@@ -1,264 +1,405 @@
 # Feature Research
 
-**Domain:** Chrome MV3 extension dev/automation tool — Sync surface, agent sunset, DOM streaming reliability
-**Researched:** 2026-04-28
-**Milestone:** v0.9.45rc1
-**Confidence:** MEDIUM-HIGH (current FSB code: HIGH; comparable-product UX patterns: MEDIUM, derived from GitHub session mgmt, 2FAS browser pairing, Chrome Remote Desktop, rrweb, websockets/permessage-deflate)
+**Domain:** SEO + GEO/AEO/LLMO discoverability for Angular 19 SPA marketing site (`full-selfbrowsing.com`)
+**Researched:** 2026-04-30
+**Milestone:** v0.9.46 Site Discoverability
+**Confidence:** HIGH (crawler list, llms.txt spec, sitemap status verified against vendor docs and Cloudflare data; JSON-LD weighting MEDIUM — community consensus rather than vendor-stated rankings)
 
-## Scope Reminder
+## Existing Surface (Constraints On New Features)
 
-Five concrete feature areas in scope:
-1. **Sync tab** — new top-level control panel tab consolidating QR pairing + remote-control state (currently buried as "Server Sync" inside the Background Agents tab at `ui/control_panel.html` line 700; QR pairing logic at `ui/options.js` lines 4198-4943).
-2. **Background agents sunset card** — playful deprecation messaging in control panel + showcase, pointing to OpenClaw / Claude Routines.
-3. **DOM streaming hardening** — mutation queue watchdog, large-DOM truncation perf, stale counter reset.
-4. **WebSocket compression symmetry** — inbound `permessage-deflate` decompression to match outbound.
-5. **Diagnostic logging** — replace silent `try/catch{}` swallowers in dialog relay + message delivery.
+- 5 Angular routes: `/`, `/about`, `/dashboard`, `/privacy`, `/support` (`showcase/angular/src/app/app.routes.ts`)
+- `index.html` ships only `<title>FSB</title>` plus a CDN block for `html5-qrcode` and `lz-string` -- no description, no OG, no canonical, no JSON-LD
+- Per the milestone in `PROJECT.md`, marketing routes (`/`, `/about`, `/privacy`, `/support`) are prerendered; `/dashboard` stays SPA (auth-gated, not for crawlers)
+- Express SPA-fallback must serve prerendered HTML before the catch-all -- already in target features
 
-Not in scope: rebuilding pairing protocol, reinventing dashboard, building a new agents framework.
+These constrain where each feature can live: anything that must be visible to non-JS crawlers has to be in prerendered HTML at build time, not injected by Angular runtime on a stale `<app-root>`.
 
 ## Feature Landscape
 
-### Table Stakes (Comparable Products All Have These)
+### Table Stakes (Users Expect These)
 
-| Feature | Why Expected | Complexity | Notes / FSB Dependency |
-|---------|--------------|------------|------------------------|
-| **Sync tab is top-level** (not nested under another concern) | Every "connected devices" pattern (GitHub Sessions, 2FAS, Chrome Remote Desktop) puts pairing/devices at the same nav depth as "Account" or "Settings". FSB currently buries pairing under Agents — wrong taxonomy. | LOW | Pure HTML/CSS — add `<li class="nav-item" data-section="sync">` and a `<section id="sync">` block. Move the existing card from `#background-agents` to `#sync`. **Depends on:** existing `nav-item` switching logic in `options.js`. |
-| **Live connection status indicator** ("Connected" / "Disconnected" / "Reconnecting" with color dot) | Users need a single glanceable answer to "is the tunnel up?" GitHub mobile sessions, 2FAS, Chrome Remote Desktop all have this. The current `#connectionStatus` span is a passive text label updated only after pressing "Test Connection". | LOW-MEDIUM | Wire to `ext:remote-control-state` broadcast from Phase 209. **Depends on:** Phase 209 lifecycle broadcast (already shipped). Test by toggling network, observing dot turn red within ~5s. |
-| **QR code is the primary pairing affordance, manual code is the fallback** | Industry consensus: QR for phone-camera proximity, alphanumeric code for typing/copy-paste. 2FAS, Chrome Remote Desktop, WhatsApp Web, Discord QR login all do this. | LOW | The current QR flow already exists (Phase 210). **Add:** display the same `pairingToken` underneath the QR as `XXXX-XXXX-XXXX` for manual entry on the dashboard. **Depends on:** server `/api/pair/generate` already returns the token; just render it. |
-| **Last-paired timestamp + "paired as" identifier** | GitHub: "Last accessed 2 hours ago from Chrome on macOS". Users won't trust pairing they can't audit. | LOW-MEDIUM | Persist `lastPairedAt` + a UA string in `chrome.storage.local` when handshake succeeds. Render under the connection status. **Depends on:** existing handshake event (look up where the dashboard send first ACK). |
-| **Manual reconnect button** | When connection drops, users want a button — not "wait 30 seconds for auto-retry". GitHub Codespaces, Chrome Remote Desktop, every IDE remote-host integration has this. | LOW | Wraps existing reconnect logic. Show only when status is `disconnected` or `reconnecting`. |
-| **Test Connection (already exists)** | A diagnostic-style "ping" affordance is table stakes for any pairing UI. | (DONE) | Already wired (`#btnTestConnection`). Move it into the Sync tab. |
-| **Hash Key Generate / Copy (already exists)** | Pre-pairing setup affordance. | (DONE) | Already wired (`#serverHashKey`, `#btnGenerateHashKey`, `#btnCopyHashKey`). Move into Sync tab. |
-| **Deprecation card with date, alternatives, link out** | Standard sunset pattern. Microsoft/Google deprecations always state: (1) effective date, (2) named replacement, (3) "learn more" link. | LOW | Plain HTML card. **Depends on:** nothing — pure copy work. |
-| **Inbound WebSocket decompression** matching outbound `permessage-deflate` | RFC 7692 spec: if a peer sends compressed frames, the receiver MUST decompress. Asymmetry = invisibly broken / dropped messages. Not a feature users see; it's table-stakes correctness. | MEDIUM | Find the `WebSocket` constructor in the bridge code; ensure handshake includes `permessage-deflate` extension on both sides; if FSB controls the relay, ensure relay->extension frames are decompressed by browser automatically (browser handles it if the extension was negotiated in handshake). Real fix is likely in the relay/server side asserting the extension. **Test:** observable as restored message delivery for large payloads (>1KB DOM snapshots); verifiable via Chrome DevTools Network → WS frames showing `Compressed: true`. |
-| **Diagnostic console.warn with structured prefix** when a relay/dialog message fails to deliver | Replace `try { ... } catch (_) {}` with `try { ... } catch (err) { console.warn('[FSB][dialog-relay] delivery failed', { err, target, msg }); }`. Industry baseline for any production extension; required for debugging operator-reported "I clicked send and nothing happened". | LOW | Pure refactor. **Test:** synthetic failure (close target tab mid-send) produces a single, greppable warn line in the service worker console. |
-| **DOM mutation queue watchdog** that detects "stuck queue" and emits one diagnostic event | rrweb / Replay.io users repeatedly hit the symptom: queue keeps growing, page hangs, no signal. Watchdog = "if queue depth has not decreased for N seconds and queue depth > threshold, emit `stream:stuck` once and reset". | MEDIUM | Add a counter on every flush; tick a timer; compare. **Test:** force-feed 10k mutations in a synthetic page; observe one diagnostic event, no thrash. **Depends on:** existing mutation observer in `content/` modules. |
-| **Stale mutation counter reset on stream lifecycle transitions** | When the stream restarts (tab switch, reconnect), counters from the old session must NOT carry over and trigger a false "stuck" alarm. Standard hygiene for any long-running event source. | LOW | Reset hook on `streamStart` / `streamEnd` events. |
+Missing any of these = the site looks abandoned to Google, ChatGPT, Claude, and Perplexity.
 
-### Differentiators (FSB-Specific Notable Features)
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Per-route `<title>` and `<meta name="description">` | Single hardcoded `FSB` title on every URL is a known anti-pattern; Google shows the description in SERPs and LLMs cite it as the page summary | LOW (4 components x ~5 lines via Angular `Title`/`Meta` services in `ngOnInit`) | Must be applied **before prerender freezes the HTML**. Use Angular's static prerender so the meta tags end up in the on-disk HTML, not just runtime DOM |
+| Per-route `<link rel="canonical">` | Prevents duplicate-content split between `https://full-selfbrowsing.com/about` and trailing-slash / case variants; mandatory for Google indexing | LOW (one line per page component, set via `Meta.updateTag` or via Angular's `DOCUMENT` token) | Canonical URL must be absolute, `https://`, no trailing slash for consistency. Skip on `/dashboard` (noindex anyway) |
+| Open Graph tags (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`) | Required for link previews on Twitter/X, LinkedIn, Slack, Discord, iMessage; missing = unfurled link shows raw URL | LOW (5-6 tags per route, same `Meta` service) | Need a 1200x630 PNG at `/assets/og/<route>.png`. `og:type=website` for marketing pages. Single shared image is acceptable for v1 |
+| Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`) | X/Twitter still ignores OG for the card type itself; needs `twitter:card=summary_large_image` to render the wide preview | LOW (4 tags, set alongside OG) | Can reuse OG image. No `twitter:site` needed unless an X handle exists |
+| `robots.txt` at site root with explicit `Allow` for AI crawlers + `Sitemap:` line | Default Angular build ships none. Crawlers (Google, GPTBot, ClaudeBot, PerplexityBot) explicitly check `/robots.txt` first; missing = ambiguous policy | TRIVIAL (~30 lines, plain text in `showcase/express/public/robots.txt`) | Must be served as `text/plain` at the apex. Express static must resolve it before SPA fallback. **Current verified 2026 list below** |
+| `sitemap.xml` with the 5 routes + `<lastmod>` | Google Search Console requires this for fast indexing of new sites; sitemap URL goes in `robots.txt` | LOW (~25 lines, hand-written or generated at build) | Drop `<changefreq>` and `<priority>` -- Google explicitly ignores both in 2026 (sitemaps.org keeps them in spec, but they are noise). Keep only `<loc>` and `<lastmod>` |
+| `Organization` JSON-LD in prerendered HTML | The single highest-leverage structured-data signal for LLM entity recognition; ChatGPT/Claude/Perplexity parse it to identify "what is FSB" | LOW (15-line script tag in `index.html` `<head>`) | Place in `index.html` so all prerendered routes inherit it. One `Organization` per site, not per page |
+| `SoftwareApplication` JSON-LD on home route | FSB is a Chrome extension -- `SoftwareApplication` (or `WebApplication`) is the canonical schema.org type. Surfaces in Google rich results and is the strongest "this is software, here is what it does" signal for LLMs | LOW (20-line script tag, prerendered into `/index.html`) | Place per-route (only on `/`) so it is bound to the home page, not every page. `applicationCategory: BrowserApplication`, `operatingSystem: Chrome` |
+| Noindex on `/dashboard` | Auth-gated; SPA-only; crawlers should not waste budget there or surface it in search | TRIVIAL (one `<meta name="robots" content="noindex,nofollow">` injected via Angular `Meta` for that route) | Belt-and-suspenders: also add `Disallow: /dashboard` in `robots.txt` |
 
-| Feature | Value Proposition | Complexity | Notes / FSB Dependency |
-|---------|-------------------|------------|------------------------|
-| **Sync tab as the only place where remote-control lives** | FSB's promise is "your dashboard sees your browser live". Today that promise is split across Server Sync (under Agents) and remote control state messaging that has no UI home. Putting both in one tab = one mental model: "my browser <-> dashboard tunnel". | LOW | Reorganization, not new code. **Wins:** users stop asking "where do I pair?" — there's literally a tab labeled Sync. |
-| **Live remote-control state pill** ("Idle" / "Active — clicking" / "Active — typing") inline in the Sync tab | Phase 209 already broadcasts `ext:remote-control-state`. Surfacing it in the Sync tab gives users confidence that "yes, what the dashboard does shows up here". No comparable extension does this — most stop at "connected/disconnected". | MEDIUM | Subscribe to `ext:remote-control-state` broadcast; render as a chip. **Depends on:** Phase 209 broadcast (shipped). **Anti-trap:** do NOT echo every CDP event — debounce to avoid flicker. |
-| **Playful deprecation card with three rotating taglines** (random pick on render) | Most sunset notices are dry. FSB's brand voice is technical-but-friendly ("orange glow", "single-attempt reliability"). A randomly-picked tagline from a 3-item array makes the page feel alive, not abandoned. Differentiator vs Microsoft/Google sunset notices which feel like compliance text. | LOW | `const taglines = [...]; element.textContent = taglines[Math.floor(Math.random() * taglines.length)];`. See microcopy section below. |
-| **Mirrored sunset messaging on the showcase/dashboard** (not just inside extension) | Users discovering FSB via the showcase shouldn't expect "background agents" only to learn after install they're gone. Mirroring on showcase = consistent brand promise. | LOW | Edit `showcase/angular/src/app/pages/{home,about,dashboard}` content blocks. **Depends on:** existing Angular shell (shipped v0.9.29). |
-| **Stream health card in Sync tab** ("Mutations/s, queue depth, last flush") | rrweb users reverse-engineer this from network panels. Surfacing it inline is a meaningful trust signal for power users. | MEDIUM | Read from the new watchdog counters. Optional / can ship without. |
-| **One-click "Unpair" / "Sign out of dashboard"** that revokes the hash key | GitHub session revocation is the gold standard. Today FSB has no way to forcibly disconnect short of regenerating the hash key. | LOW-MEDIUM | Calls `/api/pair/revoke` (may not exist server-side) or just clears local hash key + closes the WS. **Depends on:** server endpoint, OR pure-local fallback that clears state. |
+### Differentiators (Competitive Advantage)
 
-### Anti-Features (Tempting But Wrong)
+Features competitors in adjacent space (Browser-Use, Stagehand, BrowserOS) mostly skip. Cheap wins for AI-search visibility.
 
-| Feature | Why Tempted | Why Wrong | Better Approach |
-|---------|-------------|-----------|-----------------|
-| **Auto-redirect away from "Background Agents" tab to a sunset URL** | Feels clean — "the page is gone". | Users have muscle memory + bookmarks. Hard 404 / redirect = loss of trust. Microsoft/Google all leave the deprecated nav entry visible with a sunset banner for 1+ release cycle. | Keep the tab in the sidebar; replace its body with the sunset card. Optionally rename to "Agents (Retired)" or hide after 1-2 milestones. |
-| **Hide pairing UI behind "Advanced"** | Remote control feels like a power-user feature. | The new dashboard surface IS the headline UX. Burying it makes onboarding worse. Currently it's already buried under Agents — that's the bug. | Sync is a top-level nav item. Period. |
-| **Force the user to scroll past a giant deprecation banner to reach the dashboard/sync UI** | "They need to know background agents are gone!" | Banner-blindness; feels naggy; blocks legitimate workflow. The current "blocked dashboard" failure mode (per the question) is a real anti-pattern. | Sunset card lives in its own tab body. Sync tab is independent. Dashboard surface is independent. No blocking modals. |
-| **Show frame-stat overlays whenever inbound compression activates** | "It's a fix, let's celebrate it visibly!" | Compression should be invisible. Users don't care; they care that messages arrive. Adding a "compression: ON" indicator just adds clutter. | Decompression fix is silent. Optional: log once at handshake `console.info('[FSB][ws] permessage-deflate negotiated, both directions')`. |
-| **Block UI interaction while reconnecting** ("Connecting..." spinner over everything) | Looks clean. | Users want to keep configuring while reconnect happens in background. GitHub, Slack, every modern client reconnects without freezing UI. | Status pill changes; rest of UI stays interactive. |
-| **A "Disable Watchdog" toggle in Advanced settings** | Feels like good defensive engineering. | Watchdog is correctness, not a feature. Toggle = footgun. | Watchdog is always on. Threshold can be a constant. |
-| **Toast notification every time the watchdog catches a stuck queue** | "User should know!" | Users don't have actionable response. Toast spam = ignored toast. | Single `console.warn` (diagnostic logging requirement covers this). Optional: a "stream health" pill in Sync tab. |
-| **A fancy "What changed?" modal for the deprecation that requires a click to dismiss before using FSB** | Common in enterprise migration UX. | Friction tax on every install. Once-only modals are notorious for showing twice (storage bug) or never (storage missing). | Static card on the (former) Agents tab. No modal. No "I understand" button. |
-| **Remove the deleted-code commits / wipe history** | "Clean codebase!" | Loses the receipt of what was tried; makes future revival harder if priorities shift. PROJECT.md explicitly mandates **comment out, don't delete** with deprecation annotation. | Comment out with `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines — see milestone notes` and preserve shared utilities. |
-| **Rewriting the pairing protocol** | "Since we're touching this UI, let's improve the protocol." | Out of scope. Phase 210 is shipped + working. UI relocation only. | Strictly relocate + polish. |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| `llms.txt` at site root | Markdown index pointing LLMs at the canonical content map. Anthropic's own docs ship one; Cloudflare and Stripe adopted; 844K+ sites by Oct 2025. **No major LLM has officially confirmed they read it**, but it is a low-cost bet that costs nothing if ignored and pays off if adopted | TRIVIAL (~40 lines markdown, hand-written, served as `text/markdown` or `text/plain`) | Per llmstxt.org spec: H1 title, blockquote summary, `## Docs` section with markdown links, optional `## Optional` section. Keep under 100 lines for v1 |
+| `llms-full.txt` at site root | Concatenated full-text of marketing pages in one file, optimized for single-fetch LLM ingestion. Lets a crawler grab the entire FSB pitch in one request | LOW (~500-1500 lines, generated at build from prerendered HTML stripped to markdown) | Spec is informal; norms are "everything important, in markdown, in one file." Practical cap ~50-100KB. Auto-generate from the 4 prerendered routes to avoid drift |
+| Explicit `User-agent:` blocks per AI crawler in `robots.txt` (vs. one wildcard `Allow`) | Signals intentional opt-in to GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended individually. Some operators read explicit Allow as stronger consent than wildcard | TRIVIAL (extends robots.txt by ~25 lines) | See verified 2026 list below. Each Anthropic/OpenAI bot has independent semantics (training vs search vs user-fetch) -- being explicit shows you understand the distinction |
+| `BreadcrumbList` JSON-LD on `/about`, `/privacy`, `/support` | Surfaces breadcrumb trail in Google SERPs ("fsb.com > About"); modest CTR lift, helps LLMs understand site hierarchy | LOW (10-line script per non-home route) | Skip on `/` (it IS the breadcrumb root). Trivial since the site is shallow (one level deep) |
 
-## Deprecation Card Microcopy (3+ Tone-of-Voice Samples)
+### Anti-Features (Commonly Requested, Often Problematic)
 
-Required by the quality gate. All samples follow the canonical beats: **dated "as of"** + **named alternatives** + **link out** + **optional "why" disclosure** + **no nag**.
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| `FAQPage` JSON-LD | Trendy for AEO/GEO; thought to surface in AI Overviews | FSB has no FAQ page yet (deferred per `PROJECT.md` "Out of scope"). Faking FAQs in JSON-LD that do not exist as visible page content violates Google's structured-data policy and risks manual action. Revisit when a real FAQ page ships | Defer until FAQ page exists. Then add `FAQPage` schema bound to that page's visible Q&A |
+| `HowTo` JSON-LD | Tempting for "how to install FSB" content | Google deprecated `HowTo` rich results in late 2023 and has not reinstated them. Markup is harmless but yields zero SERP benefit; LLM weighting is unproven | Use plain prose with clear `<h2>` step headings. LLMs parse step lists from semantic HTML fine without `HowTo` markup |
+| `priority` and `changefreq` in sitemap.xml | Standard sitemap-builder output; "feels complete" | Google explicitly ignores both in 2026. Bing largely ignores them. They add bytes and a maintenance burden (every release someone debates "is this 0.7 or 0.8?") with zero ranking impact | Ship `<loc>` + `<lastmod>` only. Drop the other two |
+| `WebSite` schema with `SearchAction` (sitelinks searchbox) | Classic SEO checklist item | FSB has no site-wide search. Declaring a `SearchAction` that points to a non-existent `/search?q={query}` is a structured-data lie; Google can de-list rich results for it | Skip until on-site search exists (not on roadmap) |
+| Wildcard `User-agent: *` `Disallow: /` then per-bot `Allow:` blocks | "Allowlist-only" feels safer | Inverts the open-web default; risks accidentally blocking Googlebot if a config typo slips in. Also unfriendly to legitimate aggregators (archive.org, search engines you forgot about) | Default-allow with explicit per-bot `Allow:` blocks for AI crawlers (signals intent without blocking the open web). Only `Disallow: /dashboard` |
+| `noai` / `noimageai` `<meta>` tags | Some publishers use these to opt out of AI training | FSB *wants* AI ingestion (it is a developer tool; LLM citations are the goal). Adding these signals the opposite of FSB's intent | Explicitly omit. Document in code comment that absence is intentional |
+| Angular Universal full SSR | "Proper" SSR feels more legitimate than prerender | Already explicitly out of scope per `PROJECT.md`. Static prerender of 4 marketing routes is sufficient -- there is no per-request dynamic content to render | Stay with static prerender; add SSR only if dynamic per-user marketing emerges (it will not) |
+| Per-route OG images generated dynamically | Visual polish | Each unique image is a design+infra task. v1 ships fine with one shared `og-default.png`. Per-route images are a v2 polish pass | One shared 1200x630 PNG; revisit per-route variants once core SEO ships |
 
-### Sample 1 — Dry & Direct (safest default)
+## Verified 2026 AI Crawler List
 
-> **Background Agents are retired as of v0.9.45rc1 (April 2026).**
->
-> FSB's core value is reliable single-attempt browser execution. Scheduled background work is a different problem — and it's better solved by tools designed for it.
->
-> We recommend:
-> - **[OpenClaw](https://openclaw.example)** — for general-purpose AI-driven background workflows
-> - **[Claude Routines](https://claude.com/routines)** — for Anthropic-native scheduled tasks
->
-> Existing agent code is preserved (commented out) for future revival if priorities shift. [Read the full retirement note →]
+Cross-referenced against OpenAI's `platform.openai.com/docs/bots`, Anthropic's `support.claude.com` crawler page, and Cloudflare Radar's verified-bots directory.
 
-### Sample 2 — Witty / Brand-Voice ("we're not reinventing this wheel")
+| User-Agent | Operator | Purpose | Should Allow? |
+|-----------|----------|---------|---------------|
+| `GPTBot` | OpenAI | Training data for foundation models | YES (FSB wants AI to know what it is) |
+| `ChatGPT-User` | OpenAI | User-initiated fetch when a ChatGPT user asks ChatGPT to read a URL | YES |
+| `OAI-SearchBot` | OpenAI | ChatGPT search index | YES |
+| `ClaudeBot` | Anthropic | Training data | YES |
+| `Claude-User` | Anthropic | User-initiated fetch from Claude | YES |
+| `Claude-SearchBot` | Anthropic | Claude search index | YES |
+| `PerplexityBot` | Perplexity | Search indexing (no foundation-model training per Cloudflare) | YES |
+| `Perplexity-User` | Perplexity | User-initiated fetch | YES |
+| `Google-Extended` | Google | Opt-out token for Gemini/Vertex training (NOT a real crawler -- controls how content from Googlebot's existing crawl is used) | YES (allow training use) |
+| `Applebot-Extended` | Apple | Same shape as Google-Extended -- controls Apple Intelligence training use | YES |
+| `Amazonbot` | Amazon | Alexa / Amazon AI ingestion | YES |
+| `Bytespider` | ByteDance | Training crawler (no public vendor doc page; identified by Cloudflare) | YES (consistent posture) |
+| `CCBot` | Common Crawl | Open-data web crawl that feeds many LLM training sets | YES |
+| `Meta-ExternalAgent` | Meta | Llama training + Meta AI search; 16.7% of global AI bot traffic in March 2026 | YES |
+| `DuckAssistBot` | DuckDuckGo | DuckDuckGo AI assist | YES (optional, low traffic) |
+| `Googlebot` | Google | Standard web search | YES (implicit -- default-allow) |
 
-> **We're not reinventing this wheel.**
->
-> Background Agents shipped in v0.9.6, taught us a lot, and are stepping down with the v0.9.45rc1 release. Two products do scheduled-AI-work better than we can without distracting from FSB's main job:
->
-> - **[OpenClaw](https://openclaw.example)** — open-source, multi-runtime, the agents-shaped hole we'd otherwise build
-> - **[Claude Routines](https://claude.com/routines)** — first-party from Anthropic, deeply integrated with their model lifecycle
->
-> FSB stays focused on what it does best: precise, single-attempt, dashboard-streamed browser automation.
->
-> [Why we made this call →] (links to a brief retrospective)
+**Verification sources:**
+- OpenAI docs (`platform.openai.com/docs/bots`) -- confirms GPTBot/1.1, ChatGPT-User/1.0, OAI-SearchBot/1.0 as the three independent identifiers
+- Anthropic docs (`support.claude.com` / `privacy.claude.com`) -- confirms ClaudeBot, Claude-User, Claude-SearchBot are independent and all honor robots.txt
+- Cloudflare bot list (`developers.cloudflare.com/bots/concepts/bot/`) and Cloudflare Radar (`radar.cloudflare.com/bots/directory/meta-externalagent`) -- confirms Meta-ExternalAgent, Bytespider, CCBot, Applebot, PetalBot, TikTokSpider as the verified-bot universe in 2026
 
-### Sample 3 — Minimal / Just-the-Facts (for the showcase mirror)
+## Concrete Example Payloads
 
-> **Background Agents → moved on.**
-> As of April 2026, FSB no longer ships background agents. For scheduled / unattended workflows, see [OpenClaw](https://openclaw.example) or [Claude Routines](https://claude.com/routines).
+### `robots.txt` (table-stakes minimum, ~40 lines)
 
-### Microcopy beats checklist (all three samples honor this)
+```
+# https://full-selfbrowsing.com/robots.txt
+# FSB explicitly opts into AI ingestion -- we want LLMs to know what FSB is.
 
-- [x] Dated effective version + month
-- [x] Named alternatives (two of them) with links
-- [x] "Why" available but not forced (link, not a wall of text)
-- [x] No "you should have" / blame language
-- [x] No CTA that the user must dismiss
-- [x] Card is informative, not blocking
+User-agent: *
+Allow: /
+Disallow: /dashboard
 
-### Anti-patterns to avoid in the copy
+# OpenAI
+User-agent: GPTBot
+Allow: /
 
-- "We've decided to deprecate..." — corporate, distancing
-- "Unfortunately..." — apologetic
-- "We hope you understand!" — needy
-- A bullet list of all the reasons it didn't work — sounds like blame
-- Crossed-out feature names — childish
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+# Anthropic
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Google / Apple AI training opt-in
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# Other major AI crawlers
+User-agent: Amazonbot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+Sitemap: https://full-selfbrowsing.com/sitemap.xml
+```
+
+### `sitemap.xml` (4 marketing routes, lastmod only)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://full-selfbrowsing.com/</loc>
+    <lastmod>2026-04-30</lastmod>
+  </url>
+  <url>
+    <loc>https://full-selfbrowsing.com/about</loc>
+    <lastmod>2026-04-30</lastmod>
+  </url>
+  <url>
+    <loc>https://full-selfbrowsing.com/privacy</loc>
+    <lastmod>2026-04-30</lastmod>
+  </url>
+  <url>
+    <loc>https://full-selfbrowsing.com/support</loc>
+    <lastmod>2026-04-30</lastmod>
+  </url>
+</urlset>
+```
+
+(`/dashboard` intentionally absent -- it is `noindex` and `Disallow`-ed.)
+
+### `Organization` JSON-LD (place in `index.html` `<head>`, inherited by all prerendered routes)
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "FSB",
+  "alternateName": "Full Self-Browsing",
+  "url": "https://full-selfbrowsing.com",
+  "logo": "https://full-selfbrowsing.com/assets/icon48.png",
+  "description": "FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions, with reliable single-attempt execution and an MCP server for external clients.",
+  "sameAs": [
+    "https://github.com/LakshmanTurlapati/FSB",
+    "https://www.npmjs.com/package/fsb-mcp-server"
+  ]
+}
+</script>
+```
+
+### `SoftwareApplication` JSON-LD (home route only, prerendered into `/index.html`)
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "FSB (Full Self-Browsing)",
+  "applicationCategory": "BrowserApplication",
+  "operatingSystem": "Chrome, Chromium-based browsers",
+  "description": "AI-powered browser automation Chrome extension. Describe a task in natural language; FSB executes the clicks, types, and navigation reliably on the first attempt. Includes MCP server for Claude, Codex, Cursor, and other AI hosts.",
+  "url": "https://full-selfbrowsing.com",
+  "downloadUrl": "https://github.com/LakshmanTurlapati/FSB",
+  "softwareVersion": "0.9.46",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Lakshman Turlapati"
+  }
+}
+</script>
+```
+
+### Per-route meta in Angular component (example: `about-page.component.ts` `ngOnInit`)
+
+```typescript
+ngOnInit() {
+  this.title.setTitle('About FSB -- AI Browser Automation Chrome Extension');
+  this.meta.updateTag({ name: 'description', content: 'FSB executes browser tasks from natural language. Built on reliable single-attempt mechanics with an MCP server for Claude, Codex, and Cursor.' });
+  // Canonical: prefer setting via DOCUMENT token since Meta service does not handle <link>
+  this.meta.updateTag({ property: 'og:title', content: 'About FSB' });
+  this.meta.updateTag({ property: 'og:description', content: 'How FSB works and why single-attempt reliability matters.' });
+  this.meta.updateTag({ property: 'og:url', content: 'https://full-selfbrowsing.com/about' });
+  this.meta.updateTag({ property: 'og:image', content: 'https://full-selfbrowsing.com/assets/og/default.png' });
+  this.meta.updateTag({ property: 'og:type', content: 'website' });
+  this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+  this.meta.updateTag({ name: 'twitter:title', content: 'About FSB' });
+  this.meta.updateTag({ name: 'twitter:description', content: 'How FSB works and why single-attempt reliability matters.' });
+  this.meta.updateTag({ name: 'twitter:image', content: 'https://full-selfbrowsing.com/assets/og/default.png' });
+}
+```
+
+### `llms.txt` (site root, ~40 lines)
+
+```markdown
+# FSB (Full Self-Browsing)
+
+> AI-powered browser automation Chrome extension. Describe a task in natural language; FSB executes the clicks, types, and navigation reliably on the first attempt. Ships with an MCP server (`fsb-mcp-server` on npm) so external AI hosts (Claude, Codex, Cursor, Continue, OpenClaw) can drive a real browser surface.
+
+FSB is open source. The core value is reliable single-attempt execution: the AI decides correctly and the mechanics execute precisely. Every click hits the right element with uniqueness-scored selectors, visible orange-glow feedback, and post-action verification.
+
+## Docs
+
+- [Home](https://full-selfbrowsing.com/): What FSB is and how to install
+- [About](https://full-selfbrowsing.com/about): Architecture, MCP integration, supported hosts
+- [Privacy](https://full-selfbrowsing.com/privacy): Data handling, encrypted API keys, no telemetry by default
+- [Support](https://full-selfbrowsing.com/support): GitHub issues, MCP host setup, troubleshooting
+
+## Optional
+
+- [GitHub repository](https://github.com/LakshmanTurlapati/FSB): Source code, issue tracker, releases
+- [npm: fsb-mcp-server](https://www.npmjs.com/package/fsb-mcp-server): MCP server distribution
+- [Full content export](https://full-selfbrowsing.com/llms-full.txt): Concatenated marketing pages for single-fetch ingestion
+```
 
 ## Feature Dependencies
 
 ```
-Sync tab top-level nav entry
-    └──requires──> nav-item switching logic in options.js (existing)
-    └──relocates──> #serverUrl / #serverHashKey / #btnGenerateHashKey / #btnCopyHashKey
-                    /#btnPairDashboard / #pairingQROverlay / #btnTestConnection / #connectionStatus
-                    └──currently lives at──> #background-agents section (control_panel.html line 700-748)
+Static prerender of marketing routes (build pipeline)
+    +-- required by --> Per-route <title>/<meta>/<link rel=canonical>
+    +-- required by --> Per-route OG / Twitter Card tags
+    +-- required by --> Organization JSON-LD (inherited via index.html)
+    +-- required by --> SoftwareApplication JSON-LD (home only)
+    +-- required by --> BreadcrumbList JSON-LD (about/privacy/support)
 
-Live connection status pill
-    └──requires──> ext:remote-control-state broadcast (Phase 209, shipped)
-    └──enhances──> existing #connectionStatus span (which only updates on Test Connection click)
+Express SPA-fallback adjustment (serve prerendered HTML before catch-all)
+    +-- required by --> All of the above (or crawlers see the empty <app-root> with title=FSB)
 
-Live remote-control state pill (differentiator)
-    └──requires──> ext:remote-control-state broadcast (Phase 209, shipped)
+robots.txt
+    +-- references --> sitemap.xml (Sitemap: line)
+    +-- enhances --> llms.txt (parallel signal; both opt AI crawlers in)
 
-Manual fallback pairing code
-    └──requires──> /api/pair/generate response (Phase 210, shipped — already returns token)
+llms.txt
+    +-- references --> llms-full.txt (link in Optional section)
+    +-- references --> Per-route prerendered HTML (links in Docs section)
 
-Last-paired timestamp
-    └──requires──> handshake-success event hook + chrome.storage.local persistence (new, ~10 lines)
+llms-full.txt
+    +-- generated from --> Prerendered HTML of /, /about, /privacy, /support
 
-Deprecation card (extension)
-    └──requires──> the existing #background-agents section to be repurposed
-    └──conflicts──> with leaving the agents form rendered (form must be hidden/removed)
-
-Deprecation card (showcase)
-    └──requires──> Angular content updates in src/app/pages/{home,about,dashboard}
-    └──depends on──> v0.9.29 Angular shell
-
-WebSocket inbound decompression
-    └──requires──> bridge/relay handshake to negotiate permessage-deflate in BOTH directions
-    └──invisible to──> users (no UI affordance)
-    └──verifiable via──> DevTools Network panel WS frame view
-
-Mutation queue watchdog
-    └──requires──> the existing mutation observer in content/ modules
-    └──depends on──> stream lifecycle events (streamStart, streamEnd, flush)
-    └──enhances──> existing diagnostic logging (Phase 200's pattern)
-
-Stale counter reset
-    └──requires──> watchdog + stream lifecycle hooks
-    └──depends on──> watchdog being implemented first (within same phase)
-
-Diagnostic logging
-    └──no dependencies──> pure refactor of existing try/catch blocks in dialog relay & message delivery
-    └──depends on──> grep audit to find every silent catch
+noindex on /dashboard (Angular Meta in ngOnInit)
+    +-- reinforced by --> Disallow: /dashboard in robots.txt
 ```
 
 ### Dependency Notes
 
-- **Sync tab requires nothing new structurally** — it's a relocation + nav addition. The hardest part is making sure no other code path references `#background-agents` and expects to find pairing UI there.
-- **Live status pill depends on Phase 209's broadcast contract** — if that broadcast isn't reliable across SW wake, the pill will lie. Worth a smoke test.
-- **Sunset card on showcase depends on Angular shell** — that landed in v0.9.29 (Phase 173), so the surface is ready.
-- **Watchdog and counter reset are tightly coupled** — must ship in the same plan; partial = false alarms.
-- **Compression symmetry has no UI dependency** — it's a pure transport-layer fix; testable only via WS frame inspection or by sending a payload that previously failed.
-- **Diagnostic logging is independent and parallelizable** — no blockers.
+- **Everything visible to crawlers requires prerender first.** Angular's `Title`/`Meta` services running in `ngOnInit` only mutate the runtime DOM. Without prerender, crawlers (which mostly do not execute JS -- including all OpenAI/Anthropic/Perplexity bots) see only the literal `<title>FSB</title>` and an empty `<app-root>`. This is why prerender is the keystone phase, not an optional polish.
+- **JSON-LD placement matters.** `Organization` belongs in `index.html` `<head>` so all prerendered routes inherit it (one definition, every page). `SoftwareApplication` belongs in the home-route component's prerendered output only, so it is bound semantically to `/`. `BreadcrumbList` belongs per non-home page.
+- **Express ordering is a silent failure mode.** If the catch-all `app.get('*', sendIndex)` runs before the static handler for `/about/index.html`, every prerendered file is shadowed and crawlers still see the SPA shell. The Express change is a hard prerequisite for the meta/JSON-LD phases.
+- **`llms-full.txt` should be generated, not hand-written.** Hand-maintained = drifts from the actual site within one release. Build-time generation from prerendered HTML keeps it in sync.
+- **`robots.txt`'s `Sitemap:` line is the only reliable sitemap discovery path.** Search Console submission is deferred per `PROJECT.md`; the robots.txt reference is what tells Googlebot/Bingbot where to look on first crawl.
 
-## MVP Definition (For This Milestone, Not the Whole Product)
+## MVP Definition
 
-### Must Ship in v0.9.45rc1 (P1)
+### Launch With (v0.9.46 -- this milestone)
 
-- [x] **Sync tab top-level nav entry** with QR pairing + hash key + connection status moved in (table stakes; users currently can't find pairing easily)
-- [x] **Live connection status pill** wired to `ext:remote-control-state` (table stakes; passive label is insufficient)
-- [x] **Background Agents tab body replaced with deprecation card** (milestone scope mandate)
-- [x] **Comment out (preserve) background-agent-only code paths** with deprecation annotation (PROJECT.md mandate, preserves shared utilities)
-- [x] **Showcase/dashboard mirror of sunset messaging** (consistency requirement)
-- [x] **DOM streaming watchdog + stale counter reset** (milestone scope mandate)
-- [x] **WebSocket inbound decompression** (milestone scope mandate; correctness, not feature)
-- [x] **Diagnostic console.warn replacing silent error swallowers** in dialog relay + message delivery (milestone scope mandate)
+The minimum to flip the site from "invisible to AI search" to "fully indexed and cited." Everything below is a hard requirement to ship the milestone.
 
-### Should Ship If Easy (P2)
+- [ ] Static prerender of `/`, `/about`, `/privacy`, `/support` -- keystone enabling everything else
+- [ ] Express SPA-fallback ordering fix -- prerendered HTML must win over `index.html` catch-all
+- [ ] Per-route `<title>` and `<meta name="description">` via Angular `Title`/`Meta` in 4 page components
+- [ ] Per-route `<link rel="canonical">`
+- [ ] Per-route OG tags (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`) + one shared default OG image
+- [ ] Per-route Twitter Card tags (`twitter:card=summary_large_image`, `twitter:title`, `twitter:description`, `twitter:image`)
+- [ ] `Organization` JSON-LD in `index.html` `<head>`
+- [ ] `SoftwareApplication` JSON-LD prerendered into `/index.html` (home route only)
+- [ ] `<meta name="robots" content="noindex,nofollow">` on `/dashboard`
+- [ ] `robots.txt` at site root with explicit per-bot Allow blocks + `Sitemap:` line + `Disallow: /dashboard`
+- [ ] `sitemap.xml` at site root with 4 marketing routes, `<loc>` and `<lastmod>` only
 
-- [ ] **Manual fallback pairing code** displayed under QR (small addition, big UX win for users without phone camera handy)
-- [ ] **Last-paired timestamp + UA string** (10 lines of code; substantial trust win)
-- [ ] **Manual Reconnect button** in Sync tab (visible only when disconnected)
+### Add After Validation (v0.9.47+)
 
-### Defer to Future (P3)
+Ship after v0.9.46 lands and there is at least one cycle of evidence (Search Console impressions, ChatGPT/Perplexity citations) confirming the foundation works.
 
-- [ ] **Live remote-control state chip** ("clicking now / typing now") — high polish, adds complexity, can ship in v0.9.46
-- [ ] **Stream health card** with mutations/s and queue depth — power-user nicety, not on critical path
-- [ ] **One-click Unpair / Sign Out of Dashboard** — depends on server endpoint that may not exist; can be local-only later
-- [ ] **Three rotating sunset taglines** — fun, but a single well-written tagline is sufficient
+- [ ] `llms.txt` -- trigger: v0.9.46 ships and the milestone proves the pipeline works end-to-end
+- [ ] `llms-full.txt` (auto-generated at build) -- trigger: same as above; bundle in same follow-up phase as `llms.txt`
+- [ ] `BreadcrumbList` JSON-LD on `/about`, `/privacy`, `/support` -- trigger: v0.9.46 ships clean and there is appetite for SERP polish
+- [ ] Per-route OG images (4 distinct 1200x630 PNGs) -- trigger: design pass after v0.9.46
+
+### Future Consideration (v0.9.50+)
+
+Explicitly deferred per `PROJECT.md` "Out of scope" or pending product evolution.
+
+- [ ] `FAQPage` JSON-LD -- defer until a real FAQ page exists (currently OOS)
+- [ ] Comparison pages + `Article` schema (`/vs-browser-use`, `/vs-mariner`, `/vs-stagehand`, `/vs-browseros`) -- OOS in current milestone
+- [ ] Search Console / Bing Webmaster registration + sitemap submission -- OOS
+- [ ] Off-page push (Show HN, Reddit, awesome-list PRs, YouTube) -- OOS
+- [ ] Angular Universal full SSR -- OOS, prerender is sufficient for static marketing
+- [ ] `WebSite` schema with `SearchAction` -- defer until on-site search exists (not on roadmap)
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Sync tab top-level (relocation) | HIGH | LOW | P1 |
-| Live connection status pill | HIGH | LOW-MEDIUM | P1 |
-| Sunset deprecation card (extension) | MEDIUM (avoids confusion) | LOW | P1 |
-| Background-agent code preservation comments | LOW user / HIGH operator | LOW (mechanical) | P1 |
-| Sunset mirror on showcase | MEDIUM | LOW | P1 |
-| DOM mutation queue watchdog | MEDIUM (stability) | MEDIUM | P1 |
-| Stale counter reset | MEDIUM (correctness) | LOW | P1 |
-| WS inbound decompression | HIGH (silent breakage fix) | MEDIUM | P1 |
-| Diagnostic logging refactor | HIGH (debuggability) | LOW | P1 |
-| Manual fallback pairing code | MEDIUM | LOW | P2 |
-| Last-paired timestamp | MEDIUM | LOW | P2 |
-| Manual Reconnect button | MEDIUM | LOW | P2 |
-| Live remote-control state chip | LOW-MEDIUM | MEDIUM | P3 |
-| Stream health card | LOW | MEDIUM | P3 |
-| Unpair / sign-out flow | MEDIUM | MEDIUM | P3 |
-| Rotating sunset taglines | LOW (delight) | LOW | P3 |
+| Static prerender of 4 marketing routes | HIGH | MEDIUM | P1 |
+| Express SPA-fallback ordering | HIGH | LOW | P1 |
+| Per-route `<title>` + `<meta description>` | HIGH | LOW | P1 |
+| Canonical link tag | HIGH | LOW | P1 |
+| OG + Twitter Card tags | HIGH | LOW | P1 |
+| `robots.txt` with AI crawler allowlist | HIGH | LOW | P1 |
+| `sitemap.xml` (loc + lastmod) | HIGH | LOW | P1 |
+| `Organization` JSON-LD | HIGH | LOW | P1 |
+| `SoftwareApplication` JSON-LD | HIGH | LOW | P1 |
+| `noindex` on `/dashboard` | MEDIUM | LOW | P1 |
+| `llms.txt` | MEDIUM | LOW | P2 |
+| `llms-full.txt` (generated) | MEDIUM | LOW | P2 |
+| `BreadcrumbList` JSON-LD | LOW | LOW | P2 |
+| Per-route OG images | LOW | MEDIUM | P3 |
+| `FAQPage` JSON-LD | MEDIUM | MEDIUM (requires FAQ page first) | P3 |
+| `HowTo` JSON-LD | LOW (Google deprecated rich result) | LOW | Anti-feature |
+| `priority`/`changefreq` in sitemap | LOW (Google ignores) | LOW | Anti-feature |
+| `WebSite` `SearchAction` | LOW (no on-site search exists) | LOW | Anti-feature |
 
-## Comparable Product Feature Analysis
-
-| Feature | GitHub Sessions | 2FAS Browser Pair | Chrome Remote Desktop | rrweb / Replay.io | FSB Approach |
-|---------|----------------|-------------------|------------------------|-------------------|--------------|
-| Top-level "devices/sessions" nav | Yes (Settings → Sessions) | Yes (Extension popup main view) | Yes (homepage tab) | N/A | **Yes — new top-level Sync tab** |
-| QR pairing | N/A | Yes (primary) | N/A (uses Google Account) | N/A | Yes (already shipped Phase 210) |
-| Manual code fallback | N/A | Yes (under QR) | Yes (access code) | N/A | **P2 — display token under QR** |
-| Last-seen / last-paired | Yes (shown per session) | Implicit | Yes ("Last connected") | N/A | **P2 — add timestamp** |
-| Manual revoke | Yes ("Revoke") | Yes ("Disconnect") | Yes ("Stop sharing") | N/A | **P3 — defer to follow-up** |
-| Live connection status | N/A (sessions shown post-hoc) | Yes (color dot) | Yes (live during session) | N/A | **P1 — connection status pill** |
-| Stuck-queue watchdog | N/A | N/A | N/A | **No — known pain point in rrweb #1447, #221** | **P1 — FSB ships this and is differentiated for it** |
-| Sunset card pattern | (Used for old 2FA flows) | N/A | N/A | N/A | **P1 — dry, witty, or minimal sample provided** |
-
-The comparable products converge on a clear signal: Sync/Devices is always top-level; status is always live; pairing always has both QR and a typeable code. FSB currently does none of these — that's exactly the gap this milestone closes. On the streaming side, FSB's mutation watchdog would be a genuine differentiator vs rrweb's known unsolved performance issues.
+**Priority key:**
+- P1: Must ship in v0.9.46
+- P2: Add in v0.9.47 follow-up milestone
+- P3: Defer until product/design appetite emerges
 
 ## Sources
 
-### Current FSB code (HIGH confidence — direct file reads)
-- `/Users/lakshmanturlapati/Desktop/FSB/.planning/PROJECT.md` (lines 11-27 milestone scope, 252-262 sunset list, 183-190 active requirements)
-- `/Users/lakshmanturlapati/Desktop/FSB/ui/control_panel.html` (lines 53-89 nav structure; lines 700-748 current Server Sync placement under Background Agents)
-- `/Users/lakshmanturlapati/Desktop/FSB/ui/options.js` (lines 4190-4943 pairing implementation)
-- `/Users/lakshmanturlapati/Desktop/FSB/showcase/angular/src/app/pages/dashboard/dashboard-page.component.html` (line 26 references "Server Sync" by current name)
+### OpenAI (verified)
+- OpenAI: Overview of OpenAI Crawlers -- https://platform.openai.com/docs/bots (canonical source for GPTBot/1.1, ChatGPT-User/1.0, OAI-SearchBot/1.0 identifiers and independent semantics)
+- OpenAI Help Center: Publishers and Developers FAQ -- https://help.openai.com/en/articles/12627856-publishers-and-developers-faq
 
-### Comparable product UX patterns (MEDIUM confidence — WebSearch with verification)
-- [GitHub: Viewing and managing your sessions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/viewing-and-managing-your-sessions) — last-seen, revoke, location per session
-- [GitHub Changelog: New session and device management settings page (2022)](https://github.blog/changelog/2022-11-16-new-session-and-device-management-settings-page/) — top-level nav for device mgmt
-- [2FAS browser extension pairing](https://2fas.com/support/browser-extension/how-to-pair-a-mobile-device-with-a-browser/) — QR + manual code + connection status
-- [Chrome Remote Desktop](https://remotedesktop.google.com/) — access code as fallback to QR
-- [rrweb Issue #1447: Performance with MutationObserver and rr-block](https://github.com/rrweb-io/rrweb/issues/1447) — confirms 10k+ mutations cause stuck queue (motivates watchdog)
-- [rrweb Issue #221: Throttling/pausing of Mutation Events](https://github.com/rrweb-io/rrweb/issues/221) — long-running issue confirming buffer pressure is a real, unsolved class of bug
-- [rrweb observer docs](https://github.com/rrweb-io/rrweb/blob/master/docs/observer.md) — confirms add/move/drop deduplication pattern; FSB watchdog complements not replaces it
+### Anthropic (verified)
+- Anthropic Privacy Center: Does Anthropic crawl data from the web -- https://privacy.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+- Anthropic Support (same article) -- https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+- Search Engine Journal: Anthropic's Claude Bots Make Robots.txt Decisions More Granular -- https://www.searchenginejournal.com/anthropics-claude-bots-make-robots-txt-decisions-more-granular/568253/
 
-### WebSocket compression (HIGH confidence — RFC + MDN)
-- [RFC 7692: Compression Extensions for WebSocket](https://datatracker.ietf.org/doc/html/rfc7692) — canonical spec; both peers MUST support both directions if negotiated
-- [MDN: Sec-WebSocket-Extensions](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Sec-WebSocket-Extensions) — handshake negotiation; browser handles inbound decompression automatically once negotiated
-- [Configuring & Optimizing WebSocket Compression — igvita.com](https://www.igvita.com/2013/11/27/configuring-and-optimizing-websocket-compression/) — practical asymmetry caveats
+### Cloudflare (verified bot data)
+- Cloudflare bots concepts -- https://developers.cloudflare.com/bots/concepts/bot/ (verified-bot universe including Applebot, Bytespider, ClaudeBot, GPTBot, Meta-ExternalAgent, CCBot)
+- Cloudflare Radar: Meta-ExternalAgent -- https://radar.cloudflare.com/bots/directory/meta-externalagent (March 2026 traffic share data)
+- Cloudflare blog: Control content use for AI training -- https://blog.cloudflare.com/control-content-use-for-ai-training/
+- Cloudflare blog: From Googlebot to GPTBot -- https://blog.cloudflare.com/from-googlebot-to-gptbot-whos-crawling-your-site-in-2025/
 
-### Sunset / deprecation messaging patterns (MEDIUM confidence)
-- [Microsoft: Project Online discontinuation guidance](https://www.holert.com/en/blog/microsoft-project-online-ends-alternatives) — example of named alternative + migration framing
-- [Google: Update on Google Business Messages](https://developers.google.com/business-communications/business-messages/resources/release-notes/update-on-gbm) — example of dated retirement + redirect copy
-- [Netlify: Deprecation of Post-processing Asset Optimization](https://www.netlify.com/blog/deprecation-of-post-processing-asset-optimization-feature/) — example of "as of [date]" + alternative phrasing
+### llms.txt specification
+- llmstxt.org official spec -- https://llmstxt.org/
+- Mintlify: What is llms.txt -- https://www.mintlify.com/blog/what-is-llms-txt (co-developer perspective; notes Anthropic collaboration and skepticism about actual ingestion)
+- Search Engine Land: llms.txt proposed standard -- https://searchengineland.com/llms-txt-proposed-standard-453676
+
+### Sitemap status (Google ignoring priority/changefreq in 2026)
+- sitemaps.org Protocol -- https://www.sitemaps.org/protocol.html (canonical schema; both fields still valid spec but "support varies")
+- Iridium Works: Change Frequency, Last Change and Priority Values in Sitemaps -- https://www.iridium-works.com/en/blog-post/change-frequency-last-change-and-priority-values-in-sitemaps (2026 Google posture)
+
+### JSON-LD / Schema.org for LLMs (MEDIUM confidence -- community consensus, not vendor-stated weighting)
+- Szymon Slowik: Schema & JSON-LD for LLM Search (LLMO/AEO/GEO) -- https://www.szymonslowik.com/json-ld-for-llm-seo/
+- Schema Pilot: JSON-LD Complete Guide 2026 -- https://www.schemapilot.app/blog/json-ld-guide/
+- SchemaApp: Why Structured Data is the Future of LLMs -- https://www.schemaapp.com/schema-markup/why-structured-data-not-tokenization-is-the-future-of-llms/
+- Schema.org SoftwareApplication -- https://schema.org/SoftwareApplication
+
+### General 2026 AI crawler landscape
+- No Hacks: AI User-Agent Landscape 2026 -- https://nohacks.co/blog/ai-user-agents-landscape-2026
+- WebSearchAPI: Monthly AI Crawler Report March 2026 -- https://websearchapi.ai/blog/monthly-ai-crawler-report
+- Lumina SEO: AI Crawlers 2026 Guide -- https://lumina-seo.com/blog/ai-crawlers-guide/
 
 ---
-*Feature research for: FSB v0.9.45rc1 — Sync surface, agent sunset, stream reliability*
-*Researched: 2026-04-28*
+*Feature research for: SEO + GEO/AEO/LLMO discoverability for `full-selfbrowsing.com`*
+*Researched: 2026-04-30*

@@ -1,187 +1,196 @@
 # Project Research Summary
 
-**Project:** FSB v0.9.45rc1 -- Sync Surface, Agent Sunset & Stream Reliability
-**Domain:** Brownfield Chrome MV3 extension + WebSocket relay + Angular 19 showcase mirror
-**Researched:** 2026-04-28
+**Project:** FSB v0.9.46 Site Discoverability (SEO + GEO)
+**Domain:** Static prerender + crawler/AI-bot discoverability for an Angular 19 SPA marketing site behind a custom Express on Fly.io
+**Researched:** 2026-04-30
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone is **mechanics, not greenfield.** Phases 209 (remote-control handlers) and 210 (QR pairing restoration) already shipped, and the remaining five feature areas -- Sync tab consolidation, background-agent sunset, DOM streaming hardening, WebSocket compression symmetry, and diagnostic logging replacement -- are uniformly "fix the asymmetry, harden the hot path, surface the hidden state." The single most important cross-cutting decision is that **no new dependency is needed.** `lz-string@1.5.0` is already vendored at `lib/lz-string.min.js` and loaded by the service worker via `importScripts` (`background.js:37`); `qrcode-generator@2.0.4` is already at `ui/lib/`; `LZString.decompressFromBase64` is already proven on the dashboard side (`showcase/js/dashboard.js:3517-3518`). The "compression asymmetry" the milestone calls out is a five-line addition to the inbound `onmessage` handler in `ws/ws-client.js:515-522` -- not a new compression library, not per-message-deflate, not `pako`.
+This is a focused integration milestone, not a greenfield design. `full-selfbrowsing.com` is an Angular 19 SPA whose marketing routes (`/`, `/about`, `/privacy`, `/support`) currently return only an empty `<app-root>` with the literal `<title>FSB</title>` to every non-JS crawler -- meaning GPTBot, ClaudeBot, PerplexityBot, Google-Extended, and standard Googlebot collectively see nothing about what FSB is. The verified, expert-validated approach is Angular's first-party static prerender path (`@angular/ssr` + `outputMode: "static"` under the existing `@angular/build:application` builder), per-route `Title`/`Meta` injection in the existing 5 page components, JSON-LD (`Organization` + `SoftwareApplication`) baked into prerendered HTML, and four crawler root files (`robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`) shipped from `showcase/angular/public/`.
 
-The recommended approach is to **reuse existing platform primitives and existing FSB conventions verbatim**: the control panel's `<li class="nav-item" data-section="X">` + `<section class="content-section" id="X">` pattern is the canonical extension point for both the new Sync tab and the deprecation card -- adding a framework would force a build system, which the project explicitly rejects (CLAUDE.md). The DOM streaming hardening uses native `TreeWalker` + a single batch-read of `getBoundingClientRect` to collapse N forced reflows into 1 layout flush, plus a two-tier watchdog (`chrome.alarms` SW-side, `setTimeout` + monotonic counter content-script-side) -- because `requestIdleCallback` is not exposed in `ServiceWorkerGlobalScope` and `setInterval` longer than ~30s dies on SW eviction. The agent sunset preserves shared utilities by commenting out (not deleting) at the file level AND adding a deprecation gate constant so every entrypoint -- alarm listener, MCP tool, dashboard `dash:agent-run-now`, `ws/mcp-bridge-client.js` route -- returns a structured `{ ok: false, deprecated: true, ... }` response instead of half-noop.
+The recommendation is **build-time static only** -- no runtime SSR, no third-party prerender SaaS, no `@nguniversal/*` (deprecated and incompatible with the esbuild-based builder already in use). Total dependency surface: one new devDep (`@angular/ssr@^19`) and one ~80-line Node ESM script for the discovery files. The Express server needs a single surgical change: the existing scoped SPA-fallback handler at `server/server.js:111` currently serves the root `index.html` for every marketing route, **shadowing** any per-route prerendered HTML. The fix is to make the handler prerender-aware (prefer `staticPath/<route>/index.html` when present, fall back to root only for `/dashboard`).
 
-The biggest risks are not technical but procedural: **silent half-deprecation** (commenting UI but leaving alarm listeners + MCP tool registrations hot, producing zombie handlers), **silent log spam** (the v0.9.40 `.catch(()=>{})` -> `console.warn` pattern works for ~1/s lifecycle events but will flood DevTools at 10-50/s on per-mutation hot paths unless rate-limited), **silent data leakage** (logging full URLs with OAuth tokens or dialog text with passwords), and **silent stream staleness** (resetting the stale-mutation counter on `ws.send` returning truthy rather than on dashboard ack). All four are addressable up front with a deprecation gate constant + alarm-cleanup-on-update; rate-limited + redacted logging via a `redactForLog` helper; and an explicit ack contract for stale-counter resets.
+Key risks are concentrated and well-known: (1) the inline `localStorage` IIFE in `src/index.html` will crash prerender unless guarded with `typeof localStorage !== 'undefined'`; (2) `/dashboard` must be explicitly excluded from the prerender route list (it depends on `chrome.storage`, runtime DOM streaming, and live WebSocket state -- prerendering it produces broken HTML); (3) Express middleware order must let static middleware win over the SPA fallback for marketing routes while still serving the SPA shell for `/dashboard`; (4) JSON-LD must use `JSON.stringify` with `</` -> `<\/` escaping to defeat script-tag injection. All four are preventable with explicit code patterns documented in the research files.
 
 ## Key Findings
 
 ### Recommended Stack
 
-**Verdict: zero net new dependencies.** This is not a stack-expansion milestone -- it is a stack-symmetry and stack-discipline milestone.
+The entire milestone is delivered with one new package and one local Node script -- no new framework, no new runtime, no third-party services. The existing `@angular/build:application` builder, Express server, Fly.io deployment, and `public/` asset glob already provide every hook needed.
 
-**Core primitives (all already present):**
-- `lz-string@1.5.0` (`lib/lz-string.min.js`) -- inbound decompression to mirror outbound `LZString.compressToBase64` envelope; library loaded into the SW, the call site is missing.
-- `qrcode-generator@2.0.4` (`ui/lib/qrcode-generator.min.js`) -- Phase 210's QR rendering, relocated unchanged.
-- Native `TreeWalker` (`NodeFilter.SHOW_ELEMENT`) -- replaces `clone.querySelectorAll('[data-fsb-nid]')` + per-node `getBoundingClientRect()` in `content/dom-stream.js:467-489`.
-- Native `chrome.alarms` (`fsb-domstream-watchdog`, `periodInMinutes: 1`) -- SW-side watchdog that survives idle eviction. Same pattern in `ws/mcp-bridge-client.js:205`.
-- Native `setTimeout` + monotonic counter -- content-script side stuck detection.
-- Existing `<li class="nav-item" data-section="X">` + `<section class="content-section" id="X">` (`ui/control_panel.html:50-90`) -- canonical for both Sync tab and deprecation card.
+**Core technologies:**
+- `@angular/ssr@^19.0.0` (devDep) -- provides the prerender machinery wired into the existing application builder. Verified as the only first-party path for Angular 19's esbuild-based builder.
+- `outputMode: "static"` (angular.json key, no package) -- tells the builder to emit pure static HTML per route at build time with no Node SSR runtime. Marketing routes have no per-request data; static is correct.
+- `@angular/router` `Title` + `Meta` services (already installed via `@angular/platform-browser`) -- per-route `<title>`, `<meta name="description">`, OG, Twitter, canonical written in `ngOnInit` and captured into the prerendered HTML snapshot.
+- ~80-line local Node ESM build script (`scripts/generate-discovery-files.mjs`) -- emits `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt` into `public/` from a hand-curated route manifest. Runs as `prebuild` npm script.
 
-**Pinned, do NOT upgrade:** Angular 19.0.x. Angular 19 hits EOL 2026-05-19 (~3 weeks after this milestone target); the migration to Angular 20 is a separate milestone with its own scope.
+**What NOT to use:** `@nguniversal/*` (deprecated, Webpack-era, incompatible with `@angular/build:application`); `prerender.io` / Rendertron / headless-Chrome SaaS (external SPOF, latency tax, defeats the point of build-time prerender); full SSR `outputMode: "server"` (overkill, explicitly OOS per PROJECT.md); `sitemap` / `next-sitemap` / `angular-prerender` npm packages (5-30 transitive deps for a few hundred bytes of XML).
 
-See `STACK.md` for precise integration points, line numbers, and the rationale for each rejection.
+See [STACK.md](STACK.md) for the full angular.json patch, Express integration diff, and version-compatibility matrix.
 
 ### Expected Features
 
-The five milestone areas decompose into 9 P1 features, 3 P2 nice-to-haves, and 4 P3 defers.
+Marketing-site discoverability has well-established table stakes in 2026. AI-crawler-aware files (`llms.txt`, explicit per-bot `robots.txt` Allow blocks) are still convention-rather-than-standard, but the cost-benefit strongly favors shipping them.
 
-**P1 (must have):**
-- Sync tab as a top-level nav-item with QR pairing, hash key, and connection status moved out of the Background Agents section. Phase 210 controller functions (`showPairingQR`, `cancelPairing`, etc. at `ui/options.js:4766-4946`) are bound to document-scoped IDs and continue to work after the section moves.
-- Live connection status pill wired to `ext:remote-control-state` (Phase 209) with replay-on-attach via a new `getRemoteControlState` runtime action. Passive `#connectionStatus` text is insufficient.
-- Background Agents tab body replaced with a deprecation card (playful tone, named alternatives: OpenClaw + Claude Routines, dated effective version, links out, no nag, no blocking modal).
-- Comment-out (not delete) of agent-only code with `// DEPRECATED v0.9.45rc1: ...` annotation; preserved storage key `bgAgents`.
-- Showcase mirror of the sunset messaging -- `home-page.component.html` Background Agents card replaced; agent blocks commented but `ext:remote-control-state` and `_lz` decompression preserved.
-- DOM streaming watchdog + stale counter reset (two-tier; resets on `ext:snapshot` boundary; new `staleFlushCount` field in `ext:stream-state`, NOT in `ext:dom-mutations`).
-- Large-DOM truncation perf fix -- TreeWalker + cached rect map. Truncate at the **node** level, not the byte level.
-- WebSocket inbound `_lz` decompression -- five-line add to `ws/ws-client.js:515-522`. Self-identifying envelope.
-- Diagnostic `console.warn` replacing silent `.catch(()=>{})` with layered prefixes (`[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`), rate-limited per category, redacted via `redactForLog`.
+**Must have (table stakes for v0.9.46 -- ship-or-fail):**
+- Static prerender of `/`, `/about`, `/privacy`, `/support` (the keystone -- every other feature depends on it landing first)
+- Express SPA-fallback ordering fix (without this, prerendered HTML is shadowed and crawlers still see the empty shell)
+- Per-route `<title>` + `<meta name="description">` via Angular `Title`/`Meta` services
+- Per-route `<link rel="canonical">` (absolute HTTPS URL, no trailing slash)
+- Per-route Open Graph + Twitter Card tags + one shared 1200x630 default OG image
+- `Organization` JSON-LD in `index.html` `<head>` (inherited by all prerendered routes via `@id` reference)
+- `SoftwareApplication` JSON-LD on home route only (semantically bound to `/`)
+- `<meta name="robots" content="noindex,nofollow">` on `/dashboard` (auth-gated, no SEO value)
+- `robots.txt` at site root with explicit per-bot `Allow:` blocks for GPTBot, ChatGPT-User, OAI-SearchBot, ClaudeBot, Claude-User, Claude-SearchBot, PerplexityBot, Google-Extended, Applebot-Extended, Amazonbot, Bytespider, CCBot, Meta-ExternalAgent + `Sitemap:` directive + `Disallow: /dashboard`
+- `sitemap.xml` at site root with 4 marketing routes, `<loc>` and `<lastmod>` only (Google explicitly ignores `priority` and `changefreq` in 2026)
 
-**P2 (ship if cheap):** manual fallback pairing code under the QR; last-paired timestamp + UA; manual Reconnect button (visible only when disconnected/reconnecting).
+**Should have (differentiators -- ship in same milestone if cheap, else v0.9.47):**
+- `llms.txt` (markdown index per llmstxt.org convention, used by Anthropic, Cloudflare, Stripe; 844K+ adopters by Oct 2025)
+- `llms-full.txt` (auto-generated from prerendered HTML, capped at ~256KB per practical scraper limits)
+- `BreadcrumbList` JSON-LD on `/about`, `/privacy`, `/support`
 
-**P3 (defer):** live remote-control state chip ("Idle" / "Active -- clicking" / "Active -- typing"); stream health card; one-click Unpair; rotating sunset taglines.
+**Defer (v0.9.50+ or pending product evolution):**
+- `FAQPage` JSON-LD (no FAQ page exists yet -- faking content violates Google policy)
+- Comparison pages + `Article` schema (`/vs-browser-use`, etc., explicitly OOS in PROJECT.md)
+- Search Console / Bing Webmaster registration (OOS)
+- Off-page push (Show HN, Reddit, awesome-list PRs, YouTube) (OOS)
+- Angular Universal full SSR (OOS, prerender is sufficient)
+- `WebSite` `SearchAction` (no on-site search exists)
 
-See `FEATURES.md` for the full prioritization matrix and microcopy bank.
+**Anti-features to actively reject:** `HowTo` JSON-LD (Google deprecated rich result late 2023); `priority`/`changefreq` in sitemap (Google ignores); `noai` / `noimageai` meta (FSB *wants* AI ingestion -- LLM citations are the goal); wildcard `Disallow: /` -> per-bot `Allow:` posture (inverts open-web default, fragile); auto-discovered prerender routes (would sweep `/dashboard` into prerender).
+
+See [FEATURES.md](FEATURES.md) for the verified 2026 AI-crawler list with vendor citations, concrete payloads (robots.txt, sitemap.xml, JSON-LD blocks, per-route meta), and the priority matrix.
 
 ### Architecture Approach
 
-The architecture is **integration into existing surfaces**, not new components. Five concrete layers change, in order of independence:
+This is an **integration architecture**, not a greenfield design. Every hook exists today: the application builder supports prerender natively in v19, the `public/**/*` asset glob already writes to dist root with no `output:` prefix, `express.static` is registered before the SPA fallback, and the SPA fallback is already scoped (not a global wildcard). The minimal-disruption integration is four touches: enable prerender in `angular.json`, inject `Title`/`Meta` per route component, drop crawler files in `showcase/angular/public/`, patch the Express SPA fallback to prefer per-route `index.html`.
 
-1. **`ws/ws-client.js` inbound handler** (515-522) -- gains a `_lz` envelope check before `_handleMessage`. Single-file change, no new contract.
-2. **`content/dom-stream.js` mutation pipeline** (467-489 truncation; 670-688 batching; new `lastDrainTs`, `staleFlushCount` module state) -- watchdog + truncation rewrite. Does NOT change `ext:dom-mutations` payload shape.
-3. **`background.js` agent surface** (160-163, 5586-5752, 12542-12605, 12634, 12652) -- comment out alarm-handler agent branch (PRESERVE the `MCP_RECONNECT_ALARM` early-return at 12533-12540), comment out router cases, comment out rescheduler calls. Add deprecation gate constant; add one-time `chrome.alarms` cleanup-on-update for `fsb_agent_*` alarms.
-4. **`ui/control_panel.html` + `ui/options.js` Sync tab** -- new `<li data-section="sync">` + `<section id="sync">`; **MOVE** (do not duplicate) Server Sync card and pairing overlay (700-748) into `#sync`; new `initializeSyncSection()` re-wires existing handlers. The `switchSection` monkey-patch at 3082-3099 extends with a `sync` case calling `refreshRemoteControlState()`.
-5. **Showcase Angular shell + vanilla dashboard** -- copy/nav updates for Sync surface; agent-sunset card body replacement. **Preserve `ext:remote-control-state` and `_lz` decompression paths in `dashboard-page.component.ts:3204-3205, 3386`.**
+**Major components (all touch points are modifications to existing files; no new architectural layers):**
+1. **`angular.json` build target** -- add `prerender: { discoverRoutes: false, routesFile: "prerender-routes.txt" }` and `outputMode: "static"` under the existing `@angular/build:application` block. Explicit route list excludes `/dashboard`.
+2. **5 page components** (`home/about/privacy/support/dashboard-page.component.ts`) -- inject `Title` and `Meta` from `@angular/platform-browser` in `ngOnInit`; home component additionally injects `SoftwareApplication` JSON-LD via `document.createElement('script')`; dashboard component sets `noindex,nofollow`.
+3. **`showcase/angular/public/`** -- host `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` (existing glob copies them to dist root). Generated at build time by a new `scripts/generate-discovery-files.mjs` invoked via `prebuild` npm script.
+4. **`server/server.js:111` SPA-fallback handler** -- replace the unconditional root-index.html send with a prerender-aware handler that prefers `staticPath/<route>/index.html` when present and falls back to root only for `/dashboard`. Existing `express.static` cache headers extended with explicit `Cache-Control: public, max-age=3600` and `Content-Type` for `*.txt` and `*.xml`.
 
-**Cross-cutting state contracts:**
-- Remote-control state today is one-way **outbound**; Sync tab needs a **pull** API (`getRemoteControlState`) plus an in-extension **push** (`remoteControlStateChanged` runtime message). Replay-on-attach is mandatory.
-- Stale-mutation counter resets on the same boundary that emits `ext:snapshot` (NB: open question on ack-based vs flush-based -- see Research Flags).
-- `chrome.storage.local['bgAgents']` is preserved.
-- The shared `chrome.alarms.onAlarm` listener MUST keep its `MCP_RECONNECT_ALARM` early-return when the agent branch is commented out.
-
-See `ARCHITECTURE.md` for precise per-file edit ranges, the SHARED-DO-NOT-TOUCH list, and per-area integration risks.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full file:line map, build-time and request-time data flow diagrams, integration anti-patterns, and the static-vs-generated sitemap trade-off discussion.
 
 ### Critical Pitfalls
 
-Five pitfalls rise to "must address in Plan 1 of the relevant phase":
+The pitfalls research identified ten distinct failure modes; the four below are the high-impact ones that single-handedly determine whether the milestone ships clean.
 
-1. **Zombie agent handlers after partial sunset** (P2). Commenting only the UI leaves four entrypoints hot: `chrome.alarms.onAlarm`, MCP tool registrations, `dash:agent-run-now`, `ws/mcp-bridge-client.js`. **Mitigation:** export `BG_AGENTS_DEPRECATED = true` from a single source; gate every entrypoint at the top; one-time `chrome.alarms.getAll()` cleanup on update; MCP tools return explicit `{ ok: false, deprecated: true, message: '...' }`.
-2. **Orphaned deep links to retired anchors** (P1). `options.html#agents`, `#pair`, `#remote` are referenced from showcase nav, popup, docs. **Mitigation:** in-page redirect shim in `ui/options.js` runs on `DOMContentLoaded` BEFORE any other init; rewrites legacy hashes to `#sync`; lives at least through v0.9.46.
-3. **`setInterval` watchdog dies on MV3 SW idle** (P5). Pre-MV3 muscle memory will reach for `setInterval`; it stops firing 30s after SW idle. **Mitigation:** `chrome.alarms.create` survives SW eviction; on SW wake, re-resolve stream state via `domStreamHealthCheck` to the active content script and wait for ack.
-4. **Mid-element truncation produces invalid HTML on the dashboard** (P7). Byte-level `string.slice` lands inside `<div class="abc...`. **Mitigation:** node-level truncation via TreeWalker; emit `truncated: true, missingDescendants: N` sentinel; cap at 80% of relay's per-message limit.
-5. **Diagnostic logging leaks user data and floods the console** (P10 + P11). The v0.9.40 pattern fires ~1/s on lifecycle events but dialog-relay / message-delivery paths fire 10-50/s; naively logging `{url, dialogText, response}` exposes OAuth tokens, password-reset codes, MFA codes. **Mitigation:** `redactForLog` helper -- log `URL(x).origin` only, `{kind: 'prompt', textLength: 23}` not the text, status codes not bodies; rate-limit per error category (one warn per 10s with counter rollup); ring buffer in `chrome.storage.local` (last 100 entries); "Export diagnostics" button in Sync tab.
+1. **`localStorage` access in `src/index.html` crashes prerender.** The current inline IIFE (lines 8-15 of `src/index.html`) calls `localStorage.getItem('fsb-showcase-theme')` before Angular bootstraps. Under prerender, `localStorage` is undefined and the script throws `ReferenceError`, which either fails the prerender entirely or silently emits an HTML file with the wrong theme baked in. **Avoid:** wrap the IIFE in `if (typeof localStorage === 'undefined') return;`. Bake default (dark) theme into prerender; let the inline script *upgrade* to light when storage is available at runtime.
+2. **`/dashboard` accidentally prerendered.** The default prerender configuration enumerates all unparameterized `Routes`. `/dashboard` is unparameterized, so it sweeps in by default -- and prerendering it produces broken HTML because the page depends on `chrome.storage`, `dashboard-runtime-state.js`, `html5-qrcode`, and live WebSocket state. **Avoid:** explicit `discoverRoutes: false` + `routesFile: prerender-routes.txt` listing only `/`, `/about`, `/privacy`, `/support`. Add a build-time assertion that `dist/.../browser/dashboard/index.html` does NOT exist.
+3. **Express middleware order shadows prerender output and/or swallows crawler files.** The current SPA-fallback handler at `server/server.js:111` returns the *root* `index.html` for every marketing route, overriding any per-route prerendered file. A naive "future-proofing" change to `app.get('*', ...)` would additionally swallow `/robots.txt`, `/sitemap.xml`, `/llms.txt`. **Avoid:** keep the scoped allowlist; make the handler prerender-aware (prefer `staticPath/<route>/index.html` if it exists, else root); never use a wildcard.
+4. **Invalid or duplicate JSON-LD.** Failure modes include multiple conflicting `Organization` blocks across pages, wrong `@context` (`http://schema.org`), `</script>` substring inside a JSON-LD value closing the script block early, trailing commas / single quotes / unescaped newlines from template-literal authoring. **Avoid:** one canonical `Organization` block on `/` only; cross-reference via `@id` from other pages; build via `JSON.stringify(obj).replace(/</g, '\\u003c')`; validate every prerendered page with Google Rich Results Test in CI before merge.
 
-Remaining pitfalls (P3 storage loss, P4 watchdog false-positives, P6 stale-counter ack semantics, P8 asymmetric `_lz`, P9 deflate sliding-window, P12 re-throw breaks v0.9.40 exit guarantees, P13 DevTools level filter) are addressable in the same phases without milestone-blocker status, but each has a verification step in PITFALLS.md.
+Honorable mentions worth tracking in phase planning:
+- **`robots.txt` `Disallow: /` typo** has a 24h+ recovery window because some crawlers cache it; CI grep for `^Disallow: /$` catches it before deploy.
+- **`sitemap.xml` `lastmod` format** must be W3C ISO 8601 (`YYYY-MM-DD`); `xmllint --noout` in CI catches malformed XML.
+- **Cache-Control on `*.txt` / `*.xml` defaults to nothing** -- explicit `Cache-Control: public, max-age=3600` prevents bad-deploy edge-cache poisoning.
+- **`llms.txt` linking to non-prerendered URLs** undoes the entire point; verify each link with `curl -A "ClaudeBot"` (no JS).
+- **Hydration determinism** (future SSR concern) -- write `Title`/`Meta` calls deterministically now to keep the future SSR migration painless.
 
-## Cross-Cutting Decisions
-
-These decisions apply across multiple phases and must be enforced by review:
-
-- **Zero new libraries.** No `package.json` changes. No new vendored libs.
-- **Comment, do not delete.** Agent code preserved with `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md.` for grep-findability.
-- **Move, do not duplicate.** Server Sync card (700-748) is RELOCATED into `#sync`; IDs unchanged.
-- **Replay-on-attach for runtime state.** Any UI subscribing to `ext:*` events MUST also pull last-known state via a `getX` runtime action.
-- **Symmetric envelope semantics.** `_lz: true` is self-identifying and stateless per-frame. Do NOT introduce permessage-deflate or per-connection stateful compression.
-- **Layered diagnostic prefixes.** `[FSB DLG]`, `[FSB BG]`, `[FSB WS]`, `[FSB DOM]`, `[FSB SYNC]`. Each layer logs its own failures.
-- **Hot-path logging is rate-limited and redacted.** Lifecycle events: unconditional `console.warn`. Per-action / per-mutation: rate-limited per category, with a counter rollup.
-- **Recoverable warns stay recoverable.** No `.catch(err => { console.warn(...); throw err; })` without explicit comment. Default: log and return undefined / fallback.
-- **Use `chrome.alarms`, never long `setInterval`, in the service worker.** Same pattern as `ws/mcp-bridge-client.js:205`.
-- **Preserve the `MCP_RECONNECT_ALARM` early-return** at `background.js:12533-12540`. Regression test required.
-- **Showcase mirror is content + nav, not framework work.** Pin Angular 19.0.x.
-
-## Anti-List (What NOT To Do)
-
-| Tempting | Wrong because | Do this instead |
-|----------|---------------|-----------------|
-| Add a build system / bundler | CLAUDE.md forbids it. | Continue to vendor minified files; load directly. |
-| Add React/Vue/Svelte/Lit/Alpine | Forces a build system; 30 lines of HTML do not need a framework. | `document.createElement` + `data-section` pattern. |
-| Replace LZ-string with `pako` or `DecompressionStream("deflate-raw")` | LZ-string is custom LZW, NOT RFC 1951 DEFLATE. Switching ends up requiring a feature-flag handshake. | Reuse `LZString.decompressFromBase64`. |
-| Negotiate `Sec-WebSocket-Extensions: permessage-deflate` | Per-connection stateful compression; one bad frame poisons the sliding window. | Stay at the `{_lz: true, d: ...}` app-layer envelope. |
-| Delete `chrome.storage.local['bgAgents']` to "tidy up" | Permanent loss of every user-created agent. | Preserve. Add `fsb_sunset_notice` writer with copy-to-clipboard export. |
-| Auto-redirect or 404 the old Background Agents tab | Users have muscle memory + bookmarks. | Keep nav-item visible with deprecation card body for one full release cycle. |
-| Hide the Sync tab behind "Advanced" | Remote control IS the headline UX. | Top-level. |
-| Block UI interaction during reconnect | Users want to keep configuring. | Status pill changes; rest stays interactive. |
-| Add a "Disable Watchdog" toggle | Watchdog is correctness, not a feature. | Always on. |
-| Toast notification on every watchdog trip | Toast spam = ignored toast. | Single rate-limited `console.warn` + ring-buffer entry. |
-| `setInterval` watchdog in `background.js` | Dies on SW idle; reintroduces v0.9.40-class silent loss. | `chrome.alarms`. |
-| Byte-level truncation of DOM JSON | Mid-element cuts produce invalid HTML. | Node-level with `truncated: true, missingDescendants: N` sentinel. |
-| Reset stale-mutation counter on `ws.send` truthy | Transport success is not end-to-end delivery. | Reset on `dash:dom-mutation-ack` with sequence id (or on `ext:snapshot` boundary -- see Research Flags). |
-| Re-throw after `console.warn` for "correctness" | Breaks v0.9.40 exit-path guarantees. | Recoverable warns stay recoverable. |
-| Log full URLs and dialog text | Leaks OAuth tokens, MFA codes, passwords. | `redactForLog` -- origin only, length+presence only. |
-| `console.error` for transient transport failures | Triggers DevTools red-badge alerts; trains users to ignore. | `console.warn` for recoverable; `console.error` only for invariant violations. |
-| Per-mutation `console.warn` without rate-limiting | DevTools floods at 10-50/s. | Rate-limit per category to one warn per 10s with counter rollup. |
-| Upgrade Angular 19 -> 20 in this milestone | New build pipeline; multi-week migration; out of scope. | Pin `^19.0.0`. Schedule Angular 20 migration as its own milestone before 2026-05-19. |
-| Rewrite the pairing protocol while moving the UI | Phase 210 is shipped + working. | Strict relocation + polish. |
+See [PITFALLS.md](PITFALLS.md) for the full ten-pitfall catalog with warning signs, recovery costs, and the pitfall-to-phase mapping.
 
 ## Implications for Roadmap
 
-**Suggested phase shape: 3 phases, ordered by isolation -> dependency direction.**
+The four research files converge on the same phase ordering: **prerender first, structured data second, Express + crawler files third, validation last.** Each phase's output is a prerequisite for the next phase's verification, so deviating from this order forces phases to be re-tested.
 
-### Phase 1: Stream Reliability + Diagnostic Logging
-**Rationale:** Maximally isolated. No coupling to Sync tab or agent sunset. Pure content-script + ws-client.js + grep-replace-and-test. Lands first so watchdog and decompression are present when the Sync tab starts surfacing live state in Phase 3. Three plans, parallelizable.
-**Delivers:** WS inbound `_lz` decompression; DOM streaming hardening (TreeWalker + cached rects, two-tier watchdog, stale counter reset, node-level truncation with sentinel, `staleFlushCount` in `ext:stream-state`); `redactForLog` helper + diagnostic `console.warn` with layered prefixes, rate-limiting per category, ring buffer.
-**Avoids:** P5, P7, P8, P9, P10, P11, P12, P13.
+### Phase 1: Prerender Foundation + Per-Route Metadata
 
-### Phase 2: Background Agent Sunset
-**Rationale:** Must precede Sync-tab surgery -- the Sync tab MOVES the Server Sync card OUT OF the `#background-agents` section. Three plans (gate + alarm cleanup; UI commenting + showcase mirror; MCP surface deprecation) with strict ordering: gate BEFORE UI removal, alarm cleanup in the SAME release as UI removal.
-**Delivers:** `BG_AGENTS_DEPRECATED = true` constant + deprecation gate at every entrypoint; `chrome.runtime.onInstalled` (reason=update) one-time alarm cleanup for `fsb_agent_*`; comment-out (not delete) of agent files and entrypoints with `// DEPRECATED v0.9.45rc1: ...` annotations; deprecation card replacing Background Agents tab body; showcase mirror; MCP tools return `{ ok: false, deprecated: true, ... }`.
-**Avoids:** P2, P3.
+**Rationale:** Prerender is the keystone -- without static HTML on disk, sitemap entries point at empty shells, JSON-LD never lands in served HTML, the Express patch has nothing to serve, and AI crawlers continue to see the literal `<title>FSB</title>`. The `localStorage` guard fix is bundled here because it is a hard prerequisite for prerender to even succeed in CI. Per-route `Title`/`Meta` is also bundled because (a) prerender output without per-route metadata is a fundamentally incomplete artifact, and (b) prerender execution is the only way to verify that `Title`/`Meta` writes actually land in the served HTML rather than just the runtime DOM.
+**Delivers:** `npm run build` emits `dist/showcase-angular/browser/{index,about/index,privacy/index,support/index}.html`, each with route-specific `<title>`, `<meta name="description">`, canonical, OG, and Twitter Card tags. `dashboard/index.html` does NOT exist. `/dashboard` page component sets `noindex,nofollow`.
+**Addresses:** "Static prerender of marketing routes", "Per-route SEO/AEO metadata via Angular `Title`/`Meta` services" (FEATURES.md must-haves).
+**Avoids:** Pitfall 1 (`localStorage` prerender crash); Pitfall 2 (`/dashboard` accidentally prerendered); Pitfall 9 (hydration determinism for future SSR).
+**Uses:** `@angular/ssr@^19.0.0`, `outputMode: "static"`, `prerender.routesFile`, `Title`/`Meta` from `@angular/platform-browser`.
 
-### Phase 3: Sync Tab Build
-**Rationale:** Depends on Phase 2's UI surgery. Four plans, with 3A and 3B as a single atomic commit (co-dependent IDs + handlers).
-**Delivers:** `<li data-section="sync">` + `<section id="sync">` with relocated Server Sync card and pairing overlay (IDs unchanged); deep-link redirect shim rewriting `#dashboard`, `#agents`, `#pair`, `#remote` to `#sync`; `initializeSyncSection()` re-wiring; `getRemoteControlState` runtime action + `remoteControlStateChanged` push; live connection status pill; visibility-gated QR countdown; showcase Sync surface copy.
-**Avoids:** P1.
+### Phase 2: Structured Data (JSON-LD)
 
-### Phase ordering rationale
-- Phase 1 -> 2 -> 3 by dependency direction.
-- Within Phase 1, plans are parallel-safe (different files).
-- Within Phase 2, plans are sequenced to avoid the zombie-handler window.
-- Within Phase 3, 3A + 3B = atomic commit; 3C + 3D in parallel.
-- No phase changes the `ext:dom-mutations` payload shape.
+**Rationale:** JSON-LD requires Phase 1 to land first because the script tags are injected via `ngOnInit` and only the prerender pass captures them into the served HTML. Verification is via `view-source:` of the prerendered HTML files, which only exist after Phase 1. Bundling JSON-LD with Phase 1 would conflate two distinct verification gates (route-level metadata correctness vs. schema.org validity); separating them keeps each phase's success criterion sharp.
+**Delivers:** `Organization` JSON-LD in `index.html` `<head>` (inherited by all prerendered routes via `@id`); `SoftwareApplication` JSON-LD on `/index.html` only; CI gate that runs Google Rich Results Test API on every prerendered page.
+**Addresses:** "JSON-LD structured data (Organization + SoftwareApplication) embedded in prerendered HTML" (FEATURES.md must-have).
+**Avoids:** Pitfall 4 (invalid or duplicate JSON-LD); the `</script>` injection vector via the `JSON.stringify(...).replace(/</g, '\\u003c')` pattern.
+**Uses:** Schema.org `Organization` and `SoftwareApplication` types; optional `schema-dts` for compile-time type-checking only.
+
+### Phase 3: Express Wiring + Crawler Root Files
+
+**Rationale:** The Express SPA-fallback patch is meaningful only when per-route prerendered files exist on disk (Phase 1 prerequisite). The crawler root files (`robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`) are bundled into the same phase because they share the same verification flow (`curl -I` headers, content-type, cache-control, end-to-end sitemap entry resolution). The `llms-full.txt` generator depends on prerendered HTML existing on disk to extract content from. Splitting Express from crawler files would force two rounds of `curl` smoke testing; bundling lets one validation pass cover both.
+**Delivers:** `server/server.js:111` patched to prefer per-route prerendered HTML; explicit `Cache-Control: public, max-age=3600` and `Content-Type` headers for `*.txt`/`*.xml`. `scripts/generate-discovery-files.mjs` emits `robots.txt` (with verified 2026 AI-crawler allowlist), `sitemap.xml` (4 routes, `<loc>` + `<lastmod>` only), `llms.txt`, `llms-full.txt` (capped at 256KB) into `public/` via `prebuild` npm script.
+**Addresses:** "AI-crawler root files at site root", "Express SPA-fallback adjustment" (FEATURES.md must-haves); `llms.txt` / `llms-full.txt` (FEATURES.md should-haves -- bundle in same phase since the generator script handles both for free).
+**Avoids:** Pitfall 3 (Express ordering shadowing prerender + crawler files); Pitfall 5 (`robots.txt` typos); Pitfall 6 (`sitemap.xml` rejection); Pitfall 7 (`llms.txt` drift / oversize); Pitfall 10 (Cache-Control leaks).
+
+### Phase 4: Production Validation
+
+**Rationale:** Final gate before milestone close. Must run against the real Fly.io deployment (not localhost) because Pitfall 8 (Fly `force_https` redirect chain, cold-start latency, single-region `sjc` distance from EU/AP crawlers) is only observable in production. Earlier phases verify code-level correctness; this phase verifies operational correctness.
+**Delivers:** Recorded smoke evidence: `curl -A "GPTBot" https://full-selfbrowsing.com/about` returns prerendered HTML with route-specific `<title>` and JSON-LD; `curl -I https://full-selfbrowsing.com/robots.txt` returns 200 with `Content-Type: text/plain` and `Cache-Control: public, max-age=3600`; redirect chain is exactly one hop; Search Console "Test live URL" passes for all four marketing routes; Rich Results Test detects exactly one `Organization` and one `SoftwareApplication` site-wide.
+**Addresses:** Operational verification of all FEATURES.md must-haves landing in production.
+**Avoids:** Pitfall 8 (Fly redirect / cold-start) caught only by live probing; the "Looks Done But Isn't" checklist from PITFALLS.md.
+
+### Phase Ordering Rationale
+
+- **Hard data dependency: prerender must land first.** Every other phase verifies against per-route HTML on disk. Crawler files in Phase 3 reference URLs that must resolve to real prerendered content; JSON-LD in Phase 2 must land in the prerendered snapshot, not just runtime DOM.
+- **Bundling driven by shared verification gates.** Phase 1 bundles `localStorage` guard + prerender enablement + per-route `Title`/`Meta` because all three are verified by a single `npm run build` + curl-prerendered-output check. Phase 3 bundles Express wiring + all four crawler files because all five are verified by a single `curl -I` smoke pass against the local Fly-shaped Express server.
+- **Express patch with prerender, not before.** Patching the Express handler before per-route HTML exists makes the patch a no-op AND impossible to verify; co-locating the patch with crawler files in Phase 3 means one Express deploy validates both.
+- **Validation as a separate phase, not folded into Phase 3.** Production validation requires the real Fly.io deployment (HTTPS canonical, redirect chain, cold-start timing, single-region latency) which Phase 3's local smoke cannot exercise. Folding it in would conflate "code is correct" with "deployment is correct."
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 1, Plan C (DOM hardening) needs a fixture** before declaring victory. Recommend a 50k-node fixture and a `performance.measure` baseline. **Open question:** acceptance bar (e.g., < 200ms snapshot generation on the fixture)?
-- **Phase 1, Plan C ack semantics for stale-counter reset.** PROJECT.md says "stale mutation counter reset" without specifying the boundary. Three options: (a) reset on successful flush, (b) reset on stream-state-change, (c) reset on dashboard ack with sequence id. The dashboard-ack option is most correct (P6) but has the largest contract surface (requires a new `dash:dom-mutation-ack` envelope). Roadmapper must clarify with user before Phase 1C planning.
-- **Phase 2, Plan A** -- one-line check during planning: `mcp-server/src/tools/visual-session.ts.bak-openclaw-crab` exists. Prior aborted sunset attempt? Safe to leave or delete?
-- **Phase 3, Plan B** -- Phase 209's broadcast contract reliability across SW wake is a smoke-test concern. Add a manual verification step that simulates SW eviction.
+Phases likely needing deeper research during planning:
+- **Phase 1:** `provideClientHydration()` decision (defer to Phase 1 planning; not required for static prerender but optional future-proofing for hydration-aware migrations). Confirm Angular 19 prerender behavior with the existing `<base href="/">` in `src/index.html`.
+- **Phase 3:** `llms-full.txt` content extraction strategy -- decide between (a) regex-stripping prerendered HTML to markdown vs. (b) maintaining a separate hand-curated content map. Recommend (a) per FEATURES.md to avoid drift; planning should specify the exact extraction rules (which tags survive, which are stripped, code-fence handling).
 
-Phases with standard patterns:
-- Phase 1, Plan A (WS inbound decompression) -- dashboard's decoder at `showcase/js/dashboard.js:3517-3528` is the validated reference.
-- Phase 1, Plan B (diagnostic logging refactor) -- the v0.9.40 pattern is established.
-- Phase 2, Plan B (UI commenting) -- file-by-file edit ranges enumerated in ARCHITECTURE.md.
-- Phase 3, Plan A (Sync tab HTML structure) -- canonical `data-section` pattern.
+Phases with standard patterns (skip dedicated `/gsd-research-phase`):
+- **Phase 2:** JSON-LD authoring is well-documented (schema.org spec, Google Rich Results Test); the `JSON.stringify` + `</` escape pattern is canonical.
+- **Phase 4:** Production smoke pass is checklist-driven (the "Looks Done But Isn't" section of PITFALLS.md is effectively the runbook).
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Every recommendation grounded in direct code inspection. The "no new dependency" verdict is verifiable in 5 minutes of grepping. |
-| Features | MEDIUM-HIGH | Current FSB code paths: HIGH. Comparable-product UX (GitHub Sessions, 2FAS, Chrome Remote Desktop, rrweb): MEDIUM. Microcopy: subjective. |
-| Architecture | HIGH | All findings confirmed by direct file inspection with specific line ranges. The `MCP_RECONNECT_ALARM` early-return preservation is the one detail most likely to be missed. |
-| Pitfalls | HIGH | Grounded in current FSB code + recent v0.9.36 / v0.9.40 incidents. Pitfall-to-phase mapping table directly maps every pitfall to a verification step. |
+| Stack | HIGH | Verified against Angular 19 official docs (angular.dev v19 prerender + SSR guides), the `outputMode` introduction commit (3b00fc9), and direct read of `showcase/angular/angular.json`, `package.json`, and `server/server.js`. The `@angular/build:application` builder is already in use; the prerender keys are first-class options on its schema. |
+| Features | HIGH | AI-crawler list verified against OpenAI (`platform.openai.com/docs/bots`), Anthropic (`support.claude.com`, `privacy.claude.com`), and Cloudflare Radar (verified-bots directory + March 2026 traffic share). Sitemap `priority`/`changefreq` 2026 status verified. JSON-LD weighting for LLMs is MEDIUM (community consensus, no vendor-stated rankings) but the schema.org spec and Google Rich Results behavior are HIGH. llms.txt convention is MEDIUM (de-facto standard, 844K+ adopters, no W3C ratification). |
+| Architecture | HIGH | Verified by direct read of `angular.json` asset globs (lines 35-50), builder config (22-77), `app.routes.ts`, `index.html`, and `server/server.js:73-117`. Middleware order, `express.static` `index` option behavior, and the existing scoped SPA fallback are all confirmed in code. JSON-LD via `document.createElement` during prerender is MEDIUM (works because prerender uses DOM emulation, but `Renderer2` is the safer alternative if the platform contract tightens). |
+| Pitfalls | HIGH | Angular 19 prerender, schema.org JSON-LD, Google robots.txt, Google sitemap, Express static middleware, and Fly.io `force_https` are all verified against official docs. llms.txt convention is MEDIUM (evolving standard). Fly.io crawler-latency specifics (cold-start impact on EU/AP crawlers) are MEDIUM (no public Fly-specific crawler benchmark; inferred from machine `auto_stop_machines` semantics). |
 
-**Overall confidence:** HIGH. Brownfield mechanics milestone with a well-understood codebase, established patterns from prior milestones, and zero net-new dependencies. Scope is contained.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Stale-counter reset boundary** (PROJECT.md ambiguity): "on successful flush" vs "on stream-state-change" vs "on dashboard ack". Roadmapper: confirm with user before Phase 1C planning.
-- **DOM truncation acceptance bar:** what fixture size and what time bound? Suggested default: 5MB DOM page snapshot generation < 200ms.
-- **`mcp-server/src/tools/visual-session.ts.bak-openclaw-crab`:** prior aborted sunset artifact?
-- **Phase 209 broadcast reliability across SW wake:** if the pill lies after SW wake, the Sync tab UX regresses below the existing passive `#connectionStatus` text.
-- **`fsb_sunset_notice` content scope:** show task NAMES only or task TEXT? PITFALLS.md P11 says names only. Codify in Phase 2A plan.
-- **Showcase Angular 19 EOL alignment:** Angular 19 EOL is 2026-05-19. Note in PROJECT.md "Known tech debt" for milestone-after-next deadline.
+- **`provideClientHydration()` necessity** -- defer to Phase 1 planning. Not required for static prerender; optional future-proofing for hydration migrations. Decision can be made by reading the Angular 19 hydration guide once Phase 1 planning starts.
+- **`llms-full.txt` content extraction algorithm** -- defer to Phase 3 planning. Choice between regex-strip-from-prerendered-HTML vs. hand-curated content map; trade-offs are auto-sync vs. editorial control. Recommendation in FEATURES.md is auto-generation; planning should pin the exact extraction rules.
+- **Per-route OG image strategy** -- Phase 1 ships with one shared default OG image per FEATURES.md. Per-route variants are P3 (deferred). No gap blocks v0.9.46.
+- **CI gating for JSON-LD validation** -- PITFALLS.md recommends running Google Rich Results Test API in CI; the current CI/CD posture is not documented in any research file. Phase 2 planning should confirm whether the CI gate is enforceable today or if validation is manual-pre-deploy.
+- **Fly.io edge cache behavior on `*.txt` / `*.xml`** -- explicit `Cache-Control` headers are recommended in PITFALLS.md and STACK.md, but Fly's edge proxy may layer additional caching. Phase 4 validation should `curl -I` from external probes to verify the headers survive the edge.
+
+## Sources
+
+### Primary (HIGH confidence)
+- Angular v19 prerender guide -- https://v19.angular.dev/guide/prerendering
+- Angular SSR / hybrid rendering guide -- https://angular.dev/guide/ssr
+- `outputMode` introduction commit -- https://github.com/angular/angular-cli/commit/3b00fc908d4f07282e89677928e00665c8578ab5
+- OpenAI Crawlers reference -- https://platform.openai.com/docs/bots (GPTBot, ChatGPT-User, OAI-SearchBot)
+- Anthropic crawler reference -- https://support.claude.com/en/articles/8896518-... (ClaudeBot, Claude-User, Claude-SearchBot)
+- Cloudflare bots concepts -- https://developers.cloudflare.com/bots/concepts/bot/
+- Cloudflare Radar verified-bots directory + March 2026 traffic data
+- Google Search Central (robots.txt + sitemaps) -- https://developers.google.com/search/docs/crawling-indexing/
+- schema.org JSON-LD spec -- https://schema.org/docs/jsonld.html
+- Google-Extended announcement -- https://blog.google/technology/ai/an-update-on-web-publisher-controls/
+- Express `static` middleware docs -- https://expressjs.com/en/api.html#express.static
+- Fly.io `force_https` + machine lifecycle -- https://fly.io/docs/networking/services/, https://fly.io/docs/apps/autostart-stop/
+- Repo files: `showcase/angular/angular.json`, `showcase/angular/package.json`, `showcase/angular/src/app/app.routes.ts`, `showcase/angular/src/index.html`, `server/server.js`, `.planning/PROJECT.md`
+
+### Secondary (MEDIUM confidence)
+- llmstxt.org community spec -- https://llmstxt.org/ (de-facto convention, 844K+ adopters, no W3C ratification)
+- Mintlify "What is llms.txt" -- https://www.mintlify.com/blog/what-is-llms-txt
+- angular-cli issue #28712 -- https://github.com/angular/angular-cli/issues/28712 (corroborates `prerender` schema in v19)
+- Sitemaps.org Protocol -- https://www.sitemaps.org/protocol.html (canonical schema; `priority`/`changefreq` "support varies")
+- JSON-LD-for-LLM community write-ups (Szymon Slowik, SchemaApp, Schema Pilot) -- community consensus, not vendor-stated weighting
+- Cloudflare blog "From Googlebot to GPTBot" -- https://blog.cloudflare.com/from-googlebot-to-gptbot-whos-crawling-your-site-in-2025/
+- 2026 AI-crawler landscape surveys (No Hacks, WebSearchAPI, Lumina SEO)
+
+### Tertiary (LOW confidence -- noted for transparency, not relied on for decisions)
+- Personal-experience pitfall observations on `localStorage` + prerender + Express middleware ordering (informs warning signs and recovery cost estimates; corroborated by official Angular hydration guide where available)
 
 ---
-*Research completed: 2026-04-28*
+*Research completed: 2026-04-30*
 *Ready for roadmap: yes*
