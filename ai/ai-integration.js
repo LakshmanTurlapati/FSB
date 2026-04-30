@@ -150,10 +150,10 @@ TEXT SELECTION & FILE TOOLS:
 | selecttextrange | ref startOffset endOffset | Select text by character offsets within element | selecttextrange e12 5 20 |
 | dropfile | ref "fileName" ["content"] ["mimeType"] | Simulate file drop on dropzone element | dropfile e8 "report.pdf" |
 
-ESCAPE HATCH:
+POWER TOOL:
 | Verb | Args | Description | Example |
 |------|------|-------------|---------|
-| executejs | "code" | Execute JavaScript in page context (MAIN world). LAST RESORT when standard tools fail on obscured/zero-dimension elements | executejs "document.querySelector('.btn').click()" |
+| executejs | "code" | Execute JavaScript in page context (MAIN world). MOST POWERFUL tool -- full DOM access. Use for: DOM screenshots (inject html2canvas), iframe inspection, scraping window globals, multi-step scripting, anything the standard tools cannot do. Code runs as a function body, so use a return statement to send values back; Promises are not awaited (split async work across calls) | executejs "return document.title" |
 `;
 
 /**
