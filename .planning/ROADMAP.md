@@ -37,7 +37,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
   - [x] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
   - [x] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
   - [x] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
-  - [ ] 216-05-PLAN.md -- HUMAN-UAT scaffold for Search Console + Rich Results (LD-03 + SMOKE-04)
+  - [x] 216-05-PLAN.md -- HUMAN-UAT scaffold for Search Console + Rich Results (LD-03 + SMOKE-04)
 
 ### Phase 216: Crawler Root Files, Express Wiring & Production Validation
 **Goal**: Crawler-aware root files live at the apex (`/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt`) with correct headers, the Express server prefers per-route prerendered HTML over the SPA shell for marketing routes while preserving `/dashboard` SPA behavior, and the deployed site passes a live `curl -A GPTBot` smoke plus Google's Rich Results Test
@@ -53,7 +53,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
   - [x] 216-01-PLAN.md -- Static crawler files (robots.txt + llms.txt + llms-full.source.md, CRAWL-01 + CRAWL-03)
   - [x] 216-02-PLAN.md -- Prebuild script + generated sitemap.xml + llms-full.txt + version.ts (CRAWL-02 + CRAWL-04 + CRAWL-05 + LD-03 carry)
   - [x] 216-03-PLAN.md -- Express server SPA-fallback patch + .txt/.xml Cache-Control (SRV-01 + SRV-02 + SRV-03)
-  - [ ] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
+  - [x] 216-04-PLAN.md -- Production smoke script + verify-smoke.sh (SMOKE-01 + SMOKE-02 + SMOKE-03)
   - [ ] 216-05-PLAN.md -- HUMAN-UAT scaffold for Search Console + Rich Results (LD-03 + SMOKE-04)
 
 ## Progress
@@ -61,7 +61,7 @@ Make `full-selfbrowsing.com` discoverable to traditional search engines and gene
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 215. Prerender Foundation, Per-Route Metadata & Structured Data | 3/3 | Complete    | 2026-04-30 |
-| 216. Crawler Root Files, Express Wiring & Production Validation | 4/5 | In Progress|  |
+| 216. Crawler Root Files, Express Wiring & Production Validation | 5/5 | Complete   | 2026-04-30 |
 
 ## Backlog
 

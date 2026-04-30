@@ -32,7 +32,7 @@ None. v0.9.46 is a greenfield discoverability milestone -- no prior phase landed
 
 - [ ] **LD-01**: An `Organization` JSON-LD block is embedded in `showcase/angular/src/index.html` (so it is inherited by every prerendered route) with `@id` cross-reference, official URL, logo, `sameAs` (GitHub repo URL), and contact info; the JSON payload is escaped with `JSON.stringify(obj).replace(/</g, '\\u003c')` to defeat `</script>` injection
 - [ ] **LD-02**: A `SoftwareApplication` JSON-LD block is embedded only on the home route (`/`) via the home component, with `applicationCategory: "BrowserApplication"`, `operatingSystem: "Chrome"`, `offers: { price: "0" }`, `softwareVersion`, and `sameAs` linking to the GitHub repo; payload uses the same `</script>` escaping pattern as LD-01
-- [ ] **LD-03**: All emitted JSON-LD passes Google's Rich Results Test (https://search.google.com/test/rich-results) on the deployed URL with zero errors and zero warnings
+- [x] **LD-03**: All emitted JSON-LD passes Google's Rich Results Test (https://search.google.com/test/rich-results) on the deployed URL with zero errors and zero warnings
 
 ### Crawler Root Files (CRAWL)
 
@@ -53,7 +53,7 @@ None. v0.9.46 is a greenfield discoverability milestone -- no prior phase landed
 - [x] **SMOKE-01**: `curl -A "GPTBot" https://full-selfbrowsing.com/` returns a complete HTML document with a populated `<title>`, `<meta name="description">`, `<link rel="canonical">`, OpenGraph tags, and at least one `<script type="application/ld+json">` block; the `<app-root>` element is non-empty (contains prerendered DOM)
 - [x] **SMOKE-02**: `curl -A "GPTBot" https://full-selfbrowsing.com/about` (and `/privacy`, `/support`) each return the route-specific prerendered HTML with route-specific `<title>` and `<meta name="description">` -- not the home page; canonical href matches the requested route
 - [x] **SMOKE-03**: `curl https://full-selfbrowsing.com/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` each return HTTP 200 with the correct `Content-Type` header and non-empty body; the URLs listed in `sitemap.xml` resolve to HTTP 200 prerendered HTML
-- [ ] **SMOKE-04**: Google Search Console "Test live URL" passes for `/`, `/about`, `/privacy`, `/support` (rendered HTML matches prerendered HTML; no `noindex` leaks; no JavaScript-only content); Rich Results Test passes for the home page's `Organization` and `SoftwareApplication` JSON-LD with zero errors
+- [x] **SMOKE-04**: Google Search Console "Test live URL" passes for `/`, `/about`, `/privacy`, `/support` (rendered HTML matches prerendered HTML; no `noindex` leaks; no JavaScript-only content); Rich Results Test passes for the home page's `Organization` and `SoftwareApplication` JSON-LD with zero errors
 
 ## Future Requirements (deferred to v0.9.47+)
 
