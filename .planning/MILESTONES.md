@@ -1,5 +1,29 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.47 Workspace Reorganization (extension / mcp / showcase) (Shipped: 2026-05-02)
+
+**Delivered:** Reorganized the repo into three clearly-bounded top-level packages — `extension/`, `mcp/`, `showcase/`. Each package owns its own assets and README. Cross-package boundaries are now explicit. Mechanical reorg only — no functional changes, no bundler/tooling changes, no Angular migration.
+
+**Archive:** `.planning/milestones/v0.9.47-ROADMAP.md` and `.planning/milestones/v0.9.47-REQUIREMENTS.md`
+
+**Phases completed:** 4 phases (217–220), 4 plans, 5 commits, 406 files (+513 / −164)
+
+**Key accomplishments:**
+
+- Phase 217: Moved 16 dirs/files (`background.js`, `manifest.json`, `content/`, `ui/`, `agents/`, `ws/`, `ai/`, `offscreen/`, `lib/`, `assets/`, `config/`, plus 5 supporting dirs) under `extension/` via `git mv`; updated `scripts/validate-extension.mjs` to walk `extension/`; patched ~35 test files; created `extension/README.md`.
+- Phase 218: Renamed `mcp-server/` → `mcp/`; npm package `fsb-mcp-server@0.7.4` name unchanged; updated `npm-publish.yml` `working-directory`, `ci.yml` job, root `package.json` test scripts, 8 test files + harness.
+- Phase 219: Moved `server/` (Express + SQLite + ws deploy backend) → `showcase/server/`; updated `Dockerfile` (3 `COPY` lines), `.dockerignore`, `.gitignore`. `fly.toml` and `deploy.yml` untouched (no internal path references).
+- Phase 220: Added Repository Layout section to root README; created `showcase/README.md`; verified CI workflow paths post-reorg; full local + production validation passed (`curl https://full-selfbrowsing.com/` → 200 with SSR payload).
+- CI gating preserved end-to-end: `extension` + `mcp` + `showcase` + `all-green` aggregator. Branch protection on `all-green` held through every reorg PR (#7, #8, #9, #10, #11).
+
+**Accepted debt:**
+
+- Angular 19 EOL: 2026-05-19 — A20 migration is the next milestone (v0.9.48).
+- Cross-package import path: `mcp/package.json` build script does `cp ../extension/ai/tool-definitions.js`. Couples mcp build to extension layout.
+- Root README still 948 lines of landing-page content; could be slimmed in a future docs pass.
+
+---
+
 ## v0.9.46 Site Discoverability (SEO + GEO) (Shipped: 2026-05-02)
 
 **Delivered:** Made `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the four marketing routes (`/`, `/about`, `/privacy`, `/support`) and shipping LLM/crawler-aware root files. Pre-milestone the site returned only the literal string "FSB" to non-JS crawlers; post-milestone every route returns route-specific prerendered HTML with structured data (Organization + SoftwareApplication) and the site exposes `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt`. Verified live via Google Rich Results Test.

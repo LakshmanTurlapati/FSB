@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.47
-milestone_name: Workspace Reorganization (extension / mcp / showcase)
-status: planning
-last_shipped: v0.9.46
+milestone: null
+milestone_name: between-milestones
+status: complete
+last_shipped: v0.9.47
 last_updated: "2026-05-02T00:00:00.000Z"
 last_activity: 2026-05-02
 progress:
-  total_phases: 4
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
