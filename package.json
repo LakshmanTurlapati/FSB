@@ -22,7 +22,10 @@
     "package": "zip -r fsb-v0.9.31.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'",
     "showcase:install": "npm --prefix showcase/angular install",
     "showcase:build": "npm --prefix showcase/angular run build",
-    "showcase:serve": "npm --prefix showcase/angular run start"
+    "showcase:serve": "npm --prefix showcase/angular run start",
+    "showcase:smoke": "npm --prefix showcase/angular run smoke:crawler",
+    "validate:extension": "node scripts/validate-extension.mjs",
+    "ci": "npm run validate:extension && npm test && npm run test:mcp-smoke && npm run showcase:build && npm run showcase:smoke"
   },
   "keywords": [
     "chrome-extension",

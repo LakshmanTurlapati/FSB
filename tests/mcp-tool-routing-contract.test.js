@@ -69,10 +69,11 @@ const requiredMessageRoutes = [
   'mcp:get-memory'
 ];
 
-const phase199VaultExclusions = new Set([
-  'fill_credential',
-  'fill_payment_method'
-]);
+// Phase 199 left fill_credential / fill_payment_method out of the route-contract
+// expansion. Those tool names were subsequently removed from TOOL_REGISTRY
+// (vault flow consolidated under list_credentials / use_payment_method); the
+// exclusion list is therefore empty until a vault tool is reintroduced.
+const phase199VaultExclusions = new Set([]);
 
 const groupDefinitions = {
   browser: {

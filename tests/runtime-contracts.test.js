@@ -32,17 +32,23 @@ const wsClientSource = readRepoFile('ws', 'ws-client.js');
 
 console.log('\n--- background contract cleanup tests ---');
 
+// Phase 166 narrowed createSessionHooks to drop the emitter passthrough; a
+// later refactor moved progress hooks to a sendSessionStatus callback and
+// removed SessionStateEmitter from background.js entirely. These regression
+// asserts lock in the further-narrowed contract.
 assert(!backgroundSource.includes('emitter: sessionHooks.emitter'), 'background no longer passes sessionHooks.emitter into runAgentLoop');
-assert(backgroundSource.includes('var emitter = new SessionStateEmitter();'), 'createSessionHooks still instantiates SessionStateEmitter');
-assert(backgroundSource.includes('createToolProgressHook(emitter)'), 'tool progress hook still uses SessionStateEmitter');
-assert(backgroundSource.includes('createIterationProgressHook(emitter)'), 'iteration progress hook still uses SessionStateEmitter');
-assert(backgroundSource.includes('createCompletionProgressHook(emitter)'), 'completion progress hook still uses SessionStateEmitter');
-assert(backgroundSource.includes('createErrorProgressHook(emitter)'), 'error progress hook still uses SessionStateEmitter');
-assert(backgroundSource.includes('@returns {{ hooks: HookPipeline }}'), 'createSessionHooks JSDoc matches the narrowed return contract');
+assert(!/new\s+SessionStateEmitter\s*\(/.test(backgroundSource), 'background no longer instantiates SessionStateEmitter');
+assert(backgroundSource.includes('createToolProgressHook(function'), 'tool progress hook is wired to a sendSessionStatus callback');
+assert(backgroundSource.includes('sendSessionStatus(tabId, statusData)'), 'progress hook callback delegates to sendSessionStatus');
+assert(backgroundSource.includes('function createSessionHooks(sessionId)'), 'createSessionHooks signature preserved');
 
 console.log('\n--- direct consumer boundary tests ---');
 
-assert(popupSource.includes("case 'sessionStateEvent':"), 'popup still consumes sessionStateEvent');
+// popup migrated off sessionStateEvent to dedicated statusUpdate /
+// automationComplete / automationError channels; sidepanel is still the only
+// direct sessionStateEvent consumer.
+assert(!popupSource.includes("case 'sessionStateEvent':"), 'popup no longer consumes sessionStateEvent directly');
+assert(popupSource.includes("case 'statusUpdate':") || popupSource.includes("case 'automationComplete':"), 'popup consumes statusUpdate / automationComplete channels');
 assert(sidepanelSource.includes("case 'sessionStateEvent':"), 'sidepanel still consumes sessionStateEvent');
 assert(!dashboardSource.includes('sessionStateEvent'), 'dashboard does not consume sessionStateEvent directly');
 assert(!wsClientSource.includes('sessionStateEvent'), 'ws client does not consume or relay sessionStateEvent directly');
