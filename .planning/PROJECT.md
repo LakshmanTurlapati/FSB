@@ -10,43 +10,28 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.46 Site Discoverability (SEO + GEO) — 2026-05-02. The site at `full-selfbrowsing.com` is now discoverable to traditional search engines and generative AI search; pre-milestone it returned only the literal string "FSB" to non-JS crawlers. Static prerender of `/`, `/about`, `/privacy`, `/support` is live with route-specific metadata + canonicals; `Organization` + `SoftwareApplication` JSON-LD validated by Google Rich Results Test (1 valid item, 0 errors); `robots.txt` allowlists 15 named LLM bots; `sitemap.xml`, `llms.txt`, `llms-full.txt` are served at the apex.
+**Last shipped:** v0.9.47 Workspace Reorganization — 2026-05-02. The repo is now organized into three clearly-bounded top-level packages: `extension/` (Chrome extension), `mcp/` (MCP server, npm `fsb-mcp-server`), `showcase/` (Angular SSR site + Express deploy backend). Cross-package boundaries are explicit; future work has a single obvious place to land.
 
-**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02.
+**Previous milestone (also shipped today):** v0.9.46 Site Discoverability (SEO + GEO). `full-selfbrowsing.com` is discoverable to traditional search engines and generative AI search; static prerender of marketing routes is live; Organization + SoftwareApplication JSON-LD validated by Google Rich Results Test; `robots.txt` allowlists 15 named LLM bots; `sitemap.xml`, `llms.txt`, `llms-full.txt` are served at the apex.
 
-**CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp-smoke + showcase build).
+**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02 (folder rename did not change package name).
 
-## Current Milestone: v0.9.47 Workspace Reorganization (extension / mcp / showcase)
+**CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-**Goal:** Reorganize the repo into three clearly-bounded top-level packages — `extension/`, `mcp/`, `showcase/` — each owning its own assets, README, and tests, so cross-package boundaries are explicit and future work has a single place to land.
+## Next Milestone Goals
 
-**Target features:**
-- Move all extension files (`background.js`, `manifest.json`, `content/`, `ui/`, `agents/`, `ws/`, `ai/`, `offscreen/`, `lib/`, `assets/`, `canvas-interceptor.js`) under `extension/`; update manifest paths and any cross-package imports
-- Rename `mcp-server/` → `mcp/`; update `npm-publish.yml` `working-directory` and `version-parity` test paths; npm package name `fsb-mcp-server` is unchanged (folder rename only)
-- Move deploy backend `server/` → `showcase/server/`; update `fly.toml`, `Dockerfile`, `.github/workflows/deploy.yml` paths
-- Each package gets its own `README.md`; root `README.md` becomes a repo overview pointing at the three packages
-- Update `ci.yml` job paths so the existing `all-green` gate still passes
-- Update `scripts/validate-extension.mjs` to walk `extension/`
-- Test-suite paths updated; CI behavior unchanged (`extension`, `mcp-smoke`, `showcase` jobs + `all-green`)
+**Leading candidate: Angular 19 → 20 migration** (deadline 2026-05-19; Angular 19 EOL — must land before this date).
 
-**Why now:** The repo currently has extension code, MCP server, showcase, and deploy backend interleaved at the root. Cross-package boundaries are implicit and ad-hoc. A clean three-package layout makes future work — Angular 20 migration, MCP feature work, extension features — easier to scope and review. The reorg is mechanical and well-defined; doing it now (before A20) means the migration phase work lands inside a clean `showcase/` package.
+Other carry-forward candidates:
 
-**Out of scope (deferred):**
-- Angular 19 → 20 migration (next milestone, v0.9.48 — Angular 19 EOL is 2026-05-19, must land before)
-- New build system / bundler / monorepo tooling (workspaces, Nx, Turborepo) — folder layout only
-- Code refactors beyond import-path fixes
-- Renaming the npm package `fsb-mcp-server`
-
-## Previous Next-Milestone Candidates (rolled forward)
-
-These remain on the radar after v0.9.47 ships:
-
-- Angular 19 → 20 migration (deadline 2026-05-19) — first candidate for v0.9.48
 - FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01)
-- Comparison pages (DISCO-FUTURE-02)
+- Comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) (DISCO-FUTURE-02)
 - Per-route OG images (CRAWL-FUTURE-01)
-- Off-page push (DISCO-FUTURE-04)
-- Search Console + Bing Webmaster Tools registration (DISCO-FUTURE-05)
+- Off-page push (Show HN, Reddit launches, awesome-list PRs, demo video) (DISCO-FUTURE-04)
+- Search Console + Bing Webmaster Tools registration + monitoring (DISCO-FUTURE-05)
+- Splitting `tests/` per package (currently shared at repo root)
+
+Use `/gsd-new-milestone` to scope the next milestone and define requirements.
 
 <details>
 <summary>Previous milestones (collapsed)</summary>
