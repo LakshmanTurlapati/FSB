@@ -13,6 +13,13 @@ interface RemoteControlState {
   ownership: string;
 }
 
+interface MetricsPayload {
+  connection?: { connected?: boolean; pairedClient?: string; connectedAt?: number };
+  sessions?: { activeSessions?: number; completedTasks?: number; errorCount?: number };
+  cost?: { totalCost?: number; totalTokens?: number };
+  activeTab?: { tabId?: number; url?: string };
+}
+
 interface PreviewSurface {
   chipLabel: string;
   chipTone: string;
@@ -1254,6 +1261,48 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
       this.setRemoteControl(false, { silent: true, source: 'remote-state' });
     }
     return surface;
+  }
+
+  // ==================== METRICS (Phase 223 MET-06/07) ====================
+
+  private renderMetrics(payload: MetricsPayload) {
+    if (!payload || typeof payload !== 'object') {
+      this.clearMetrics();
+      return;
+    }
+
+    const sessions = payload.sessions || {};
+    const cost = payload.cost || {};
+
+    const activeSessions = typeof sessions.activeSessions === 'number' ? sessions.activeSessions : 0;
+    const completedTasks = typeof sessions.completedTasks === 'number' ? sessions.completedTasks : 0;
+    const errorCount = typeof sessions.errorCount === 'number' ? Math.max(0, sessions.errorCount) : 0;
+    const totalCost = typeof cost.totalCost === 'number' ? cost.totalCost : 0;
+
+    const totalAttempts = completedTasks + errorCount;
+    const successRate = totalAttempts > 0 ? Math.round((completedTasks / totalAttempts) * 100) : 0;
+
+    const enabledEl = document.getElementById('stat-enabled');
+    const runsEl = document.getElementById('stat-runs-today');
+    const rateEl = document.getElementById('stat-success-rate');
+    const costEl = document.getElementById('stat-total-cost');
+
+    if (enabledEl) enabledEl.textContent = String(activeSessions);
+    if (runsEl) runsEl.textContent = String(completedTasks);
+    if (rateEl) rateEl.textContent = successRate + '%';
+    if (costEl) costEl.textContent = '$' + totalCost.toFixed(2);
+  }
+
+  private clearMetrics(): void {
+    const enabledEl = document.getElementById('stat-enabled');
+    const runsEl = document.getElementById('stat-runs-today');
+    const rateEl = document.getElementById('stat-success-rate');
+    const costEl = document.getElementById('stat-total-cost');
+
+    if (enabledEl) enabledEl.textContent = '0';
+    if (runsEl) runsEl.textContent = '0';
+    if (rateEl) rateEl.textContent = '0%';
+    if (costEl) costEl.textContent = '$0.00';
   }
 
   // ==================== REMOTE CONTROL HELPERS ====================
@@ -3267,6 +3316,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     };
 
     this.ws.onclose = (e) => {
+      this.clearMetrics();
       this.recordTransportEvent('ws-close', { closeCode: e.code, closeReason: e.reason || '' });
       this.extensionOnline = false;
       this.pageReady = false;
@@ -3436,6 +3486,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (msg.type === 'ext:dom-dialog') { this.handleDOMDialog(msg.payload); return; }
     if (msg.type === 'ext:stream-state') { this.handleRecoveredStreamState(msg.payload || {}); return; }
     if (msg.type === 'ext:remote-control-state') { this.renderRemoteControlState(msg.payload || {}); return; }
+    if (msg.type === 'ext:metrics') { this.renderMetrics(msg.payload || {}); return; }
 
     if (msg.type === 'ext:page-ready') {
       this.recordTransportEvent('page-ready-received', { type: 'ext:page-ready' });
