@@ -18,20 +18,39 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Next Milestone Goals
+## Current Milestone: v0.9.48 Angular 20 Migration
 
-**Leading candidate: Angular 19 → 20 migration** (deadline 2026-05-19; Angular 19 EOL — must land before this date).
+**Goal:** Migrate `showcase/angular/` from Angular 19 to Angular 20 before the 2026-05-19 EOL. All v0.9.46 SEO/GEO surfaces must continue to work post-migration. Mechanical upgrade only — no new features.
 
-Other carry-forward candidates:
+**Target features:**
+- `ng update @angular/cli @angular/core` to v20; fix any breaking-change call sites the schematic doesn't auto-migrate
+- TypeScript bump to satisfy v20 peer constraint
+- `provideServerRouting` API verified for v20 compatibility (or migrated to v20 equivalent if renamed)
+- Prerender continues to emit `dist/showcase-angular/browser/{,about,privacy,support}/index.html`
+- Per-route metadata, canonicals, OG/Twitter tags, Organization + SoftwareApplication JSON-LD all preserved byte-equivalent (modulo runtime version strings)
+- `/dashboard` runtime `noindex` continues to work
+- Production deploy healthy; `smoke-crawler.mjs` passes 46/46 against production
+
+**Why now:** Angular 19 EOL is **2026-05-19** (17 days from milestone start). After EOL, security patches stop. Migration is a hard deadline.
+
+**Out of scope (deferred):**
+- Zoneless change detection (`provideExperimentalZonelessChangeDetection`) — touching change-detection mid-migration multiplies risk
+- Bulk RxJS → signals refactors
+- New features / new pages / content updates
+- Refactoring the existing component tree beyond what migration requires
+- Replacing `@angular/build` with a different bundler
+
+## Previous Next-Milestone Candidates (rolled forward)
+
+These remain on the radar after v0.9.48 ships:
 
 - FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01)
-- Comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) (DISCO-FUTURE-02)
+- Comparison pages (DISCO-FUTURE-02)
 - Per-route OG images (CRAWL-FUTURE-01)
-- Off-page push (Show HN, Reddit launches, awesome-list PRs, demo video) (DISCO-FUTURE-04)
-- Search Console + Bing Webmaster Tools registration + monitoring (DISCO-FUTURE-05)
-- Splitting `tests/` per package (currently shared at repo root)
-
-Use `/gsd-new-milestone` to scope the next milestone and define requirements.
+- Off-page push (DISCO-FUTURE-04)
+- Search Console + Bing Webmaster Tools registration (DISCO-FUTURE-05)
+- Splitting `tests/` per package
+- Zoneless change detection migration
 
 <details>
 <summary>Previous milestones (collapsed)</summary>
