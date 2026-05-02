@@ -39,7 +39,7 @@ extension/config/secrets.json
 # Log files with potential secrets
 Logs/
 Extenive logs, multiple scenariaos.txt
-server/fsb-data.db
+showcase/server/fsb-data.db
 Research/
 .claude/worktrees/
 BUG-REPORT-*.md

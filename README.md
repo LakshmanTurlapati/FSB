@@ -335,7 +335,7 @@ graph TB
 **External Services**
 - **AI APIs**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini
 - **CAPTCHA Services**: Optional integration for automated solving
-- **Server Backends**: Optional Node.js (`server/`) and Python/Flask (`server-py/`) for agent persistence
+- **Server Backends**: Optional Node.js (`showcase/server/`) and Python/Flask (`server-py/`) for agent persistence
 
 ### Core Components
 
@@ -368,7 +368,7 @@ graph TB
 | `site-guides/` | Domain specific automation intelligence (9 categories) |
 | `site-maps/` | Generated site structure maps (JSON) |
 | `ui/` | Popup, side panel, options, markdown renderer |
-| `server/` | Optional Node.js backend for agent data |
+| `showcase/server/` | Optional Node.js backend for agent data |
 | `server-py/` | Optional Python/Flask backend for agent data |
 
 </details>
@@ -562,7 +562,7 @@ FSB/
     purify.min.js
   Logs/                         # Session logs (runtime)
   mcp/                          # MCP server package (62 tools)
-  server/                       # Optional Node.js backend
+  showcase/server/              # Optional Node.js backend (deploy target)
   server-py/                    # Optional Python/Flask backend
   showcase/                     # Marketing website (Angular)
   site-guides/                  # Domain specific AI guides (9 categories)
@@ -762,7 +762,7 @@ FSB supports scheduled background automation through its agent system.
 
 For persistent agent data beyond Chrome storage limits:
 
-- **Node.js** (`server/`): Express based API server
+- **Node.js** (`showcase/server/`): Express based API server
 - **Python/Flask** (`server-py/`): Alternative backend with SQLite and Fly.io deployment
 
 Server backends are optional. Agents work fully with local Chrome storage.
