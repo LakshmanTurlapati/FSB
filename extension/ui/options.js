@@ -4226,38 +4226,12 @@ function initializeBackgroundAgentsDeprecation() {
   }
 }
 
-function initializeAgentSection() {
-  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
-  // Agent form / list / stats wiring is commented out below. The Server Sync + pairing
-  // wiring (Region 2) stays LIVE because Phase 213 relocates it to the Sync tab.
+function initializeSyncDeprecationAndButtons() {
+  // Sync consolidation: the deprecation card + sunset notice + Server Sync buttons all
+  // live in the Sync section now. Keep wiring idempotent so re-init from /clear is safe.
 
   initializeBackgroundAgentsDeprecation();
 
-  // ----- Region 1: agent form wiring (commented out) -----
-  // const btnCreate = document.getElementById('btnCreateAgent');
-  // const btnRefresh = document.getElementById('btnRefreshAgents');
-  // const btnClose = document.getElementById('btnCloseAgentForm');
-  // const btnCancel = document.getElementById('btnCancelAgent');
-  // const btnSave = document.getElementById('btnSaveAgent');
-  // const scheduleType = document.getElementById('agentScheduleType');
-  //
-  // if (btnCreate) btnCreate.addEventListener('click', showAgentForm);
-  // if (btnRefresh) btnRefresh.addEventListener('click', loadAgentList);
-  // if (btnClose) btnClose.addEventListener('click', hideAgentForm);
-  // if (btnCancel) btnCancel.addEventListener('click', hideAgentForm);
-  // if (btnSave) btnSave.addEventListener('click', saveAgent);
-  //
-  // if (scheduleType) {
-  //   scheduleType.addEventListener('change', () => {
-  //     const type = scheduleType.value;
-  //     const intervalGroup = document.getElementById('intervalGroup');
-  //     const dailyGroup = document.getElementById('dailyGroup');
-  //     if (intervalGroup) intervalGroup.style.display = type === 'interval' ? '' : 'none';
-  //     if (dailyGroup) dailyGroup.style.display = type === 'daily' ? '' : 'none';
-  //   });
-  // }
-
-  // ----- Region 2: Server Sync + pairing wiring -- KEPT LIVE for Phase 213 relocation -----
   // Server sync buttons
   const btnGenerate = document.getElementById('btnGenerateHashKey');
   const btnCopy = document.getElementById('btnCopyHashKey');
@@ -4275,22 +4249,6 @@ function initializeAgentSection() {
 
   // Load server settings
   loadServerSettings();
-
-  // ----- Region 3: agent list / stats / run-complete listener (commented out) -----
-  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
-  // loadAgentList();
-  // loadAgentStats();
-  //
-  // chrome.runtime.onMessage.addListener((message) => {
-  //   if (message.action === 'agentRunComplete') {
-  //     loadAgentList();
-  //     loadAgentStats();
-  //   }
-  //   if (message.action === 'openAgentForm') {
-  //     document.getElementById('background-agents')?.scrollIntoView({ behavior: 'smooth' });
-  //     showAgentForm();
-  //   }
-  // });
 }
 
 // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
@@ -5985,9 +5943,9 @@ async function clearAllMemories() {
   }
 }
 
-// Initialize agent section and memory section when DOM is ready
+// Initialize sync section deprecation/button wiring and memory section when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(initializeAgentSection, 300);
+  setTimeout(initializeSyncDeprecationAndButtons, 300);
   setTimeout(initializeMemorySection, 400);
 });
 
