@@ -21,9 +21,18 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Next Milestone Goals
+## Current Milestone: v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up
 
-To be defined. Use `/gsd-new-milestone` to scope. Carry-forward backlog candidates:
+**Goal:** Rebrand the extension's "Agents" surface to "Remote Control (Beta)" and stream connect-time control-panel metrics into the showcase site dashboard.
+
+**Target features:**
+- Rename the "Agents" dashboard tab to "Remote Control" with a Beta badge in the extension control panel.
+- Strip residual "agents" copy from the renamed surface so it reads as the remote-control panel end-to-end.
+- On connect, push extension control-panel metrics (connection state, session counters, cost/token usage, active tab + URL) to the showcase `/dashboard` so it renders live data instead of static placeholders.
+
+## Future Milestone Candidates (deferred)
+
+Carry-forward backlog candidates:
 
 - **GEO content pack**: FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01); comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) (DISCO-FUTURE-02); per-route OG images (CRAWL-FUTURE-01)
 - **Off-page launch**: Show HN, Reddit launches, awesome-list PRs, demo video (DISCO-FUTURE-04); Search Console + Bing Webmaster Tools registration + monitoring (DISCO-FUTURE-05)

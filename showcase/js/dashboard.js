@@ -3581,7 +3581,8 @@
       }
     };
 
-    ws.onclose = function (e) {
+  ws.onclose = function (e) {
+      clearMetrics();
       console.log('[FSB-DASH] WS closed, code:', e.code, 'reason:', e.reason);
       recordDashboardTransportEvent('ws-close', {
         closeCode: e.code,
@@ -3606,7 +3607,7 @@
         setPreviewState('disconnected');
       }
       scheduleWSReconnect();
-    };
+  };
 
     ws.onerror = function (e) { console.log('[FSB-DASH] WS error:', e); };
   }
@@ -3660,6 +3661,48 @@
       (state === 'connected' ? 'dash-sse-connected' :
        state === 'reconnecting' ? 'dash-sse-reconnecting' :
        'dash-sse-disconnected');
+  }
+
+  // ==================== METRICS (Phase 223 MET-06/07 vanilla parity) ====================
+
+  function renderMetrics(payload) {
+    if (!payload || typeof payload !== 'object') {
+      clearMetrics();
+      return;
+    }
+
+    var sessions = payload.sessions || {};
+    var cost = payload.cost || {};
+
+    var activeSessions = typeof sessions.activeSessions === 'number' ? sessions.activeSessions : 0;
+    var completedTasks = typeof sessions.completedTasks === 'number' ? sessions.completedTasks : 0;
+    var errorCount = typeof sessions.errorCount === 'number' ? Math.max(0, sessions.errorCount) : 0;
+    var totalCost = typeof cost.totalCost === 'number' ? cost.totalCost : 0;
+
+    var totalAttempts = completedTasks + errorCount;
+    var successRate = totalAttempts > 0 ? Math.round((completedTasks / totalAttempts) * 100) : 0;
+
+    var enabledEl = document.getElementById('stat-enabled');
+    var runsEl = document.getElementById('stat-runs-today');
+    var rateEl = document.getElementById('stat-success-rate');
+    var costEl = document.getElementById('stat-total-cost');
+
+    if (enabledEl) enabledEl.textContent = String(activeSessions);
+    if (runsEl) runsEl.textContent = String(completedTasks);
+    if (rateEl) rateEl.textContent = successRate + '%';
+    if (costEl) costEl.textContent = '$' + totalCost.toFixed(2);
+  }
+
+  function clearMetrics() {
+    var enabledEl = document.getElementById('stat-enabled');
+    var runsEl = document.getElementById('stat-runs-today');
+    var rateEl = document.getElementById('stat-success-rate');
+    var costEl = document.getElementById('stat-total-cost');
+
+    if (enabledEl) enabledEl.textContent = '0';
+    if (runsEl) runsEl.textContent = '0';
+    if (rateEl) rateEl.textContent = '0%';
+    if (costEl) costEl.textContent = '$0.00';
   }
 
   function handleWSMessage(msg) {
@@ -3847,6 +3890,8 @@
       handleRecoveredStreamState(msg.payload || {});
       return;
     }
+
+    if (msg.type === 'ext:metrics') { renderMetrics(msg.payload || {}); return; }
 
     if (msg.type === 'ext:remote-control-state') {
       handleRemoteControlState(msg.payload || {});
