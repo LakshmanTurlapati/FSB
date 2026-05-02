@@ -2,10 +2,11 @@
 
 ## Status
 
-Between milestones. v0.9.48 (Angular 20 Migration) shipped 2026-05-02 — three milestones shipped today (v0.9.46 SEO/GEO, v0.9.47 Workspace Reorg, v0.9.48 Angular 20). Next milestone TBD.
+Active milestone: **v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up** (started 2026-05-02). Phase 223 ready to plan.
 
 ## Milestones
 
+- 🔄 **v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up** -- in progress (started 2026-05-02)
 - ✅ **v0.9.48 Angular 20 Migration** -- shipped 2026-05-02 (deadline 2026-05-19 met 17 days early)
 - ✅ **v0.9.47 Workspace Reorganization** -- shipped 2026-05-02
 - ✅ **v0.9.46 Site Discoverability (SEO + GEO)** -- shipped 2026-05-02
@@ -17,7 +18,23 @@ Between milestones. v0.9.48 (Angular 20 Migration) shipped 2026-05-02 — three 
 
 ## Phases
 
-_None active — define the next milestone with `/gsd-new-milestone`. Candidates: GEO content pack (FAQ + comparison pages), zoneless change detection migration, off-page launch + monitoring._
+### Phase 223: Remote Control rename + showcase metrics wire-up
+
+**Goal:** "Remote Control (Beta)" replaces "Agents" across the extension control panel and showcase mirror, AND on connect the extension pushes live control-panel metrics (connection state, session counters, cost/tokens, active tab) to the showcase `/dashboard` so it renders real data.
+
+**Depends on:** Nothing (keystone for v0.9.49).
+
+**Requirements mapped:** RBR-01..05, MET-01..08, QA-01..03 (16)
+
+**Success criteria:**
+1. User loads the extension and sees "Remote Control" with a Beta badge as the dashboard tab; no "Agents" copy anywhere on the surface or in the showcase mirror.
+2. User pairs the extension with the showcase site; on connect, the showcase `/dashboard` immediately renders connection state, session counters, cost/token totals, and the active controlled tab + URL — all sourced from the extension, no static placeholders left.
+3. User disconnects; the showcase dashboard transitions back to "no data yet" within one render cycle.
+4. `tests/sync-tab-runtime.test.js` and the existing PR-gating CI matrix (`extension`, `mcp-smoke`, `showcase`, `all-green`) stay green; Phase 209 `remoteControlStateChanged` broadcast contract preserved.
+
+**Plans:** Decomposed at `/gsd-plan-phase 223` (likely two plans — UI rename, then metrics wire-up — but planner decides).
+
+
 
 ## Backlog
 

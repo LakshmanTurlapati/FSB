@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v0.9.49
 milestone_name: "Remote Control Rebrand & Showcase Metrics Wire-up"
-status: defining-requirements
+status: ready-to-plan
 last_shipped: v0.9.48
 last_updated: "2026-05-02T00:00:00.000Z"
 last_activity: 2026-05-02
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
+Phase: 223 — Remote Control rename + showcase metrics wire-up
+Plan: Not yet decomposed (run `/gsd-plan-phase 223`)
+Status: Ready to plan
 Last activity: 2026-05-02 — Milestone v0.9.49 started
 
 ## Performance Metrics
