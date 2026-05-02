@@ -59,5 +59,5 @@ bridge contracts, etc.).
 ## Repository Layout
 
 See the root `README.md` for the full repository overview, including
-the MCP server (`mcp-server/`, soon `mcp/`) and the showcase site
+the MCP server (`mcp/`) and the showcase site
 (`showcase/`).

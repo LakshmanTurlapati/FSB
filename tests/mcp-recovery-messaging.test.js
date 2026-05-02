@@ -26,7 +26,7 @@ function assertBlock(text, label) {
 }
 
 async function run() {
-  const errorsModuleUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'errors.js')).href;
+  const errorsModuleUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', 'errors.js')).href;
   const { mapFSBError } = await import(errorsModuleUrl);
 
   console.log('\n--- layer-aware recovery messaging ---');

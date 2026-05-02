@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/lakshmanturlapati/FSB.git",
-    "directory": "mcp-server"
+    "directory": "mcp"
   },
   "keywords": [
     "mcp",

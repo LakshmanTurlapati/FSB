@@ -22,15 +22,15 @@ jobs:
           node-version: '20'
       - name: Install root deps
         run: npm install --no-audit --no-fund
-      - name: Install mcp-server deps (needed by root test script)
-        run: npm --prefix mcp-server install --no-audit --no-fund
+      - name: Install mcp deps (needed by root test script)
+        run: npm --prefix mcp install --no-audit --no-fund
       - name: Validate extension (manifest + JS syntax)
         run: npm run validate:extension
       - name: Run extension + bridge contract tests
         run: npm test
 
   mcp-smoke:
-    name: mcp-server (build + smoke)
+    name: mcp (build + smoke)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,10 +39,10 @@ jobs:
           node-version: '20'
       - name: Install root deps
         run: npm install --no-audit --no-fund
-      - name: Install mcp-server deps
-        run: npm --prefix mcp-server install --no-audit --no-fund
+      - name: Install mcp deps
+        run: npm --prefix mcp install --no-audit --no-fund
       - name: Build MCP server (TypeScript)
-        run: npm --prefix mcp-server run build
+        run: npm --prefix mcp run build
       - name: MCP lifecycle + tools smoke
         run: npm run test:mcp-smoke
 

@@ -94,8 +94,8 @@ function assertOrdered(text, labels, msg) {
 }
 
 async function run() {
-  const diagnosticsUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'diagnostics.js')).href;
-  const indexUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'index.js')).href;
+  const diagnosticsUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', 'diagnostics.js')).href;
+  const indexUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', 'index.js')).href;
   const diagnostics = await import(diagnosticsUrl);
   const indexModule = await import(indexUrl);
 
