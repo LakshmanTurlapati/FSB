@@ -1,7 +1,7 @@
-import { Component, OnInit, Renderer2, inject } from '@angular/core';
+import { Component, OnInit, Renderer2, inject, DOCUMENT } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Title, Meta } from '@angular/platform-browser';
-import { DOCUMENT } from '@angular/common';
+
 import { APP_VERSION } from '../../core/seo/version';
 
 const HOST = 'https://full-selfbrowsing.com';
