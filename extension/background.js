@@ -2011,10 +2011,14 @@ var _lastDomStreamStaleFlushCount = 0;
 // 'getRemoteControlState' runtime action. Updated by the
 // 'remoteControlStateChanged' push handler below. SW-lifetime only;
 // null on cold start. Per CONTEXT D-18, disconnected is the safe default.
-// Distinct from ws/ws-client.js:124 _lastRemoteControlState which serves
-// Phase 209 snapshot recovery and remains untouched.
-// ============================================================================
-let _lastRemoteControlState = null;
+// Renamed from _lastRemoteControlState to _bgRemoteControlStateCache to
+// avoid colliding with the same-named identifier in ws/ws-client.js:124.
+// In Chrome service workers, importScripts loads files into the SAME global
+// scope -- two top-level declarations of the same name throw
+// "Identifier '_lastRemoteControlState' has already been declared" and break
+// background.js startup. ws-client.js's cache (Phase 209 snapshot recovery)
+// remains untouched at its original name.
+let _bgRemoteControlStateCache = null;
 
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
@@ -5090,8 +5094,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // disconnected-shaped default if no broadcast has happened yet this
       // SW lifetime. Sync tab JS uses this to populate the pill before the
       // first push arrives.
-      const state = (_lastRemoteControlState && typeof _lastRemoteControlState === 'object')
-        ? _lastRemoteControlState
+      const state = (_bgRemoteControlStateCache && typeof _bgRemoteControlStateCache === 'object')
+        ? _bgRemoteControlStateCache
         : { enabled: false, attached: false, tabId: null, reason: 'unknown', ownership: 'none' };
       sendResponse({ success: true, state: state });
       break;
@@ -5103,7 +5107,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // background.js listens to its own broadcast so the cache survives
       // when the Sync tab is closed.
       if (request.state && typeof request.state === 'object') {
-        _lastRemoteControlState = request.state;
+        _bgRemoteControlStateCache = request.state;
       }
       sendResponse({ success: true });
       break;
