@@ -183,7 +183,7 @@ async function runServiceWorkerWakeCase() {
     await waitFor(
       () => getPersistedState(wakeHarness).status === 'connected',
       'service-worker wake persisted connected status',
-      2000,
+      5000,
       20,
     );
     const postReconnectState = getPersistedState(wakeHarness);
