@@ -56,10 +56,10 @@ jobs:
           node-version: '20'
       - name: Install showcase deps
         run: npm --prefix showcase/angular install --no-audit --no-fund
-      - name: Build Angular showcase
+      - name: Build Angular showcase (prerender + SSR)
         run: npm --prefix showcase/angular run build
-      - name: Crawler-files smoke (skipped if not yet present)
-        run: npm --prefix showcase/angular run smoke:crawler --if-present
+      # Crawler smoke (smoke:crawler) hits production by default; it lives in
+      # 216-HUMAN-UAT.md and runs post-deploy, not in CI.
 
   all-green:
     name: all-green

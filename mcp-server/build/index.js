@@ -87,9 +87,9 @@ export function formatHeartbeat(lastHeartbeatAt, nowMs = Date.now()) {
     if (lastHeartbeatAt === null)
         return 'none';
     const ageMs = Math.max(0, nowMs - lastHeartbeatAt);
-    if (ageMs > 10_000)
+    if (ageMs > 10000)
         return 'stale';
-    return `${(ageMs / 1000).toFixed(ageMs >= 5_000 ? 0 : 1)}s`;
+    return `${(ageMs / 1000).toFixed(ageMs >= 5000 ? 0 : 1)}s`;
 }
 export function buildCompactStatusFields(diagnostics, nowMs = Date.now()) {
     return [
@@ -282,7 +282,7 @@ async function runDoctor(flags) {
 }
 async function runWaitForExtension(flags) {
     const bridge = new WebSocketBridge();
-    const timeoutMs = readNumberFlag(flags, 'timeout', 15_000);
+    const timeoutMs = readNumberFlag(flags, 'timeout', 15000);
     try {
         await bridge.connect();
     }

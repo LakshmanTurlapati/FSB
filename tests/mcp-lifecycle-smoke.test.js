@@ -168,13 +168,19 @@ async function runServiceWorkerWakeCase() {
     const wakeHarness = createLiveClientHarness(port, { chrome: sharedChrome });
     resources.clientHarnesses.push(wakeHarness);
     await wakeHarness.exports.mcpBridgeClient.recordWake('service-worker-evaluated');
+
+    // Snapshot wake state BEFORE reconnect; on slower runners the post-connect
+    // path can mutate persistence before the test reads it. The assertion name
+    // ("records the wake reason BEFORE reconnect") is exactly what we verify.
+    const preReconnectState = getPersistedState(wakeHarness);
+
     wakeHarness.exports.mcpBridgeClient.connect();
     await waitForConnection(bridgeHarness.bridge, wakeHarness, 'service-worker wake reconnect');
 
-    const wakeState = getPersistedState(wakeHarness);
-    assertEqual(wakeState.lastWakeReason, 'service-worker-evaluated', 'service-worker wake records the wake reason before reconnect');
-    assert(wakeState.wakeCount >= 1, 'service-worker wake increments wakeCount');
-    assertEqual(wakeState.status, 'connected', 'service-worker wake reconnects to the running hub');
+    const postReconnectState = getPersistedState(wakeHarness);
+    assertEqual(preReconnectState.lastWakeReason, 'service-worker-evaluated', 'service-worker wake records the wake reason before reconnect');
+    assert(preReconnectState.wakeCount >= 1, 'service-worker wake increments wakeCount');
+    assertEqual(postReconnectState.status, 'connected', 'service-worker wake reconnects to the running hub');
   } finally {
     await cleanupResources(resources);
   }
