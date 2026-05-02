@@ -63,27 +63,27 @@ function runCommand(command) {
 }
 
 async function run() {
-  const packageJson = readJson('mcp-server/package.json');
-  const serverJson = readJson('mcp-server/server.json');
-  const versionSource = readText('mcp-server/src/version.ts');
-  const packageReadme = readText('mcp-server/README.md');
+  const packageJson = readJson('mcp/package.json');
+  const serverJson = readJson('mcp/server.json');
+  const versionSource = readText('mcp/src/version.ts');
+  const packageReadme = readText('mcp/README.md');
   const rootReadme = readText('README.md');
 
   console.log('\n--- metadata parity ---');
-  assertEqual(packageJson.version, canonicalVersion, 'mcp-server/package.json version stays on canonical version parity target');
+  assertEqual(packageJson.version, canonicalVersion, 'mcp/package.json version stays on canonical version parity target');
   assertEqual(extractRuntimeVersion(versionSource), canonicalVersion, 'FSB_MCP_VERSION matches canonical package version');
   assertEqual(serverJson.version, canonicalVersion, 'server.json top-level version matches canonical package version');
   assertEqual(serverJson.packages[0].version, canonicalVersion, 'server.json package version matches canonical package version');
 
   console.log('\n--- cli output parity ---');
-  const helpOutput = runCommand('node mcp-server/build/index.js help');
-  const installOutput = runCommand('node mcp-server/build/index.js install');
+  const helpOutput = runCommand('node mcp/build/index.js help');
+  const installOutput = runCommand('node mcp/build/index.js install');
   assert(helpOutput.includes(`FSB MCP Server ${canonicalVersion}`), 'help output prints canonical MCP version');
   assert(installOutput.includes(`FSB MCP Server ${canonicalVersion}`), 'install output prints canonical MCP version');
 
   console.log('\n--- docs flow parity ---');
-  assert(packageReadme.includes('doctor'), 'mcp-server README mentions doctor');
-  assert(packageReadme.includes('status --watch'), 'mcp-server README mentions status --watch');
+  assert(packageReadme.includes('doctor'), 'mcp README mentions doctor');
+  assert(packageReadme.includes('status --watch'), 'mcp README mentions status --watch');
   assert(rootReadme.includes('doctor'), 'root README mentions doctor');
   assert(rootReadme.includes('status --watch'), 'root README mentions status --watch');
 

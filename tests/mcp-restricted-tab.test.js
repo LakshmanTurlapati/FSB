@@ -2,7 +2,7 @@
 
 /**
  * Restricted-tab MCP parity regression tests.
- * Run: npm --prefix mcp-server run build && node tests/mcp-restricted-tab.test.js
+ * Run: npm --prefix mcp run build && node tests/mcp-restricted-tab.test.js
  */
 
 const path = require('path');
@@ -180,7 +180,7 @@ async function runDispatcherRouteCases(dispatcher) {
 async function runErrorMapperCase() {
   console.log('\n--- mapped MCP error messaging ---');
 
-  const errorsModuleUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'errors.js')).href;
+  const errorsModuleUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', 'errors.js')).href;
   const { mapFSBError } = await import(errorsModuleUrl);
 
   const mapped = mapFSBError({

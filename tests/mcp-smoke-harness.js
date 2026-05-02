@@ -7,7 +7,7 @@ const vm = require('vm');
 const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
-const NodeWebSocket = require(path.join(repoRoot, 'mcp-server', 'node_modules', 'ws'));
+const NodeWebSocket = require(path.join(repoRoot, 'mcp', 'node_modules', 'ws'));
 
 function createStorageArea(initial = {}) {
   const store = { ...initial };
@@ -136,7 +136,7 @@ function getFreePort() {
 }
 
 async function loadBuildModule(relativePath) {
-  const moduleUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', relativePath)).href;
+  const moduleUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', relativePath)).href;
   return import(moduleUrl);
 }
 

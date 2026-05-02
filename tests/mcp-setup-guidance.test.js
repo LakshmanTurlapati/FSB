@@ -26,8 +26,8 @@ function assertIncludes(text, needle, msg) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const cliPath = path.join(repoRoot, 'mcp-server', 'build', 'index.js');
-const packageReadmePath = path.join(repoRoot, 'mcp-server', 'README.md');
+const cliPath = path.join(repoRoot, 'mcp', 'build', 'index.js');
+const packageReadmePath = path.join(repoRoot, 'mcp', 'README.md');
 const rootReadmePath = path.join(repoRoot, 'README.md');
 
 const requiredSetupLines = [

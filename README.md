@@ -190,7 +190,7 @@ FSB ships an [MCP server](#mcp-server) so Claude Code, Cursor, Windsurf, Codex, 
 
 FSB ships a standalone MCP server ([`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server)) that connects any MCP capable AI client to your browser. **62 tools** across manual control, visual sessions, autopilot, vault, agents, and observability.
 
-> **Full setup, tool reference, transport options, and architecture live in [mcp-server/README.md](mcp-server/README.md).**
+> **Full setup, tool reference, transport options, and architecture live in [mcp/README.md](mcp/README.md).**
 
 ### One Command Install
 
@@ -234,7 +234,7 @@ args = ["-y", "fsb-mcp-server"]
 }
 ```
 
-For OpenCode, OpenClaw, parity notes, visual session lifecycle, transport options (stdio or local Streamable HTTP), and the full 62 tool reference, see [mcp-server/README.md](mcp-server/README.md).
+For OpenCode, OpenClaw, parity notes, visual session lifecycle, transport options (stdio or local Streamable HTTP), and the full 62 tool reference, see [mcp/README.md](mcp/README.md).
 
 If MCP stops working, run `npm run test:mcp-smoke` first, then `npx -y fsb-mcp-server doctor`, then `npx -y fsb-mcp-server status --watch`. Only fall back to manual reinstall when the reported layer points there.
 
@@ -561,7 +561,7 @@ FSB/
     mermaid.min.js
     purify.min.js
   Logs/                         # Session logs (runtime)
-  mcp-server/                   # MCP server package (62 tools)
+  mcp/                          # MCP server package (62 tools)
   server/                       # Optional Node.js backend
   server-py/                    # Optional Python/Flask backend
   showcase/                     # Marketing website (Angular)

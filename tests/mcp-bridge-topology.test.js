@@ -5,7 +5,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
-const WebSocket = require(path.join(repoRoot, 'mcp-server', 'node_modules', 'ws'));
+const WebSocket = require(path.join(repoRoot, 'mcp', 'node_modules', 'ws'));
 
 let passed = 0;
 let failed = 0;
@@ -101,7 +101,7 @@ function attemptRelayWithOrigin(port, origin) {
 }
 
 async function loadBridgeClass() {
-  const bridgeUrl = pathToFileURL(path.join(repoRoot, 'mcp-server', 'build', 'bridge.js')).href;
+  const bridgeUrl = pathToFileURL(path.join(repoRoot, 'mcp', 'build', 'bridge.js')).href;
   const module = await import(bridgeUrl);
   return module.WebSocketBridge;
 }

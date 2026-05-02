@@ -23,7 +23,7 @@ function assertEqual(actual, expected, msg) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const cliPath = path.join(repoRoot, 'mcp-server', 'build', 'index.js');
+const cliPath = path.join(repoRoot, 'mcp', 'build', 'index.js');
 
 function runCli(args, fixture) {
   return spawnSync('node', [cliPath, ...args], {

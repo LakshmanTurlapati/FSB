@@ -50,7 +50,7 @@ const annotationFiles = [
   'extension/agents/agent-scheduler.js',
   'extension/agents/agent-executor.js',
   'extension/agents/server-sync.js',
-  'mcp-server/src/tools/agents.ts',
+  'mcp/src/tools/agents.ts',
   'extension/background.js',
   'extension/ws/ws-client.js',
 ];
@@ -62,10 +62,10 @@ for (const f of annotationFiles) {
   else fail('AGENTS-02 annotation MISSING in ' + f);
 }
 
-// ---- Section 2: AGENTS-02 zero LIVE server.tool() calls in mcp-server/src/tools/agents.ts ----
+// ---- Section 2: AGENTS-02 zero LIVE server.tool() calls in mcp/src/tools/agents.ts ----
 
 {
-  const src = read('mcp-server/src/tools/agents.ts');
+  const src = read('mcp/src/tools/agents.ts');
   const lines = src.split('\n');
   const liveServerTool = lines.filter(line => /^[\s]*server\.tool\(/.test(line));
   if (liveServerTool.length === 0) pass('AGENTS-02 zero LIVE server.tool() calls in agents.ts');
@@ -75,7 +75,7 @@ for (const f of annotationFiles) {
 // ---- Section 3: AGENTS-02 registerAgentTools function shell preserved in runtime.ts (D-16) ----
 
 {
-  const src = read('mcp-server/src/runtime.ts');
+  const src = read('mcp/src/runtime.ts');
   const hasImport = /^\s*import\s*\{\s*registerAgentTools\s*\}\s*from\s*['"]\.\/tools\/agents\.js['"]/m.test(src);
   const hasCall = /^\s*registerAgentTools\(server,\s*bridge,\s*queue\)\s*;/m.test(src);
   if (hasImport && hasCall) pass('AGENTS-02 registerAgentTools import + call preserved in runtime.ts');
