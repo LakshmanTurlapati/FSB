@@ -177,6 +177,15 @@ async function runServiceWorkerWakeCase() {
     wakeHarness.exports.mcpBridgeClient.connect();
     await waitForConnection(bridgeHarness.bridge, wakeHarness, 'service-worker wake reconnect');
 
+    // Persistence reflects the latest write; on CI runners the bridge can
+    // bounce momentarily after waitForConnection resolves. Poll briefly so the
+    // status assertion sees the connected snapshot rather than a transient.
+    await waitFor(
+      () => getPersistedState(wakeHarness).status === 'connected',
+      'service-worker wake persisted connected status',
+      2000,
+      20,
+    );
     const postReconnectState = getPersistedState(wakeHarness);
     assertEqual(preReconnectState.lastWakeReason, 'service-worker-evaluated', 'service-worker wake records the wake reason before reconnect');
     assert(preReconnectState.wakeCount >= 1, 'service-worker wake increments wakeCount');

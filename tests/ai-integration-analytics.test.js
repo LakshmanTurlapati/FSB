@@ -41,6 +41,10 @@ function loadAIIntegrationContext() {
     clearTimeout,
     self: {},
     window: undefined,
+    // ai-integration.js builds prompt strings that reference navigator.userAgent
+    // at module-evaluation time (e.g. Gmail Cmd/Ctrl-Enter fallback copy). The
+    // service-worker runtime always provides navigator; the vm sandbox does not.
+    navigator: { userAgent: 'node-test-harness' },
     importScripts: undefined,
     module: { exports: {} },
     exports: {},
@@ -72,7 +76,10 @@ function loadAIIntegrationContext() {
   context.__directCalls = directCalls;
   context.__sessionCostCalls = sessionCostCalls;
   context.__setDirectAnalytics = function () {
-    context.getAnalytics = () => ({
+    // Restored automation pipeline (commit 23c0ad1) uses initializeAnalytics,
+    // not the cleaned-up getAnalytics shape. The integration test stub mirrors
+    // that runtime contract.
+    context.initializeAnalytics = () => ({
       trackUsage() {
         directCalls.push(Array.from(arguments));
         return Promise.resolve();
@@ -88,8 +95,11 @@ async function run() {
   const backgroundSource = readRepoFile('background.js');
 
   console.log('\n--- source-level regression checks ---');
-  assert(aiSource.includes("typeof getAnalytics === 'function'"), 'AI integration uses getAnalytics for background tracking');
-  assert(!aiSource.includes('initializeAnalytics'), 'AI integration no longer references initializeAnalytics');
+  // Restored automation pipeline (23c0ad1) intentionally re-introduces
+  // initializeAnalytics. Lock that contract instead of the older getAnalytics
+  // shape that got reverted.
+  assert(aiSource.includes("typeof initializeAnalytics !== 'undefined'"), 'AI integration probes initializeAnalytics for background tracking');
+  assert(aiSource.includes('initializeAnalytics()'), 'AI integration invokes initializeAnalytics for direct tracking');
   assert(aiSource.includes("source: 'automation'"), 'TRACK_USAGE payload carries automation source explicitly');
   assert(backgroundSource.includes("source || 'automation'"), 'background TRACK_USAGE handler reads source instead of tokenSource');
 
