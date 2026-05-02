@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extension:
+    name: extension (validate + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install root deps
+        run: npm ci
+      - name: Install mcp-server deps (needed by root test script)
+        run: npm --prefix mcp-server ci || npm --prefix mcp-server install
+      - name: Validate extension (manifest + JS syntax)
+        run: npm run validate:extension
+      - name: Run extension + bridge contract tests
+        run: npm test
+
+  mcp-smoke:
+    name: mcp-server (build + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install root deps
+        run: npm ci
+      - name: Install mcp-server deps
+        run: npm --prefix mcp-server ci || npm --prefix mcp-server install
+      - name: Build MCP server (TypeScript)
+        run: npm --prefix mcp-server run build
+      - name: MCP lifecycle + tools smoke
+        run: npm run test:mcp-smoke
+
+  website:
+    name: showcase (build + crawler smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: showcase/angular/package-lock.json
+      - name: Install showcase deps
+        run: npm --prefix showcase/angular ci || npm --prefix showcase/angular install
+      - name: Build Angular showcase (prerender + SSR)
+        run: npm --prefix showcase/angular run build
+      - name: Crawler-files smoke
+        run: npm --prefix showcase/angular run smoke:crawler
+
+  all-green:
+    name: all-green
+    needs: [extension, mcp-smoke, website]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All required CI checks passed."
