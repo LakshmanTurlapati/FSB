@@ -103,6 +103,35 @@ FSB ships an [MCP server](#mcp-server) so Claude Code, Cursor, Windsurf, Codex, 
 
 ---
 
+## Repository Layout
+
+This repository is organized into three top level packages, each with its own README:
+
+| Package | Purpose |
+|---------|---------|
+| [`extension/`](./extension/README.md) | Chrome extension (Manifest V3). The AI agent that drives the browser. Load this directory as an unpacked extension. |
+| [`mcp/`](./mcp/README.md) | MCP server (npm: [`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server)). Lets MCP clients (Claude Desktop, Cursor, Cline, Codex, etc.) drive the same extension. |
+| [`showcase/`](./showcase/README.md) | Marketing site at [full-selfbrowsing.com](https://full-selfbrowsing.com). Angular 19 SSR + Express deploy backend. |
+
+Top level helpers:
+
+- `tests/` — Node test suite covering extension modules, MCP bridge contracts, and lifecycle smoke tests.
+- `scripts/validate-extension.mjs` — static gate that checks `extension/manifest.json` and JS syntax across the extension tree.
+- `.github/workflows/ci.yml` — runs validate, tests, MCP smoke, and showcase build on every PR.
+- `Dockerfile`, `fly.toml` — production deploy of the showcase site (`showcase/server/`) on fly.io.
+
+Run the full local CI gate from the root:
+
+```bash
+npm install
+npm run validate:extension
+npm test
+npm run test:mcp-smoke
+npm --prefix showcase/angular run build
+```
+
+---
+
 ## Screenshots
 
 ### FSB in Action
