@@ -459,7 +459,19 @@
         action: 'spaNavigation',
         url: args[2],
         method: 'pushState'
-      }).catch(() => {});
+      }).catch((err) => {
+        try {
+          if (typeof automationLogger !== 'undefined' && automationLogger && typeof automationLogger.debug === 'function') {
+            automationLogger.debug('[FSB DOM] SPA navigation sendMessage failed', {
+              method: 'pushState',
+              err: (typeof redactForLog === 'function') ? redactForLog(err) : { kind: 'error', message: err && err.message ? err.message : '' }
+            });
+          }
+          if (typeof logDebugToRing === 'function') {
+            logDebugToRing('DOM', 'spa-navigation', 'SPA navigation sendMessage failed', { method: 'pushState' });
+          }
+        } catch (loggerErr) { /* logger missing in some realms */ }
+      });
     };
 
     const originalReplaceState = history.replaceState;
@@ -469,7 +481,19 @@
         action: 'spaNavigation',
         url: args[2],
         method: 'replaceState'
-      }).catch(() => {});
+      }).catch((err) => {
+        try {
+          if (typeof automationLogger !== 'undefined' && automationLogger && typeof automationLogger.debug === 'function') {
+            automationLogger.debug('[FSB DOM] SPA navigation sendMessage failed', {
+              method: 'replaceState',
+              err: (typeof redactForLog === 'function') ? redactForLog(err) : { kind: 'error', message: err && err.message ? err.message : '' }
+            });
+          }
+          if (typeof logDebugToRing === 'function') {
+            logDebugToRing('DOM', 'spa-navigation', 'SPA navigation sendMessage failed', { method: 'replaceState' });
+          }
+        } catch (loggerErr) { /* logger missing in some realms */ }
+      });
     };
 
     window.addEventListener('popstate', () => {
@@ -477,7 +501,19 @@
         action: 'spaNavigation',
         url: window.location.href,
         method: 'popstate'
-      }).catch(() => {});
+      }).catch((err) => {
+        try {
+          if (typeof automationLogger !== 'undefined' && automationLogger && typeof automationLogger.debug === 'function') {
+            automationLogger.debug('[FSB DOM] SPA navigation sendMessage failed', {
+              method: 'popstate',
+              err: (typeof redactForLog === 'function') ? redactForLog(err) : { kind: 'error', message: err && err.message ? err.message : '' }
+            });
+          }
+          if (typeof logDebugToRing === 'function') {
+            logDebugToRing('DOM', 'spa-navigation', 'SPA navigation sendMessage failed', { method: 'popstate' });
+          }
+        } catch (loggerErr) { /* logger missing in some realms */ }
+      });
     });
 
     logger.logInit('spa_detection', 'enabled', { hostname: 'google.com' });

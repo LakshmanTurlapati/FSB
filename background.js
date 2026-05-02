@@ -35,6 +35,11 @@ armMcpBridge('service-worker-evaluated');
 
 // Dashboard relay WebSocket client (auto-connects to full-selfbrowsing.com)
 try { importScripts('lib/lz-string.min.js'); } catch (e) { console.error('[FSB] Failed to load lz-string.min.js:', e.message); }
+// Phase 211-03 diagnostic logging: load the ring buffer BEFORE redactForLog so
+// that rateLimitedWarn sees globalThis.fsbDiagnostics on first call. Both load
+// BEFORE ws-client.js so the WebSocket layer can use the helpers.
+try { importScripts('utils/diagnostics-ring-buffer.js'); } catch (e) { console.error('[FSB] Failed to load diagnostics-ring-buffer.js:', e.message); }
+try { importScripts('utils/redactForLog.js'); } catch (e) { console.error('[FSB] Failed to load redactForLog.js:', e.message); }
 try { importScripts('ws/ws-client.js'); } catch (e) { console.error('[FSB] Failed to load ws-client.js:', e.message); }
 
 // Site-specific AI guidance modules
@@ -156,11 +161,12 @@ importScripts('site-guides/gaming/humble-bundle.js');
 importScripts('site-guides/productivity/google-sheets.js');
 importScripts('site-guides/productivity/google-docs.js');
 
-// Background agent modules
-importScripts('agents/agent-manager.js');
-importScripts('agents/agent-scheduler.js');
-importScripts('agents/agent-executor.js');
-importScripts('agents/server-sync.js');
+// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+// Background agent modules (commented out; modules retired in v0.9.45rc1)
+// importScripts('agents/agent-manager.js');
+// importScripts('agents/agent-scheduler.js');
+// importScripts('agents/agent-executor.js');
+// importScripts('agents/server-sync.js');
 
 // Agent loop engine modules (Phase 181: re-enable modular agent loop per D-01, D-02)
 importScripts('ai/engine-config.js');
@@ -199,6 +205,11 @@ const bundledSiteMapCache = new Map();
 // Order matters: init.js sets up the window.FSB namespace, utils.js provides
 // shared helpers, then domain modules, then messaging/lifecycle which depend on all above.
 const CONTENT_SCRIPT_FILES = [
+  // Phase 211-03 diagnostic logging helpers MUST load FIRST so that any
+  // downstream content-script .catch handlers can call rateLimitedWarn /
+  // redactForLog / logDebugToRing without ReferenceError.
+  'utils/diagnostics-ring-buffer.js',
+  'utils/redactForLog.js',
   'utils/automation-logger.js',
   'content/init.js',
   'content/utils.js',
@@ -1987,6 +1998,23 @@ const MCP_VISUAL_SESSION_STORAGE_KEY = 'fsbMcpVisualSessions';
 // Last dashboard task completion result (retained for recovery snapshot)
 var _lastDashboardTaskResult = null;
 var _lastDashboardTaskResultTime = 0;
+
+// Phase 211-02 STREAM-02: SW-side cache of the last-known staleFlushCount
+// from the active streaming content script. Read by ws/ws-client.js
+// _emitStreamState at the ext:stream-state send call (line ~912).
+// Module-scope (not per-tab) is acceptable: only one streaming tab at a time.
+var _lastDomStreamStaleFlushCount = 0;
+
+// ============================================================================
+// Phase 213 - Sync tab runtime cache (SYNC-02)
+// Mirrors ext:remote-control-state for replay-on-attach via the
+// 'getRemoteControlState' runtime action. Updated by the
+// 'remoteControlStateChanged' push handler below. SW-lifetime only;
+// null on cold start. Per CONTEXT D-18, disconnected is the safe default.
+// Distinct from ws/ws-client.js:124 _lastRemoteControlState which serves
+// Phase 209 snapshot recovery and remains untouched.
+// ============================================================================
+let _lastRemoteControlState = null;
 
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
@@ -5056,6 +5084,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
     }
 
+    case 'getRemoteControlState': {
+      // Phase 213 D-16: replay-on-attach for Sync tab pill.
+      // Returns the last cached ext:remote-control-state payload or a
+      // disconnected-shaped default if no broadcast has happened yet this
+      // SW lifetime. Sync tab JS uses this to populate the pill before the
+      // first push arrives.
+      const state = (_lastRemoteControlState && typeof _lastRemoteControlState === 'object')
+        ? _lastRemoteControlState
+        : { enabled: false, attached: false, tabId: null, reason: 'unknown', ownership: 'none' };
+      sendResponse({ success: true, state: state });
+      break;
+    }
+
+    case 'remoteControlStateChanged': {
+      // Phase 213 D-17 cache update path. ws/ws-client.js
+      // _broadcastRemoteControlState fires this push after every WS emit.
+      // background.js listens to its own broadcast so the cache survives
+      // when the Sync tab is closed.
+      if (request.state && typeof request.state === 'object') {
+        _lastRemoteControlState = request.state;
+      }
+      sendResponse({ success: true });
+      break;
+    }
+
     case 'testAPI':
       handleTestAPI(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -5582,174 +5635,175 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
-    // --- Background Agent Management ---
-    case 'createAgent':
-      (async () => {
-        try {
-          const agent = await agentManager.createAgent(request.params);
-          if (agent.enabled) {
-            await agentScheduler.scheduleAgent(agent);
-          }
-          sendResponse({ success: true, agent });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'updateAgent':
-      (async () => {
-        try {
-          const agent = await agentManager.updateAgent(request.agentId, request.updates);
-          // Reschedule if schedule or enabled state changed
-          if (agent.enabled) {
-            await agentScheduler.scheduleAgent(agent);
-          } else {
-            await agentScheduler.clearAlarm(agent.agentId);
-          }
-          sendResponse({ success: true, agent });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'deleteAgent':
-      (async () => {
-        try {
-          await agentScheduler.clearAlarm(request.agentId);
-          await agentExecutor.forceStop(request.agentId);
-          const deleted = await agentManager.deleteAgent(request.agentId);
-          sendResponse({ success: deleted });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'listAgents':
-      (async () => {
-        try {
-          const agents = await agentManager.listAgents();
-          sendResponse({ success: true, agents });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'toggleAgent':
-      (async () => {
-        try {
-          const agent = await agentManager.toggleAgent(request.agentId);
-          if (agent.enabled) {
-            await agentScheduler.scheduleAgent(agent);
-          } else {
-            await agentScheduler.clearAlarm(agent.agentId);
-          }
-          sendResponse({ success: true, agent });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'runAgentNow':
-      (async () => {
-        try {
-          const agent = await agentManager.getAgent(request.agentId);
-          if (!agent) {
-            sendResponse({ success: false, error: 'Agent not found' });
-            return;
-          }
-          // Execute immediately in background
-          sendResponse({ success: true, message: 'Agent execution started' });
-          const result = await agentExecutor.execute(agent);
-          await agentManager.recordRun(agent.agentId, result);
-          chrome.runtime.sendMessage({
-            action: 'agentRunComplete',
-            agentId: agent.agentId,
-            result: { success: result.success, duration: result.duration, error: result.error }
-          }).catch((err) => {
-            console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId: agent.agentId, error: err && err.message });
-          });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'getAgentStats':
-      (async () => {
-        try {
-          const stats = await agentManager.getStats();
-          sendResponse({ success: true, stats });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'getAgentRunHistory':
-      (async () => {
-        try {
-          const history = await agentManager.getRunHistory(request.agentId, request.limit || 10);
-          sendResponse({ success: true, history });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'clearAgentScript':
-      (async () => {
-        try {
-          await agentManager.clearRecordedScript(request.agentId);
-          sendResponse({ success: true });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'getAgentReplayInfo':
-      (async () => {
-        try {
-          const agent = await agentManager.getAgent(request.agentId);
-          if (!agent) {
-            sendResponse({ success: false, error: 'Agent not found' });
-            return;
-          }
-          sendResponse({
-            success: true,
-            replayEnabled: agent.replayEnabled !== false,
-            hasScript: !!(agent.recordedScript && agent.recordedScript.steps && agent.recordedScript.steps.length > 0),
-            scriptSteps: agent.recordedScript?.totalSteps || 0,
-            recordedAt: agent.recordedScript?.recordedAt || null,
-            replayStats: agent.replayStats || { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0 }
-          });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'toggleAgentReplay':
-      (async () => {
-        try {
-          const agent = await agentManager.getAgent(request.agentId);
-          if (!agent) {
-            sendResponse({ success: false, error: 'Agent not found' });
-            return;
-          }
-          const newValue = !(agent.replayEnabled !== false);
-          await agentManager.updateAgent(request.agentId, { replayEnabled: newValue });
-          sendResponse({ success: true, replayEnabled: newValue });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
+    // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+//     // --- Background Agent Management ---
+//     case 'createAgent':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.createAgent(request.params);
+//           if (agent.enabled) {
+//             await agentScheduler.scheduleAgent(agent);
+//           }
+//           sendResponse({ success: true, agent });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'updateAgent':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.updateAgent(request.agentId, request.updates);
+//           // Reschedule if schedule or enabled state changed
+//           if (agent.enabled) {
+//             await agentScheduler.scheduleAgent(agent);
+//           } else {
+//             await agentScheduler.clearAlarm(agent.agentId);
+//           }
+//           sendResponse({ success: true, agent });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'deleteAgent':
+//       (async () => {
+//         try {
+//           await agentScheduler.clearAlarm(request.agentId);
+//           await agentExecutor.forceStop(request.agentId);
+//           const deleted = await agentManager.deleteAgent(request.agentId);
+//           sendResponse({ success: deleted });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'listAgents':
+//       (async () => {
+//         try {
+//           const agents = await agentManager.listAgents();
+//           sendResponse({ success: true, agents });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'toggleAgent':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.toggleAgent(request.agentId);
+//           if (agent.enabled) {
+//             await agentScheduler.scheduleAgent(agent);
+//           } else {
+//             await agentScheduler.clearAlarm(agent.agentId);
+//           }
+//           sendResponse({ success: true, agent });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'runAgentNow':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.getAgent(request.agentId);
+//           if (!agent) {
+//             sendResponse({ success: false, error: 'Agent not found' });
+//             return;
+//           }
+//           // Execute immediately in background
+//           sendResponse({ success: true, message: 'Agent execution started' });
+//           const result = await agentExecutor.execute(agent);
+//           await agentManager.recordRun(agent.agentId, result);
+//           chrome.runtime.sendMessage({
+//             action: 'agentRunComplete',
+//             agentId: agent.agentId,
+//             result: { success: result.success, duration: result.duration, error: result.error }
+//           }).catch((err) => {
+//             console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId: agent.agentId, error: err && err.message });
+//           });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'getAgentStats':
+//       (async () => {
+//         try {
+//           const stats = await agentManager.getStats();
+//           sendResponse({ success: true, stats });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'getAgentRunHistory':
+//       (async () => {
+//         try {
+//           const history = await agentManager.getRunHistory(request.agentId, request.limit || 10);
+//           sendResponse({ success: true, history });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'clearAgentScript':
+//       (async () => {
+//         try {
+//           await agentManager.clearRecordedScript(request.agentId);
+//           sendResponse({ success: true });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'getAgentReplayInfo':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.getAgent(request.agentId);
+//           if (!agent) {
+//             sendResponse({ success: false, error: 'Agent not found' });
+//             return;
+//           }
+//           sendResponse({
+//             success: true,
+//             replayEnabled: agent.replayEnabled !== false,
+//             hasScript: !!(agent.recordedScript && agent.recordedScript.steps && agent.recordedScript.steps.length > 0),
+//             scriptSteps: agent.recordedScript?.totalSteps || 0,
+//             recordedAt: agent.recordedScript?.recordedAt || null,
+//             replayStats: agent.replayStats || { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0 }
+//           });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
+//
+//     case 'toggleAgentReplay':
+//       (async () => {
+//         try {
+//           const agent = await agentManager.getAgent(request.agentId);
+//           if (!agent) {
+//             sendResponse({ success: false, error: 'Agent not found' });
+//             return;
+//           }
+//           const newValue = !(agent.replayEnabled !== false);
+//           await agentManager.updateAgent(request.agentId, { replayEnabled: newValue });
+//           sendResponse({ success: true, replayEnabled: newValue });
+//         } catch (error) {
+//           sendResponse({ success: false, error: error.message });
+//         }
+//       })();
+//       return true;
 
     case 'replaySession':
       handleReplaySession(request, sender, sendResponse);
@@ -5839,6 +5893,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
 
     case 'domStreamMutations':
+      // Phase 211-02 STREAM-02: cache the last-known staleFlushCount from
+      // the content script so ws/ws-client.js _emitStreamState can include
+      // it in the ext:stream-state payload. Additive only -- the
+      // ext:dom-mutations payload shape MUST NOT change (D-14).
+      if (typeof request.staleFlushCount === 'number') {
+        _lastDomStreamStaleFlushCount = request.staleFlushCount;
+      }
+      // Phase 211-02 STREAM-01: ensure the dom-stream watchdog alarm is armed
+      // whenever streaming activity is observed. chrome.alarms.create is
+      // idempotent (recreating the same name replaces the schedule), so it is
+      // safe to call on every dispatch. Pattern mirrors ws/mcp-bridge-client.js:218.
+      try {
+        var alarmsApi = (typeof chrome !== 'undefined') ? chrome.alarms : null;
+        if (alarmsApi && typeof alarmsApi.create === 'function') {
+          var armResult = alarmsApi.create('fsb-domstream-watchdog', { periodInMinutes: 1 });
+          if (armResult && typeof armResult.catch === 'function') {
+            armResult.catch(function() { /* best-effort; in-memory watchdog still runs in content script */ });
+          }
+        }
+      } catch (e) { /* best-effort */ }
       if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
         fsbWebSocket.send('ext:dom-mutations', {
           mutations: request.mutations || [],
@@ -6402,7 +6476,11 @@ async function handleStartAutomation(request, sender, sendResponse) {
           s.taskSummary = summary;
         }
       });
-    }).catch(() => {});
+    }).catch((err) => {
+      if (typeof rateLimitedWarn === 'function') {
+        rateLimitedWarn('BG', 'task-summarization', 'task summarization config fetch failed', (typeof redactForLog === 'function') ? redactForLog(err) : {});
+      }
+    });
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
@@ -12528,7 +12606,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// --- Background Agent Alarm Handler ---
+// --- chrome.alarms.onAlarm Listener (MCP reconnect + dom-stream watchdog; agent branch DEPRECATED) ---
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   const isMcpReconnectAlarm =
     typeof MCP_RECONNECT_ALARM !== 'undefined' &&
@@ -12539,70 +12617,81 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
 
-  const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
-  if (!agentId) return; // Not an FSB agent alarm
-
-  console.log('[FSB] Agent alarm fired:', alarm.name);
-
-  try {
-    const agent = await agentManager.getAgent(agentId);
-    if (!agent) {
-      console.warn('[FSB] Agent not found for alarm, clearing:', agentId);
-      await agentScheduler.clearAlarm(agentId);
-      return;
-    }
-
-    if (!agent.enabled) {
-      console.log('[FSB] Agent disabled, skipping:', agentId);
-      return;
-    }
-
-    // Guard against double-runs
-    if (!agentScheduler.isValidAlarmFire(agent)) {
-      console.log('[FSB] Agent alarm fired too soon, skipping:', agentId);
-      return;
-    }
-
-    // Execute the agent
-    const result = await agentExecutor.execute(agent);
-
-    // Record the run
-    const updatedAgent = await agentManager.recordRun(agentId, result);
-
-    // Reschedule daily agents for their next occurrence
-    if (agent.schedule.type === 'daily') {
-      await agentScheduler.rescheduleDaily(updatedAgent);
-    }
-
-    // Disable once-type agents after execution
-    if (agent.schedule.type === 'once') {
-      await agentManager.updateAgent(agentId, { enabled: false });
-      await agentScheduler.clearAlarm(agentId);
-    }
-
-    // Notify any open UI about the run completion
-    chrome.runtime.sendMessage({
-      action: 'agentRunComplete',
-      agentId: agentId,
-      result: {
-        success: result.success,
-        duration: result.duration,
-        error: result.error
-      }
-    }).catch((err) => {
-      console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId, error: err && err.message });
-    });
-
-    // Sync to server if enabled
-    if (updatedAgent.syncEnabled && typeof serverSync !== 'undefined') {
-      serverSync.syncRun(updatedAgent, result).catch(err => {
-        console.warn('[FSB] Server sync failed:', err.message);
-      });
-    }
-
-  } catch (error) {
-    console.error('[FSB] Agent alarm handler error:', error.message);
+  // Phase 211-02 STREAM-01: dom-stream watchdog (safety net).
+  // Survives SW idle eviction (chrome.alarms.create at periodInMinutes: 1).
+  // The content-script self-watchdog is the trip wire; this alarm exists
+  // so a wedged content script does not strand the stream silently.
+  // Phase 212 owns the agent branch below; this branch slots BEFORE it.
+  if (alarm.name === 'fsb-domstream-watchdog') {
+    console.log('[FSB DOM] watchdog alarm fired (SW safety net)');
+    return;
   }
+
+  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+//   const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
+//   if (!agentId) return; // Not an FSB agent alarm
+//
+//   console.log('[FSB] Agent alarm fired:', alarm.name);
+//
+//   try {
+//     const agent = await agentManager.getAgent(agentId);
+//     if (!agent) {
+//       console.warn('[FSB] Agent not found for alarm, clearing:', agentId);
+//       await agentScheduler.clearAlarm(agentId);
+//       return;
+//     }
+//
+//     if (!agent.enabled) {
+//       console.log('[FSB] Agent disabled, skipping:', agentId);
+//       return;
+//     }
+//
+//     // Guard against double-runs
+//     if (!agentScheduler.isValidAlarmFire(agent)) {
+//       console.log('[FSB] Agent alarm fired too soon, skipping:', agentId);
+//       return;
+//     }
+//
+//     // Execute the agent
+//     const result = await agentExecutor.execute(agent);
+//
+//     // Record the run
+//     const updatedAgent = await agentManager.recordRun(agentId, result);
+//
+//     // Reschedule daily agents for their next occurrence
+//     if (agent.schedule.type === 'daily') {
+//       await agentScheduler.rescheduleDaily(updatedAgent);
+//     }
+//
+//     // Disable once-type agents after execution
+//     if (agent.schedule.type === 'once') {
+//       await agentManager.updateAgent(agentId, { enabled: false });
+//       await agentScheduler.clearAlarm(agentId);
+//     }
+//
+//     // Notify any open UI about the run completion
+//     chrome.runtime.sendMessage({
+//       action: 'agentRunComplete',
+//       agentId: agentId,
+//       result: {
+//         success: result.success,
+//         duration: result.duration,
+//         error: result.error
+//       }
+//     }).catch((err) => {
+//       console.warn('[FSB] agentRunComplete sendMessage delivery failed', { agentId, error: err && err.message });
+//     });
+//
+//     // Sync to server if enabled
+//     if (updatedAgent.syncEnabled && typeof serverSync !== 'undefined') {
+//       serverSync.syncRun(updatedAgent, result).catch(err => {
+//         console.warn('[FSB] Server sync failed:', err.message);
+//       });
+//     }
+//
+//   } catch (error) {
+//     console.error('[FSB] Agent alarm handler error:', error.message);
+//   }
 });
 
 // Set up side panel behavior
@@ -12630,8 +12719,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     automationLogger.debug('Side panel API not available', { chromeVersion: 'below 114' });
   }
 
-  // Reschedule all background agents
-  agentScheduler.rescheduleAllAgents();
+  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+  // Reschedule all background agents (retired in v0.9.45rc1)
+  // agentScheduler.rescheduleAllAgents();
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
   armMcpBridge('runtime.onInstalled');
@@ -12648,8 +12738,9 @@ chrome.runtime.onStartup.addListener(async () => {
   await loadDebugMode();
   // Restore sessions from storage so stop button works after service worker restart
   await restoreSessionsFromStorage();
-  // Reschedule all background agents
-  agentScheduler.rescheduleAllAgents();
+  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+  // Reschedule all background agents (retired in v0.9.45rc1)
+  // agentScheduler.rescheduleAllAgents();
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
   armMcpBridge('runtime.onStartup');
@@ -12688,4 +12779,39 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       }
     }
   }
+});
+
+// =====================================================================
+// Phase 211-03 LOG-04: exportDiagnostics handler (back-end only).
+// Phase 213's Sync tab will wire a button to call this. Phase 211 ships
+// the contract; no UI in this milestone (D-08).
+//
+// Request:  { action: 'exportDiagnostics', clear?: boolean }
+// Response: { ok: true, entries: [...], clearedAt: <ts>|null }
+//        |  { ok: false, error: '<reason>' }
+// =====================================================================
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request && request.action === 'exportDiagnostics') {
+    const wantsClear = !!(request && request.clear === true);
+    if (typeof globalThis !== 'undefined'
+        && globalThis.fsbDiagnostics
+        && typeof globalThis.fsbDiagnostics.get === 'function') {
+      globalThis.fsbDiagnostics.get({ clear: wantsClear }).then((result) => {
+        sendResponse({
+          ok: true,
+          entries: (result && result.entries) ? result.entries : [],
+          clearedAt: (result && result.clearedAt) ? result.clearedAt : null
+        });
+      }).catch((err) => {
+        sendResponse({
+          ok: false,
+          error: (err && err.message) ? err.message : 'unknown'
+        });
+      });
+      return true; // keep sendResponse open for async resolution
+    }
+    sendResponse({ ok: false, error: 'fsbDiagnostics not loaded' });
+    return false;
+  }
+  return false; // other listeners handle other actions
 });

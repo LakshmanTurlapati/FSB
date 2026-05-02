@@ -7,7 +7,7 @@ import { mapFSBError } from '../errors.js';
 // Approved visual-session client labels (must match the extension's allowlist)
 const MCP_VISUAL_CLIENT_LABELS: string[] = [
   'Claude', 'Codex', 'ChatGPT', 'Perplexity', 'Windsurf',
-  'Cursor', 'Antigravity', 'OpenCode', 'OpenClaw', 'Grok', 'Gemini',
+  'Cursor', 'Antigravity', 'OpenCode', 'OpenClaw', 'OpenClaw 🦀', 'Grok', 'Gemini',
 ];
 
 const CLIENT_LABEL_MAP: Record<string, string> = Object.create(null);
@@ -31,7 +31,7 @@ export function registerVisualSessionTools(
 ): void {
   server.tool(
     'start_visual_session',
-    'Start the visible FSB automation surface on the active normal webpage without invoking run_task. Use this when an external MCP client wants the FSB glow/overlay to appear while it drives the browser step by step. Returns a session token that follow-up visual-session calls must use.',
+    'Start the FSB visual session BEFORE any browser work. Puts the user-visible glow/overlay on the active tab so the human can see what is being driven, and returns a session token to thread through later visual-session calls. ALWAYS call this first whenever you plan to use FSB browser tools (click, type_text, navigate, execute_js, ...) -- starting and ending a session is trivial and the visible signal is what makes FSB feel transparent to the user. Real-time progress updates via report_progress (using this token) are a bonus, not a requirement. Pair with end_visual_session.',
     {
       client: z.string().describe('Trusted MCP client label, for example Codex, ChatGPT, Claude, or Gemini. Must be on the approved allowlist.'),
       task: z.string().describe('Short task title shown in the visible automation surface.'),
@@ -67,7 +67,7 @@ export function registerVisualSessionTools(
 
   server.tool(
     'end_visual_session',
-    'End a client-owned visual session previously created by start_visual_session. Use the returned session token to clear the glow/overlay without invoking run_task completion.',
+    'End the FSB visual session and clear the glow/overlay. ALWAYS call this when your browser work is done -- starting and ending sessions is trivial; leaving them open is what looks bad. Provide the session_token returned by start_visual_session, plus an optional reason (\'cancelled\' or \'ended\') for analytics. Pair with start_visual_session.',
     {
       session_token: z.string().describe('Session token returned by start_visual_session.'),
       reason: z.enum(['cancelled', 'ended']).optional().describe('Optional end reason for analytics/debugging.'),

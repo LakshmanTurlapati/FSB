@@ -4988,3 +4988,140 @@ textarea.form-input {
 .pairing-qr-success {
   color: var(--success, #22c55e);
 }
+
+/* === Phase 212: Background Agents deprecation card === */
+/* DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md */
+
+.fsb-deprecation-card {
+  margin-top: 0;
+}
+
+.fsb-deprecation-headline {
+  margin: 0 0 6px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.fsb-deprecation-body {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--text-secondary, #6b6b6b);
+}
+
+.fsb-deprecation-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.fsb-deprecation-cta-row .control-btn {
+  text-decoration: none;
+}
+
+.fsb-deprecation-footer {
+  display: block;
+  color: var(--text-muted, #999);
+  font-size: 0.82rem;
+}
+
+.fsb-sunset-notice {
+  margin-top: 18px;
+}
+
+.fsb-sunset-notice-list {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 8px 0 14px 0;
+}
+
+.fsb-sunset-notice-list li {
+  margin: 4px 0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.fsb-sunset-notice-dismiss {
+  align-self: flex-start;
+}
+
+/* ============================================================================
+   Phase 213 - Sync tab section header + connection-status pill (SYNC-02)
+   Pill lives in <section id="sync"> header; reflects ext:remote-control-state.
+   Tokens: success/warning/error/info from :root and [data-theme="dark"].
+   Animation: reuses existing @keyframes pulse at line ~1384.
+   ============================================================================ */
+
+/* Section header flex layout - h2/p on left, pill top-right */
+.sync-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.sync-section-header .section-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sync-section-header #syncStatusPill {
+  flex: 0 0 auto;
+  margin-top: var(--space-xs);
+}
+
+@media (max-width: 640px) {
+  .sync-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sync-section-header #syncStatusPill {
+    align-self: flex-start;
+    margin-top: 0;
+  }
+}
+
+/* Pill base */
+.sync-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: var(--dashboard-body-md);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+
+.sync-status-pill .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.sync-status-pill .label {
+  line-height: 1;
+}
+
+/* State-specific dot colors - token aliased so dark mode picks up automatically */
+.sync-status-pill[data-state="connected"] .dot { background: var(--success-color); }
+.sync-status-pill[data-state="connecting"] .dot { background: var(--warning-color); }
+.sync-status-pill[data-state="disconnected"] .dot { background: var(--danger); }
+.sync-status-pill[data-state="remote-active"] .dot { background: var(--info-color); }
+
+/* Pulse animation for live states; respect prefers-reduced-motion */
+@media (prefers-reduced-motion: no-preference) {
+  .sync-status-pill[data-state="connecting"] .dot,
+  .sync-status-pill[data-state="remote-active"] .dot {
+    animation: pulse 2s ease-in-out infinite;
+  }
+}

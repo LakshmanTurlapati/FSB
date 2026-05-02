@@ -1,17 +1,30 @@
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { FSB_SERVER_NAME } from './version.js';
 const home = homedir();
+// Helper for VS Code extension globalStorage paths
+function vsCodeGlobalStorage(publisherId, settingsFile) {
+    return {
+        darwin: join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', publisherId, 'settings', settingsFile),
+        win32: join(process.env.APPDATA || '', 'Code', 'User', 'globalStorage', publisherId, 'settings', settingsFile),
+        linux: join(home, '.config', 'Code', 'User', 'globalStorage', publisherId, 'settings', settingsFile),
+    };
+}
 /**
- * Platform registry mapping all 10 MCP-capable platforms to their
+ * Platform registry mapping all MCP-capable platforms to their
  * config file metadata. Each entry contains:
  *   - displayName: Human-readable name
  *   - flag: CLI flag name (same as key)
  *   - format: 'json' | 'jsonc' | 'toml' | 'yaml' | 'cli'
- *   - serverMapKey: Root key in the config file (null for cli format)
- *   - configPath: { darwin, win32, linux } resolved paths (null for cli format)
+ *   - serverMapKey: Root key in the config file (null for cli/instructions)
+ *   - configPath: { darwin, win32, linux } resolved paths (null for cli/instructions)
+ *   - installMode: 'file' | 'cli' | 'instructions'
+ *   - mergeStrategy: 'object-map' | 'named-array'
+ *   - osRestriction: optional OS restriction (e.g., 'darwin' for macOS-only)
  */
 export const PLATFORMS = {
+    // ── Existing platforms (10) ───────���──────────────────────────────────
     'claude-desktop': {
         displayName: 'Claude Desktop',
         flag: 'claude-desktop',
@@ -22,6 +35,8 @@ export const PLATFORMS = {
             win32: join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json'),
             linux: join(home, '.config', 'claude-desktop', 'claude_desktop_config.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'claude-code': {
         displayName: 'Claude Code',
@@ -29,6 +44,8 @@ export const PLATFORMS = {
         format: 'cli',
         serverMapKey: null,
         configPath: null,
+        installMode: 'cli',
+        mergeStrategy: 'object-map',
     },
     'cursor': {
         displayName: 'Cursor',
@@ -40,6 +57,8 @@ export const PLATFORMS = {
             win32: join(home, '.cursor', 'mcp.json'),
             linux: join(home, '.cursor', 'mcp.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'vscode': {
         displayName: 'VS Code',
@@ -51,6 +70,8 @@ export const PLATFORMS = {
             win32: join(process.env.APPDATA || '', 'Code', 'User', 'mcp.json'),
             linux: join(home, '.config', 'Code', 'User', 'mcp.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'windsurf': {
         displayName: 'Windsurf',
@@ -62,17 +83,17 @@ export const PLATFORMS = {
             win32: join(home, '.codeium', 'windsurf', 'mcp_config.json'),
             linux: join(home, '.codeium', 'windsurf', 'mcp_config.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'cline': {
         displayName: 'Cline',
         flag: 'cline',
         format: 'json',
         serverMapKey: 'mcpServers',
-        configPath: {
-            darwin: join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-            win32: join(process.env.APPDATA || '', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-            linux: join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-        },
+        configPath: vsCodeGlobalStorage('saoudrizwan.claude-dev', 'cline_mcp_settings.json'),
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'zed': {
         displayName: 'Zed',
@@ -84,6 +105,8 @@ export const PLATFORMS = {
             win32: join(process.env.LOCALAPPDATA || '', 'Zed', 'settings.json'),
             linux: join(home, '.config', 'zed', 'settings.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'codex': {
         displayName: 'Codex CLI',
@@ -95,6 +118,8 @@ export const PLATFORMS = {
             win32: join(home, '.codex', 'config.toml'),
             linux: join(home, '.codex', 'config.toml'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'gemini': {
         displayName: 'Gemini CLI',
@@ -106,6 +131,8 @@ export const PLATFORMS = {
             win32: join(home, '.gemini', 'settings.json'),
             linux: join(home, '.gemini', 'settings.json'),
         },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
     },
     'continue': {
         displayName: 'Continue',
@@ -117,6 +144,130 @@ export const PLATFORMS = {
             win32: join(home, '.continue', 'config.yaml'),
             linux: join(home, '.continue', 'config.yaml'),
         },
+        installMode: 'file',
+        mergeStrategy: 'named-array',
+    },
+    // ── New file-based platforms (7) ────────────���────────────────────────
+    'roo-code': {
+        displayName: 'Roo Code',
+        flag: 'roo-code',
+        format: 'json',
+        serverMapKey: 'mcpServers',
+        configPath: vsCodeGlobalStorage('rooveterinaryinc.roo-cline', 'mcp_settings.json'),
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+    },
+    'kilo-code': {
+        displayName: 'Kilo Code',
+        flag: 'kilo-code',
+        format: 'json',
+        serverMapKey: 'mcpServers',
+        configPath: vsCodeGlobalStorage('kilocode.kilo-code', 'mcp_settings.json'),
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+    },
+    'goose': {
+        displayName: 'Goose',
+        flag: 'goose',
+        format: 'yaml',
+        serverMapKey: 'extensions',
+        configPath: {
+            darwin: join(home, '.config', 'goose', 'config.yaml'),
+            win32: join(home, '.config', 'goose', 'config.yaml'),
+            linux: join(home, '.config', 'goose', 'config.yaml'),
+        },
+        installMode: 'file',
+        mergeStrategy: 'named-array',
+    },
+    'amazon-q': {
+        displayName: 'Amazon Q',
+        flag: 'amazon-q',
+        format: 'json',
+        serverMapKey: 'mcpServers',
+        configPath: {
+            darwin: join(home, '.aws', 'amazonq', 'mcp.json'),
+            win32: join(home, '.aws', 'amazonq', 'mcp.json'),
+            linux: join(home, '.aws', 'amazonq', 'mcp.json'),
+        },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+    },
+    'amp': {
+        displayName: 'Amp',
+        flag: 'amp',
+        format: 'json',
+        serverMapKey: 'mcpServers',
+        configPath: {
+            darwin: join(home, '.amp', 'settings.json'),
+            win32: join(home, '.amp', 'settings.json'),
+            linux: join(home, '.amp', 'settings.json'),
+        },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+    },
+    'boltai': {
+        displayName: 'BoltAI',
+        flag: 'boltai',
+        format: 'json',
+        serverMapKey: 'mcpServers',
+        configPath: {
+            darwin: join(home, 'Library', 'Application Support', 'BoltAI', 'mcp.json'),
+            win32: '',
+            linux: '',
+        },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+        osRestriction: 'darwin',
+    },
+    'opencode': {
+        displayName: 'OpenCode',
+        flag: 'opencode',
+        format: 'json',
+        serverMapKey: 'mcp',
+        configPath: {
+            darwin: join(home, '.config', 'opencode', 'opencode.json'),
+            win32: join(home, '.config', 'opencode', 'opencode.json'),
+            linux: join(home, '.config', 'opencode', 'opencode.json'),
+        },
+        installMode: 'file',
+        mergeStrategy: 'object-map',
+    },
+    // ── Instructions-only platforms (4) ─────────────��────────────────────
+    'jetbrains': {
+        displayName: 'JetBrains',
+        flag: 'jetbrains',
+        format: 'json',
+        serverMapKey: null,
+        configPath: null,
+        installMode: 'instructions',
+        mergeStrategy: 'object-map',
+    },
+    'chatgpt': {
+        displayName: 'ChatGPT',
+        flag: 'chatgpt',
+        format: 'json',
+        serverMapKey: null,
+        configPath: null,
+        installMode: 'instructions',
+        mergeStrategy: 'object-map',
+    },
+    'claude-ai': {
+        displayName: 'Claude.ai',
+        flag: 'claude-ai',
+        format: 'json',
+        serverMapKey: null,
+        configPath: null,
+        installMode: 'instructions',
+        mergeStrategy: 'object-map',
+    },
+    'warp': {
+        displayName: 'Warp',
+        flag: 'warp',
+        format: 'json',
+        serverMapKey: null,
+        configPath: null,
+        installMode: 'instructions',
+        mergeStrategy: 'object-map',
     },
 };
 /**
@@ -130,11 +281,39 @@ export function getServerEntry() {
     }
     return { command: 'npx', args: ['-y', 'fsb-mcp-server'] };
 }
+/**
+ * Returns the platform-specific entry shape for a given platform.
+ * Most platforms use the standard { command, args } shape. Some need
+ * different field names or structures:
+ *   - vscode: adds type: "stdio"
+ *   - goose: uses { name, type, cmd, args } for its extensions array
+ *   - opencode: uses { type: "local", command: [...] } with command as array
+ */
+export function getEntryForPlatform(platformKey) {
+    const base = getServerEntry();
+    switch (platformKey) {
+        case 'vscode':
+            return { type: 'stdio', ...base };
+        case 'goose':
+            return { name: FSB_SERVER_NAME, type: 'stdio', cmd: base.command, args: base.args };
+        case 'opencode':
+            return { type: 'local', command: [base.command, ...base.args] };
+        default:
+            return { ...base };
+    }
+}
 function getPlatformConfigPath(platform) {
     if (!platform.configPath)
         return null;
+    // Respect OS restriction (e.g., BoltAI is macOS only)
+    if (platform.osRestriction && process.platform !== platform.osRestriction)
+        return null;
     const osPlatform = process.platform;
-    return platform.configPath[osPlatform] || null;
+    const resolved = platform.configPath[osPlatform] || null;
+    // Empty string means unsupported on this OS (e.g., BoltAI win32/linux)
+    if (resolved === '')
+        return null;
+    return resolved;
 }
 function getPlatformTargetCandidates(platformKey, platform) {
     const configPath = getPlatformConfigPath(platform);

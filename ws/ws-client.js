@@ -139,6 +139,23 @@ function _broadcastRemoteControlState(wsInstance, enabled, reason, tabId) {
   if (wsInstance && typeof wsInstance.send === 'function') {
     wsInstance.send('ext:remote-control-state', state);
   }
+  // Phase 213 D-17: parallel runtime push so the Sync tab pill (and any
+  // other extension contexts) can subscribe to live state changes.
+  // Fire-and-forget; never throws. background.js listens to this push
+  // and updates its own _lastRemoteControlState cache (Phase 213 213-02).
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      chrome.runtime.sendMessage({ action: 'remoteControlStateChanged', state: state }, function () {
+        // Read lastError to suppress the "Unchecked runtime.lastError" surface
+        // when no listener is registered. Benign and expected at SW cold start.
+        var _ = chrome.runtime.lastError;
+      });
+    }
+  } catch (e) {
+    // Defensive: never let runtime push failures break ext:remote-control-state.
+    // Per Phase 211 LOG-01, route through [FSB SYNC] prefix if logging is enabled.
+    try { console.warn('[FSB SYNC] runtime push failed', e && e.message ? e.message : 'unknown'); } catch (_e) { /* ignore */ }
+  }
   return state;
 }
 
@@ -514,10 +531,39 @@ class FSBWebSocket {
 
     this.ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        this._handleMessage(msg);
+        var raw = JSON.parse(event.data);
+        // Self-identifying _lz envelope: { _lz: true, d: <base64> }.
+        // Mirrors showcase/js/dashboard.js:3517-3528. Stateless per-frame.
+        // Do NOT introduce permessage-deflate or alternative deflate libraries
+        // (PITFALLS.md P9 -- sliding-window corruption on bad frame requires
+        // reconnect to recover).
+        if (raw && raw._lz === true && typeof raw.d === 'string') {
+          if (typeof LZString === 'undefined') {
+            recordFSBTransportFailure('decompress-unavailable', {
+              target: 'inbound',
+              type: '_lz',
+              tabId: getCurrentTransportTabId(),
+              error: 'LZString not loaded (importScripts may have failed at background.js:37)',
+              len: raw.d.length
+            });
+            return;
+          }
+          var decoded = LZString.decompressFromBase64(raw.d);
+          if (!decoded) {
+            recordFSBTransportFailure('decompress-failed', {
+              target: 'inbound',
+              type: '_lz',
+              tabId: getCurrentTransportTabId(),
+              error: 'LZString.decompressFromBase64 returned null/empty',
+              len: raw.d.length
+            });
+            return;
+          }
+          raw = JSON.parse(decoded);
+        }
+        this._handleMessage(raw);
       } catch (err) {
-        console.warn('[FSB WS] Failed to parse message:', err.message);
+        console.warn('[FSB WS] Failed to parse message:', err && err.message ? err.message : err);
       }
     };
 
@@ -577,6 +623,14 @@ class FSBWebSocket {
       return false;
     }
 
+    // _lz envelope contract (round-trip):
+    //   Outbound: { _lz: true, d: LZString.compressToBase64(JSON.stringify({type, payload, ts})) }
+    //             emitted when raw > 1024 bytes AND compressed.length < raw.length.
+    //   Inbound:  symmetric branch in onmessage at lines 515-522 above. Self-identifying.
+    //   Stateless per-frame. Do NOT replace LZString with stateful deflate compression
+    //   -- per-connection stateful compression (RFC 7692 permessage-deflate) corrupts the
+    //   sliding window on any bad frame and forces a full WebSocket reconnect to recover
+    //   (PITFALLS.md P9).
     try {
       var raw = JSON.stringify({ type, payload, ts: Date.now() });
       // Compress payloads larger than 1KB to avoid relay message size limits
@@ -879,7 +933,12 @@ class FSBWebSocket {
       tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
       url: payload.url || '',
       pageType: pageType,
-      source: source
+      source: source,
+      // Phase 211-02 STREAM-02: peak watchdog-induced flushes since last drain.
+      // Source: SW-side cache _lastDomStreamStaleFlushCount, populated by the
+      // content-script flushMutations envelope (D-14 additive). Defaults to 0
+      // when streaming is inactive or the cache has not yet been populated.
+      staleFlushCount: (typeof _lastDomStreamStaleFlushCount === 'number') ? _lastDomStreamStaleFlushCount : 0
     });
   }
 
@@ -931,9 +990,10 @@ class FSBWebSocket {
       case 'dash:request-status':
         this._sendStateSnapshot('dash:request-status');
         break;
-      case 'dash:agent-run-now':
-        this._handleAgentRunNow(msg.payload);
-        break;
+      // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+      // case 'dash:agent-run-now':
+      //   this._handleAgentRunNow(msg.payload);
+      //   break;
       case 'dash:dom-stream-start':
         if (typeof _streamingActive !== 'undefined') _streamingActive = true;
         this._handleDashboardStreamStart(msg.payload);
@@ -1173,34 +1233,35 @@ class FSBWebSocket {
     );
   }
 
-  /**
-   * Handle an immediate agent run request from the dashboard.
-   * Validates the agent exists and is not already running, then triggers execution.
-   * @param {Object} payload - { agentId: string }
-   */
-  async _handleAgentRunNow(payload) {
-    var agentId = payload && payload.agentId;
-    if (!agentId) {
-      this.send('ext:agent-run-complete', { agentId: null, success: false, error: 'No agentId provided' });
-      return;
-    }
-
-    // Check if another session is already running
-    if (typeof activeSessions !== 'undefined') {
-      var hasRunning = [...activeSessions.values()].some(function(s) { return s.status === 'running'; });
-      if (hasRunning) {
-        this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Another task is already running' });
-        return;
-      }
-    }
-
-    // Dispatch to background.js handler
-    if (typeof startAgentRunNow === 'function') {
-      startAgentRunNow(agentId);
-    } else {
-      this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Agent execution not available' });
-    }
-  }
+  // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
+//   /**
+//    * Handle an immediate agent run request from the dashboard.
+//    * Validates the agent exists and is not already running, then triggers execution.
+//    * @param {Object} payload - { agentId: string }
+//    */
+//   async _handleAgentRunNow(payload) {
+//     var agentId = payload && payload.agentId;
+//     if (!agentId) {
+//       this.send('ext:agent-run-complete', { agentId: null, success: false, error: 'No agentId provided' });
+//       return;
+//     }
+//
+//     // Check if another session is already running
+//     if (typeof activeSessions !== 'undefined') {
+//       var hasRunning = [...activeSessions.values()].some(function(s) { return s.status === 'running'; });
+//       if (hasRunning) {
+//         this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Another task is already running' });
+//         return;
+//       }
+//     }
+//
+//     // Dispatch to background.js handler
+//     if (typeof startAgentRunNow === 'function') {
+//       startAgentRunNow(agentId);
+//     } else {
+//       this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Agent execution not available' });
+//     }
+//   }
 
   /**
    * Forward a message to the content script on the active tab.
@@ -1252,7 +1313,7 @@ class FSBWebSocket {
         try {
           var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
             ? CONTENT_SCRIPT_FILES
-            : ['content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+            : ['utils/diagnostics-ring-buffer.js', 'utils/redactForLog.js', 'content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
           await chrome.scripting.executeScript({
             target: { tabId: tabId, allFrames: false },
             files: scriptFiles

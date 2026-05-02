@@ -1,5 +1,5 @@
-import { PLATFORMS, resolvePlatformTarget, getServerEntry } from './platforms.js';
-import type { PlatformConfig, PlatformTarget, ServerEntry } from './platforms.js';
+import { PLATFORMS, resolvePlatformTarget, getEntryForPlatform } from './platforms.js';
+import type { PlatformConfig, PlatformTarget } from './platforms.js';
 import { installToConfig, removeFromConfig, serializeByFormat } from './config-writer.js';
 import type { ConfigResult } from './config-writer.js';
 import { FSB_MCP_VERSION, FSB_SERVER_NAME } from './version.js';
@@ -56,8 +56,80 @@ export function getInstallNextStep(platformKey: string, variant: string | null =
       return 'Restart Gemini CLI after editing settings.json if the new server does not appear immediately.';
     case 'continue':
       return 'Restart Continue or reload the host IDE after editing config.yaml.';
+    // New platforms
+    case 'roo-code':
+      return 'Reload VS Code/Roo Code after editing the MCP settings file.';
+    case 'kilo-code':
+      return 'Reload VS Code/Kilo Code after editing the MCP settings file.';
+    case 'goose':
+      return 'Restart Goose after editing ~/.config/goose/config.yaml.';
+    case 'amazon-q':
+      return 'Restart Amazon Q CLI or IDE after editing ~/.aws/amazonq/mcp.json.';
+    case 'amp':
+      return 'Restart Amp after editing ~/.amp/settings.json.';
+    case 'boltai':
+      return 'Restart BoltAI after editing the MCP config.';
+    case 'opencode':
+      return 'Restart OpenCode after editing ~/.config/opencode/opencode.json.';
+    case 'jetbrains':
+      return 'Restart the JetBrains IDE after adding the MCP server in settings.';
+    case 'chatgpt':
+      return 'Keep the server running while using ChatGPT.';
+    case 'claude-ai':
+      return 'Keep the server running while using Claude.ai.';
+    case 'warp':
+      return 'The server should appear in Warp after adding it in the MCP management UI.';
     default:
       return null;
+  }
+}
+
+/**
+ * Print setup instructions for an instructions-only platform.
+ * These platforms cannot be auto-installed; we print human-readable guidance.
+ */
+function printPlatformInstructions(platformKey: string): void {
+  switch (platformKey) {
+    case 'jetbrains':
+      console.log('');
+      console.log('JetBrains (AI Assistant / Junie):');
+      console.log('  1. Open Settings > Tools > AI Assistant > MCP Servers');
+      console.log('  2. Click "+" to add a new server');
+      console.log('  3. Set the command to: npx');
+      console.log('  4. Set the arguments to: -y fsb-mcp-server');
+      console.log('  5. Name it: fsb');
+      console.log('  Supported IDEs: IntelliJ, WebStorm, PyCharm, GoLand, Android Studio, etc.');
+      break;
+    case 'chatgpt':
+      console.log('');
+      console.log('ChatGPT (Streamable HTTP -- remote only):');
+      console.log('  1. Start the FSB HTTP server:');
+      console.log('     npx -y fsb-mcp-server serve');
+      console.log('  2. In ChatGPT, go to Settings > Connections > MCP');
+      console.log('  3. Add a new MCP server with URL:');
+      console.log('     http://127.0.0.1:7226/mcp');
+      console.log('  Note: The server must be running while you use ChatGPT.');
+      break;
+    case 'claude-ai':
+      console.log('');
+      console.log('Claude.ai (Streamable HTTP -- remote only):');
+      console.log('  1. Start the FSB HTTP server:');
+      console.log('     npx -y fsb-mcp-server serve');
+      console.log('  2. In Claude.ai, open the integrations UI');
+      console.log('  3. Add a new MCP server with URL:');
+      console.log('     http://127.0.0.1:7226/mcp');
+      console.log('  Note: The server must be running while you use Claude.ai.');
+      break;
+    case 'warp':
+      console.log('');
+      console.log('Warp Terminal:');
+      console.log('  1. Open Warp and go to the MCP management UI');
+      console.log('  2. Add a new MCP server');
+      console.log('  3. Set the command to: npx -y fsb-mcp-server');
+      console.log('  4. Name it: fsb');
+      break;
+    default:
+      console.log('No setup instructions available for: ' + platformKey);
   }
 }
 
@@ -175,8 +247,110 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
         '  Press refresh in Windsurf or reload the client after editing the matching config file.',
       ],
     },
+    // New platforms
     {
-      title: 'OpenCode (manual fallback)',
+      title: 'Roo Code',
+      lines: [
+        'Config: VS Code globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json',
+        'Add:',
+        '  {',
+        '    "mcpServers": {',
+        '      "fsb": {',
+        '        "command": "npx",',
+        '        "args": ["-y", "fsb-mcp-server"]',
+        '      }',
+        '    }',
+        '  }',
+        'Next step:',
+        '  ' + getInstallNextStep('roo-code'),
+      ],
+    },
+    {
+      title: 'Kilo Code',
+      lines: [
+        'Config: VS Code globalStorage/kilocode.kilo-code/settings/mcp_settings.json',
+        'Add:',
+        '  {',
+        '    "mcpServers": {',
+        '      "fsb": {',
+        '        "command": "npx",',
+        '        "args": ["-y", "fsb-mcp-server"]',
+        '      }',
+        '    }',
+        '  }',
+        'Next step:',
+        '  ' + getInstallNextStep('kilo-code'),
+      ],
+    },
+    {
+      title: 'Goose (Block)',
+      lines: [
+        'Config: ~/.config/goose/config.yaml',
+        'Add to the extensions array:',
+        '  extensions:',
+        '    - name: fsb',
+        '      type: stdio',
+        '      cmd: npx',
+        '      args:',
+        '        - "-y"',
+        '        - fsb-mcp-server',
+        'Next step:',
+        '  ' + getInstallNextStep('goose'),
+      ],
+    },
+    {
+      title: 'Amazon Q',
+      lines: [
+        'Config: ~/.aws/amazonq/mcp.json',
+        'Add:',
+        '  {',
+        '    "mcpServers": {',
+        '      "fsb": {',
+        '        "command": "npx",',
+        '        "args": ["-y", "fsb-mcp-server"]',
+        '      }',
+        '    }',
+        '  }',
+        'Next step:',
+        '  ' + getInstallNextStep('amazon-q'),
+      ],
+    },
+    {
+      title: 'Amp (Sourcegraph)',
+      lines: [
+        'Config: ~/.amp/settings.json',
+        'Add:',
+        '  {',
+        '    "mcpServers": {',
+        '      "fsb": {',
+        '        "command": "npx",',
+        '        "args": ["-y", "fsb-mcp-server"]',
+        '      }',
+        '    }',
+        '  }',
+        'Next step:',
+        '  ' + getInstallNextStep('amp'),
+      ],
+    },
+    {
+      title: 'BoltAI (macOS only)',
+      lines: [
+        'Config: ~/Library/Application Support/BoltAI/mcp.json',
+        'Add:',
+        '  {',
+        '    "mcpServers": {',
+        '      "fsb": {',
+        '        "command": "npx",',
+        '        "args": ["-y", "fsb-mcp-server"]',
+        '      }',
+        '    }',
+        '  }',
+        'Next step:',
+        '  ' + getInstallNextStep('boltai'),
+      ],
+    },
+    {
+      title: 'OpenCode',
       lines: [
         'Config: ~/.config/opencode/opencode.json',
         'Add under the "mcp" object:',
@@ -189,7 +363,50 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
         '    }',
         '  }',
         'Next step:',
-        '  Restart OpenCode after saving the config.',
+        '  ' + getInstallNextStep('opencode'),
+      ],
+    },
+    {
+      title: 'JetBrains (AI Assistant / Junie)',
+      lines: [
+        'Open Settings > Tools > AI Assistant > MCP Servers',
+        'Add a new server with:',
+        '  Command: npx',
+        '  Arguments: -y fsb-mcp-server',
+        '  Name: fsb',
+        'Supported IDEs: IntelliJ, WebStorm, PyCharm, GoLand, Android Studio, etc.',
+        'Next step:',
+        '  ' + getInstallNextStep('jetbrains'),
+      ],
+    },
+    {
+      title: 'ChatGPT (Streamable HTTP)',
+      lines: [
+        '1. Start the server: npx -y fsb-mcp-server serve',
+        '2. In ChatGPT Settings > Connections > MCP, add:',
+        '   ' + httpEndpoint,
+        'Next step:',
+        '  ' + getInstallNextStep('chatgpt'),
+      ],
+    },
+    {
+      title: 'Claude.ai (Streamable HTTP)',
+      lines: [
+        '1. Start the server: npx -y fsb-mcp-server serve',
+        '2. In Claude.ai integrations UI, add:',
+        '   ' + httpEndpoint,
+        'Next step:',
+        '  ' + getInstallNextStep('claude-ai'),
+      ],
+    },
+    {
+      title: 'Warp Terminal',
+      lines: [
+        'Open the MCP management UI in Warp',
+        'Add server with command: npx -y fsb-mcp-server',
+        'Name: fsb',
+        'Next step:',
+        '  ' + getInstallNextStep('warp'),
       ],
     },
     {
@@ -214,16 +431,32 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
 }
 
 /**
- * Collect platforms whose flags are set and whose format is file-based (not CLI).
+ * Collect platforms whose flags are set and whose format is file-based (not CLI or instructions).
  * CLI-format platforms (Claude Code) are handled separately via handleClaudeCodeInstall().
+ * Instructions-only platforms are handled separately via printPlatformInstructions().
  * @param flags - Parsed CLI flags (key -> boolean)
  * @returns Array of matched platform entries
  */
 function getMatchedPlatforms(flags: InstallFlags): MatchedPlatform[] {
   const matched: MatchedPlatform[] = [];
   for (const [key, platform] of Object.entries(PLATFORMS)) {
-    if (flags[key] === true && platform.format !== 'cli') {
+    if (flags[key] === true && platform.installMode === 'file') {
       matched.push({ key, platform });
+    }
+  }
+  return matched;
+}
+
+/**
+ * Collect instructions-only platforms whose flags are set.
+ * @param flags - Parsed CLI flags (key -> boolean)
+ * @returns Array of matched platform keys
+ */
+function getMatchedInstructionsPlatforms(flags: InstallFlags): string[] {
+  const matched: string[] = [];
+  for (const [key, platform] of Object.entries(PLATFORMS)) {
+    if (flags[key] === true && platform.installMode === 'instructions') {
+      matched.push(key);
     }
   }
   return matched;
@@ -252,15 +485,70 @@ function printResult(result: ConfigResult): void {
 
 /**
  * Build and print the platform list block used by both install and uninstall usage.
- * Lists all 10 platforms from the registry with aligned display names.
+ * Lists all platforms from the registry with aligned display names and install mode.
  * @returns Formatted platform list
  */
 function buildPlatformList(): string {
   const lines: string[] = [];
   for (const [, platform] of Object.entries(PLATFORMS)) {
-    lines.push('  --' + platform.flag.padEnd(18) + platform.displayName);
+    const modeTag = platform.installMode === 'instructions' ? ' (manual)' : '';
+    lines.push('  --' + platform.flag.padEnd(18) + platform.displayName + modeTag);
   }
   return lines.join('\n');
+}
+
+/**
+ * Print detailed platform list with detection status, grouped by install mode.
+ * Used by the --list flag.
+ */
+function printPlatformListDetailed(): void {
+  console.log('FSB MCP Server ' + FSB_MCP_VERSION);
+  console.log('');
+  console.log('Supported platforms (' + Object.keys(PLATFORMS).length + ' total):');
+
+  // Group by install mode
+  const fileBasedPlatforms: Array<[string, PlatformConfig]> = [];
+  const cliPlatforms: Array<[string, PlatformConfig]> = [];
+  const instructionsPlatforms: Array<[string, PlatformConfig]> = [];
+
+  for (const [key, platform] of Object.entries(PLATFORMS)) {
+    switch (platform.installMode) {
+      case 'file':
+        fileBasedPlatforms.push([key, platform]);
+        break;
+      case 'cli':
+        cliPlatforms.push([key, platform]);
+        break;
+      case 'instructions':
+        instructionsPlatforms.push([key, platform]);
+        break;
+    }
+  }
+
+  console.log('');
+  console.log('File-based auto-install (' + fileBasedPlatforms.length + '):');
+  for (const [key, platform] of fileBasedPlatforms) {
+    const target = resolvePlatformTarget(key);
+    const status = target.detected ? 'detected' : 'not detected';
+    const osNote = platform.osRestriction ? ' (' + platform.osRestriction + ' only)' : '';
+    console.log('  --' + platform.flag.padEnd(18) + platform.displayName.padEnd(20) + status + osNote);
+  }
+
+  if (cliPlatforms.length > 0) {
+    console.log('');
+    console.log('CLI-based (' + cliPlatforms.length + '):');
+    for (const [, platform] of cliPlatforms) {
+      console.log('  --' + platform.flag.padEnd(18) + platform.displayName);
+    }
+  }
+
+  if (instructionsPlatforms.length > 0) {
+    console.log('');
+    console.log('Instructions-only (' + instructionsPlatforms.length + '):');
+    for (const [, platform] of instructionsPlatforms) {
+      console.log('  --' + platform.flag.padEnd(18) + platform.displayName);
+    }
+  }
 }
 
 /**
@@ -276,6 +564,7 @@ function printInstallUsage(): void {
   console.log('');
   console.log('Flags:');
   console.log('  --all               Install to all detected platforms');
+  console.log('  --list              Show all platforms with detection status');
   console.log('  --dry-run           Preview changes without modifying files');
 }
 
@@ -297,11 +586,10 @@ function printUninstallUsage(): void {
 
 /**
  * Print a dry-run preview for a file-based platform showing what would be written.
- * @param platform - Platform entry from PLATFORMS registry
- * @param configPath - Resolved config file path
+ * @param target - Resolved platform target
  * @param entry - Server entry that would be installed
  */
-function printDryRunPreview(target: PlatformTarget, entry: ServerEntry): void {
+function printDryRunPreview(target: PlatformTarget, entry: Record<string, unknown>): void {
   console.log('[DRY RUN] ' + target.targetLabel);
   if (target.configPath) {
     console.log('  Config: ' + target.configPath);
@@ -309,9 +597,8 @@ function printDryRunPreview(target: PlatformTarget, entry: ServerEntry): void {
   // Wrap the single entry in the platform's root key structure for realistic preview
   const wrapper: Record<string, unknown> = {};
   const platform = target.platform;
-  if (platform.format === 'yaml' && platform.serverMapKey === 'mcpServers') {
-    // Continue uses array format
-    wrapper[platform.serverMapKey] = [{ name: FSB_SERVER_NAME, ...entry }];
+  if (platform.mergeStrategy === 'named-array') {
+    wrapper[platform.serverMapKey!] = [{ name: FSB_SERVER_NAME, ...entry }];
   } else {
     wrapper[platform.serverMapKey!] = { [FSB_SERVER_NAME]: entry };
   }
@@ -361,19 +648,27 @@ function getTargetPlatform(target: PlatformTarget): PlatformConfig {
 
 /**
  * Install FSB into one or more platform config files.
- * Iterates matched JSON/JSONC platforms, resolves config paths, and calls installToConfig.
- * VS Code entries are augmented with type: "stdio" per PLAT-03.
+ * Iterates matched platforms, resolves config paths, and calls installToConfig.
+ * Platform-specific entry shapes are handled by getEntryForPlatform().
  *
  * @param flags - Parsed CLI flags (platform keys mapped to boolean)
  */
 export async function runInstall(flags: InstallFlags): Promise<void> {
+  // Handle --list before anything else
+  if (flags['list'] === true) {
+    printPlatformListDetailed();
+    return;
+  }
+
   // Capture --all before expansion (Pitfall 4)
   const isAll: boolean = flags['all'] === true;
 
-  // --all expansion: set all platform keys before matching
+  // --all expansion: set all platform keys EXCEPT instructions-only platforms
   if (isAll) {
-    for (const key of Object.keys(PLATFORMS)) {
-      flags[key] = true;
+    for (const [key, platform] of Object.entries(PLATFORMS)) {
+      if (platform.installMode !== 'instructions') {
+        flags[key] = true;
+      }
     }
   }
   let successCount = 0;
@@ -394,9 +689,16 @@ export async function runInstall(flags: InstallFlags): Promise<void> {
     }
   }
 
+  // Instructions-only platforms: print setup guidance
+  const instructionsPlatforms = getMatchedInstructionsPlatforms(flags);
+  for (const key of instructionsPlatforms) {
+    printPlatformInstructions(key);
+    totalCount++;
+  }
+
   const matched: MatchedPlatform[] = getMatchedPlatforms(flags);
 
-  if (matched.length === 0 && !flags['claude-code']) {
+  if (matched.length === 0 && !flags['claude-code'] && instructionsPlatforms.length === 0) {
     printInstallUsage();
     return;
   }
@@ -419,11 +721,8 @@ export async function runInstall(flags: InstallFlags): Promise<void> {
       continue;
     }
 
-    // Build entry; VS Code requires type: "stdio" (PLAT-03)
-    let entry: ServerEntry = getServerEntry();
-    if (key === 'vscode') {
-      entry = { type: 'stdio', ...entry };
-    }
+    // Build platform-specific entry shape
+    const entry = getEntryForPlatform(key);
 
     if (flags['dry-run'] === true) {
       printDryRunPreview(target, entry);
@@ -461,7 +760,8 @@ export async function runInstall(flags: InstallFlags): Promise<void> {
 /**
  * Uninstall FSB from one or more platform config files.
  * Claude Code uses CLI delegation via execSync (UNINST-05).
- * JSON/JSONC platforms use removeFromConfig.
+ * File-based platforms use removeFromConfig.
+ * Instructions-only platforms print manual removal guidance.
  *
  * @param flags - Parsed CLI flags (platform keys mapped to boolean)
  */
@@ -469,10 +769,12 @@ export async function runUninstall(flags: InstallFlags): Promise<void> {
   // Capture --all before expansion (Pitfall 4)
   const isAll: boolean = flags['all'] === true;
 
-  // --all expansion: set all platform keys before matching
+  // --all expansion: set all platform keys EXCEPT instructions-only platforms
   if (isAll) {
-    for (const key of Object.keys(PLATFORMS)) {
-      flags[key] = true;
+    for (const [key, platform] of Object.entries(PLATFORMS)) {
+      if (platform.installMode !== 'instructions') {
+        flags[key] = true;
+      }
     }
   }
   let successCount = 0;
@@ -502,9 +804,17 @@ export async function runUninstall(flags: InstallFlags): Promise<void> {
     }
   }
 
+  // Instructions-only platforms: print manual removal message
+  const instructionsPlatforms = getMatchedInstructionsPlatforms(flags);
+  for (const key of instructionsPlatforms) {
+    const platform = PLATFORMS[key];
+    console.log('\u25CB ' + platform.displayName + ': manual removal required (no config file to edit)');
+    totalCount++;
+  }
+
   const matched: MatchedPlatform[] = getMatchedPlatforms(flags);
 
-  if (matched.length === 0 && !flags['claude-code']) {
+  if (matched.length === 0 && !flags['claude-code'] && instructionsPlatforms.length === 0) {
     printUninstallUsage();
     return;
   }

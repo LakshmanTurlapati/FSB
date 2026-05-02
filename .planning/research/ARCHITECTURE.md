@@ -1,653 +1,411 @@
-# Architecture: Vault, Payments & Secure MCP Access
+# Architecture Research -- v0.9.46 Site Discoverability (SEO + GEO)
 
-**Domain:** Credential vault unlock wiring, payment method management, secure MCP/autopilot tool integration
-**Researched:** 2026-04-20
-**Overall Confidence:** HIGH (based on direct code analysis of all integration points)
-
----
+**Domain:** Angular 19 SPA + Express static host -- prerender / per-route metadata / crawler files integration
+**Researched:** 2026-04-30
+**Confidence:** HIGH (verified against Angular v19 prerender docs + direct read of repo wiring)
 
 ## Executive Summary
 
-The v0.9.34 milestone wires up an already-implemented backend (`secure-config.js` has full credential vault + payment method CRUD) to three consumers: (1) background.js message handlers (vault lifecycle + payment CRUD), (2) AI autopilot tools (`fill_credential`, `fill_payment_method`), and (3) MCP tools (`list_credentials`, `fill_credential`, `list_payment_methods`, `use_payment_method`). The critical architectural constraint is the **security boundary**: passwords and full card numbers must NEVER traverse the WebSocket bridge between the MCP server and the extension. The extension fills sensitive values directly into page DOM via `chrome.scripting.executeScript` in the MAIN world -- the same proven pattern used by the existing `fillCredentialsOnPageDirect()` function (background.js:6318).
+This is an **integration architecture**, not a greenfield design. The existing Angular 19 + Express + Fly.io stack already has every hook the milestone needs:
 
-The architecture introduces no new transport layers, no new processes, and no new storage mechanisms. It extends three existing communication channels:
+- `@angular/build:application` builder supports prerender natively in v19 (no Universal needed for static marketing pages).
+- `angular.json` already globs `showcase/angular/public/**/*` to dist root and `showcase/assets/**/*` to `dist/.../assets/`, so root crawler files have a zero-config home.
+- `express.static(staticPath, ...)` is registered BEFORE the SPA fallback, so any prerendered `about/index.html` is served by static middleware automatically -- the SPA fallback only fires when static misses.
+- The catch-all SPA fallback is currently scoped (`['/', '/about', '/dashboard', '/privacy', '/support']`), not global `app.get('*')`, so it already coexists cleanly with future static prerender output.
 
-1. **chrome.runtime.sendMessage** (UI <-> background.js) -- add vault unlock/lock/status + 5 payment method handlers
-2. **WebSocket bridge message routing** (MCP server -> mcp-bridge-client.js -> background.js) -- add credential/payment MCP message types
-3. **MCP tool registration** (mcp-server/src/tools/) -- add a new `vault.ts` tool registration module
+The minimal-disruption integration is: (1) enable prerender in `angular.json`, (2) inject `Title`/`Meta` per route component, (3) drop crawler root files into `showcase/angular/public/`, (4) tweak the Express SPA fallback to prefer per-route `index.html` over the root.
 
-The data flow enforces a strict **redact-at-source** pattern: any response that leaves the service worker over the WebSocket bridge strips passwords, full card numbers, and CVVs before serialization. The `secureConfig` singleton already returns metadata-only objects from `getAllCredentials()` and `getAllPaymentMethods()`. For fill operations, the MCP server sends a command like "fill credential for domain X" and background.js resolves the credential locally, fills via `chrome.scripting.executeScript`, and returns only success/failure status.
-
----
-
-## Current Architecture (Annotated)
-
-### Data Flow: MCP Tool Execution (Existing)
+## Existing System Map (file:line)
 
 ```
-MCP Host (Claude Code, Cursor, etc.)
-  |
-  | (stdio or HTTP)
-  v
-MCP Server (Node.js)
-  |
-  | (WebSocket on port 7225)
-  v
-WebSocketBridge (hub/relay)
-  |
-  | (WebSocket frame)
-  v
-MCPBridgeClient (ws/mcp-bridge-client.js, in service worker)
-  |
-  | _routeMessage() switch
-  |   case 'mcp:execute-action' -> _handleExecuteAction()
-  |     | checks _route field
-  |     | 'content' -> sendToContentScript(tab.id, ...)
-  |     | 'background' -> _dispatchToBackground({action, ...})
-  |     |                    -> chrome.runtime.sendMessage(request)
-  |     |                         -> background.js onMessage handler
-  v
-background.js  chrome.runtime.onMessage  (switch on request.action)
-  |
-  | case 'getCredential': secureConfig.getCredential(domain)
-  | case 'saveCredential': secureConfig.saveCredential(domain, data)
-  | case 'getAllCredentials': secureConfig.getAllCredentials()
-  | ... (6 credential cases wired, 0 vault lifecycle, 0 payment method)
-  v
-secureConfig (config/secure-config.js singleton)
-  |
-  | AES-256-GCM encryption/decryption
-  | Session key in chrome.storage.session
-  | Encrypted records in chrome.storage.local
-  v
-chrome.storage.local / chrome.storage.session
+showcase/angular/angular.json:35-50          assets globs (public/ + ../assets/ -> dist)
+showcase/angular/angular.json:22-27          builder + outputPath base/browser
+showcase/angular/src/index.html:5            <title>FSB</title>          <-- single static title today
+showcase/angular/src/index.html:6            <base href="/">              <-- required for prerender
+showcase/angular/src/app/app.routes.ts:3-10  5 lazy routes; '**' redirectTo ''
+showcase/angular/src/app/app.config.ts:5-10  provideRouter(routes), no provideClientHydration yet
+showcase/angular/src/main.ts:5               bootstrapApplication              <-- prerender hook target
+server/server.js:73-83                       staticPath resolution (public OR dist)
+server/server.js:86-95                       legacy .html -> clean URL 301 redirects
+server/server.js:97-108                      express.static (cache headers)
+server/server.js:110-117                     SCOPED SPA fallback (5 routes)         <-- patch target
 ```
 
-### What Exists vs What Is Missing
-
-| Component | Exists | Missing |
-|-----------|--------|---------|
-| `SecureConfig.createCredentialVault()` | YES | No background.js handler |
-| `SecureConfig.unlockCredentialVault()` | YES | No background.js handler |
-| `SecureConfig.lockCredentialVault()` | YES | No background.js handler |
-| `SecureConfig.getCredentialVaultStatus()` | YES | No background.js handler |
-| `SecureConfig.getPaymentVaultStatus()` | YES | No background.js handler |
-| `SecureConfig.savePaymentMethod()` | YES | No background.js handler |
-| `SecureConfig.getAllPaymentMethods()` | YES | No background.js handler |
-| `SecureConfig.getFullPaymentMethod()` | YES | No background.js handler |
-| `SecureConfig.updatePaymentMethod()` | YES | No background.js handler |
-| `SecureConfig.deletePaymentMethod()` | YES | No background.js handler |
-| `SecureConfig.unlockPaymentMethods()` | YES | No background.js handler |
-| `SecureConfig.lockPaymentMethods()` | YES | No background.js handler |
-| `ui/unlock.js` sends `action:'unlock'` | YES | No `case 'unlock'` in background.js |
-| `fillCredentialsOnPageDirect()` | YES | Not exposed as MCP tool |
-| Payment field DOM detection | YES (dom-analysis.js) | No `fillPaymentOnPageDirect()` |
-| MCP tool-definitions.cjs | YES (49 tools) | No credential/payment tools |
-| MCP bridge client _routeMessage | YES (13 cases) | No vault/credential/payment cases |
-| Sidepanel login prompt dialog | YES | No payment confirmation dialog |
-| Options page credential manager UI | YES | No payment method management UI |
-
----
-
-## Proposed Architecture
-
-### Component 1: background.js Message Handler Additions
-
-Add to the existing `chrome.runtime.onMessage` switch statement. These are pure passthrough handlers calling `secureConfig` methods, following the exact same pattern as the existing 6 credential cases (lines 4287-4352).
-
-**Vault lifecycle handlers (4 cases):**
+## Standard Architecture (Post-Integration)
 
 ```
-case 'createCredentialVault':  -> secureConfig.createCredentialVault(request.passphrase)
-case 'unlockCredentialVault':  -> secureConfig.unlockCredentialVault(request.passphrase)
-case 'lockCredentialVault':    -> secureConfig.lockCredentialVault()
-case 'getCredentialVaultStatus': -> secureConfig.getCredentialVaultStatus()
++--------------------------------------------------------------------------+
+|                      BUILD TIME (npm run build)                          |
++--------------------------------------------------------------------------+
+|   src/index.html  --+                                                    |
+|                     |                                                    |
+|   app.routes.ts  ---+--> @angular/build:application (prerender: true)    |
+|                     |                                                    |
+|   *Page.component --+                                                    |
+|                     v                                                    |
+|        +-----------------------------+                                   |
+|        | Prerender executes routes,  |  ngOnInit fires; Title/Meta       |
+|        | invokes appConfig, runs     |  services write into <head> of    |
+|        | each component to ngOnInit, |  the captured HTML snapshot.      |
+|        | serializes DOM to HTML      |                                   |
+|        +--------------+--------------+                                   |
+|                       v                                                  |
+|   public/  --+        dist/showcase-angular/browser/                     |
+|   robots.txt |        +-- index.html              (route '')             |
+|   sitemap.xml+------> +-- about/index.html        (route 'about')        |
+|   llms.txt   |        +-- privacy/index.html      (route 'privacy')      |
+|   llms-full  |        +-- support/index.html      (route 'support')      |
+|              |        +-- robots.txt              (from public/)         |
+|              |        +-- sitemap.xml             (from public/)         |
+|              |        +-- llms.txt, llms-full.txt (from public/)         |
+|              |        +-- assets/                 (from ../assets/)      |
+|              |        +-- main-<hash>.js, *.css                          |
++--------------------------------------------------------------------------+
+                                  |
+                                  v
++--------------------------------------------------------------------------+
+|                  REQUEST TIME (Fly.io / Express)                         |
++--------------------------------------------------------------------------+
+|  GET /robots.txt                                                         |
+|     -> express.static finds dist/browser/robots.txt   [HIT, served]      |
+|                                                                          |
+|  GET /about                                                              |
+|     -> express.static checks /about (no extension)    [default index]    |
+|     -> express.static checks /about/index.html        [HIT, served]      |
+|        (express.static index option defaults to 'index.html'; this       |
+|         normally would resolve. BUT the scoped fallback at line 111      |
+|         is registered for /about and would take over if static misses    |
+|         for any reason. Patch makes the fallback prerender-aware.)       |
+|                                                                          |
+|  GET /dashboard                                                          |
+|     -> /dashboard EXCLUDED from prerender list, no per-route file.       |
+|     -> express.static misses; SPA fallback serves root index.html        |
+|        (same as today -- /dashboard remains live SPA shell).             |
++--------------------------------------------------------------------------+
 ```
 
-**Payment method handlers (7 cases):**
+## Component Responsibilities (Integration Touch Points)
+
+| Component | Existing Responsibility | New Responsibility | File:Line |
+|-----------|-------------------------|--------------------|-----------|
+| `angular.json` build target | Bundle, asset glob | Add `prerender` block under build options | `showcase/angular/angular.json:23-54` |
+| `app.routes.ts` | 5 lazy routes | Unchanged. Source of truth for explicit prerender route list | `showcase/angular/src/app/app.routes.ts:3-10` |
+| `app.config.ts` | `provideRouter`, zone config | Optional: `provideClientHydration()` if any client-side state needs preserving across hydration. Not required for static marketing pages. | `showcase/angular/src/app/app.config.ts:5-10` |
+| `index.html` | Hard-coded `<title>FSB</title>` | Drop or keep as fallback; per-route Title service overrides at render time | `showcase/angular/src/index.html:5` |
+| `*-page.component.ts` (5 files) | Lazy route view | Inject `Title`, `Meta`; call in `ngOnInit` (or constructor for prerender) | NEW behavior in existing files |
+| `showcase/angular/public/` | Asset glob source (icons today) | Host `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` | NEW files |
+| `server/server.js` static | `express.static(staticPath)` cache headers | Unchanged | `server/server.js:97-108` |
+| `server/server.js` SPA fallback | `app.get(['/','/about',...])` -> root `index.html` | Prefer `staticPath/<route>/index.html` if present; fall back to root for `/dashboard` | `server/server.js:110-117` |
+
+## Recommended Integration Layout
 
 ```
-case 'getPaymentVaultStatus':  -> secureConfig.getPaymentVaultStatus()
-case 'unlockPaymentMethods':   -> secureConfig.unlockPaymentMethods(request.passphrase)
-case 'lockPaymentMethods':     -> secureConfig.lockPaymentMethods()
-case 'savePaymentMethod':      -> secureConfig.savePaymentMethod(request.data)
-case 'getAllPaymentMethods':   -> secureConfig.getAllPaymentMethods()
-case 'updatePaymentMethod':    -> secureConfig.updatePaymentMethod(request.id, request.updates)
-case 'deletePaymentMethod':    -> secureConfig.deletePaymentMethod(request.id)
+showcase/
+  angular/
+    angular.json                  [MOD] add "prerender" block under build options
+    src/
+      index.html                  [MOD] drop hard-coded <title>; keep <base href="/">
+      app/
+        app.config.ts             [MAYBE] add provideClientHydration() (optional)
+        app.routes.ts             [UNCHANGED]
+        pages/
+          home/home-page.component.ts        [MOD] Title/Meta + JSON-LD (Org + SoftwareApplication)
+          about/about-page.component.ts      [MOD] Title/Meta + canonical
+          privacy/privacy-page.component.ts  [MOD] Title/Meta + canonical
+          support/support-page.component.ts  [MOD] Title/Meta + canonical
+          dashboard/dashboard-page.component.ts [MOD] noindex meta only; NOT prerendered
+    public/                       [NEW FILES, glob already configured]
+      robots.txt
+      sitemap.xml
+      llms.txt
+      llms-full.txt
+server/
+  server.js                       [PATCH] SPA-fallback handler (see Pattern 4 below)
 ```
 
-**Vault unlock handler for ui/unlock.js:**
+### Why this layout
 
+- **`public/` not `../assets/`:** root crawler files MUST live at site root, not under `/assets/`. The `public/` glob in `angular.json:36-39` (`{glob: "**/*", input: "public"}` with no `output:` field) outputs to `browser/` root. The `../assets/` glob (`angular.json:40-44`) writes to `browser/assets/` due to its explicit `"output": "assets"`. Wrong location for crawler files.
+- **No new components:** Title/Meta injection happens inside the existing 5 page components. Angular's built-in `Title` and `Meta` services from `@angular/platform-browser` are sufficient for v0.9.46.
+- **JSON-LD as inline `<script type="application/ld+json">`:** add via direct DOM injection in component `ngOnInit`, OR introduce a tiny `MetaService` helper. Either is a 5-line helper, not a new architectural layer. Recommend inline for v0.9.46 -- only one route (`/`) needs JSON-LD per scope.
+
+## Architectural Patterns
+
+### Pattern 1: Static Prerender via `@angular/build:application`
+
+**What:** Angular 19's unified `@angular/build:application` builder supports prerender as a build-time option. It boots the app inside Node, resolves each route from `app.routes.ts`, executes the component lifecycle through `ngOnInit`, snapshots the resulting DOM, and writes one HTML file per route.
+
+**When to use:** Marketing routes with stable content. Perfect for FSB's `/`, `/about`, `/privacy`, `/support`. NOT for `/dashboard` (auth, runtime state, WebSocket).
+
+**Trade-offs:**
+- Pro: zero Express/Universal runtime overhead; output is plain HTML; works on any static host or with `express.static`.
+- Pro: prerender executes the same Angular code that runs in the browser, so Title/Meta injected in `ngOnInit` lands in the served HTML.
+- Con: prerender is build-time. Sitemap and content updates require a redeploy.
+- Con: prerender does NOT wait indefinitely for async observables. For FSB's static marketing pages this doesn't matter -- all metadata is static strings.
+
+**`angular.json` minimal patch (under `architect.build.options`):**
+```json
+"prerender": {
+  "discoverRoutes": false,
+  "routes": ["/", "/about", "/privacy", "/support"]
+}
 ```
-case 'unlock':  -> secureConfig.initialize(request.password)
-                   + store in chrome.storage.session if request.remember
-```
+Explicit `routes` list excludes `/dashboard` and avoids `discoverRoutes` crawling the `'**'` redirect entry in `app.routes.ts:9`.
 
-Note: The existing `ui/unlock.js` sends `{action: 'unlock', password, remember}` but there is NO matching case in background.js. This is the root cause of the broken vault unlock flow.
+### Pattern 2: Per-Route Title/Meta Injection
 
-### Component 2: fillPaymentOnPageDirect() Function
+**What:** Inject `Title` and `Meta` from `@angular/platform-browser` in each page component's constructor or `ngOnInit`. Prerender executes through `ngOnInit`, so writes to `<head>` are captured in the snapshot.
 
-New function in background.js, parallel to the existing `fillCredentialsOnPageDirect()`. Uses `chrome.scripting.executeScript` with `world: 'MAIN'` to fill payment fields directly in the page DOM without sending card data over any message channel.
+**When to use:** Always, for every prerendered route. Without it, every route gets the same `<title>FSB</title>` from `src/index.html:5`.
 
-**Data flow:**
+**Critical detail re: prerender lifecycle:**
+- Prerender **does** wait for `ngOnInit` synchronous code.
+- Prerender **does** execute inside Angular's injection context (component DI works normally).
+- `runInInjectionContext` is NOT required for component-scoped DI. It's only needed if you call DI from outside an injection context (e.g., a top-level function). Title/Meta services are constructor-injected in components, so the standard pattern applies.
+- Prerender does NOT wait indefinitely for async observables. All FSB metadata is synchronous strings -- no awaits needed.
 
-```
-background.js  fillPaymentOnPageDirect(tabId, paymentRecord, fieldMap)
-  |
-  | chrome.scripting.executeScript({
-  |   target: { tabId },
-  |   world: 'MAIN',
-  |   func: (fields) => {
-  |     // nativeInputValueSetter pattern (same as credentials)
-  |     // Map intent -> selector from DOM analysis
-  |     // Fill: cc-number, cc-name, cc-exp-month, cc-exp-year, cc-csc
-  |     // Fill: billing name, address, city, state, zip, country
-  |   },
-  |   args: [serializedFieldData]
-  | })
-  v
-Page DOM (filled directly, no intermediary)
-```
-
-The `fieldMap` parameter comes from `extractPaymentFields(domData)`, a new function parallel to `extractLoginFields(domData)` that uses the existing payment field detection in `content/dom-analysis.js` (lines 389-428).
-
-### Component 3: MCP Tool Registration (vault.ts)
-
-New file: `mcp-server/src/tools/vault.ts`
-
-Registered in `runtime.ts` alongside the existing 5 tool modules. These tools use a NEW set of MCP message types routed through the WebSocket bridge.
-
-**MCP Tools (4 tools):**
-
-| MCP Tool | MCP Message Type | background.js Handler | Response Content |
-|----------|-----------------|----------------------|------------------|
-| `list_credentials` | `mcp:list-credentials` | `secureConfig.getAllCredentials()` | domain + username only (NO password) |
-| `fill_credential` | `mcp:fill-credential` | `fillCredentialsOnPage()` | success/failure (password NEVER leaves SW) |
-| `list_payment_methods` | `mcp:list-payment-methods` | `secureConfig.getAllPaymentMethods()` | last4 + brand only (NO full number, NO CVV) |
-| `use_payment_method` | `mcp:use-payment-method` | `fillPaymentOnPageDirect()` | success/failure (card data NEVER leaves SW) |
-
-**Registration pattern:**
-
+**Example (home-page.component.ts):**
 ```typescript
-// mcp-server/src/tools/vault.ts
-export function registerVaultTools(
-  server: McpServer,
-  bridge: WebSocketBridge,
-  queue: TaskQueue,
-): void {
-  server.tool(
-    'list_credentials',
-    'List saved credentials (domain and username only, passwords never exposed)',
-    { domain: z.string().optional().describe('Filter to a specific domain') },
-    async (params) => {
-      const result = await bridge.sendAndWait({
-        type: 'mcp:list-credentials',
-        payload: { domain: params.domain },
-      });
-      return mapFSBError(result);
-    },
-  );
-  // ... similar for other 3 tools
+import { Component, OnInit, inject } from '@angular/core';
+import { Title, Meta } from '@angular/platform-browser';
+
+@Component({ /* ... */ })
+export class HomePageComponent implements OnInit {
+  private title = inject(Title);
+  private meta = inject(Meta);
+
+  ngOnInit() {
+    this.title.setTitle('FSB - Full Self-Browsing AI Browser Automation');
+    this.meta.updateTag({ name: 'description', content: '...' });
+    this.meta.updateTag({ property: 'og:title', content: 'FSB' });
+    this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    // canonical link via Meta service or direct head manipulation
+    this.meta.updateTag({ rel: 'canonical', href: 'https://full-selfbrowsing.com/' }, "rel='canonical'");
+  }
 }
 ```
 
-### Component 4: MCPBridgeClient Route Additions
-
-Add cases to `ws/mcp-bridge-client.js` `_routeMessage()` switch:
-
-```javascript
-case 'mcp:list-credentials':
-  return this._handleListCredentials(payload);
-
-case 'mcp:fill-credential':
-  return this._handleFillCredential(payload);
-
-case 'mcp:list-payment-methods':
-  return this._handleListPaymentMethods(payload);
-
-case 'mcp:use-payment-method':
-  return this._handleUsePaymentMethod(payload);
-
-case 'mcp:get-vault-status':
-  return this._handleGetVaultStatus();
-
-case 'mcp:unlock-vault':
-  return this._handleUnlockVault(payload);
-```
-
-**Critical: `_handleFillCredential` and `_handleUsePaymentMethod` operate entirely within the service worker.** They call `secureConfig.getFullCredential(domain)` / `secureConfig.getFullPaymentMethod(id)` locally, call `fillCredentialsOnPageDirect()` / `fillPaymentOnPageDirect()`, and return ONLY `{success: true/false}` over the WebSocket. The secret material is resolved, used, and discarded entirely within the service worker process boundary.
-
-### Component 5: Autopilot Tool Definitions
-
-Add to `ai/tool-definitions.js` and `mcp-server/ai/tool-definitions.cjs`:
-
-```javascript
-{
-  name: 'fill_credential',
-  description: 'Fill saved username/password credentials into login form fields on the current page. The extension looks up the credential by domain and fills directly -- the password is never exposed to the AI. Requires vault to be unlocked.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      domain: { type: 'string', description: 'Domain to look up credentials for. Defaults to current page domain.' }
-    },
-    required: []
-  },
-  _route: 'background',
-  _readOnly: false,
-  _contentVerb: null,
-  _cdpVerb: null
-},
-{
-  name: 'fill_payment_method',
-  description: 'Fill a saved payment method into payment form fields on the current page. The extension fills card number, expiry, CVV, and billing address directly -- sensitive card data is never exposed to the AI. Requires vault and payment access to be unlocked. The user must confirm in the sidepanel before filling.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      payment_method_id: { type: 'string', description: 'ID of the saved payment method to use. Use list_payment_methods first to get available IDs.' }
-    },
-    required: ['payment_method_id']
-  },
-  _route: 'background',
-  _readOnly: false,
-  _contentVerb: null,
-  _cdpVerb: null
+**JSON-LD pattern (one-time, on `/`):**
+```typescript
+ngOnInit() {
+  // ...title/meta...
+  const ld = document.createElement('script');
+  ld.type = 'application/ld+json';
+  ld.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'FSB',
+    /* ... */
+  });
+  document.head.appendChild(ld);
 }
 ```
+During prerender this runs against the synthetic DOM and is serialized into the static HTML output.
 
-### Component 6: Sidepanel Confirmation Dialog
+### Pattern 3: Crawler Files as Public Static Assets
 
-Extends the existing `showLoginPrompt()` pattern for payment confirmation. When `fill_payment_method` or `use_payment_method` is invoked, background.js sends a `paymentConfirmationRequired` message to the sidepanel. The sidepanel shows a confirmation card with:
+**What:** Place `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` under `showcase/angular/public/`. The existing `angular.json:36-39` glob copies them to `dist/showcase-angular/browser/` root unchanged.
 
-- Card brand icon + masked last 4
-- Merchant/domain name
-- "Confirm" and "Cancel" buttons
+**When to use:** Always for root-level crawler files. Never use `showcase/assets/` -- that glob has `"output": "assets"`, which is the wrong URL path.
 
-The sidepanel sends back `paymentConfirmationApproved` or `paymentConfirmationDenied`. Background.js has a `waitForPaymentConfirmation(sessionId)` function parallel to the existing `waitForLoginResponse(sessionId)`.
+**Trade-offs:**
+- Pro: zero server changes. `express.static(staticPath)` (server/server.js:98) finds and serves them with correct content-type before any SPA fallback can intercept.
+- Pro: no MIME-type issues -- `.txt` and `.xml` are recognized by Express's built-in `mime` lookup.
+- Con: hand-maintained sitemap requires a redeploy on route changes. With 5 routes (4 prerendered + dashboard) and low churn, this is the right trade.
 
-```
-background.js                    sidepanel.js
-     |                                |
-     | chrome.runtime.sendMessage({   |
-     |   action: 'paymentConfirmationRequired',
-     |   sessionId, paymentMetadata   |
-     | })                             |
-     |------------------------------->|
-     |                                | Show confirmation card
-     |                                | User clicks Confirm/Cancel
-     |<-------------------------------|
-     | chrome.runtime.sendMessage({   |
-     |   action: 'paymentConfirmed'   |
-     |   or 'paymentDenied'           |
-     | })                             |
-     |                                |
-     | if confirmed:                  |
-     |   fillPaymentOnPageDirect()    |
-     |   return {success: true}       |
-     | else:                          |
-     |   return {success: false,      |
-     |     error: 'user_denied'}      |
-```
+### Pattern 4: SPA Fallback That Prefers Per-Route Prerender
 
-### Component 7: Payment Management UI (Options Page)
+**What:** Update the catch-all so it serves `staticPath/<route>/index.html` when present, else falls back to root `index.html`. This preserves `/dashboard` SPA behavior.
 
-Add a "Payment Methods" section to `ui/control_panel.html` and `ui/options.js`, parallel to the existing "Credentials Manager" section. Uses the same card layout pattern with:
+**When to use:** Whenever you mix prerendered routes with SPA-only routes in the same Express server.
 
-- List view showing masked card numbers (last 4), brand, nickname, expiry
-- Add/Edit modal with card number, cardholder name, expiry, CVV, billing address
-- Delete confirmation
-- Lock/Unlock toggle for payment access (separate from vault unlock)
+**Why this matters even though `express.static` would normally find `/about/index.html` automatically:**
 
-All communication via `chrome.runtime.sendMessage` to the new background.js handlers.
+The current handler at `server/server.js:111-117` is registered for `['/','/about','/dashboard','/privacy','/support']` and returns the root `index.html` unconditionally. Express middleware order (server.js:97 static, then 111 SPA fallback) means: `express.static` is tried FIRST. Express's `serveStatic` `index` option defaults to `'index.html'`, so `/about` -> `/about/index.html` IS resolved automatically when present. **However**, when static cannot find it (e.g., `/dashboard` is excluded from prerender), the explicit handler at line 111 catches the request. The patch below makes the explicit handler ALSO prerender-aware as a defensive measure -- so even if static-middleware behavior shifts (e.g., a future express upgrade) the fallback still serves the right HTML.
 
----
-
-## Security Boundary Enforcement
-
-### The Iron Rule
-
-**Sensitive data (passwords, full card numbers, CVVs) NEVER cross the WebSocket bridge.**
-
-This is enforced at three levels:
-
-1. **Source-level redaction:** `secureConfig.getAllCredentials()` returns `{domain, username, notes}` -- no password field. `secureConfig.getAllPaymentMethods()` returns `{id, last4, cardBrand, maskedNumber}` -- no full number, no CVV.
-
-2. **Bridge client filtering:** The `_handleListCredentials()` and `_handleListPaymentMethods()` methods in `mcp-bridge-client.js` call only the metadata methods. The `_handleFillCredential()` method resolves the full credential via `secureConfig.getFullCredential()`, uses it in `chrome.scripting.executeScript`, and returns only `{success: true}`.
-
-3. **MCP tool descriptions:** Tool descriptions explicitly state "password is never exposed" / "card data is never exposed" so the AI understands the boundary.
-
-### Threat Model
-
-| Threat | Mitigation |
-|--------|-----------|
-| MCP host reads credential password | Password never included in any WebSocket response |
-| Malicious MCP tool calls fill_credential on wrong site | fill_credential matches credential by current page domain, not user-supplied domain. AI-supplied domain parameter is optional hint, but actual lookup uses `tab.url` |
-| Payment fill without user consent | Payment fill requires explicit sidepanel confirmation dialog |
-| Service worker restart loses vault session | Session key stored in `chrome.storage.session` (cleared on browser close, survives SW restart) |
-| WebSocket message interception | Bridge is localhost-only (ws://localhost:7225). Additionally, sensitive payloads are never serialized. |
-
-### Redacted Logging
-
-All `automationLogger` calls for credential/payment operations must use redacted values:
-
+**Minimal patch (server/server.js:110-117):**
 ```javascript
-automationLogger.info('Credential fill', {
-  domain: domain,
-  username: cred.username,
-  // password: NEVER logged
-  success: result.success
-});
-
-automationLogger.info('Payment fill', {
-  paymentMethodId: id,
-  cardBrand: metadata.cardBrand,
-  last4: metadata.last4,
-  // cardNumber: NEVER logged
-  // cvv: NEVER logged
-  success: result.success
-});
-```
-
----
-
-## Data Flow Diagrams
-
-### Flow 1: MCP `fill_credential` (Secure Path)
-
-```
-Claude Code: "Fill in the login form"
-  |
-  | MCP tool call: fill_credential({domain: "github.com"})
-  v
-MCP Server (vault.ts)
-  | bridge.sendAndWait({type: 'mcp:fill-credential', payload: {domain: 'github.com'}})
-  v
-WebSocket Bridge (port 7225)
-  | frame: {id, type: 'mcp:fill-credential', payload: {domain: 'github.com'}}
-  v
-MCPBridgeClient._handleFillCredential({domain: 'github.com'})
-  |
-  | 1. tab = await getActiveTab()  // get current tab
-  | 2. actualDomain = new URL(tab.url).hostname  // trust tab URL, not MCP param
-  | 3. status = await secureConfig.getCredentialVaultStatus()
-  |    if (!status.unlocked) -> return {success: false, error: 'vault_locked'}
-  | 4. cred = await secureConfig.getFullCredential(actualDomain)
-  |    if (!cred) -> return {success: false, error: 'no_credential_found'}
-  | 5. domResponse = await sendToContentScript(tab.id, {action: 'getDOM'})
-  | 6. fields = extractLoginFields(domResponse.structuredDOM)
-  | 7. result = await fillCredentialsOnPageDirect(tab.id, {
-  |      usernameSelector: fields.usernameSelector,
-  |      passwordSelector: fields.passwordSelector,
-  |      submitSelector: fields.submitSelector,
-  |      username: cred.username,
-  |      password: cred.password   // <-- STAYS in service worker
-  |    })
-  | 8. return {success: result.success, domain: actualDomain, username: cred.username}
-  v                                  // <-- password NOT in response
-WebSocket Bridge -> MCP Server -> Claude Code
-  Response: {success: true, domain: 'github.com', username: 'user@example.com'}
-            // NO password in the response
-```
-
-### Flow 2: MCP `use_payment_method` (Secure Path + Confirmation)
-
-```
-Claude Code: "Pay with my Visa ending in 4242"
-  |
-  | MCP tool call: use_payment_method({payment_method_id: "pm_abc123"})
-  v
-MCP Server (vault.ts)
-  | bridge.sendAndWait({type: 'mcp:use-payment-method', payload: {id: 'pm_abc123'}})
-  v
-MCPBridgeClient._handleUsePaymentMethod({id: 'pm_abc123'})
-  |
-  | 1. status = await secureConfig.ensurePaymentAccessUnlocked()
-  |    if (!status.ok) -> return {success: false, error: status.error}
-  | 2. metadata = await secureConfig.buildPaymentMethodMetadata(...)
-  |    // Get masked info for confirmation dialog
-  | 3. tab = await getActiveTab()
-  | 4. chrome.runtime.sendMessage({
-  |      action: 'paymentConfirmationRequired',
-  |      paymentMetadata: {cardBrand: 'visa', last4: '4242', ...},
-  |      domain: tab.url
-  |    })
-  | 5. confirmation = await waitForPaymentConfirmation()
-  |    if (denied) -> return {success: false, error: 'user_denied_payment'}
-  | 6. fullRecord = await secureConfig.getFullPaymentMethod('pm_abc123')
-  | 7. domResponse = await sendToContentScript(tab.id, {action: 'getDOM'})
-  | 8. fields = extractPaymentFields(domResponse.structuredDOM)
-  | 9. result = await fillPaymentOnPageDirect(tab.id, fullRecord, fields)
-  |    // card number + CVV stay in service worker
-  | 10. return {success: result.success, cardBrand: 'visa', last4: '4242'}
-  v                                // NO card number, NO CVV in response
-WebSocket Bridge -> MCP Server -> Claude Code
-  Response: {success: true, cardBrand: 'visa', last4: '4242'}
-```
-
-### Flow 3: Vault Unlock (UI -> background.js, Currently Broken)
-
-```
-CURRENT (broken):
-  ui/unlock.js -> chrome.runtime.sendMessage({action: 'unlock', password, remember})
-              -> NO handler in background.js -> message silently dropped
-
-FIXED:
-  ui/unlock.js -> chrome.runtime.sendMessage({action: 'unlock', password, remember})
-              -> background.js case 'unlock':
-                   -> secureConfig.unlockCredentialVault(request.password)
-                   -> if (request.remember) chrome.storage.session.set({...})
-                   -> sendResponse({success: true, unlocked: true})
-  ui/unlock.js -> window.close()
-```
-
-Note: The existing `ui/unlock.js` also tries to decrypt with `secureConfig.decrypt()` directly (line 28), but this is the old API key unlock flow, not the credential vault flow. The credential vault uses a completely different mechanism (`unlockCredentialVault()` which derives a session key via PBKDF2). The unlock.js needs to be updated to use the vault-specific unlock path.
-
----
-
-## Component Boundaries
-
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `config/secure-config.js` | Encryption, storage, CRUD, validation | chrome.storage.local/session |
-| `background.js` (message handler) | Route UI/MCP messages to secureConfig | secureConfig, chrome.scripting, content scripts |
-| `ws/mcp-bridge-client.js` | Route MCP WebSocket messages, enforce security boundary | background.js (via sendMessage), secureConfig (direct access in SW scope) |
-| `mcp-server/src/tools/vault.ts` | MCP tool registration, schema, bridge messaging | WebSocketBridge |
-| `ai/tool-definitions.js` | Autopilot tool schema for fill_credential, fill_payment_method | agent-loop.js (tool executor) |
-| `ui/sidepanel.js` | Payment confirmation dialog, login prompt | background.js (via sendMessage) |
-| `ui/options.js` + `ui/control_panel.html` | Payment method management UI | background.js (via sendMessage) |
-| `ui/unlock.js` | Vault unlock popup | background.js (via sendMessage) |
-| `content/dom-analysis.js` | Payment field detection (existing) | content script message handler |
-
----
-
-## Files Modified vs Files Created
-
-### Modified Files (8)
-
-| File | Changes |
-|------|---------|
-| `background.js` | Add ~15 message handler cases (vault lifecycle, payment CRUD, unlock), add `fillPaymentOnPageDirect()`, add `extractPaymentFields()`, add `waitForPaymentConfirmation()` |
-| `ws/mcp-bridge-client.js` | Add ~6 route cases for MCP vault/credential/payment messages, add handler methods |
-| `ai/tool-definitions.js` | Add `fill_credential` and `fill_payment_method` tool definitions |
-| `mcp-server/ai/tool-definitions.cjs` | Mirror the same 2 tool definitions (this is the CJS copy for MCP server) |
-| `mcp-server/src/runtime.ts` | Add `import { registerVaultTools }` and call it in `createRuntime()` |
-| `ui/sidepanel.js` | Add payment confirmation dialog (parallel to `showLoginPrompt()`) |
-| `ui/options.js` | Add payment method management section (list, add, edit, delete) |
-| `ui/control_panel.html` | Add payment methods HTML section |
-| `ui/unlock.js` | Fix to use `unlockCredentialVault()` path instead of direct decrypt |
-
-### New Files (1)
-
-| File | Purpose |
-|------|---------|
-| `mcp-server/src/tools/vault.ts` | MCP tool registration for list_credentials, fill_credential, list_payment_methods, use_payment_method |
-
----
-
-## Suggested Build Order
-
-The dependency chain dictates this order:
-
-### Phase 1: Vault Unlock Fix (Foundation)
-
-**Everything depends on the vault being unlockable.**
-
-1. Add `case 'unlock'` (or `case 'unlockCredentialVault'`) handler to background.js
-2. Add `case 'createCredentialVault'`, `case 'lockCredentialVault'`, `case 'getCredentialVaultStatus'` handlers
-3. Fix `ui/unlock.js` to call the vault-specific unlock path
-4. Verify: vault creates, unlocks, locks, survives service worker restart
-
-### Phase 2: Payment Method Background Wiring
-
-**Payment CRUD depends on vault being unlockable (Phase 1).**
-
-5. Add 7 payment method message handlers to background.js
-6. Add `case 'getPaymentVaultStatus'`, `case 'unlockPaymentMethods'`, `case 'lockPaymentMethods'`
-7. Verify: payment methods save, list, update, delete when vault+payment unlocked
-
-### Phase 3: Payment Management UI
-
-**UI depends on background handlers being wired (Phase 2).**
-
-8. Add payment methods section to `ui/control_panel.html`
-9. Add payment management JS to `ui/options.js` (list, add modal, edit, delete, lock toggle)
-10. Add masked card display, brand detection icon, expiry validation in UI
-11. Verify: full CRUD cycle through options page UI
-
-### Phase 4: Autopilot Tools
-
-**fill_credential and fill_payment_method for the AI agent loop.**
-
-12. Add `fill_credential` and `fill_payment_method` to `ai/tool-definitions.js` and `.cjs`
-13. Add `fillPaymentOnPageDirect()` to background.js
-14. Add `extractPaymentFields()` to background.js (using dom-analysis.js intents)
-15. Wire autopilot tool executor to handle these as background-routed tools
-16. Add payment confirmation dialog to sidepanel.js + `waitForPaymentConfirmation()`
-17. Verify: autopilot can fill credentials on login pages, fill payment on checkout pages
-
-### Phase 5: MCP Tools
-
-**MCP tools depend on all background functions being implemented (Phases 1-4).**
-
-18. Create `mcp-server/src/tools/vault.ts` with 4 tool registrations
-19. Register in `mcp-server/src/runtime.ts`
-20. Add MCP message routes to `ws/mcp-bridge-client.js` (6 new cases)
-21. Add MCP handler methods that enforce security boundary (no secrets in responses)
-22. Verify: MCP tools work from Claude Code, secrets never appear in MCP responses
-
-### Phase 6: Redacted Logging & Hardening
-
-23. Audit all `console.log`, `console.error`, `automationLogger` calls for credential/payment operations
-24. Ensure no raw passwords, card numbers, or CVVs in any log output
-25. Add timeout handling for payment confirmation (auto-deny after 2 minutes, like login prompt)
-
----
-
-## Patterns to Follow
-
-### Pattern 1: Background Message Handler (Existing)
-
-Every handler follows this exact shape. Do not deviate.
-
-```javascript
-case 'actionName':
-  (async () => {
-    try {
-      const result = await secureConfig.someMethod(request.param);
-      sendResponse(result);
-    } catch (error) {
-      sendResponse({ success: false, error: error.message });
+// SPA fallback -- prefer per-route prerendered HTML, fall back to root index.html for SPA-only routes
+app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
+  if (!staticPath) {
+    res.status(503).type('text/plain')
+       .send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
+    return;
+  }
+  // Prefer prerendered per-route index.html (e.g., /about/index.html)
+  if (req.path !== '/') {
+    const perRoute = path.join(staticPath, req.path, 'index.html');
+    if (fs.existsSync(perRoute)) {
+      return res.sendFile(perRoute);
     }
-  })();
-  return true; // Will respond asynchronously
+  }
+  // Fall back to root index.html (SPA shell -- /dashboard, '/' if not prerendered, etc.)
+  res.sendFile(path.join(staticPath, 'index.html'));
+});
 ```
 
-### Pattern 2: chrome.scripting.executeScript for Sensitive Fills
+**Why minimal:**
+- Preserves the 503 guard for missing builds (server.js:112-115).
+- Preserves `/` behavior (root `index.html` serves whether or not `/` is prerendered, since prerendered `/` writes to root `index.html` already).
+- Preserves `/dashboard` SPA behavior: if `/dashboard/index.html` is not in dist (because we excluded it from prerender), `fs.existsSync` returns false and we fall through to root `index.html` -- same as today.
+- `fs.existsSync` is sync and runs in-process; the prerender output set is small (4 paths). For a stricter perf posture, build a `Set` at startup and check membership -- documented as a deferred optimization, not required for v0.9.46.
+- `fs` is already required at `server/server.js:75`, so no new imports.
 
-The existing `fillCredentialsOnPageDirect()` is the template. Key characteristics:
+## Data Flow
 
-- `world: 'MAIN'` for full DOM access
-- `nativeInputValueSetter` trick for React compatibility
-- `dispatchEvent(new Event('input', {bubbles: true}))` for framework compatibility
-- insertText fallback
-- Return verification object, not the filled values
+### Build-Time Flow (new)
 
-### Pattern 3: Confirmation Dialog (Login Prompt Pattern)
-
-The existing `showLoginPrompt()` / `waitForLoginResponse()` pair is the template:
-
-- Background sends a message to sidepanel requesting user action
-- Background creates a `Promise` that resolves when sidepanel responds
-- 2-minute timeout auto-resolves as "denied"/"skipped"
-- Handler reference stored on session object for cleanup on termination
-
-### Pattern 4: MCP Bridge Client Handler
-
-```javascript
-async _handleNewFeature(payload) {
-  // 1. Check preconditions (vault unlocked, tab available, etc.)
-  // 2. Call secureConfig method (metadata only for list, full for fill)
-  // 3. If fill: execute chrome.scripting.executeScript
-  // 4. Return REDACTED result (never include secrets)
-  // 5. Log REDACTED info
-}
+```
+npm --prefix showcase/angular run build
+   |
+   v
+@angular/build:application reads angular.json
+   |
+   +-- bundles main.ts, lazy chunks, styles
+   |
+   +-- copies assets per glob:
+   |     public/**/*       -> browser/                 (no output prefix)
+   |     ../assets/**/*    -> browser/assets/          (output: "assets")
+   |
+   +-- if prerender.routes set:
+   |       for each route in [/, /about, /privacy, /support]:
+   |          boot app, navigate, run ngOnInit (Title/Meta/JSON-LD writes)
+   |          serialize DOM -> browser/<route>/index.html
+   |
+   v
+dist/showcase-angular/browser/  (includes robots.txt, sitemap.xml, llms.txt, llms-full.txt verbatim)
 ```
 
----
+### Request-Time Flow (post-patch)
 
-## Anti-Patterns to Avoid
+```
+Cloudflare/Fly edge -> Express :3847
+   |
+   v
+[server.js:41]  request logger
+   |
+   v
+[server.js:53-66] /api/* routers          -- short-circuit for API
+   |
+   v (non-API)
+[server.js:93]  htmlRedirects /about.html -> 301 /about
+   |
+   v
+[server.js:98]  express.static(staticPath)
+   - finds robots.txt, sitemap.xml, llms*.txt at root: SERVE
+   - finds /about/index.html via default index resolution: SERVE
+   - finds /assets/icon48.png: SERVE
+   - misses /dashboard (no /dashboard/index.html in dist): NEXT
+   |
+   v
+[server.js:111 patched] SPA fallback (5 routes)
+   - /dashboard: existsSync(/dashboard/index.html) = false -> root index.html (SPA shell)
+   - / : root index.html (already prerendered as root)
+   |
+   v
+[server.js:120] error handler
+```
 
-### Anti-Pattern 1: Passing Secrets Over WebSocket
+## Suggested Build Order (Phase Sequencing)
 
-**What:** Including password/card number/CVV in any WebSocket message payload
-**Why bad:** The WebSocket bridge is a plain text channel on localhost. While the risk is local-only, the design principle is defense in depth. The MCP server runs in a separate Node.js process that could be compromised or have its stdout logged.
-**Instead:** Always resolve secrets in the service worker, fill via `chrome.scripting.executeScript`, return only success/failure.
+The milestone has natural data-dependency ordering. **Build prerender first, then JSON-LD, then Express patch, then crawler files.**
 
-### Anti-Pattern 2: Trusting MCP-Supplied Domain for Credential Lookup
+| Phase Order | Phase | Why this order | Dependencies |
+|-------------|-------|----------------|--------------|
+| **1** | **Prerender enablement + per-route Title/Meta** | Prerender output is the foundation. Without it, sitemap entries point at empty `<app-root>` shells and AI crawlers see nothing. JSON-LD also requires prerendered HTML to land in the snapshot. Doing this first means every subsequent phase can verify against real prerendered HTML in `dist/.../browser/about/index.html`. | None (only repo). |
+| **2** | **JSON-LD structured data** | Adds Organization + SoftwareApplication blocks via `ngOnInit` DOM injection. Verifies in `view-source` of prerendered HTML. | Requires phase 1 (prerender executes the `ngOnInit` that writes JSON-LD). |
+| **3** | **Express SPA-fallback patch** | Once per-route HTML exists in dist, the patch becomes meaningful. If you patch first with no prerender output, the patch is a no-op AND you can't verify it works. | Requires phase 1 (per-route files must exist for `existsSync` to ever return true). |
+| **4** | **Crawler root files (`robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`)** | Sitemap MUST point at canonical URLs. `llms.txt` should reference real prerendered content. Building these last means each `<url>` entry is verified against an actual file. | Requires phase 1 for sitemap entry validation; soft-depends on phase 3 for the smoke test (`curl /about` returns prerendered HTML). |
 
-**What:** Using `payload.domain` from MCP tool call as the credential lookup key
-**Why bad:** A compromised MCP host could request credentials for any domain
-**Instead:** Use `tab.url` from `chrome.tabs.get(activeTab)` as the authoritative domain. The `payload.domain` parameter is optional and used only as a hint/filter, not as the lookup key for fill operations.
+**Reasoning against doing crawler files first:** A `sitemap.xml` shipped before prerender is a sitemap of empty shells. AI crawlers fetch the sitemap, follow URLs, get HTML with empty `<app-root>`, and the discoverability problem is unchanged. The whole point of v0.9.46 is non-JS crawler visibility -- sitemap is the LAST link in the chain, not the first.
 
-### Anti-Pattern 3: Creating New Message Transport
+**Reasoning against doing the Express patch first:** The patch is defensive (preserves `/dashboard`). It can be written and tested independently, but verifying it requires per-route files in dist. So it pairs naturally with phase 3 once prerender output exists. Phases 1 and 3 can also be combined into a single phase if the orchestrator prefers fewer phase boundaries -- they touch different files and don't conflict.
 
-**What:** Adding a new communication channel between MCP server and extension
-**Why bad:** The existing WebSocket bridge + message routing is battle-tested. Adding another channel creates maintenance burden and security surface.
-**Instead:** Add new message types to the existing `_routeMessage()` switch in mcp-bridge-client.js.
+## Sitemap Strategy: Static File vs Build-Step Generator
 
-### Anti-Pattern 4: Storing Vault Passphrase in chrome.storage.local
+**Recommendation: hand-maintained static file in `showcase/angular/public/sitemap.xml`.**
 
-**What:** Persisting the vault passphrase beyond the browser session
-**Why bad:** Defeats the purpose of the vault. The passphrase should be ephemeral.
-**Instead:** Store only the derived session key in `chrome.storage.session` (already implemented in SecureConfig). Session storage is cleared when the browser closes.
+| Criterion | Static (recommended) | Generated |
+|-----------|----------------------|-----------|
+| Route count | 5 routes (4 in sitemap, dashboard noindex) -- trivially manageable | overkill |
+| Churn | Marketing routes are extremely stable; new routes happen at milestone cadence (~monthly) | overkill |
+| Build complexity | Zero -- file is in `public/`, glob copies it | New build script, new package.json target, new failure mode |
+| Verification | grep + eyeball | Requires running the script |
+| Future-proofing | If we add comparison pages (`/vs-mariner`) deferred per PROJECT.md:25-26, hand-edit one file once | Generator pays off if route count exceeds ~20 or `getPrerenderParams`-style dynamic routes are introduced |
 
----
+**Trigger to revisit:** if comparison pages or FAQ land (currently deferred per PROJECT.md:25-26) and route count crosses ~15-20, write a generator that reads `app.routes.ts` and emits `sitemap.xml` to `showcase/angular/public/` as a `prebuild` npm script. Until then, static file is the right call.
 
-## Scalability Considerations
+## Anti-Patterns
 
-| Concern | Current Scale | At Scale |
-|---------|--------------|----------|
-| Number of stored credentials | Tens | Hundreds: `getAllCredentials()` decrypts all -- consider pagination or index-only cache |
-| Number of payment methods | Single digits | Tens: Not a concern, `getAllPaymentMethods()` is fine |
-| Concurrent MCP tool calls | Sequential (TaskQueue) | Vault operations are fast (<50ms). No bottleneck. |
-| Service worker lifecycle | Restarts after 5min idle | Session key in `chrome.storage.session` survives restarts. Vault stays unlocked until browser close. |
+### Anti-Pattern 1: Putting crawler files in `../assets/` (`showcase/assets/`)
 
----
+**What people do:** Drop `robots.txt` in `showcase/assets/` because that's where icons live.
+**Why it's wrong:** `angular.json:40-44` globs `../assets/**/*` to `output: "assets"`, producing `browser/assets/robots.txt` -- which is reachable at `/assets/robots.txt`, not `/robots.txt`. Crawlers only check site root.
+**Do this instead:** Put crawler root files in `showcase/angular/public/`. That glob (`angular.json:36-39`) has no `output:` prefix, so files land at dist root.
+
+### Anti-Pattern 2: Setting Title/Meta in app.component.ts
+
+**What people do:** Centralize title/meta in `AppComponent.ngOnInit` with a giant route-to-title map keyed by URL.
+**Why it's wrong:** During prerender, `AppComponent` constructs once but Angular renders different child components per route. A central map duplicates the routing logic that already exists in `app.routes.ts`. Worse, prerender may snapshot before the route's child component has resolved its title write.
+**Do this instead:** Each page component owns its own metadata in its own `ngOnInit`. Co-located with the page content, no central registry.
+
+### Anti-Pattern 3: Replacing the SPA fallback with `app.get('*')`
+
+**What people do:** Convert `app.get(['/','/about',...])` to `app.get('*')` for "future-proofing."
+**Why it's wrong:** Wildcard catches `/api/*` if API routers don't fully consume the request, and it catches arbitrary URLs that should 404. The current scoped allowlist is a feature, not a limitation.
+**Do this instead:** Keep the scoped list at server.js:111. Add new routes to the allowlist explicitly when added to `app.routes.ts`. The patch above preserves this discipline.
+
+### Anti-Pattern 4: Prerendering `/dashboard`
+
+**What people do:** Add `/dashboard` to the prerender route list so "everything is consistent."
+**Why it's wrong:** `/dashboard` is the live remote-control surface (Phase 209-211: WebSocket, QR pairing, DOM stream). Prerendering produces a snapshot HTML that confuses runtime hydration of the dashboard's stateful UI, and SEO is irrelevant for an auth-walled control surface.
+**Do this instead:** Explicit `prerender.routes` list in `angular.json` excludes `/dashboard`. Add `<meta name="robots" content="noindex">` in `dashboard-page.component.ts` `ngOnInit` for belt-and-suspenders coverage.
+
+### Anti-Pattern 5: Globbing `discoverRoutes: true` for prerender
+
+**What people do:** Let the builder discover routes from `app.routes.ts` automatically.
+**Why it's wrong:** Discovery includes the `'**'` wildcard redirect entry (`app.routes.ts:9`) and lazy-chunk paths in confusing ways. With only 5 routes, explicit is clearer and prevents accidental `/dashboard` prerender.
+**Do this instead:** `discoverRoutes: false` + explicit `routes: ["/", "/about", "/privacy", "/support"]`.
+
+## Integration Points
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) | Static `robots.txt` Allow rules at `/robots.txt` | Zero runtime cost; bot identification is by User-Agent on their side |
+| Search engines (Googlebot, Bingbot) | Static `sitemap.xml` referenced from `robots.txt`'s `Sitemap:` directive | Hand-maintained file, 4 entries |
+| Fly.io edge | Existing `force_https`, single region SJC | No changes needed; static files cache via Express headers (server.js:101-106) |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `angular.json` -> `@angular/build:application` | Build config | New `prerender` block; assets globs unchanged |
+| Page component -> `@angular/platform-browser` (`Title`, `Meta`) | DI inject | Standard injection context; no `runInInjectionContext` needed |
+| `prerender` runtime -> component `ngOnInit` | Lifecycle | Synchronous Title/Meta writes captured in HTML snapshot; async work needs explicit await (not required for FSB v0.9.46) |
+| `express.static` -> SPA fallback | Middleware order | Static at server.js:98 runs FIRST; fallback at server.js:111 runs only on miss; patch makes fallback prerender-aware as defense-in-depth |
+
+## Confidence Notes
+
+- **HIGH** on prerender output structure (`browser/<route>/index.html`): verified against [Angular v19 prerender docs](https://v19.angular.dev/guide/prerendering); v18 -> v19 retained the folder + `index.html` convention.
+- **HIGH** on `angular.json` glob behavior: read the file directly; `public/**/*` with no `output:` writes to dist root, matches Angular CLI conventions.
+- **HIGH** on Express middleware order and static-vs-fallback resolution: read `server/server.js:97-117` directly. Current scoped fallback is intentional and the patch preserves its semantics.
+- **HIGH** on Title/Meta injection during prerender: Angular's prerender runs `ngOnInit` inside the standard component injection context; this is documented behavior of `@angular/build:application`.
+- **MEDIUM** on JSON-LD via direct `document.createElement` during prerender: works because prerender runs in a DOM-emulated environment, but if Angular ever swaps to a stricter platform, switch to `Renderer2` or pre-define in component template via `[innerHTML]` with `DomSanitizer.bypassSecurityTrustHtml`. For v0.9.46 the simple approach is fine.
+- **MEDIUM** on `provideClientHydration()` necessity: not required for static prerender (no hydration-of-server-state needed), but adding it future-proofs if the team later moves to true SSR. Not required for v0.9.46 scope.
 
 ## Sources
 
-All findings are based on direct code analysis of the existing codebase:
+- [Build-time prerendering -- Angular v19 docs](https://v19.angular.dev/guide/prerendering)
+- [Server-side and hybrid-rendering -- Angular](https://angular.dev/guide/ssr)
+- [What's new in Angular 19.0 -- Ninja Squad](https://blog.ninja-squad.com/2024/11/19/what-is-new-angular-19.0)
+- Local file: `showcase/angular/angular.json` (assets globs lines 35-50, builder config 22-77)
+- Local file: `server/server.js` (static + fallback lines 73-117)
+- Local file: `showcase/angular/src/app/app.routes.ts` (route table)
+- Local file: `showcase/angular/src/index.html` (current static head)
+- Local file: `.planning/PROJECT.md` (milestone scope, lines 11-30)
 
-- `config/secure-config.js` (1138 lines) -- vault encryption, credential + payment CRUD
-- `background.js` (lines 4287-4352) -- existing credential message handlers
-- `background.js` (lines 6170-6385) -- login detection, credential fill, extractLoginFields
-- `background.js` (lines 8400-8500) -- autopilot auth flow with credential fill
-- `ws/mcp-bridge-client.js` (593 lines) -- MCP bridge client with _routeMessage switch
-- `mcp-server/src/bridge.ts` (608 lines) -- WebSocket bridge hub/relay
-- `mcp-server/src/tools/manual.ts` (83 lines) -- tool registration pattern
-- `mcp-server/src/tools/schema-bridge.ts` (169 lines) -- JSON Schema to Zod conversion
-- `mcp-server/src/runtime.ts` (38 lines) -- tool registration orchestration
-- `ui/unlock.js` (90 lines) -- broken vault unlock popup
-- `ui/sidepanel.js` (lines 1231-1390) -- login prompt dialog pattern
-- `ui/options.js` (lines 2525+) -- credential manager UI pattern
-- `content/dom-analysis.js` (lines 389-428) -- payment field detection
-- `ai/tool-definitions.js` / `mcp-server/ai/tool-definitions.cjs` -- tool schema registry
+---
+*Architecture research for: v0.9.46 Site Discoverability (SEO + GEO) integration*
+*Researched: 2026-04-30*

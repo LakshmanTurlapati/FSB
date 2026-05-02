@@ -8,13 +8,42 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.45 Dashboard Control & Stream Reliability
+## Current Milestone: v0.9.46 Site Discoverability (SEO + GEO)
 
-**Goal:** Fix the broken remote control and QR pairing features, and harden DOM streaming for reliable dashboard operation.
+**Goal:** Make `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the Angular SPA marketing routes and shipping LLM/crawler-aware root files.
 
 **Target features:**
-- Implement the 5 missing remote control handlers so dashboard click/key/scroll commands reach the browser tab
-- Restore QR code pairing (showPairingQR, countdown, cancel) so the extension can pair with the showcase dashboard
+- Static prerender of marketing routes (`/`, `/about`, `/privacy`, `/support`); `/dashboard` stays SPA
+- Per-route SEO/AEO metadata via Angular `Title`/`Meta` services (title, description, canonical, OG, Twitter card)
+- JSON-LD structured data (`Organization` + `SoftwareApplication`) embedded in prerendered HTML
+- AI-crawler root files at site root: `robots.txt` (explicit Allow for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.), `sitemap.xml`, `llms.txt`, `llms-full.txt`
+- Express SPA-fallback adjustment so per-route prerendered HTML is served before the index.html catch-all
+
+**Why now:** Verified live, `full-selfbrowsing.com` returns only the literal string "FSB" to non-JS crawlers -- empty `<app-root>`. AI search bots (GPTBot/ClaudeBot/PerplexityBot) do not execute JavaScript; the site is invisible to them today. Prerender + crawler files unblocks every downstream discoverability play.
+
+**Out of scope (deferred):**
+- FAQ page + `FAQPage` JSON-LD
+- Comparison pages (`/vs-browser-use`, `/vs-mariner`, `/vs-stagehand`, `/vs-browseros`)
+- Search Console / Bing Webmaster registration
+- Off-page push (Show HN, Reddit launch, awesome-list PRs, YouTube demo)
+- Angular Universal full SSR (overkill for static marketing pages)
+
+## Previous Milestone: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
+
+**Goal:** Refocus FSB on what it does best -- ship a dedicated Sync tab for remote control, gracefully retire background agents in favor of OpenClaw / Claude Routines, and harden the streaming pipeline the dashboard relies on.
+
+**Already landed (counted toward this milestone):**
+- Phase 209 -- Remote control handlers (CDP click/key/scroll, lifecycle broadcast)
+- Phase 210 -- QR code pairing restoration (60s server-driven countdown, regenerate-on-expiry)
+- Phase 211 -- Stream reliability & diagnostic logging (LZ decompression, two-tier watchdog, redacted rate-limited warns)
+- Phase 212 -- Background agents sunset (deprecation card + sunset notice + showcase mirror; comment-out, not delete)
+
+**Target features:**
+- Sunset background agents with a playful deprecation card in the FSB control panel pointing at OpenClaw and Claude Routines
+- Carefully comment out (not delete) background-agent-only code paths, preserving shared utilities, annotated with deprecation reason
+- Mirror agent-sunset messaging across the showcase/dashboard surfaces
+- New top-level Sync tab in the control panel -- single purpose: remote control / pairing / dashboard handshake (relocates Phase 209 + 210 UI)
+- Update showcase/dashboard navigation/copy to point at the same Sync surface
 - Harden DOM streaming: mutation queue watchdog, large-DOM truncation performance, stale mutation counter reset
 - Fix asymmetric WebSocket compression (add decompression for incoming messages)
 - Replace silent error swallowing with diagnostic logging in dialog relay and message delivery
@@ -173,11 +202,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
-- [ ] Remote control handlers (click, key, scroll, start, stop) implemented and wired to content script
-- [ ] QR code pairing restored (showPairingQR, countdown, cancel, server URL constant)
-- [ ] DOM streaming hardened (mutation queue watchdog, large-DOM truncation performance, stale mutation counter)
-- [ ] WebSocket compression symmetry (decompression for incoming messages)
-- [ ] Silent error swallowing replaced with diagnostic logging in dialog relay and message delivery
+- [ ] Background agents deprecated with playful "we're not reinventing this wheel" copy in the FSB control panel pointing at OpenClaw and Claude Routines
+- [ ] Background-agent-only code paths carefully commented out (not deleted) with deprecation annotation; shared utilities preserved
+- [ ] Showcase/dashboard surfaces mirror the agent-sunset messaging consistently
+- [ ] New top-level Sync tab in the control panel consolidates QR pairing and remote-control state into a single surface
+- [ ] Showcase/dashboard navigation/copy points at the simplified Sync surface
 
 ### Validated (v0.9.40)
 
@@ -185,6 +214,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Every session termination records a structured outcomeDetails.reason (safety, stuck, orphan, tab-closed, etc.) -- Phase 206
 - ✓ Stale session cleanup, tab close, and service worker wake handle running sessions without silent abandonment -- Phase 207
 - ✓ Sidepanel detects orphaned "working" state and self-heals to idle -- Phase 208
+
+### Validated (v0.9.45rc1, in-flight)
+
+- ✓ Dashboard click/key/scroll commands reach the active streaming tab via Chrome DevTools Protocol with lifecycle state broadcast through ext:remote-control-state -- Phase 209 (live UAT pending)
+- ✓ QR code pairing restored: #btnPairDashboard POSTs /api/pair/generate, renders QR with 60s server-driven countdown, regenerate-on-expiry affordance -- Phase 210
+- ✓ WebSocket inbound `{_lz: true, d: <base64>}` envelopes decompress via `LZString.decompressFromBase64`; plain JSON falls through unchanged; failures recorded via `recordFSBTransportFailure('decompress-failed' | 'decompress-unavailable', ...)` -- Phase 211 (WS-01..03)
+- ✓ DOM streaming hardened: two-tier watchdog (`chrome.alarms` SW-side + `setTimeout` 5s/500ms content-side), single TreeWalker pre-pass + cached rect map (1.67ms < 200ms on 5MB / 50k-node fixture), node-level truncation with `truncated: true, missingDescendants: N` sentinel, `staleFlushCount` field on `ext:stream-state` (`ext:dom-mutations` shape unchanged) -- Phase 211 (STREAM-01..04)
+- ✓ Silent `.catch(() => {})` in dialog relay and message-delivery paths replaced with redacted, rate-limited diagnostic logging: `redactForLog` helper (origin/length/status only), `[FSB DLG]/[FSB BG]/[FSB WS]/[FSB DOM]` layered prefixes, 1 warn per (prefix, category) per 10s with counter rollup, 100-FIFO ring buffer in `chrome.storage.local.fsb_diagnostics_ring`, `chrome.runtime.onMessage` `exportDiagnostics` handler (Phase 213 wires the Sync tab button) -- Phase 211 (LOG-01..04)
+- ✓ Background agents retired: permanent deprecation card in the FSB control panel (`<section id="background-agents">` body) names OpenClaw + Claude Routines as successors with `target="_blank" rel="noopener noreferrer"` CTAs; one-time `fsb_sunset_notice` names list reads `chrome.storage.local['bgAgents']` (defensive coercion accepts array AND object-map shapes) and renders names via `textContent` only; agent-only code commented per-line with canonical `// DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md` annotation across `agents/*.js`, `mcp-server/src/tools/agents.ts` (no LIVE `server.tool()` calls; `registerAgentTools` shell preserved per D-16), `background.js` agent surfaces, `ws/ws-client.js` `dash:agent-run-now`, `ui/options.js` agent UI controllers, `/agent` slash commands; showcase home + both dashboards mirror the sunset; `MCP_RECONNECT_ALARM` early-return preserved byte-for-byte; `_lz` + `ext:remote-control-state` consumers preserved byte-for-byte; `bgAgents` storage and `fsb_agent_*` alarms preserved (no proactive cleanup); ROADMAP SC #3 clipboard export overridden via VERIFICATION.md `overrides:` block formally accepting D-11 -- Phase 212 (AGENTS-01..06)
 
 ### Deferred (MCP follow-up from v0.9.36)
 
@@ -231,13 +269,18 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Backlog
 
-- [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- backlog v0.9.10/P116
-- [ ] Cost & metrics pipeline -- real token/cost data in agent history -- backlog v0.9.10/P117
-- [ ] Scheduling enhancements -- cron expressions, retry with backoff -- backlog v0.9.10/P118
-- [ ] Replay intelligence -- dynamic timing, step-level recovery -- backlog v0.9.10/P119
-- [ ] Sidepanel agents UI -- dedicated tab for agent management -- backlog v0.9.10/P120
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
 - [ ] Smart multi-tab management -- context-aware navigation across multiple tabs
+
+### Sunset in v0.9.45rc1 (background agents -- defer to OpenClaw / Claude Routines)
+
+The following backlog items are formally retired in v0.9.45rc1. Better external runtimes (OpenClaw, Claude Routines) handle background-agent workflows; FSB will not reinvent that wheel. Code paths are commented out (not deleted) to allow future revival if the strategic landscape changes.
+
+- [x] MCP agent tools -- create/list/run/stop/delete agents via MCP -- retired (was v0.9.10/P116)
+- [x] Cost & metrics pipeline -- real token/cost data in agent history -- retired (was v0.9.10/P117)
+- [x] Scheduling enhancements -- cron expressions, retry with backoff -- retired (was v0.9.10/P118)
+- [x] Replay intelligence -- dynamic timing, step-level recovery -- retired (was v0.9.10/P119)
+- [x] Sidepanel agents UI -- dedicated tab for agent management -- retired (was v0.9.10/P120)
 
 ### Out of Scope
 
@@ -392,4 +435,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after starting milestone v0.9.45*
+*Last updated: 2026-04-30 -- milestone v0.9.46 (Site Discoverability) started*

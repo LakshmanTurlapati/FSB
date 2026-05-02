@@ -66,16 +66,21 @@ app.use('/api/stats', auth, (req, res) => {
 });
 
 // Serve showcase static files with cache headers
-// In Docker: showcase is copied to /app/public
-// Local dev: serve Angular dist output, fall back to vanilla showcase
+// In Docker: Angular dist is copied to /app/public
+// Local dev: serve Angular dist output directly from showcase/dist/.
+// The legacy vanilla showcase has been archived under showcase/legacy/ and is
+// no longer served. If neither path exists, run `npm --prefix showcase/angular run build`.
 const publicPath = path.join(__dirname, 'public');
 const angularDistPath = path.join(__dirname, '..', 'showcase', 'dist', 'showcase-angular', 'browser');
-const showcaseFallback = path.join(__dirname, '..', 'showcase');
-const staticPath = require('fs').existsSync(publicPath)
+const fs = require('fs');
+const staticPath = fs.existsSync(publicPath)
   ? publicPath
-  : require('fs').existsSync(angularDistPath)
+  : fs.existsSync(angularDistPath)
     ? angularDistPath
-    : showcaseFallback;
+    : null;
+if (!staticPath) {
+  console.warn('[server] No showcase build found at', publicPath, 'or', angularDistPath, '- run `npm --prefix showcase/angular run build` first.');
+}
 
 // Legacy .html redirects (per D-05)
 const htmlRedirects = {
@@ -89,20 +94,67 @@ app.get(Object.keys(htmlRedirects), (req, res) => {
   res.redirect(301, htmlRedirects[req.path]);
 });
 
-app.use(express.static(staticPath, {
-  maxAge: 0,
-  etag: true,
-  setHeaders: function(res, filePath) {
-    // Prevent stale JS/CSS from being served -- dashboard updates must take effect immediately
-    if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+if (staticPath) {
+  app.use(express.static(staticPath, {
+    maxAge: 0,
+    etag: true,
+    // Phase 216 SRV-01 / D-09: disable trailing-slash directory redirect so /about
+    // does NOT 301 to /about/ before our custom middleware can serve about/index.html.
+    // The custom middleware below handles marketing routes explicitly via path.join.
+    redirect: false,
+    setHeaders: function(res, filePath) {
+      // Phase 216 SRV-03 / D-11: crawler files cache for 1 hour at the edge.
+      // The .txt/.xml branch must come first and short-circuit so a future stray
+      // filename (e.g. foo.html.txt) does not double-fire and pick up the no-cache header.
+      if (filePath.endsWith('.txt') || filePath.endsWith('.xml')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return;
+      }
+      // Existing policy: prevent stale JS/CSS/HTML -- dashboard updates must take effect immediately.
+      if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      }
     }
-  }
-}));
+  }));
+}
 
-// SPA fallback -- serve Angular index.html for all showcase routes (per D-04)
-app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
-  res.sendFile(path.join(staticPath, 'index.html'));
+// Phase 216 SRV-01 / SRV-02 / D-09 / D-10:
+// Prefer per-route prerendered HTML for marketing routes; whitelist /dashboard
+// exact-match for the SPA shell; fall through to a 404 otherwise. This replaces
+// the previous all-routes -> root-index SPA fallback, which would have shadowed
+// crawler files and served the wrong <title>/<meta> for /about /privacy /support
+// after Phase 215 prerender landed.
+const marketingRoutes = new Set(['/', '/about', '/privacy', '/support']);
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return next();
+  }
+  if (!staticPath) {
+    if (marketingRoutes.has(req.path) || req.path === '/dashboard') {
+      res.status(503).type('text/plain').send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
+      return;
+    }
+    return next();
+  }
+  if (marketingRoutes.has(req.path)) {
+    const dir = req.path === '/' ? '' : req.path;
+    const candidate = path.join(staticPath, dir, 'index.html');
+    if (fs.existsSync(candidate)) {
+      res.sendFile(candidate);
+      return;
+    }
+    // Build pipeline regression -- prerendered file expected but missing. Fall
+    // through to 404 rather than silently serving the wrong page; verify-server.sh
+    // will surface this on the next run.
+    return next();
+  }
+  if (req.path === '/dashboard') {
+    // D-10 exact-match whitelist: /dashboard is the only SPA-shell route.
+    // /dashboard/anything is NOT covered and falls through to 404.
+    res.sendFile(path.join(staticPath, 'index.html'));
+    return;
+  }
+  return next();
 });
 
 // Error handler

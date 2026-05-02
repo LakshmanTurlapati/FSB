@@ -50,7 +50,19 @@
             ],
             "styles": [
               "src/styles.scss"
-            ]
+            ],
+            "server": "src/main.server.ts",
+            "security": {
+              "allowedHosts": []
+            },
+            "outputMode": "static",
+            "prerender": {
+              "discoverRoutes": false,
+              "routesFile": "prerender-routes.txt"
+            },
+            "ssr": {
+              "entry": "src/server.ts"
+            }
           },
           "configurations": {
             "production": {

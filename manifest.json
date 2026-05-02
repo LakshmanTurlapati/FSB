@@ -41,7 +41,7 @@
   "options_page": "ui/control_panel.html",
   "web_accessible_resources": [
     {
-      "resources": ["assets/icon48.png", "site-maps/*.json", "test-data/**/*"],
+      "resources": ["assets/icon48.png", "site-maps/*.json", "test-data/**/*", "utils/redactForLog.js", "utils/diagnostics-ring-buffer.js"],
       "matches": ["<all_urls>"]
     }
   ],

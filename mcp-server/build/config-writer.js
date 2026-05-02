@@ -46,27 +46,17 @@ export function serializeByFormat(data, format) {
     }
 }
 /**
- * Detect if this platform uses Continue's YAML array format.
- * Continue has serverMapKey 'mcpServers' AND format 'yaml'.
- * @param format - Config format
- * @param serverMapKey - Root key in the config file
- * @returns True if Continue array format
- */
-function isContinueArrayFormat(format, serverMapKey) {
-    return format === 'yaml' && serverMapKey === 'mcpServers';
-}
-/**
  * Merge a server entry into the config data under the correct key.
- * Handles both object-map format (most platforms) and array format (Continue).
+ * Handles both object-map format (most platforms) and named-array format (Continue, Goose).
  * @param data - Config data object
- * @param serverMapKey - Root key (e.g., 'mcpServers', 'servers')
+ * @param serverMapKey - Root key (e.g., 'mcpServers', 'servers', 'extensions')
  * @param serverName - Server name (e.g., 'fsb')
- * @param entry - Server entry to merge
- * @param format - Config format
+ * @param entry - Server entry to merge (shape varies by platform)
+ * @param mergeStrategy - How to merge: 'object-map' or 'named-array'
  */
-function mergeServerEntry(data, serverMapKey, serverName, entry, format) {
-    if (isContinueArrayFormat(format, serverMapKey)) {
-        // Continue uses a YAML array format for mcpServers
+function mergeServerEntry(data, serverMapKey, serverName, entry, mergeStrategy) {
+    if (mergeStrategy === 'named-array') {
+        // Array format: entries matched by 'name' field (Continue, Goose)
         if (!Array.isArray(data[serverMapKey])) {
             data[serverMapKey] = [{ name: serverName, ...entry }];
             return;
@@ -81,7 +71,7 @@ function mergeServerEntry(data, serverMapKey, serverName, entry, format) {
         }
     }
     else {
-        // All other platforms use object map format
+        // Object map format: config[serverMapKey][serverName] = entry
         if (!data[serverMapKey] || typeof data[serverMapKey] !== 'object' || Array.isArray(data[serverMapKey])) {
             data[serverMapKey] = {};
         }
@@ -94,11 +84,11 @@ function mergeServerEntry(data, serverMapKey, serverName, entry, format) {
  * @param serverMapKey - Root key
  * @param serverName - Server name
  * @param entry - Server entry to compare
- * @param format - Config format
+ * @param mergeStrategy - How entries are stored: 'object-map' or 'named-array'
  * @returns True if already identically configured
  */
-function checkIdempotent(data, serverMapKey, serverName, entry, format) {
-    if (isContinueArrayFormat(format, serverMapKey)) {
+function checkIdempotent(data, serverMapKey, serverName, entry, mergeStrategy) {
+    if (mergeStrategy === 'named-array') {
         if (!Array.isArray(data[serverMapKey]))
             return false;
         const arr = data[serverMapKey];
@@ -119,11 +109,11 @@ function checkIdempotent(data, serverMapKey, serverName, entry, format) {
  * @param data - Current config data
  * @param serverMapKey - Root key
  * @param serverName - Server name
- * @param format - Config format
+ * @param mergeStrategy - How entries are stored: 'object-map' or 'named-array'
  * @returns True if an entry exists for the given server name
  */
-function hasExistingEntry(data, serverMapKey, serverName, format) {
-    if (isContinueArrayFormat(format, serverMapKey)) {
+function hasExistingEntry(data, serverMapKey, serverName, mergeStrategy) {
+    if (mergeStrategy === 'named-array') {
         return Array.isArray(data[serverMapKey]) &&
             data[serverMapKey].some((item) => item.name === serverName);
     }
@@ -135,7 +125,7 @@ function hasExistingEntry(data, serverMapKey, serverName, format) {
  * Handles read-merge-write with backup, idempotency, and graceful error handling.
  *
  * @param configPath - Resolved absolute path to the config file
- * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, displayName)
+ * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, mergeStrategy, displayName)
  * @param serverName - Server name key, always 'fsb'
  * @param entry - Optional server entry override; falls back to getServerEntry()
  * @returns Result with status, path, and message
@@ -152,7 +142,8 @@ export async function installToConfig(configPath, platform, serverName, entry = 
             };
         }
         // 2. Build the server entry (use caller-provided entry or fall back to default)
-        const serverEntry = entry || getServerEntry();
+        const serverEntry = entry || { ...getServerEntry() };
+        const strategy = platform.mergeStrategy;
         // 3. Read existing file or start fresh, backup before any mutation
         let data = {};
         const fileExists = existsSync(configPath);
@@ -163,7 +154,7 @@ export async function installToConfig(configPath, platform, serverName, entry = 
             data = parseByFormat(raw, platform.format);
         }
         // 4. Check idempotency (INST-04) -- skip if already identical
-        if (checkIdempotent(data, platform.serverMapKey, serverName, serverEntry, platform.format)) {
+        if (checkIdempotent(data, platform.serverMapKey, serverName, serverEntry, strategy)) {
             return {
                 status: 'skipped',
                 path: configPath,
@@ -171,13 +162,13 @@ export async function installToConfig(configPath, platform, serverName, entry = 
             };
         }
         // 5. Determine if this is create or update
-        const isUpdate = fileExists && hasExistingEntry(data, platform.serverMapKey, serverName, platform.format);
-        // 7. Merge (INST-02)
-        mergeServerEntry(data, platform.serverMapKey, serverName, serverEntry, platform.format);
-        // 8. Serialize and write (D-03)
+        const isUpdate = fileExists && hasExistingEntry(data, platform.serverMapKey, serverName, strategy);
+        // 6. Merge
+        mergeServerEntry(data, platform.serverMapKey, serverName, serverEntry, strategy);
+        // 7. Serialize and write
         const output = serializeByFormat(data, platform.format);
         await writeFile(configPath, output, 'utf-8');
-        // 9. Return result
+        // 8. Return result
         return {
             status: isUpdate ? 'updated' : 'created',
             path: configPath,
@@ -196,7 +187,7 @@ export async function installToConfig(configPath, platform, serverName, entry = 
  * Remove FSB server entry from a platform's config file.
  *
  * @param configPath - Resolved absolute path to the config file
- * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, displayName)
+ * @param platform - Platform entry from PLATFORMS (has format, serverMapKey, mergeStrategy, displayName)
  * @param serverName - Server name key, always 'fsb'
  * @returns Result with status, path, and message
  */
@@ -214,9 +205,10 @@ export async function removeFromConfig(configPath, platform, serverName) {
         // 2. Read and parse the file
         const raw = await readFile(configPath, 'utf-8');
         const data = parseByFormat(raw, platform.format);
+        const strategy = platform.mergeStrategy;
         // 3. Check if entry exists and remove
-        if (isContinueArrayFormat(platform.format, platform.serverMapKey)) {
-            // Continue YAML array format
+        if (strategy === 'named-array') {
+            // Named array format (Continue, Goose)
             if (!Array.isArray(data[platform.serverMapKey])) {
                 return {
                     status: 'not-found',
@@ -247,12 +239,12 @@ export async function removeFromConfig(configPath, platform, serverName) {
             }
             delete map[serverName];
         }
-        // 5. Backup the file
+        // 4. Backup the file
         await copyFile(configPath, configPath + '.bak');
-        // 6. Serialize and write
+        // 5. Serialize and write
         const output = serializeByFormat(data, platform.format);
         await writeFile(configPath, output, 'utf-8');
-        // 7. Return result
+        // 6. Return result
         return {
             status: 'removed',
             path: configPath,
