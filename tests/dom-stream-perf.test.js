@@ -30,7 +30,7 @@ const path = require('path');
 const assert = require('assert');
 
 const dsSource = fs.readFileSync(
-  path.join(__dirname, '..', 'content', 'dom-stream.js'),
+  path.join(__dirname, '..', 'extension', 'content', 'dom-stream.js'),
   'utf8'
 );
 
@@ -58,7 +58,7 @@ console.log('  PASS: watchdog + stale counter invariants present');
 
 console.log('--- Background SW alarm branch invariants ---');
 const bgSource = fs.readFileSync(
-  path.join(__dirname, '..', 'background.js'),
+  path.join(__dirname, '..', 'extension', 'background.js'),
   'utf8'
 );
 assert(bgSource.includes("alarm.name === 'fsb-domstream-watchdog'"), 'fsb-domstream-watchdog branch in onAlarm');
@@ -71,7 +71,7 @@ console.log('  PASS: SW alarm branch invariants present');
 
 console.log('--- ws-client _emitStreamState invariants ---');
 const wsSource = fs.readFileSync(
-  path.join(__dirname, '..', 'ws', 'ws-client.js'),
+  path.join(__dirname, '..', 'extension', 'ws', 'ws-client.js'),
   'utf8'
 );
 assert(/this\.send\('ext:stream-state',[\s\S]*?staleFlushCount[\s\S]*?\}\)/.test(wsSource),

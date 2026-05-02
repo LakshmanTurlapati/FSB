@@ -203,7 +203,7 @@ function buildClientHarness(options = {}) {
   };
   context.globalThis = context;
 
-  const source = fs.readFileSync(path.join(__dirname, '..', 'ws', 'mcp-bridge-client.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'extension', 'ws', 'mcp-bridge-client.js'), 'utf8');
   const footer = `
 this.__phase198 = {
   MCPBridgeClient,
@@ -430,7 +430,7 @@ async function runVisualSessionRouteCase() {
 function runBackgroundArmingSourceCase() {
   console.log('\n--- background wake arming source ---');
 
-  const backgroundSource = fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8');
+  const backgroundSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'background.js'), 'utf8');
   const requiredSnippets = [
     'function armMcpBridge(reason)',
     "armMcpBridge('service-worker-evaluated')",

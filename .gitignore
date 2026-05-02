@@ -32,6 +32,7 @@ Thumbs.db
 
 # API keys and secrets
 config/secrets.json
+extension/config/secrets.json
 *_api_key.txt
 .planning/
 

@@ -16,7 +16,7 @@ const {
   STOP_REASONS,
   summarizeTurnResult,
   accumulateTurnResults
-} = require('../ai/turn-result.js');
+} = require('../extension/ai/turn-result.js');
 
 let passed = 0;
 let failed = 0;

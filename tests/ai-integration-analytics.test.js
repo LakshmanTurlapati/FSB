@@ -30,7 +30,7 @@ function readRepoFile() {
 }
 
 function loadAIIntegrationContext() {
-  const aiSource = readRepoFile('ai', 'ai-integration.js');
+  const aiSource = readRepoFile('extension', 'ai', 'ai-integration.js');
   const sendMessages = [];
   const directCalls = [];
   const sessionCostCalls = [];
@@ -91,8 +91,8 @@ function loadAIIntegrationContext() {
 }
 
 async function run() {
-  const aiSource = readRepoFile('ai', 'ai-integration.js');
-  const backgroundSource = readRepoFile('background.js');
+  const aiSource = readRepoFile('extension', 'ai', 'ai-integration.js');
+  const backgroundSource = readRepoFile('extension', 'background.js');
 
   console.log('\n--- source-level regression checks ---');
   // Restored automation pipeline (23c0ad1) intentionally re-introduces
@@ -208,7 +208,7 @@ async function run() {
       }
     };
 
-    const FSBAnalytics = require('../utils/analytics.js');
+    const FSBAnalytics = require('../extension/utils/analytics.js');
     const originalStartSessionTimer = FSBAnalytics.prototype.startSessionTimer;
     FSBAnalytics.prototype.startSessionTimer = function () {};
 
@@ -219,7 +219,7 @@ async function run() {
     assertEqual(analytics.usageData[0].source, 'automation', 'legacy api source is normalized to automation');
 
     FSBAnalytics.prototype.startSessionTimer = originalStartSessionTimer;
-    delete require.cache[require.resolve('../utils/analytics.js')];
+    delete require.cache[require.resolve('../extension/utils/analytics.js')];
     delete global.chrome;
   }
 

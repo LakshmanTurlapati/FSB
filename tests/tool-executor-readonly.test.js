@@ -28,7 +28,7 @@ global.chrome = {
   }
 };
 
-const { executeTool } = require('../ai/tool-executor.js');
+const { executeTool } = require('../extension/ai/tool-executor.js');
 
 let passed = 0;
 let failed = 0;
@@ -144,7 +144,7 @@ console.log('\n--- failed read_page reports hadEffect: false ---');
 // Stub globals referenced by agent-loop.js hook factories. agent-loop.js
 // guards typeof importScripts and typeof require -- it loads cleanly in
 // Node because of the try/catch require blocks at the top of the file.
-const agentLoop = require('../ai/agent-loop.js');
+const agentLoop = require('../extension/ai/agent-loop.js');
 const { detectStuck, checkSafetyBreakers } = agentLoop;
 
 console.log('\n--- detectStuck: read_page loop (hadEffect=false) trips after 3 iterations ---');

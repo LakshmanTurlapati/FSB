@@ -8,7 +8,7 @@
  */
 
 const assert = require('assert');
-const { redactForLog, rateLimitedWarn, _resetRateLimitTable } = require('../utils/redactForLog.js');
+const { redactForLog, rateLimitedWarn, _resetRateLimitTable } = require('../extension/utils/redactForLog.js');
 
 console.log('--- LOG-02 redaction rules (D-12) ---');
 

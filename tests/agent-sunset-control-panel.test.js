@@ -64,7 +64,7 @@ function fail(label, detail) {
 // ---- Section 1: AGENTS-01 deprecation card present in control_panel.html ----
 
 {
-  const src = read('ui/control_panel.html');
+  const src = read('extension/ui/control_panel.html');
   const tryOpenClaw = countSubstring(src, 'Try OpenClaw') === 1;
   const tryRoutines = countSubstring(src, 'Try Claude Routines') === 1;
   const noNoopener = (src.match(/rel="noopener noreferrer"/g) || []).length;
@@ -79,11 +79,11 @@ function fail(label, detail) {
 // ---- Section 2: NO emojis in modified UI files (CLAUDE.md rule) ----
 
 const emojiTargets = [
-  'ui/control_panel.html',
-  'ui/options.css',
-  'ui/options.js',
-  'ui/sidepanel.js',
-  'ui/popup.js',
+  'extension/ui/control_panel.html',
+  'extension/ui/options.css',
+  'extension/ui/options.js',
+  'extension/ui/sidepanel.js',
+  'extension/ui/popup.js',
 ];
 {
   // Match characters in supplementary planes (U+10000+) which encode as 4-byte UTF-8.
@@ -104,10 +104,10 @@ const emojiTargets = [
 // ---- Section 3: AGENTS-02 (UI portion) annotation counts ----
 
 {
-  const opts = read('ui/options.js');
-  const sp = read('ui/sidepanel.js');
-  const pop = read('ui/popup.js');
-  const css = read('ui/options.css');
+  const opts = read('extension/ui/options.js');
+  const sp = read('extension/ui/sidepanel.js');
+  const pop = read('extension/ui/popup.js');
+  const css = read('extension/ui/options.css');
 
   const optsCount = countSubstring(opts, ANNOTATION);
   const spCount = countSubstring(sp, ANNOTATION);
@@ -132,7 +132,7 @@ const emojiTargets = [
 // ---- Section 4: D-15 -- Server Sync + pairing wiring at ui/options.js:4189-4205 stays LIVE ----
 
 {
-  const src = read('ui/options.js');
+  const src = read('extension/ui/options.js');
   const lines = src.split('\n');
   const liveIds = ['btnPairDashboard', 'btnGenerateHashKey', 'btnCopyHashKey', 'btnTestConnection', 'btnCancelPairing'];
 
@@ -154,8 +154,8 @@ const emojiTargets = [
 // ---- Section 5: AGENTS-03 names list scaffolding + rendering function present ----
 
 {
-  const html = read('ui/control_panel.html');
-  const opts = read('ui/options.js');
+  const html = read('extension/ui/control_panel.html');
+  const opts = read('extension/ui/options.js');
   const ids = ['fsbSunsetNotice', 'fsbSunsetNoticeNames', 'fsbSunsetNoticeDismiss'];
   let missing = [];
   for (const id of ids) {
@@ -173,7 +173,7 @@ const emojiTargets = [
 // ---- Section 6: T-01 -- XSS mitigation: function uses textContent, NOT innerHTML, for agent names ----
 
 {
-  const opts = read('ui/options.js');
+  const opts = read('extension/ui/options.js');
   const body = extractFunctionBody(opts, 'function initializeBackgroundAgentsDeprecation');
   if (!body) {
     fail('T-01 could not extract initializeBackgroundAgentsDeprecation body');
@@ -191,7 +191,7 @@ const emojiTargets = [
 // ---- Section 7: Gap 1 / WR-01 -- bgAgents storage-shape coercion handles BOTH legacy object-map and defensive array shapes ----
 
 {
-  const opts = read('ui/options.js');
+  const opts = read('extension/ui/options.js');
   const body = extractFunctionBody(opts, 'function initializeBackgroundAgentsDeprecation');
   if (!body) {
     fail('Gap1 could not extract initializeBackgroundAgentsDeprecation body for storage-shape check');

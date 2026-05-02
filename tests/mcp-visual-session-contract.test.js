@@ -3,9 +3,9 @@
 const path = require('path');
 const util = require('util');
 
-const visualSessionUtils = require('../utils/mcp-visual-session.js');
-const overlayStateUtils = require('../utils/overlay-state.js');
-const dispatcher = require('../ws/mcp-tool-dispatcher.js');
+const visualSessionUtils = require('../extension/utils/mcp-visual-session.js');
+const overlayStateUtils = require('../extension/utils/overlay-state.js');
+const dispatcher = require('../extension/ws/mcp-tool-dispatcher.js');
 const {
   MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
   MCP_VISUAL_SESSION_DEGRADE_AFTER_MS,

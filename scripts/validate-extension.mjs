@@ -12,14 +12,15 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
+const EXT_ROOT = join(ROOT, 'extension');
 
 const errors = [];
 const fail = (msg) => errors.push(msg);
 
 // ---------- 1. manifest.json ----------
-const manifestPath = join(ROOT, 'manifest.json');
+const manifestPath = join(EXT_ROOT, 'manifest.json');
 if (!existsSync(manifestPath)) {
-  fail('manifest.json not found at repo root');
+  fail('manifest.json not found at extension/manifest.json');
 } else {
   let manifest;
   try {
@@ -56,7 +57,7 @@ if (!existsSync(manifestPath)) {
     }
 
     for (const rel of referenced) {
-      const abs = join(ROOT, rel);
+      const abs = join(EXT_ROOT, rel);
       if (!existsSync(abs)) fail(`manifest.json references missing file: ${rel}`);
     }
   }
@@ -75,7 +76,7 @@ try {
 
 // ---------- 3. JS syntax check ----------
 // Directories whose .js files ship to the browser as the extension.
-const EXT_DIRS = ['content', 'ui', 'agents', 'ws', 'offscreen', 'ai'];
+const EXT_DIRS = ['content', 'ui', 'agents', 'ws', 'offscreen', 'ai', 'utils', 'site-guides', 'shared', 'config', 'lib'];
 const ROOT_FILES = ['background.js', 'canvas-interceptor.js'];
 
 function walk(dir, out = []) {
@@ -92,10 +93,10 @@ function walk(dir, out = []) {
 
 const jsFiles = [];
 for (const f of ROOT_FILES) {
-  const p = join(ROOT, f);
+  const p = join(EXT_ROOT, f);
   if (existsSync(p)) jsFiles.push(p);
 }
-for (const d of EXT_DIRS) walk(join(ROOT, d), jsFiles);
+for (const d of EXT_DIRS) walk(join(EXT_ROOT, d), jsFiles);
 
 let checked = 0;
 for (const file of jsFiles) {

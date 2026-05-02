@@ -23,12 +23,12 @@ function readRepoFile() {
   return fs.readFileSync(path.join(__dirname, '..', ...arguments), 'utf8');
 }
 
-const backgroundSource = readRepoFile('background.js');
-const stateEmitterSource = readRepoFile('ai', 'state-emitter.js');
-const popupSource = readRepoFile('ui', 'popup.js');
-const sidepanelSource = readRepoFile('ui', 'sidepanel.js');
+const backgroundSource = readRepoFile('extension', 'background.js');
+const stateEmitterSource = readRepoFile('extension', 'ai', 'state-emitter.js');
+const popupSource = readRepoFile('extension', 'ui', 'popup.js');
+const sidepanelSource = readRepoFile('extension', 'ui', 'sidepanel.js');
 const dashboardSource = readRepoFile('showcase', 'js', 'dashboard.js');
-const wsClientSource = readRepoFile('ws', 'ws-client.js');
+const wsClientSource = readRepoFile('extension', 'ws', 'ws-client.js');
 
 console.log('\n--- background contract cleanup tests ---');
 

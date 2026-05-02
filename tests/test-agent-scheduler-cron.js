@@ -19,7 +19,7 @@ globalThis.agentManager = { listAgents: async () => [] };
 // Load the scheduler
 const fs = require('fs');
 const vm = require('vm');
-const src = fs.readFileSync('agents/agent-scheduler.js', 'utf8');
+const src = fs.readFileSync('extension/agents/agent-scheduler.js', 'utf8');
 vm.runInThisContext(src);
 
 let passed = 0;

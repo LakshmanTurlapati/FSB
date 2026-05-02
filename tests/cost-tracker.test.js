@@ -21,7 +21,7 @@ const {
   MODEL_PRICING,
   estimateCost,
   CostTracker
-} = require('../ai/cost-tracker.js');
+} = require('../extension/ai/cost-tracker.js');
 
 let passed = 0;
 let failed = 0;

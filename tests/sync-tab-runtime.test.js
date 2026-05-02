@@ -32,8 +32,8 @@ function read(rel) {
   return fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 }
 
-const BG = read('background.js');
-const WS = read(path.join('ws', 'ws-client.js'));
+const BG = read('extension/background.js');
+const WS = read(path.join('extension', 'ws', 'ws-client.js'));
 
 console.log('\n--- Phase 213 SYNC-02: background.js runtime contracts ---');
 

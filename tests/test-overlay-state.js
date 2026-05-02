@@ -3,7 +3,7 @@
  * Run: node tests/test-overlay-state.js
  */
 
-const overlayStateUtils = require('../utils/overlay-state.js');
+const overlayStateUtils = require('../extension/utils/overlay-state.js');
 
 let passed = 0;
 let failed = 0;

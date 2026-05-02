@@ -12,7 +12,7 @@
  */
 
 const assert = require('assert');
-const ring = require('../utils/diagnostics-ring-buffer.js');
+const ring = require('../extension/utils/diagnostics-ring-buffer.js');
 
 console.log('--- LOG-04 ring buffer FIFO 100 ---');
 

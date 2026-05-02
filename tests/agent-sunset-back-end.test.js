@@ -46,13 +46,13 @@ function fail(label, detail) {
 // ---- Section 1: AGENTS-02 canonical annotation present in every modified back-end file ----
 
 const annotationFiles = [
-  'agents/agent-manager.js',
-  'agents/agent-scheduler.js',
-  'agents/agent-executor.js',
-  'agents/server-sync.js',
+  'extension/agents/agent-manager.js',
+  'extension/agents/agent-scheduler.js',
+  'extension/agents/agent-executor.js',
+  'extension/agents/server-sync.js',
   'mcp-server/src/tools/agents.ts',
-  'background.js',
-  'ws/ws-client.js',
+  'extension/background.js',
+  'extension/ws/ws-client.js',
 ];
 
 for (const f of annotationFiles) {
@@ -85,7 +85,7 @@ for (const f of annotationFiles) {
 // ---- Section 4: AGENTS-06 MCP_RECONNECT_ALARM early-return preserved BYTE-FOR-BYTE ----
 
 {
-  const src = read('background.js');
+  const src = read('extension/background.js');
   // The exact byte-for-byte substring (matches lines 12579-12582 indentation in current file)
   const expected = '  if (isMcpReconnectAlarm) {\n    armMcpBridge(\'alarm:\' + MCP_RECONNECT_ALARM);\n    return;\n  }';
   if (src.indexOf(expected) !== -1) pass('AGENTS-06 MCP_RECONNECT_ALARM early-return byte-for-byte preserved');
@@ -95,7 +95,7 @@ for (const f of annotationFiles) {
 // ---- Section 5: AGENTS-06 Phase 211-02 dom-stream watchdog branch preserved on a LIVE line ----
 
 {
-  const src = read('background.js');
+  const src = read('extension/background.js');
   const lines = src.split('\n');
   const hits = lines.filter(line => /if\s*\(alarm\.name\s*===\s*'fsb-domstream-watchdog'\)/.test(line));
   const liveHits = hits.filter(line => !/^\s*\/\//.test(line));
@@ -106,12 +106,12 @@ for (const f of annotationFiles) {
 // ---- Section 6: AGENTS-05 no chrome.storage cleanup of bgAgents in modified files ----
 
 const cleanupTargets = [
-  'background.js',
-  'agents/agent-manager.js',
-  'agents/agent-scheduler.js',
-  'agents/agent-executor.js',
-  'agents/server-sync.js',
-  'ws/ws-client.js',
+  'extension/background.js',
+  'extension/agents/agent-manager.js',
+  'extension/agents/agent-scheduler.js',
+  'extension/agents/agent-executor.js',
+  'extension/agents/server-sync.js',
+  'extension/ws/ws-client.js',
 ];
 
 {

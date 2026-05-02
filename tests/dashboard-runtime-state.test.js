@@ -180,8 +180,8 @@ assertEqual(timedOutTask.shouldFail, true, 'timed-out recovery requests failure'
 console.log('\n--- source contracts ---');
 
 const dashboardSource = fs.readFileSync(path.join(__dirname, '../showcase/js/dashboard.js'), 'utf8');
-const backgroundSource = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
-const wsClientSource = fs.readFileSync(path.join(__dirname, '../ws/ws-client.js'), 'utf8');
+const backgroundSource = fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8');
+const wsClientSource = fs.readFileSync(path.join(__dirname, '../extension/ws/ws-client.js'), 'utf8');
 const runtimeStateSource = fs.readFileSync(path.join(__dirname, '../showcase/js/dashboard-runtime-state.js'), 'utf8');
 const angularDashboardTsSource = fs.readFileSync(path.join(__dirname, '../showcase/angular/src/app/pages/dashboard/dashboard-page.component.ts'), 'utf8');
 const angularDashboardHtmlSource = fs.readFileSync(path.join(__dirname, '../showcase/angular/src/app/pages/dashboard/dashboard-page.component.html'), 'utf8');

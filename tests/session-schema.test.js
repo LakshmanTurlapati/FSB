@@ -21,7 +21,7 @@ const {
   SESSION_STATUSES,
   getWarmFields,
   getHotFieldNames
-} = require('../ai/session-schema.js');
+} = require('../extension/ai/session-schema.js');
 
 let passed = 0;
 let failed = 0;

@@ -27,7 +27,7 @@ function assertDeepEqual(actual, expected, msg) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const dispatcherRelativePath = 'ws/mcp-tool-dispatcher.js';
+const dispatcherRelativePath = 'extension/ws/mcp-tool-dispatcher.js';
 const expectedRecoveryTools = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
 const restrictedUrls = [
   'chrome://newtab/',

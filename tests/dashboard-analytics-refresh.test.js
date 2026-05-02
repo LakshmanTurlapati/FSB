@@ -21,8 +21,8 @@ function assert(cond, msg) {
 
 console.log('\n--- dashboard analytics refresh contracts ---');
 
-const optionsSource = fs.readFileSync(path.join(__dirname, '../ui/options.js'), 'utf8');
-const analyticsSource = fs.readFileSync(path.join(__dirname, '../utils/analytics.js'), 'utf8');
+const optionsSource = fs.readFileSync(path.join(__dirname, '../extension/ui/options.js'), 'utf8');
+const analyticsSource = fs.readFileSync(path.join(__dirname, '../extension/utils/analytics.js'), 'utf8');
 
 assert(
   optionsSource.includes('analyticsNeedsRefresh: false'),

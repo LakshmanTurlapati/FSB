@@ -26,7 +26,7 @@
 
 'use strict';
 
-const { HookPipeline, LIFECYCLE_EVENTS } = require('../ai/hook-pipeline.js');
+const { HookPipeline, LIFECYCLE_EVENTS } = require('../extension/ai/hook-pipeline.js');
 
 let passed = 0;
 let failed = 0;

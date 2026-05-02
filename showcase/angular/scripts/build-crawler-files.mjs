@@ -64,9 +64,15 @@ function copyLlmsFull() {
 }
 
 function writeVersion() {
-  const manifestPath = join(REPO_ROOT, 'manifest.json');
-  if (!existsSync(manifestPath)) {
-    throw new Error(`manifest.json not found at ${manifestPath}`);
+  // Phase 217 moved manifest.json to extension/manifest.json. Fall back to
+  // the legacy root path so older checkouts still build.
+  const candidates = [
+    join(REPO_ROOT, 'extension', 'manifest.json'),
+    join(REPO_ROOT, 'manifest.json'),
+  ];
+  const manifestPath = candidates.find((p) => existsSync(p));
+  if (!manifestPath) {
+    throw new Error(`manifest.json not found at any of: ${candidates.join(', ')}`);
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const version = manifest.version;
