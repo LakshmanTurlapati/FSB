@@ -10,47 +10,26 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.47 Workspace Reorganization — 2026-05-02. The repo is now organized into three clearly-bounded top-level packages: `extension/` (Chrome extension), `mcp/` (MCP server, npm `fsb-mcp-server`), `showcase/` (Angular SSR site + Express deploy backend). Cross-package boundaries are explicit; future work has a single obvious place to land.
+**Last shipped:** v0.9.48 Angular 20 Migration — 2026-05-02 (Angular 19 EOL deadline of 2026-05-19 met 17 days early). `showcase/angular/` is on Angular 20.3.x with TypeScript 5.9.3. All v0.9.46 SEO/GEO surfaces preserved; production smoke crawler against `https://full-selfbrowsing.com/` passed 46/46 assertions post-deploy.
 
-**Previous milestone (also shipped today):** v0.9.46 Site Discoverability (SEO + GEO). `full-selfbrowsing.com` is discoverable to traditional search engines and generative AI search; static prerender of marketing routes is live; Organization + SoftwareApplication JSON-LD validated by Google Rich Results Test; `robots.txt` allowlists 15 named LLM bots; `sitemap.xml`, `llms.txt`, `llms-full.txt` are served at the apex.
+**Three milestones shipped today (2026-05-02):**
+- v0.9.46 Site Discoverability (SEO + GEO) — prerender, JSON-LD, robots/sitemap/llms files
+- v0.9.47 Workspace Reorganization — `extension/` + `mcp/` + `showcase/` clean boundaries
+- v0.9.48 Angular 20 Migration — schematic-driven upgrade ahead of EOL
 
-**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02 (folder rename did not change package name).
+**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02.
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone: v0.9.48 Angular 20 Migration
+## Next Milestone Goals
 
-**Goal:** Migrate `showcase/angular/` from Angular 19 to Angular 20 before the 2026-05-19 EOL. All v0.9.46 SEO/GEO surfaces must continue to work post-migration. Mechanical upgrade only — no new features.
+To be defined. Use `/gsd-new-milestone` to scope. Carry-forward backlog candidates:
 
-**Target features:**
-- `ng update @angular/cli @angular/core` to v20; fix any breaking-change call sites the schematic doesn't auto-migrate
-- TypeScript bump to satisfy v20 peer constraint
-- `provideServerRouting` API verified for v20 compatibility (or migrated to v20 equivalent if renamed)
-- Prerender continues to emit `dist/showcase-angular/browser/{,about,privacy,support}/index.html`
-- Per-route metadata, canonicals, OG/Twitter tags, Organization + SoftwareApplication JSON-LD all preserved byte-equivalent (modulo runtime version strings)
-- `/dashboard` runtime `noindex` continues to work
-- Production deploy healthy; `smoke-crawler.mjs` passes 46/46 against production
-
-**Why now:** Angular 19 EOL is **2026-05-19** (17 days from milestone start). After EOL, security patches stop. Migration is a hard deadline.
-
-**Out of scope (deferred):**
-- Zoneless change detection (`provideExperimentalZonelessChangeDetection`) — touching change-detection mid-migration multiplies risk
-- Bulk RxJS → signals refactors
-- New features / new pages / content updates
-- Refactoring the existing component tree beyond what migration requires
-- Replacing `@angular/build` with a different bundler
-
-## Previous Next-Milestone Candidates (rolled forward)
-
-These remain on the radar after v0.9.48 ships:
-
-- FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01)
-- Comparison pages (DISCO-FUTURE-02)
-- Per-route OG images (CRAWL-FUTURE-01)
-- Off-page push (DISCO-FUTURE-04)
-- Search Console + Bing Webmaster Tools registration (DISCO-FUTURE-05)
-- Splitting `tests/` per package
-- Zoneless change detection migration
+- **GEO content pack**: FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01); comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) (DISCO-FUTURE-02); per-route OG images (CRAWL-FUTURE-01)
+- **Off-page launch**: Show HN, Reddit launches, awesome-list PRs, demo video (DISCO-FUTURE-04); Search Console + Bing Webmaster Tools registration + monitoring (DISCO-FUTURE-05)
+- **Zoneless change detection migration** (now unblocked post-A20 upgrade)
+- **Splitting `tests/` per package** (currently shared at repo root)
+- **Cleanup `serve:ssr:showcase-angular` dead npm script** (Angular 20 doesn't emit `dist/showcase-angular/server/`)
 
 <details>
 <summary>Previous milestones (collapsed)</summary>

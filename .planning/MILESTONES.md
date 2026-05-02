@@ -1,5 +1,30 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.48 Angular 20 Migration (Shipped: 2026-05-02)
+
+**Delivered:** Migrated `showcase/angular/` from Angular 19 to Angular 20 ahead of the 2026-05-19 Angular 19 EOL (shipped 17 days early). All v0.9.46 SEO/GEO surfaces preserved; production smoke crawler against `https://full-selfbrowsing.com/` passed 46/46 assertions post-deploy.
+
+**Archive:** `.planning/milestones/v0.9.48-ROADMAP.md` and `.planning/milestones/v0.9.48-REQUIREMENTS.md`
+
+**Phases completed:** 2 phases (221 mechanical upgrade, 222 production verification), 1 plan, 3 commits, 12 files (+2815 / −2368 — mostly lockfile churn)
+
+**Key accomplishments:**
+
+- `ng update @angular/cli@20 @angular/core@20 @angular/build@20 @angular/ssr@20 --allow-dirty` ran the v19 → v20 schematic suite to completion. Schematic auto-rewrote `provideServerRouting` → `provideServerRendering(withRoutes(...))` in `app.config.server.ts`; moved `DOCUMENT` imports from `@angular/common` to `@angular/core` across 4 page components.
+- All `@angular/*` packages now `^20.3.x`; TypeScript bumped 5.6 → 5.9.3.
+- `zone.js` retained at v20-compatible version (zoneless deferred to future milestone).
+- One manual cleanup: removed unused `withRoutes` import from `app.routes.server.ts` (schematic added it speculatively).
+- Lockfile-drift fix: PR #15 regenerated `showcase/angular/package-lock.json` cleanly after the Phase 221 commit failed `npm ci` in the Docker build.
+- All v0.9.46 SEO/GEO surfaces preserved: per-route prerender of `/`, `/about`, `/privacy`, `/support`; route-specific titles + canonicals + OG/Twitter; Organization + SoftwareApplication JSON-LD; runtime `noindex` on `/dashboard`; `robots.txt`/`sitemap.xml`/`llms.txt`/`llms-full.txt` at apex.
+- Production smoke 46/46 post-deploy.
+
+**Accepted debt:**
+
+- `serve:ssr:showcase-angular` npm script is now dead — Angular 20 + `outputMode: static` no longer writes `dist/showcase-angular/server/`. Production unaffected; cleanup in a future docs/scripts pass.
+- Lockfile-drift risk between dev (Node 25) and CI/Docker (Node 20) — caused the deploy retry. Future migrations should validate `npm ci` from a clean tree before pushing.
+
+---
+
 ## v0.9.47 Workspace Reorganization (extension / mcp / showcase) (Shipped: 2026-05-02)
 
 **Delivered:** Reorganized the repo into three clearly-bounded top-level packages — `extension/`, `mcp/`, `showcase/`. Each package owns its own assets and README. Cross-package boundaries are now explicit. Mechanical reorg only — no functional changes, no bundler/tooling changes, no Angular migration.
