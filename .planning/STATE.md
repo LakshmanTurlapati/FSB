@@ -1,16 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.46
-milestone_name: deferred
-status: executing
-last_updated: "2026-05-01T17:39:53.903Z"
-last_activity: 2026-05-01
+milestone: null
+milestone_name: between-milestones
+status: complete
+last_shipped: v0.9.46
+last_updated: "2026-05-02T00:00:00.000Z"
+last_activity: 2026-05-02
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
