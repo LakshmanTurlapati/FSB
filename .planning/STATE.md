@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: between-milestones
-status: complete
+milestone: v0.9.49
+milestone_name: "Remote Control Rebrand & Showcase Metrics Wire-up"
+status: defining-requirements
 last_shipped: v0.9.48
 last_updated: "2026-05-02T00:00:00.000Z"
 last_activity: 2026-05-02
@@ -18,68 +18,46 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-30)
+See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 216 — Crawler Root Files, Express Wiring & Production Validation
+**Current focus:** v0.9.49 — rebrand "Agents" surface to "Remote Control (Beta)" and wire extension control-panel metrics into the showcase /dashboard on connect
 
 ## Current Position
 
-Phase: 216
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-01
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-02 — Milestone v0.9.49 started
 
 ## Performance Metrics
 
-- Phases shipped this milestone: 0/2
-- Plans shipped this milestone: 0/0 (plans decomposed at phase-plan time)
-- Active requirements: 24 (all mapped, 0 orphans)
+- Phases shipped this milestone: 0/1 (target)
+- Plans shipped this milestone: 0/0 (decomposed at plan time)
+- Active requirements: TBD (defined below)
 
 ## Accumulated Context
 
 ### Decisions
 
-Full decision log in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [v0.9.46]: Two-phase shape -- Phase 215 bundles prerender + per-route metadata + JSON-LD because LD-01 lives in `index.html` and LD-02 lives in the home component, both touched in the same surgery as the prerender enablement and `Title`/`Meta` injection. Minimum-thrash atomic commits over minimum phase count.
-- [v0.9.46]: Phase 216 bundles crawler files + Express wiring + production validation because they share the same verification flow (`curl -I` headers, content-type, end-to-end sitemap entry resolution); the `llms-full.txt` generator depends on prerendered HTML existing on disk; the Express patch is meaningful only when per-route HTML exists.
-- [v0.9.46]: LD-03 (Rich Results Test validation) belongs to Phase 216 alongside SMOKE because both are operational verification gates run against the deployed site, not code-level changes.
-- [v0.9.46]: Static prerender via Angular 19 `@angular/build:application` (`outputMode: "static"`, `prerender.discoverRoutes: false`, `prerender.routesFile: "prerender-routes.txt"`). No SSR/Universal -- overkill for a marketing showcase. `/dashboard` stays SPA.
-- [v0.9.46]: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) do NOT execute JavaScript -- prerender is the load-bearing fix.
-- [v0.9.46]: Root crawler files dropped via `showcase/angular/public/` (already globbed to dist root by `angular.json`).
-- [v0.9.46]: Express SPA fallback at `server/server.js:110-117` will try per-route prerendered HTML before the index.html catch-all; `/dashboard` is the only whitelisted SPA-only route in the patched fallback.
-- [v0.9.45rc1]: Phase ordering was 211 -> 212 -> 213 by isolation -> dependency direction (archived).
-- [v0.9.45rc1]: Comment, do not delete. Agent code preserved with deprecation annotation (archived).
-- [Phase 216]: robots.txt is hand-authored per D-08; llms.txt opens with verbatim D-01 paragraph (no paraphrase); llms-full.source.md uses six D-04 sections with neutral comparison tone; ASCII-only across all three
-- [Phase 216]: Plan 04 smoke-crawler.mjs ships zero-dep production-or-local smoke; 46/46 PASS against local server boot
-- [Phase 216]: Plan 05: hybrid HUMAN-UAT scaffold (215 frontmatter+Tests block AND detailed UAT-216-XX sections); verify-uat.sh exits 0 informationally so umbrella chains pre-deploy
+- [v0.9.49]: One phase, single-purpose. Rebrand + metrics wire-up share the same surface (control panel) and same connect lifecycle, so atomic phase keeps verification in one cycle.
+- [v0.9.49]: "Beta" badge ships with the rename — signals to existing users the surface is intentionally narrowing scope (post agent-sunset).
+- [v0.9.49]: Metrics push triggers on connect (WS handshake / pairing complete), not on a polling loop, to match the existing remote-control state-broadcast pattern from Phase 209.
 
 ### Pending Todos
 
-- Plan Phase 215 via `/gsd-plan-phase 215` (decomposes into wave-1 parallel plans where file-disjoint).
-- Likely Phase 215 plan boundaries (orchestrator decides at plan time):
-  - Plan A: `angular.json` + `prerender-routes.txt` + `localStorage` guard (PRE-01..05)
-  - Plan B: per-route `Title`/`Meta`/canonical/OG/Twitter in 4 page components + `noindex` on `/dashboard` (META-01..04)
-  - Plan C: JSON-LD `Organization` in `index.html` + `SoftwareApplication` in home component with `</` escaping (LD-01, LD-02)
-- After Phase 215 ships: plan Phase 216.
-- Likely Phase 216 plan boundaries:
-  - Plan A: `scripts/build-crawler-files.mjs` + `prebuild` wiring + `public/robots.txt`/`sitemap.xml`/`llms.txt`/`llms-full.txt` (CRAWL-01..05)
-  - Plan B: `server/server.js` SPA-fallback patch + `Content-Type`/`Cache-Control` headers (SRV-01..03)
-  - Plan C: production smoke pass + Rich Results Test evidence capture (LD-03, SMOKE-01..04)
+- Define REQUIREMENTS.md for v0.9.49.
+- Roadmap Phase 223 (continues from Phase 222).
+- After roadmap: `/gsd-plan-phase 223`.
 
 ### Blockers/Concerns
 
-- Angular 19 EOL is 2026-05-19. v0.9.46 is small enough to ship under Angular 19; future Angular 20 upgrade tracked separately.
-- `/dashboard` route inlines runtime state -- must be excluded from the prerender route list (`discoverRoutes: false` + explicit `routesFile`) to avoid baking transient state into static HTML. Build-time assertion that `dist/.../browser/dashboard/index.html` does NOT exist.
-- `localStorage` access in `showcase/angular/src/index.html` (lines 8-15) will crash prerender unless wrapped in `typeof localStorage !== 'undefined'` guard. Must land in Phase 215 before any prerender attempt.
-- Express SPA fallback rewrite must preserve the existing `/dashboard` SPA behavior while serving `/about/index.html`, `/privacy/index.html`, `/support/index.html` directly. Whitelist `/dashboard` only.
-- JSON-LD must escape `</` -> `\u003c/` to defeat script-tag injection (Pitfall 4 in research/PITFALLS.md).
-- Single-region Fly.io (`sjc`) + `auto_stop_machines = 'stop'` -- non-US AI crawlers may hit cold-start latency. Mitigation `min_machines_running = 1` already set; revisit only if crawl budget becomes a concern post-launch.
+- Existing dashboard tab labelled "Agents" was already partially deprecated in Phase 212; current copy may already be inconsistent. Rebrand must audit all surfaces (sidepanel, options, showcase mirror) for residual "agents" strings.
+- Showcase `/dashboard` is currently SPA-only (excluded from prerender per v0.9.46 decisions). Metrics wire-up is post-load runtime concern, no SEO impact.
+- Connect-time metrics push must not regress the Phase 209 `remoteControlStateChanged` broadcast contract (D-16/D-17/D-18 in Phase 213 SYNC-02).
 
 ## Session Continuity
 
-Last session ended with: Research synthesized, requirements scoped (24 v1 items), roadmap created with 2 phases (Phase 215 + Phase 216).
+Last session ended with: v0.9.48 archived, v0.9.49 milestone scoped (rename + metrics wire-up).
 
-Next session should: `/gsd-plan-phase 215` to decompose Phase 215 into wave-1 parallel plans (likely 3 plans -- prerender enablement, per-route metadata, JSON-LD).
+Next session should: define REQUIREMENTS.md, then spawn roadmapper for Phase 223.
