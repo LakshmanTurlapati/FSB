@@ -1,14 +1,13 @@
 /**
- * Phase 223 RBR-01..05 rebrand checks (Wave 0 / TDD-first).
+ * Sync consolidation rebrand checks (post-Phase 223).
  *
- * Asserts the "Agents" -> "Remote Control" copy rebrand across the extension
- * control panel and the showcase about/support pages. Today (Wave 0) these
- * assertions FAIL by design -- Plan 02 lands the implementation that makes
- * them green.
+ * Phase 223 originally renamed "Agents" -> "Remote Control (Beta)". The
+ * follow-up consolidation removes the standalone "Remote Control" tab and
+ * folds the Beta badge + deprecation card + sunset notice INTO the existing
+ * Sync section. This test asserts the consolidated state.
  *
- * Static-analysis only (no jsdom, no DOM). Plain Node + fs reads + string
- * .includes() / RegExp.test() checks. No external deps. Mirrors the canonical
- * pattern from tests/sync-tab-runtime.test.js.
+ * Static-analysis only. Plain Node + fs reads + string .includes() / RegExp
+ * checks. Mirrors the canonical pattern from tests/sync-tab-runtime.test.js.
  *
  * Run: node tests/remote-control-rebrand.test.js
  */
@@ -40,78 +39,114 @@ const ABOUT = read(path.join('showcase', 'angular', 'src', 'app', 'pages', 'abou
 const SUPPORT = read(path.join('showcase', 'angular', 'src', 'app', 'pages', 'support', 'support-page.component.html'));
 const CSS = read(path.join('extension', 'ui', 'options.css'));
 
-console.log('\n--- Phase 223 RBR-01: Nav label rename ---');
+console.log('\n--- Sync nav: Beta badge on Sync (consolidation) ---');
 
 assert(
-  CP.includes('<span>Remote Control <span class="feature-badge beta">Beta</span></span>'),
-  '[RBR-01] control_panel.html nav-item label reads "Remote Control" with Beta badge (not "Agents")'
+  CP.includes('<span>Sync <span class="feature-badge beta">Beta</span></span>'),
+  '[SYNC-01] control_panel.html Sync nav-item carries the Beta badge inline'
+);
+assert(
+  !/<span>Remote Control <span class="feature-badge beta">Beta<\/span><\/span>/.test(CP),
+  '[SYNC-01] control_panel.html no longer contains the standalone "Remote Control <Beta>" nav label'
 );
 assert(
   !/<span>Agents <span class="feature-badge beta">Beta<\/span><\/span>/.test(CP),
-  '[RBR-01] control_panel.html no longer contains the legacy "Agents <Beta>" nav label'
+  '[SYNC-01] control_panel.html no longer contains the legacy "Agents <Beta>" nav label'
 );
 
-console.log('\n--- Phase 223 RBR-02: Beta badge reuse (no new variant) ---');
+console.log('\n--- Beta badge reuse (no new variant) ---');
 
 assert(
   /\.feature-badge\.beta\s*\{/.test(CSS),
-  '[RBR-02] options.css continues to define .feature-badge.beta (reused, not duplicated)'
+  '[SYNC-02] options.css continues to define .feature-badge.beta (reused, not duplicated)'
 );
 const newVariantMatches = CSS.match(/\.feature-badge\.[a-z-]+\s*\{/g) || [];
 assert(
   newVariantMatches.length <= 4,
-  '[RBR-02] no proliferation of new .feature-badge.* variants (cap at existing count)'
+  '[SYNC-02] no proliferation of new .feature-badge.* variants (cap at existing count)'
 );
 
-console.log('\n--- Phase 223 RBR-03: Section header + id retention ---');
+console.log('\n--- Remote Control tab removed; background-agents id gone ---');
 
 assert(
-  CP.includes('<h2>Remote Control</h2>'),
-  '[RBR-03] section header reads "Remote Control" (not "Background Agents")'
+  !/data-section="background-agents"/.test(CP),
+  '[SYNC-03] no nav item references data-section="background-agents"'
 );
 assert(
-  !/<h2>Background Agents<\/h2>/.test(CP),
-  '[RBR-03] legacy "<h2>Background Agents</h2>" header removed'
+  !/<section[^>]*id="background-agents"/.test(CP),
+  '[SYNC-03] no <section id="background-agents"> remains'
 );
-// Deprecation card body copy ("Background agents have left the building.") is
-// retained intentionally per research Pattern 3 / Open Question 4 -- do NOT
-// assert it absent. Section id="background-agents" retained per research
-// Pitfall 4 (CSS class rename out of scope).
 assert(
-  CP.includes('id="background-agents"'),
-  '[RBR-03] section id="background-agents" retained (id rename out of scope; copy-only rebrand)'
+  !/<h2>Remote Control<\/h2>/.test(CP),
+  '[SYNC-03] no standalone "<h2>Remote Control</h2>" section header remains'
 );
 
-console.log('\n--- Phase 223 RBR-04: Options page consistency ---');
+console.log('\n--- Deprecation card lives inside Sync section ---');
 
+const syncSectionMatch = CP.match(/<section[^>]*id="sync"[\s\S]*?<\/section>/);
+assert(!!syncSectionMatch, '[SYNC-04] <section id="sync"> ... </section> exists');
+
+const syncBody = syncSectionMatch ? syncSectionMatch[0] : '';
 assert(
-  CP.includes('data-section="background-agents"') &&
-  CP.includes('<span>Remote Control <span class="feature-badge beta">Beta</span></span>'),
-  '[RBR-04] options page (control_panel.html) shows "Remote Control" copy on the data-section="background-agents" nav item'
-);
-
-console.log('\n--- Phase 223 RBR-05: Showcase mirror copy ---');
-
-assert(
-  ABOUT.includes('<i class="fa-solid fa-server"></i> Remote Control') &&
-  !/<i class="fa-solid fa-server"><\/i> Agents/.test(ABOUT),
-  '[RBR-05] about-page.component.html sidebar mockup reads "Remote Control" (not "Agents")'
+  /Background agents have left the building\./.test(syncBody),
+  '[SYNC-04] deprecation headline "Background agents have left the building." lives inside #sync'
 );
 assert(
-  !ABOUT.includes('<h4>Background Agents</h4>'),
-  '[RBR-05] about-page.component.html arch-box no longer reads "Background Agents"'
+  /href="https:\/\/github\.com\/openclaw\/openclaw"[^>]*rel="noopener noreferrer"/.test(syncBody),
+  '[SYNC-04] OpenClaw CTA (rel="noopener noreferrer") lives inside #sync'
+);
+assert(
+  /href="https:\/\/www\.anthropic\.com\/claude\/routines"[^>]*rel="noopener noreferrer"/.test(syncBody),
+  '[SYNC-04] Claude Routines CTA (rel="noopener noreferrer") lives inside #sync'
+);
+assert(
+  /Retired in v0\.9\.45rc1/.test(syncBody),
+  '[SYNC-04] deprecation footer "Retired in v0.9.45rc1 (April 2026)" preserved inside #sync'
+);
+assert(
+  /id="fsbSunsetNotice"/.test(syncBody) &&
+  /id="fsbSunsetNoticeNames"/.test(syncBody) &&
+  /id="fsbSunsetNoticeDismiss"/.test(syncBody),
+  '[SYNC-04] sunset-notice scaffolding (fsbSunsetNotice / Names / Dismiss) lives inside #sync'
+);
+
+console.log('\n--- Showcase mirror reflects Sync consolidation ---');
+
+assert(
+  /<i class="fa-solid fa-sync-alt"><\/i> Sync <span class="rec-badge-beta">Beta<\/span>/.test(ABOUT),
+  '[SYNC-05] about-page sidebar mockup reads "Sync" with Beta badge (not "Remote Control")'
+);
+assert(
+  !/<i class="fa-solid fa-server"><\/i> Remote Control/.test(ABOUT),
+  '[SYNC-05] about-page sidebar mockup no longer references "Remote Control"'
+);
+assert(
+  !/<h4>Remote Control<\/h4>/.test(ABOUT),
+  '[SYNC-05] about-page arch-box no longer reads "Remote Control"'
+);
+assert(
+  /<h4>Sync<\/h4>/.test(ABOUT),
+  '[SYNC-05] about-page arch-box renamed to "Sync"'
+);
+assert(
+  /<h3>What is Sync\?<\/h3>/.test(SUPPORT),
+  '[SYNC-05] support-page FAQ asks "What is Sync?"'
+);
+assert(
+  !/<h3>What is Remote Control\?<\/h3>/.test(SUPPORT),
+  '[SYNC-05] support-page FAQ no longer asks "What is Remote Control?"'
 );
 assert(
   !/<h3>What are Background Agents\?<\/h3>/.test(SUPPORT),
-  '[RBR-05] support-page.component.html FAQ no longer asks "What are Background Agents?"'
+  '[SYNC-05] support-page FAQ no longer asks "What are Background Agents?"'
 );
 
-console.log('\n--- Phase 223 RBR emoji guard (CLAUDE.md global rule) ---');
+console.log('\n--- Emoji guard (CLAUDE.md global rule) ---');
 
 const emojiRe = /[\u{10000}-\u{10FFFF}]/u;
 [['control_panel.html', CP], ['about-page', ABOUT], ['support-page', SUPPORT]].forEach(function (pair) {
-  assert(!emojiRe.test(pair[1]), '[RBR-EMOJI] ' + pair[0] + ' contains no emoji (CLAUDE.md global rule)');
+  assert(!emojiRe.test(pair[1]), '[SYNC-EMOJI] ' + pair[0] + ' contains no emoji (CLAUDE.md global rule)');
 });
 
-console.log('\n=== Phase 223 RBR rebrand results: ' + passed + ' passed, ' + failed + ' failed ===');
+console.log('\n=== Sync consolidation results: ' + passed + ' passed, ' + failed + ' failed ===');
 process.exit(failed > 0 ? 1 : 0);
