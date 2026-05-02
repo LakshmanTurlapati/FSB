@@ -159,6 +159,85 @@ function _broadcastRemoteControlState(wsInstance, enabled, reason, tabId) {
   return state;
 }
 
+// =====================================================================
+// Phase 223 MET-01..05: ext:metrics broadcast (separate frame from
+// ext:remote-control-state -- Phase 209 payload shape preserved).
+// Mirror of _broadcastRemoteControlState pattern. Fire-and-forget.
+// =====================================================================
+
+function _broadcastMetrics(wsInstance, serverHashKey) {
+  if (!wsInstance || typeof wsInstance.send !== 'function') return;
+
+  // Source of truth for cost/tokens -- do NOT recalculate (MET-04).
+  var stats;
+  try {
+    stats = (typeof analytics !== 'undefined' && analytics && typeof analytics.getStats === 'function')
+      ? analytics.getStats('24h')
+      : null;
+  } catch (e) {
+    stats = null;
+  }
+  if (!stats || typeof stats !== 'object') {
+    stats = { totalRequests: 0, successfulRequests: 0, totalCost: 0, totalTokens: 0 };
+  }
+
+  var rcState = (typeof _lastRemoteControlState === 'object' && _lastRemoteControlState)
+    ? _lastRemoteControlState
+    : { enabled: false, attached: false, tabId: null };
+
+  var totalRequests = typeof stats.totalRequests === 'number' ? stats.totalRequests : 0;
+  var successfulRequests = typeof stats.successfulRequests === 'number' ? stats.successfulRequests : 0;
+  var errorCount = Math.max(0, totalRequests - successfulRequests);
+
+  var pairedClient = '';
+  if (typeof serverHashKey === 'string' && serverHashKey.length > 0) {
+    pairedClient = serverHashKey.substring(0, 8);
+  }
+
+  var payload = {
+    connection: {
+      connected: true,
+      pairedClient: pairedClient,
+      connectedAt: Date.now()
+    },
+    sessions: {
+      activeSessions: rcState.enabled ? 1 : 0,
+      completedTasks: successfulRequests,
+      errorCount: errorCount
+    },
+    cost: {
+      totalCost: typeof stats.totalCost === 'number' ? stats.totalCost : 0,
+      totalTokens: typeof stats.totalTokens === 'number' ? stats.totalTokens : 0
+    }
+  };
+
+  // MET-05: omit activeTab field entirely when not attached.
+  if (rcState.enabled && typeof rcState.tabId === 'number') {
+    payload.activeTab = { tabId: rcState.tabId, url: '' };
+    // Best-effort URL fetch; do NOT block the emit. chrome.tabs.get is
+    // async, so the dashboard receives an empty URL on this first frame
+    // and a follow-up ext:metrics frame patches the URL when available.
+    try {
+      if (typeof chrome !== 'undefined' && chrome.tabs && typeof chrome.tabs.get === 'function') {
+        chrome.tabs.get(rcState.tabId, function (tab) {
+          var _ignore = chrome.runtime && chrome.runtime.lastError;
+          if (tab && typeof tab.url === 'string' && wsInstance && typeof wsInstance.send === 'function') {
+            wsInstance.send('ext:metrics', Object.assign({}, payload, {
+              activeTab: { tabId: rcState.tabId, url: tab.url }
+            }));
+          }
+        });
+      }
+    } catch (_e) { /* defensive */ }
+  }
+
+  try {
+    wsInstance.send('ext:metrics', payload);
+  } catch (e) {
+    try { console.warn('[FSB SYNC] metrics broadcast failed', e && e.message ? e.message : 'unknown'); } catch (_e) { /* ignore */ }
+  }
+}
+
 function handleRemoteControlStart() {
   var tabId = _getRemoteControlTabId();
   if (!tabId) {
@@ -495,6 +574,9 @@ class FSBWebSocket {
       }
     }
 
+    // Phase 223 MET-02: capture for metrics broadcast (truncated to 8 chars when emitted).
+    this.serverHashKey = serverHashKey;
+
     // Close any existing connection before opening a new one
     if (this.ws) {
       try { this.ws.close(); } catch (_) { /* ignore */ }
@@ -525,6 +607,8 @@ class FSBWebSocket {
         readyState: this.ws ? this.ws.readyState : null
       });
       this._sendStateSnapshot('connect');
+      // Phase 223 MET-01: push metrics on connect (not polling).
+      try { _broadcastMetrics(this, this.serverHashKey); } catch (_e) { /* defensive */ }
       this._updateBadge(true);
       console.log('[FSB WS] Connected');
     };
