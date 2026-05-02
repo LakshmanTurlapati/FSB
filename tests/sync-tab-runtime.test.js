@@ -38,8 +38,8 @@ const WS = read(path.join('extension', 'ws', 'ws-client.js'));
 console.log('\n--- Phase 213 SYNC-02: background.js runtime contracts ---');
 
 assert(
-  BG.includes('let _lastRemoteControlState = null'),
-  '[D-18] background.js declares module-scope `let _lastRemoteControlState = null`'
+  BG.includes('let _bgRemoteControlStateCache = null'),
+  '[D-18] background.js declares module-scope `let _bgRemoteControlStateCache = null` (renamed to avoid colliding with ws-client.js _lastRemoteControlState in service-worker global scope)'
 );
 
 assert(
@@ -58,7 +58,7 @@ assert(
 );
 
 assert(
-  BG.includes('_lastRemoteControlState = request.state'),
+  BG.includes('_bgRemoteControlStateCache = request.state'),
   '[D-18] cache updates from request.state on every push'
 );
 
