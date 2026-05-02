@@ -1,5 +1,33 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.46 Site Discoverability (SEO + GEO) (Shipped: 2026-05-02)
+
+**Delivered:** Made `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the four marketing routes (`/`, `/about`, `/privacy`, `/support`) and shipping LLM/crawler-aware root files. Pre-milestone the site returned only the literal string "FSB" to non-JS crawlers; post-milestone every route returns route-specific prerendered HTML with structured data (Organization + SoftwareApplication) and the site exposes `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt`. Verified live via Google Rich Results Test.
+
+**Archive:** `.planning/milestones/v0.9.46-ROADMAP.md` and `.planning/milestones/v0.9.46-REQUIREMENTS.md`
+
+**Phases completed:** 2 phases (215, 216), 8 plans, 47 commits, 68 files (+8965 / −1533)
+
+**Key accomplishments:**
+
+- Static prerender pipeline (`@angular/ssr@^19` with `outputMode: "static"` + `provideServerRouting`) emitting per-route `index.html` for the four marketing routes; `/dashboard` stays SPA.
+- Per-route metadata via Angular `Title` + `Meta` services + `Renderer2`-driven `<link rel="canonical">`; OpenGraph and Twitter Card tags on every route; runtime `noindex,nofollow` on `/dashboard`.
+- Structured data: `Organization` JSON-LD baked into `src/index.html` (inherited by every prerendered route); `SoftwareApplication` JSON-LD on home with `publisher.@id` cross-reference; T-LD-01 mitigated via `\u003c` escape.
+- Crawler root files: `robots.txt` allowlists 15 named LLM bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended, etc.); `sitemap.xml` lists 4 routes; `llms.txt` (llmstxt.org-format) + `llms-full.txt` long-form GEO source.
+- Single-file ESM Node prebuild (`build-crawler-files.mjs`) regenerates `sitemap.xml`, `llms-full.txt`, and `version.ts` from `manifest.json.version` via npm `prebuild` lifecycle hook; zero new dependencies.
+- Express SPA-fallback patched: per-route prerendered HTML preferred over root `index.html`; `/dashboard` exact-match whitelisted; `*.txt` / `*.xml` pinned to `Cache-Control: public, max-age=3600`.
+- Production crawler smoke (`smoke-crawler.mjs`, 46 assertions) usable against `BASE_URL`; 5-entry manual UAT scaffold in `216-HUMAN-UAT.md` for Rich Results Test + GSC Live URL.
+- Live post-deploy verification: Google Rich Results Test detects 1 valid `SoftwareApplication` with 0 errors; direct GPTBot-UA crawls of all 4 routes return route-specific titles + canonicals.
+
+**Accepted debt:**
+
+- Angular 19 EOL is 2026-05-19 — Angular 20 migration tracked separately as a future milestone.
+- `scripts/llms-full.source.md` hardcodes "50+ browser actions, 142+ site guides"; drift risk flagged for revisit if release counts diverge.
+- `sitemap.xml` `lastmod` is build-day UTC and refreshes on every CI build (D-07; acceptable for low-frequency crawl audience).
+- 215-HUMAN-UAT.md has 2 items pending operator session (dashboard runtime `noindex` DOM check, FOUC under cleared `localStorage`); functionally low-risk.
+
+---
+
 ## v0.9.40 Session Lifecycle Reliability (Shipped: 2026-04-25)
 
 **Delivered:** Fixed silent task abandonment where the agent loop exits without notifying the sidepanel. All exit paths now finalize properly, every termination records a structured reason, background.js lifecycle handles edge cases without silent loss, and the sidepanel self-heals as a last resort.

@@ -8,25 +8,35 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.46 Site Discoverability (SEO + GEO)
+## Current State
+
+**Last shipped:** v0.9.46 Site Discoverability (SEO + GEO) — 2026-05-02. The site at `full-selfbrowsing.com` is now discoverable to traditional search engines and generative AI search; pre-milestone it returned only the literal string "FSB" to non-JS crawlers. Static prerender of `/`, `/about`, `/privacy`, `/support` is live with route-specific metadata + canonicals; `Organization` + `SoftwareApplication` JSON-LD validated by Google Rich Results Test (1 valid item, 0 errors); `robots.txt` allowlists 15 named LLM bots; `sitemap.xml`, `llms.txt`, `llms-full.txt` are served at the apex.
+
+**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02.
+
+**CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp-smoke + showcase build).
+
+## Next Milestone Goals
+
+To be defined. Use `/gsd-new-milestone` to scope, research, and define requirements. Carry-forward backlog candidates:
+
+- **Angular 19 → 20 migration** (deadline 2026-05-19; Angular 19 EOL — must land before this date)
+- FAQ page + `FAQPage` JSON-LD (DISCO-FUTURE-01)
+- Comparison pages (`/vs-browser-use`, `/vs-project-mariner`, `/vs-stagehand`, `/vs-browseros`) (DISCO-FUTURE-02)
+- Per-route OG images (CRAWL-FUTURE-01; design pass)
+- Off-page push (Show HN, Reddit launches, awesome-list PRs, demo video) (DISCO-FUTURE-04)
+- Search Console + Bing Webmaster Tools registration + monitoring (DISCO-FUTURE-05)
+
+<details>
+<summary>Previous milestones (collapsed)</summary>
+
+### v0.9.46 Site Discoverability (SEO + GEO) — Shipped 2026-05-02
 
 **Goal:** Make `full-selfbrowsing.com` discoverable to traditional search engines and generative AI search by prerendering the Angular SPA marketing routes and shipping LLM/crawler-aware root files.
 
-**Target features:**
-- Static prerender of marketing routes (`/`, `/about`, `/privacy`, `/support`); `/dashboard` stays SPA
-- Per-route SEO/AEO metadata via Angular `Title`/`Meta` services (title, description, canonical, OG, Twitter card)
-- JSON-LD structured data (`Organization` + `SoftwareApplication`) embedded in prerendered HTML
-- AI-crawler root files at site root: `robots.txt` (explicit Allow for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.), `sitemap.xml`, `llms.txt`, `llms-full.txt`
-- Express SPA-fallback adjustment so per-route prerendered HTML is served before the index.html catch-all
+**Outcome:** All 24 v1 requirements satisfied (22 automated + 2 live-verified post-deploy). Static prerender of `/`, `/about`, `/privacy`, `/support`; per-route metadata + canonicals; Organization + SoftwareApplication JSON-LD; robots.txt with 15 named LLM bot allowlists; sitemap.xml, llms.txt, llms-full.txt; Express SPA-fallback patched. Archive at `.planning/milestones/v0.9.46-ROADMAP.md`.
 
-**Why now:** Verified live, `full-selfbrowsing.com` returns only the literal string "FSB" to non-JS crawlers -- empty `<app-root>`. AI search bots (GPTBot/ClaudeBot/PerplexityBot) do not execute JavaScript; the site is invisible to them today. Prerender + crawler files unblocks every downstream discoverability play.
-
-**Out of scope (deferred):**
-- FAQ page + `FAQPage` JSON-LD
-- Comparison pages (`/vs-browser-use`, `/vs-mariner`, `/vs-stagehand`, `/vs-browseros`)
-- Search Console / Bing Webmaster registration
-- Off-page push (Show HN, Reddit launch, awesome-list PRs, YouTube demo)
-- Angular Universal full SSR (overkill for static marketing pages)
+</details>
 
 ## Previous Milestone: v0.9.45rc1 Sync Surface, Agent Sunset & Stream Reliability
 
