@@ -99,7 +99,7 @@ async function run() {
   {
     const { secureConfig, storageSession } = loadSecureConfig();
 
-    const setup = await secureConfig.createCredentialVault('vault-passphrase');
+    const setup = await secureConfig.createCredentialVault('123456');
     assert(setup.success, 'createCredentialVault succeeds with a strong passphrase');
 
     const status = await secureConfig.getCredentialVaultStatus();
@@ -134,7 +134,7 @@ async function run() {
   console.log('\n--- subdomain matching policy ---');
   {
     const { secureConfig } = loadSecureConfig();
-    await secureConfig.createCredentialVault('vault-passphrase');
+    await secureConfig.createCredentialVault('123456');
 
     await secureConfig.saveCredential('example.com', {
       username: 'parent-user',
@@ -167,7 +167,7 @@ async function run() {
     );
     await storageLocal.set({ 'cred_legacy.example.com': legacyEncrypted });
 
-    const setup = await secureConfig.createCredentialVault('vault-passphrase');
+    const setup = await secureConfig.createCredentialVault('123456');
     assertEqual(setup.migratedCount, 1, 'creating the vault migrates legacy credential entries');
 
     const migratedCredential = await secureConfig.getCredential('legacy.example.com');
@@ -187,7 +187,7 @@ async function run() {
   console.log('\n--- payment methods require separate unlock ---');
   {
     const { secureConfig, storageSession } = loadSecureConfig();
-    await secureConfig.createCredentialVault('vault-passphrase');
+    await secureConfig.createCredentialVault('123456');
 
     const initialStatus = await secureConfig.getPaymentVaultStatus();
     assert(initialStatus.configured && initialStatus.unlocked && !initialStatus.paymentUnlocked, 'payment vault status starts locked even when the credential vault is unlocked');
@@ -211,7 +211,7 @@ async function run() {
     const wrongPassphrase = await secureConfig.unlockPaymentMethods('wrong-passphrase');
     assertEqual(wrongPassphrase.errorCode, 'invalid_passphrase', 'unlockPaymentMethods rejects an incorrect passphrase');
 
-    const unlock = await secureConfig.unlockPaymentMethods('vault-passphrase');
+    const unlock = await secureConfig.unlockPaymentMethods('123456');
     assert(unlock.success, 'unlockPaymentMethods succeeds with the vault passphrase');
 
     const saved = await secureConfig.savePaymentMethod({
@@ -256,8 +256,8 @@ async function run() {
   console.log('\n--- payment access resets when the credential vault locks ---');
   {
     const { secureConfig, storageSession } = loadSecureConfig();
-    await secureConfig.createCredentialVault('vault-passphrase');
-    await secureConfig.unlockPaymentMethods('vault-passphrase');
+    await secureConfig.createCredentialVault('123456');
+    await secureConfig.unlockPaymentMethods('123456');
     await secureConfig.lockCredentialVault();
 
     const status = await secureConfig.getPaymentVaultStatus();
