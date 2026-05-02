@@ -3,7 +3,10 @@ name: npm-publish
 on:
   push:
     tags:
-      - 'v*'
+      # Only mcp-server release tags trigger npm publish. Repo-wide milestone
+      # tags (v0.9.x) are markers, not publishable artifacts; including them
+      # caused every milestone tag to fail npm-publish (re-publishing an
+      # existing mcp-server version).
       - 'mcp-v*'
   workflow_dispatch:
 
