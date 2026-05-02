@@ -21,12 +21,12 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
 # Install dependencies first (cache layer)
-COPY server/package.json server/package-lock.json ./
+COPY showcase/server/package.json showcase/server/package-lock.json ./
 RUN npm ci --production
 
 # Copy server source
-COPY server/server.js ./
-COPY server/src/ ./src/
+COPY showcase/server/server.js ./
+COPY showcase/server/src/ ./src/
 
 # Copy Angular showcase build output from build stage
 COPY --from=angular-build /dist/showcase-angular/browser/ ./public/
