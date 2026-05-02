@@ -1,6 +1,6 @@
 'use strict';
 
-const { Config } = require('../config/config.js');
+const { Config } = require('../extension/config/config.js');
 
 let passed = 0;
 let failed = 0;

@@ -18,7 +18,7 @@ const path = require('path');
 const assert = require('assert');
 
 const wsClientSource = fs.readFileSync(
-  path.join(__dirname, '..', 'ws', 'ws-client.js'),
+  path.join(__dirname, '..', 'extension', 'ws', 'ws-client.js'),
   'utf8'
 );
 
@@ -72,7 +72,7 @@ console.log('  PASS: anti-list constraints honored');
 
 console.log('--- Round-trip: lib/lz-string.min.js compress -> envelope -> decompress ---');
 const lzSource = fs.readFileSync(
-  path.join(__dirname, '..', 'lib', 'lz-string.min.js'),
+  path.join(__dirname, '..', 'extension', 'lib', 'lz-string.min.js'),
   'utf8'
 );
 // lz-string.min.js is browser-targeted but plain ES5; eval into a local sandbox

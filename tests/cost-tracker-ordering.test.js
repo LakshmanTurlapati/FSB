@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { EXECUTION_MODES } = require('../ai/engine-config.js');
+const { EXECUTION_MODES } = require('../extension/ai/engine-config.js');
 
 let passed = 0;
 let failed = 0;
@@ -20,7 +20,7 @@ function assert(cond, msg) {
   }
 }
 
-const agentLoopPath = path.join(__dirname, '..', 'ai', 'agent-loop.js');
+const agentLoopPath = path.join(__dirname, '..', 'extension', 'ai', 'agent-loop.js');
 const agentLoopSource = fs.readFileSync(agentLoopPath, 'utf8');
 
 console.log('\n--- execution mode cost-limit tests ---');

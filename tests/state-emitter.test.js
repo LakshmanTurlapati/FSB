@@ -20,7 +20,7 @@ const {
   STATE_EVENTS,
   emitStatusChange,
   emitIterationComplete
-} = require('../ai/state-emitter.js');
+} = require('../extension/ai/state-emitter.js');
 
 let passed = 0;
 let failed = 0;

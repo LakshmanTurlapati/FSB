@@ -25,9 +25,9 @@ function isPlainObject(value) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const dispatcherRelativePath = 'ws/mcp-tool-dispatcher.js';
+const dispatcherRelativePath = 'extension/ws/mcp-tool-dispatcher.js';
 const dispatcherPath = path.join(repoRoot, dispatcherRelativePath);
-const { TOOL_REGISTRY } = require(path.join(repoRoot, 'ai', 'tool-definitions.js'));
+const { TOOL_REGISTRY } = require(path.join(repoRoot, 'extension', 'ai', 'tool-definitions.js'));
 
 const requiredPublicRoutes = [
   'navigate',

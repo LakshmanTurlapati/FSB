@@ -12,7 +12,7 @@
 
 'use strict';
 
-const { ActionHistory, createActionEvent } = require('../ai/action-history.js');
+const { ActionHistory, createActionEvent } = require('../extension/ai/action-history.js');
 
 let passed = 0;
 let failed = 0;

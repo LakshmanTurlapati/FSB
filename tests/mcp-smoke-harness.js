@@ -187,7 +187,7 @@ BrowserLikeWebSocket.OPEN = NodeWebSocket.OPEN;
 BrowserLikeWebSocket.CLOSED = NodeWebSocket.CLOSED;
 
 function buildBridgeClientSource(options = {}) {
-  let source = fs.readFileSync(path.join(repoRoot, 'ws', 'mcp-bridge-client.js'), 'utf8');
+  let source = fs.readFileSync(path.join(repoRoot, 'extension', 'ws', 'mcp-bridge-client.js'), 'utf8');
 
   if (options.bridgeUrl) {
     source = source.replace(

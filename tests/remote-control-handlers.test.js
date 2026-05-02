@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const wsClientSource = fs.readFileSync(path.join(__dirname, '..', 'ws', 'ws-client.js'), 'utf8');
+const wsClientSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'ws', 'ws-client.js'), 'utf8');
 
 console.log('--- remote control handler existence ---');
 

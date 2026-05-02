@@ -23,7 +23,7 @@ globalThis.chrome = {
   }
 };
 
-const src = fs.readFileSync('agents/agent-manager.js', 'utf8');
+const src = fs.readFileSync('extension/agents/agent-manager.js', 'utf8');
 vm.runInThisContext(src);
 
 let passed = 0;

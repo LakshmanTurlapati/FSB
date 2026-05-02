@@ -84,7 +84,7 @@ function loadSecureConfig(localSeed = {}, sessionSeed = {}) {
     clearTimeout
   };
 
-  const source = fs.readFileSync(path.join(__dirname, '..', 'config', 'secure-config.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'extension', 'config', 'secure-config.js'), 'utf8');
   vm.runInNewContext(`${source}\nthis.__secureConfig = secureConfig;`, context, { filename: 'secure-config.js' });
 
   return {

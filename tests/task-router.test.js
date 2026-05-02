@@ -7,7 +7,7 @@ const {
   buildSearchRoute,
   sanitizeRouteDecision,
   resolveTaskStartRoute
-} = require('../utils/task-router.js');
+} = require('../extension/utils/task-router.js');
 
 let passed = 0;
 let failed = 0;

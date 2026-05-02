@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const optionsSource = fs.readFileSync(path.join(__dirname, '..', 'ui', 'options.js'), 'utf8');
+const optionsSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'ui', 'options.js'), 'utf8');
 const packageJsonRaw = fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8');
 
 console.log('--- listener registration (QR-01, QR-03) ---');

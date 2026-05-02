@@ -5,7 +5,7 @@ const {
   normalizeProviderBaseUrl,
   buildProviderModelsEndpoint,
   parseOpenAICompatibleModelList
-} = require('../ai/universal-provider.js');
+} = require('../extension/ai/universal-provider.js');
 
 let passed = 0;
 let failed = 0;

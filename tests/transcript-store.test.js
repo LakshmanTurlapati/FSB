@@ -14,7 +14,7 @@
 
 'use strict';
 
-const { TranscriptStore, estimateTokens } = require('../ai/transcript-store.js');
+const { TranscriptStore, estimateTokens } = require('../extension/ai/transcript-store.js');
 
 let passed = 0;
 let failed = 0;
