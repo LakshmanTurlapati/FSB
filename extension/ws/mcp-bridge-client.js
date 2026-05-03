@@ -634,51 +634,105 @@ class MCPBridgeClient {
     const sessionId = response.sessionId;
 
     // Listen for automation completion via message listener
+    //
+    // Phase 225-01: chrome.runtime.sendMessage() does NOT loop back to
+    // chrome.runtime.onMessage listeners registered in the SAME service-worker
+    // context. background.js (this same SW) is the broadcaster, so the runtime
+    // listener below would never fire in real Chrome -- run_task hung at the
+    // 300s timeout while autopilot finished in 40-186s.
+    //
+    // Fix: subscribe to globalThis.fsbAutomationLifecycleBus too. background.js
+    // dispatches terminal events (automationComplete / automationError) on this
+    // EventTarget alongside chrome.runtime.sendMessage. Either path resolves
+    // the promise. We keep the chrome.runtime.onMessage listener for harness
+    // tests (tests/mcp-bridge-client-lifecycle.test.js asserts that path) and
+    // for any future cross-context broadcasters.
     return new Promise((resolve) => {
+      let settled = false;
+
+      const settle = (value, source) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        chrome.runtime.onMessage.removeListener(runtimeListener);
+        if (lifecycleBus && typeof lifecycleBus.removeEventListener === 'function') {
+          lifecycleBus.removeEventListener('automationComplete', busCompleteHandler);
+          lifecycleBus.removeEventListener('automationError', busErrorHandler);
+        }
+        try {
+          const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
+            ? globalThis.redactForLog
+            : (v) => v;
+          console.log('[FSB MCP] run_task completion sent', redact({
+            sessionId,
+            status: value && value.status,
+            source
+          }));
+        } catch (_e) { /* logging never blocks resolution */ }
+        resolve(value);
+      };
+
       const timeout = setTimeout(() => {
-        chrome.runtime.onMessage.removeListener(listener);
-        resolve({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' });
+        settle({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' }, 'timeout');
       }, 300000);
 
-      const listener = (message) => {
+      const handleProgress = (message) => {
+        const actionSummary = message.actionSummary
+          || message.currentAction
+          || (message.type === 'automationProgress' ? message.action : null);
+        this._sendProgress(mcpMsgId, {
+          taskId: sessionId,
+          progress: message.progress || 0,
+          phase: message.phase || 'executing',
+          eta: message.eta || null,
+          action: actionSummary || null,
+        });
+      };
+
+      const handleComplete = (message, source) => {
+        settle({
+          sessionId,
+          status: message.outcome || message.result?.status || (message.partial ? 'partial' : 'completed'),
+          result: message.result || {},
+        }, source);
+      };
+
+      const handleError = (message, source) => {
+        settle({
+          sessionId,
+          status: 'error',
+          error: message.error || 'Unknown automation error',
+        }, source);
+      };
+
+      const runtimeListener = (message) => {
         const eventType = message?.type || message?.action;
         if (message?.sessionId !== sessionId) return;
 
-        if (eventType === 'automationProgress') {
-          const actionSummary = message.actionSummary
-            || message.currentAction
-            || (message.type === 'automationProgress' ? message.action : null);
-          this._sendProgress(mcpMsgId, {
-            taskId: sessionId,
-            progress: message.progress || 0,
-            phase: message.phase || 'executing',
-            eta: message.eta || null,
-            action: actionSummary || null,
-          });
-        }
-
-        if (eventType === 'automationComplete') {
-          clearTimeout(timeout);
-          chrome.runtime.onMessage.removeListener(listener);
-          resolve({
-            sessionId,
-            status: message.outcome || message.result?.status || (message.partial ? 'partial' : 'completed'),
-            result: message.result || {},
-          });
-        }
-
-        if (eventType === 'automationError') {
-          clearTimeout(timeout);
-          chrome.runtime.onMessage.removeListener(listener);
-          resolve({
-            sessionId,
-            status: 'error',
-            error: message.error || 'Unknown automation error',
-          });
-        }
+        if (eventType === 'automationProgress') return handleProgress(message);
+        if (eventType === 'automationComplete') return handleComplete(message, 'chrome.runtime');
+        if (eventType === 'automationError') return handleError(message, 'chrome.runtime');
       };
 
-      chrome.runtime.onMessage.addListener(listener);
+      const lifecycleBus = (typeof globalThis !== 'undefined') ? globalThis.fsbAutomationLifecycleBus : null;
+
+      const busCompleteHandler = (event) => {
+        const message = event && event.detail;
+        if (!message || message.sessionId !== sessionId) return;
+        handleComplete(message, 'lifecycleBus');
+      };
+
+      const busErrorHandler = (event) => {
+        const message = event && event.detail;
+        if (!message || message.sessionId !== sessionId) return;
+        handleError(message, 'lifecycleBus');
+      };
+
+      chrome.runtime.onMessage.addListener(runtimeListener);
+      if (lifecycleBus && typeof lifecycleBus.addEventListener === 'function') {
+        lifecycleBus.addEventListener('automationComplete', busCompleteHandler);
+        lifecycleBus.addEventListener('automationError', busErrorHandler);
+      }
     });
   }
 

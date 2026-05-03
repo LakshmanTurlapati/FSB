@@ -1979,6 +1979,63 @@ async function restoreConversationSessions() {
 
 // Store for active automation sessions
 let activeSessions = new Map();
+
+// Phase 225-01: In-process lifecycle bus.
+//
+// chrome.runtime.sendMessage() does NOT loop back to chrome.runtime.onMessage
+// listeners registered in the SAME service-worker context. The MCP bridge
+// client (ws/mcp-bridge-client.js) lives in this same SW, so it never hears
+// the automationComplete / automationError broadcasts that drive every other
+// UI surface. Result: mcp__fsb__run_task hangs until its 300s timeout even
+// though the underlying autopilot finishes in 40-186s.
+//
+// fsbAutomationLifecycleBus is a same-context EventTarget that mirrors the
+// terminal automationComplete / automationError broadcasts so in-SW listeners
+// (only the MCP bridge client today) can observe completion. Cross-context
+// surfaces (popup, sidepanel, dashboard) keep using chrome.runtime.sendMessage
+// unchanged -- this is purely additive for in-SW observation.
+if (typeof globalThis !== 'undefined' && !globalThis.fsbAutomationLifecycleBus) {
+  globalThis.fsbAutomationLifecycleBus = new EventTarget();
+}
+
+/**
+ * Broadcast an automation lifecycle message to BOTH chrome.runtime.sendMessage
+ * (for popup/sidepanel/dashboard) AND the in-process bus (for MCP bridge).
+ * Only used for terminal events: automationComplete, automationError.
+ *
+ * @param {Object} message - Must include { action, sessionId, ... }.
+ *   action should be 'automationComplete' or 'automationError'.
+ * @returns {Promise<void>}
+ */
+function fsbBroadcastAutomationLifecycle(message) {
+  // 1. Cross-context broadcast (existing behavior, unchanged shape).
+  const sendPromise = chrome.runtime.sendMessage(message);
+  const promise = (sendPromise && typeof sendPromise.catch === 'function')
+    ? sendPromise.catch((err) => {
+        // Swallow "no receivers" errors -- consistent with existing call sites.
+        if (typeof rateLimitedWarn === 'function') {
+          rateLimitedWarn('BG', 'lifecycle-broadcast', 'lifecycle sendMessage delivery failed', { action: message?.action, error: err && err.message });
+        }
+      })
+    : Promise.resolve();
+
+  // 2. In-process dispatch for SW-context listeners (MCP bridge client).
+  try {
+    const bus = globalThis.fsbAutomationLifecycleBus;
+    if (bus && typeof bus.dispatchEvent === 'function' && message && message.action) {
+      bus.dispatchEvent(new CustomEvent(message.action, { detail: message }));
+    }
+  } catch (busErr) {
+    // Bus dispatch failure must never break the cross-context broadcast.
+    console.warn('[FSB] fsbAutomationLifecycleBus dispatch failed', busErr && busErr.message);
+  }
+
+  return promise;
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.fsbBroadcastAutomationLifecycle = fsbBroadcastAutomationLifecycle;
+}
 const mcpVisualSessionManager = (typeof MCPVisualSessionUtils !== 'undefined' && typeof MCPVisualSessionUtils.McpVisualSessionManager === 'function')
   ? new MCPVisualSessionUtils.McpVisualSessionManager()
   : null;
@@ -2174,7 +2231,7 @@ async function restoreSessionsFromStorage() {
           if (persistedSession.status === 'running') {
             const restoredSession = activeSessions.get(persistedSession.sessionId);
             try {
-              chrome.runtime.sendMessage({
+              fsbBroadcastAutomationLifecycle({
                 action: 'automationComplete',
                 sessionId: persistedSession.sessionId,
                 conversationId: persistedSession.conversationId || null,
@@ -2405,7 +2462,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     if (session.tabId === tabId) {
       // LIFE-02 (D-02): Notify sidepanel BEFORE removing the session
       try {
-        chrome.runtime.sendMessage({
+        fsbBroadcastAutomationLifecycle({
           action: 'automationComplete',
           sessionId: sessionId,
           conversationId: session.conversationId || null,
@@ -3269,7 +3326,7 @@ async function executeReplaySequence(replaySessionId) {
 
     // Send completion message to UI
     try {
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationComplete',
         sessionId: replaySessionId,
         result: `Replay complete: ${successCount}/${session.totalSteps} steps executed successfully.${failedCount > 0 ? ` ${failedCount} steps skipped.` : ''}`
@@ -3278,7 +3335,7 @@ async function executeReplaySequence(replaySessionId) {
   } else if (session.status === 'replay_failed') {
     // Send error message to UI
     try {
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationError',
         sessionId: replaySessionId,
         error: `Replay failed at step ${session.currentStep + 1}/${session.totalSteps}. ${successCount} steps succeeded before failure.`
@@ -6438,7 +6495,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
         }
 
         // Send actionable error to UI
-        chrome.runtime.sendMessage({
+        fsbBroadcastAutomationLifecycle({
           action: 'automationError',
           sessionId: sessionId,
           error: 'Could not connect to the page. Please refresh the page and try again. If the problem persists, reload the extension from chrome://extensions.',
@@ -8986,7 +9043,7 @@ async function startAutomationLoop(sessionId) {
     finalizeSessionMetrics(sessionId, false);
     idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
-    chrome.runtime.sendMessage({
+    fsbBroadcastAutomationLifecycle({
       action: 'automationComplete',
       sessionId,
       result: finalResult,
@@ -9021,7 +9078,7 @@ async function startAutomationLoop(sessionId) {
     finalizeSessionMetrics(sessionId, false);
     idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
-    chrome.runtime.sendMessage({
+    fsbBroadcastAutomationLifecycle({
       action: 'automationComplete',
       sessionId,
       result: finalResult,
@@ -9155,7 +9212,7 @@ async function startAutomationLoop(sessionId) {
       } catch (e) {}
 
       // Send error to UI
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationError',
         sessionId: sessionId,
         error: `Failed to communicate with the page (${tabUrl}). The content script may not have loaded yet. Try refreshing the page. Error: ${healthError.message}`,
@@ -10008,7 +10065,7 @@ async function startAutomationLoop(sessionId) {
       cleanupSession(sessionId);
 
       // Notify UI of failure (simple message for user)
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationError',
         sessionId,
         error: 'AI service error - please try again',
@@ -10640,7 +10697,7 @@ async function startAutomationLoop(sessionId) {
           endSessionOverlays(session, 'complete');
           finalizeSessionMetrics(sessionId, true);
           idleSession(sessionId);
-          chrome.runtime.sendMessage({
+          fsbBroadcastAutomationLifecycle({
             action: 'automationComplete',
             sessionId,
             result: session.multiSiteResult
@@ -10678,7 +10735,7 @@ async function startAutomationLoop(sessionId) {
       finalizeSessionMetrics(sessionId, false);
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationComplete',
         sessionId,
         result: finalResult,
@@ -10721,7 +10778,7 @@ async function startAutomationLoop(sessionId) {
         extractAndStoreMemories(sessionId, session).catch(() => {});
 
         // Send success message via runtime message
-        chrome.runtime.sendMessage({
+        fsbBroadcastAutomationLifecycle({
           action: 'automationComplete',
           sessionId,
           result: session.multiSiteResult || repeatedResult,
@@ -10769,7 +10826,7 @@ async function startAutomationLoop(sessionId) {
           endSessionOverlays(session, 'complete');
           finalizeSessionMetrics(sessionId, true);
           idleSession(sessionId);
-          chrome.runtime.sendMessage({
+          fsbBroadcastAutomationLifecycle({
             action: 'automationComplete',
             sessionId,
             result: session.multiSiteResult
@@ -10810,7 +10867,7 @@ async function startAutomationLoop(sessionId) {
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       // Send completion with partial results instead of error
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationComplete',
         sessionId,
         result: finalResult,
@@ -10955,7 +11012,7 @@ async function startAutomationLoop(sessionId) {
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       // Notify popup
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationComplete',
         sessionId,
         result: aiResponse.result
@@ -11012,7 +11069,7 @@ async function startAutomationLoop(sessionId) {
     const userError = error.message && error.message.length > 100
       ? 'Something went wrong. Please try again.'
       : (error.message || 'Something went wrong. Please try again.');
-    chrome.runtime.sendMessage({
+    fsbBroadcastAutomationLifecycle({
       action: 'automationError',
       sessionId,
       error: userError,
@@ -11026,7 +11083,7 @@ async function startAutomationLoop(sessionId) {
     // notify the UI in case the stop handler's sendResponse didn't reach it
     const finalSession = activeSessions.get(sessionId);
     if (!finalSession || finalSession.status === 'stopped' || finalSession.status === 'failed') {
-      chrome.runtime.sendMessage({
+      fsbBroadcastAutomationLifecycle({
         action: 'automationError',
         sessionId,
         error: 'Automation ended.',
