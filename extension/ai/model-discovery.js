@@ -239,6 +239,30 @@
   }
 
   // ---------------------------------------------------------------------------
+  // getDiscoveredModelIds: read-only view of the in-memory cache. Returns the
+  // ids of the most-recent non-expired ok:true cache entry for the provider.
+  // Used by extension/config/config.js validateAndCorrectModel to avoid
+  // silently rewriting freshly-discovered ids that aren't in FALLBACK_MODELS.
+  // Does NOT trigger network calls. Returns [] when nothing usable cached.
+  // ---------------------------------------------------------------------------
+  function getDiscoveredModelIds(provider) {
+    if (!provider) return [];
+    const prefix = provider + ':';
+    const now = Date.now();
+    let best = null;
+    for (const [key, entry] of _cache.entries()) {
+      if (!key.startsWith(prefix)) continue;
+      if (!entry || entry.expiresAt <= now) continue;
+      if (!entry.result || entry.result.ok !== true || !Array.isArray(entry.result.models)) continue;
+      // Most-recent non-expired wins. We don't track insertion time explicitly,
+      // but Map iteration is insertion-ordered, so the last match is newest.
+      best = entry;
+    }
+    if (!best) return [];
+    return best.result.models.map(m => String(m.id || '')).filter(Boolean);
+  }
+
+  // ---------------------------------------------------------------------------
   // discoverModels: the universal entry point.
   //
   // opts.timeoutMs (optional): overrides the 5000ms default. Tests use a small
@@ -396,6 +420,7 @@
     PROVIDER_DISCOVERY_CONFIG,
     FALLBACK_MODELS,
     clearDiscoveryCache,
+    getDiscoveredModelIds,
     hashApiKey
   };
 
@@ -404,6 +429,7 @@
     global.PROVIDER_DISCOVERY_CONFIG = PROVIDER_DISCOVERY_CONFIG;
     global.FALLBACK_MODELS = FALLBACK_MODELS;
     global.clearDiscoveryCache = clearDiscoveryCache;
+    global.getDiscoveredModelIds = getDiscoveredModelIds;
     global.hashApiKeyForDiscovery = hashApiKey;
     global.FSBModelDiscovery = api;
   }

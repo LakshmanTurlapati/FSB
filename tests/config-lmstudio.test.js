@@ -44,10 +44,20 @@ assertEqual(
   'custom/endpoint-model',
   'Custom provider preserves arbitrary model ids'
 );
+// Phase 228 / Plan 03: validator preserves unknown ids instead of silently
+// rewriting them to a default — the user may have picked a freshly-discovered
+// id whose cache entry was lost across a service worker restart. Empty/missing
+// modelName still falls back to the per-provider default; that is covered by
+// tests/model-discovery-runtime.test.js.
 assertEqual(
   cfg.validateAndCorrectModel('not-a-real-openrouter-model', 'openrouter'),
+  'not-a-real-openrouter-model',
+  'OpenRouter preserves unknown id instead of silently rewriting (Plan 03)'
+);
+assertEqual(
+  cfg.validateAndCorrectModel('', 'openrouter'),
   'openai/gpt-4o',
-  'OpenRouter still falls back to its built-in default model'
+  'OpenRouter still falls back to default for empty model name'
 );
 
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
