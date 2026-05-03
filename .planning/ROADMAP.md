@@ -109,7 +109,7 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
   6. GUARD-01 holds: every Validated capability still operational; GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
 **Plans**: 3 plans
 - [x] 228-01-PLAN.md — Discovery module + per-provider configs + fallback constants (DISCOVERY-MODULE, DISCOVERY-FILTER, DISCOVERY-CACHE, DISCOVERY-FALLBACK)
-- [ ] 228-02-PLAN.md — UI integration in control_panel.html (DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR)
+- [x] 228-02-PLAN.md — UI integration in control_panel.html (DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR)
 - [ ] 228-03-PLAN.md — Wire discovery into runtime read paths + GUARD-01 regression sweep (DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION)
 
 ## Backlog
