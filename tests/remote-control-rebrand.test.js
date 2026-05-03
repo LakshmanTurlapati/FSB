@@ -113,12 +113,16 @@ assert(
 console.log('\n--- Showcase mirror reflects Sync consolidation ---');
 
 assert(
-  /<i class="fa-solid fa-sync-alt"><\/i> Sync <span class="rec-badge-beta">Beta<\/span>/.test(ABOUT),
-  '[SYNC-05] about-page sidebar mockup reads "Sync" with Beta badge (not "Remote Control")'
+  /<h4>Sync<\/h4>\s*<p>Live extension control surface, paired via QR<\/p>/.test(ABOUT),
+  '[SYNC-05] about-page architecture names Sync as the paired extension control surface'
 );
 assert(
   !/<i class="fa-solid fa-server"><\/i> Remote Control/.test(ABOUT),
-  '[SYNC-05] about-page sidebar mockup no longer references "Remote Control"'
+  '[SYNC-05] about-page no longer references the old Remote Control sidebar label'
+);
+assert(
+  !/Extension Control Surface|control-preview|rec-sidebar|rec-badge-beta/.test(ABOUT),
+  '[SYNC-05] about-page does not reintroduce the removed decorative control-surface preview'
 );
 assert(
   !/<h4>Remote Control<\/h4>/.test(ABOUT),
