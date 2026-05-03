@@ -4,6 +4,11 @@
   "description": "FSB Browser Automation MCP Server",
   "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
+  "contributors": [
+    {
+      "name": "OpenAI Codex"
+    }
+  ],
   "mcpName": "io.github.lakshmanturlapati/fsb-mcp-server",
   "repository": {
     "type": "git",

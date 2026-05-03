@@ -20,6 +20,7 @@
     "lint": "echo \"Linting not configured yet\"",
     "clean": "rm -f config/dev-settings.json",
     "package": "zip -r fsb-v0.9.50.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'",
+    "package:extension": "node scripts/package-extension.mjs",
     "showcase:install": "npm --prefix showcase/angular install",
     "showcase:build": "npm --prefix showcase/angular run build",
     "showcase:serve": "npm --prefix showcase/angular run start",
@@ -59,6 +60,9 @@
       "name": "Lakshman Turlapati",
       "email": "lakshman@example.com",
       "url": "https://github.com/lakshmanturlapati"
+    },
+    {
+      "name": "OpenAI Codex"
     }
   ],
   "license": "BUSL-1.1",

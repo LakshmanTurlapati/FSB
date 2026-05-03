@@ -67,6 +67,8 @@ The extension is driven through:
 
 ## Packaging Note
 
-The root `npm run package` command currently creates a repository-level zip named for the release version. Review the archive contents before using it as a Chrome Web Store submission package.
+Use `npm run package:extension` from the repository root to create a Chrome Web Store-ready archive at `dist/fsb-extension-v<version>.zip`. The archive contains the contents of `extension/` at the zip root, so `manifest.json` is not nested under an extra directory.
+
+The legacy root `npm run package` command creates a repository-level zip and should not be used for Chrome Web Store submission packages.
 
 See the root [README.md](../README.md) for full repo setup, MCP usage, and showcase deployment context.
