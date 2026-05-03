@@ -180,9 +180,15 @@
               <!-- Model Selection -->
               <div class="form-group">
                 <label for="modelName">Model</label>
-                <select id="modelName" class="form-select">
-                  <!-- Options will be populated dynamically based on provider -->
-                </select>
+                <div class="model-select-row">
+                  <select id="modelName" class="form-select">
+                    <!-- Options will be populated dynamically based on provider -->
+                  </select>
+                  <button id="refreshModelsBtn" type="button" class="btn-secondary btn-icon" title="Refresh model list">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                </div>
+                <div id="modelDiscoveryStatus" class="discovery-status" hidden></div>
                 <div class="form-help" id="modelDescription">Select the AI model to use</div>
               </div>
               
@@ -1378,6 +1384,7 @@
   <script src="../config/config.js"></script>
   <script src="../utils/automation-logger.js"></script>
   <script src="../ai/universal-provider.js"></script>
+  <script src="../ai/model-discovery.js"></script>
   <script src="../ai/ai-providers.js"></script>
   <script src="../ai/ai-integration.js"></script>
   <script src="../utils/analytics.js"></script>

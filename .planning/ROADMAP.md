@@ -25,6 +25,7 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - [ ] **Phase 225: Tools Alignment** -- Adopt MCP-style annotations, reconcile parameter shapes, achieve routing parity (CDP click_at, click_and_hold, drag, scroll_at), and audit autopilot-only/MCP-only tool gaps
 - [ ] **Phase 226: Prompt Refinement** -- Tool-selection decision rules for ambiguous pairs, strengthened element-targeting guidance, and DOM/element-ref context formatting audited against MCP-driving agents
 - [ ] **Phase 227: Target Precision** -- Selector/element-ref disambiguation pass and targeted fixes for misclick patterns surfaced by Phase 224 baseline
+- [ ] **Phase 228: Dynamic Model Discovery** -- Replace hardcoded model lists with live `/v1/models` (or equivalent) API calls per provider, surfaced once user enters API key
 
 ## Phase Details
 
@@ -89,6 +90,28 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - [x] 227-01-PLAN.md — Action-repetition detector + outcome-reason attribution (warn@3 / force-stop@5)
 - [x] 227-02-PLAN.md — Goal-progress heuristic (unique-state-vector, task-type override, action-repetition precedence)
 
+#### Phase 228: Dynamic Model Discovery
+**Goal**: Replace hardcoded provider model lists with live API discovery — once user enters an API key for a provider, fetch and surface the actual available text-generation models from that provider's `/v1/models` (or equivalent) endpoint
+**Depends on**: Existing universal-provider architecture (v0.2.0); Phases 224-227 (no direct dependency, but lands after autopilot stability work)
+**Requirements**: DISCOVERY-MODULE, DISCOVERY-FILTER, DISCOVERY-CACHE, DISCOVERY-FALLBACK, DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR, DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION
+**Providers in scope**:
+  - xAI: `GET https://api.x.ai/v1/models`
+  - OpenAI: `GET https://api.openai.com/v1/models`
+  - Anthropic: `GET https://api.anthropic.com/v1/models`
+  - Google Gemini: `GET https://generativelanguage.googleapis.com/v1beta/models?key=API_KEY`
+  - OpenRouter: `GET https://openrouter.ai/api/v1/models`
+**Success Criteria** (what must be TRUE):
+  1. When user enters/changes API key for a provider, FSB calls that provider's models endpoint and populates the model selection dropdown with discovered models filtered to text-generation only
+  2. Hardcoded model lists (CLAUDE.md "xAI Models" section, etc.) are removed from runtime selection — preserved only as fallback constants
+  3. On fetch failure (network error, 401, rate limit), UI gracefully falls back to last-known-good cached list and surfaces a clear "discovered list unavailable" indicator
+  4. Filtering logic excludes embedding/audio/vision-only/image-generation models; rationale documented in code
+  5. Per-provider response shape differences handled in a single discovery module (not per-provider duplication) — extends the v0.2.0 universal-provider pattern
+  6. GUARD-01 holds: every Validated capability still operational; GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
+**Plans**: 3 plans
+- [x] 228-01-PLAN.md — Discovery module + per-provider configs + fallback constants (DISCOVERY-MODULE, DISCOVERY-FILTER, DISCOVERY-CACHE, DISCOVERY-FALLBACK)
+- [ ] 228-02-PLAN.md — UI integration in control_panel.html (DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR)
+- [ ] 228-03-PLAN.md — Wire discovery into runtime read paths + GUARD-01 regression sweep (DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION)
+
 ## Backlog
 
 ### v0.9.46 deferred (carried into next milestone or backlog)
@@ -106,6 +129,14 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - Autonomous test-harness re-introduction (operator-driven this milestone)
 - MCP visual-session auto-wrap for autopilot flows (carry-over from v0.9.36 deferred set)
 - Loop / completion-detection refinement (secondary failure modes — defer unless surfaced by AUDIT-02)
+
+### v0.9.50 follow-up (from rerun verification, deferred from Phase 227-VERIFICATION)
+
+- **Stuck-detection diagnostic-tool filtering**: PROMPT-10 rerun showed autopilot evades the strict 5-consecutive-fingerprint detector by interleaving `get_dom_snapshot` / `report_progress` between primary actions. Add filter to exclude diagnostic-only tools from the fingerprint window.
+- **Fingerprint-family matching**: detect `[click→snapshot→click→snapshot]` as a single repeating family, not 4 distinct fingerprints.
+- **No-shortcut-escapes fallback policy**: PROMPT-08 rerun showed model now picks the right tool first (drag_drop) but falls back to `execute_js` when CDP returns no observable change. Tighten to "report failure, do not escape".
+- **Action-matches-request self-check enhancement**: must look at actual action history, not prompt-time intent. PROMPT-08 rerun showed false success despite admitting JS escape in completionMessage.
+- **MCP `run_task` 300s timeout end-to-end verification**: extension-side fix landed in Plan 225-01; needs `fsb-mcp-server` republish (0.7.4 → 0.7.5) OR Claude Code MCP host repoint to local `mcp/build/` to verify end-to-end.
 
 ### Carry-over from prior milestones
 
@@ -169,6 +200,16 @@ Archive:
 </details>
 
 Older milestone phase details live in the archived roadmap snapshots under `.planning/milestones/`.
+
+### Phase 1: Stuck-detection & escape-fallback tuning
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 0
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 1 to break down)
 
 ---
 *Roadmap updated for v0.9.50: 2026-05-02*
