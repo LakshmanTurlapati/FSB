@@ -1,61 +1,83 @@
 # FSB Showcase
 
-The marketing site at [full-selfbrowsing.com](https://full-selfbrowsing.com).
+`showcase/` contains the public site for [full-selfbrowsing.com](https://full-selfbrowsing.com) plus the production Express relay used by dashboard pairing.
 
 ## Layout
 
 | Path | Purpose |
 |------|---------|
-| `angular/` | Angular 19 site with SSR and prerender for `/`, `/about`, `/privacy`, `/support`. |
-| `server/` | Express + better-sqlite3 + ws deploy backend (handles dashboard pairing + relay). |
-| `assets/` | Static images, logos, screenshots referenced by the prerendered HTML. |
-| `css/`, `js/`, `*.html` | Legacy static surfaces still served alongside the Angular app (privacy, about, dashboard). |
-| `dist/` | Build output (gitignored). Populated by `angular/` build. |
+| `angular/` | Angular 20 app with static prerender for `/`, `/about`, `/privacy`, and `/support`. |
+| `server/` | Express + better-sqlite3 + ws backend for pairing, auth, relay, and dashboard data. |
+| `assets/` | Images, logos, icons, and provider artwork copied into the Angular build. |
+| `css/`, `js/`, `*.html` | Legacy static surfaces still kept beside the Angular app. |
+| `dist/` | Build output, populated as `showcase/dist/showcase-angular/`. |
 
 ## Develop
 
 ```bash
-cd angular
+cd showcase/angular
 npm install
 npm start
 ```
 
-The dev server runs at `http://localhost:4200` with hot reload.
+The dev server runs at `http://localhost:4200`.
 
 ## Build
 
 ```bash
-npm --prefix angular run build
+npm --prefix showcase/angular run build
 ```
 
-Runs Angular's SSR + prerender pipeline for the static routes. Output lands in `angular/dist/`.
-
-The `prebuild` lifecycle hook also runs `angular/scripts/build-crawler-files.mjs`, which generates the SEO/GEO surfaces:
+The Angular build prerenders the static routes and runs `scripts/build-crawler-files.mjs` first, generating:
 
 - `/robots.txt`
 - `/sitemap.xml`
 - `/llms.txt`
 - `/llms-full.txt`
 
-`Organization` and `SoftwareApplication` JSON-LD blocks are baked into every prerendered HTML page. See `.planning/milestones/v0.9.46-ROADMAP.md` for the SEO/GEO milestone history.
+Production assets are emitted under `showcase/dist/showcase-angular/`.
 
-## Deploy
+The Angular config copies `showcase/assets/` into the built `/assets` path and includes the public crawler files from `angular/public/`.
 
-Production runs on fly.io. The repo root `fly.toml` and `Dockerfile` build a container that serves `showcase/server/server.js` (Express + WebSocket relay).
+## Routes
 
-Pushes to `main` trigger `.github/workflows/deploy.yml`, which runs `flyctl deploy --remote-only`. No manual steps required.
+Static prerender currently covers:
 
-## Smoke Test
+- `/`
+- `/about`
+- `/privacy`
+- `/support`
 
-After deploy, hit production with a crawler user agent to confirm prerender + JSON-LD survived:
+Crawler-facing files are generated from `angular/scripts/build-crawler-files.mjs` and source content in `angular/scripts/llms-full.source.md`.
+
+## Deploy And Smoke
+
+The root `Dockerfile` and `fly.toml` deploy `showcase/server/server.js` on fly.io. Pushes to `main` trigger `.github/workflows/deploy.yml`.
+
+Runtime defaults:
+
+- `PORT=3847`
+- `DB_PATH=/data/fsb-data.db`
+- `NODE_ENV=production`
+
+The production container is built in two stages. The first stage builds the Angular static output. The final stage installs server dependencies, copies the Express source, copies the Angular browser output into `public/`, and creates `/data` for SQLite persistence.
+
+## Server Responsibilities
+
+The Express backend handles:
+
+- dashboard pairing
+- authenticated dashboard routes
+- WebSocket relay behavior
+- SQLite persistence for paired dashboard state
+- serving prerendered Angular assets in production
+
+Post-deploy crawler checks:
 
 ```bash
 curl -A GPTBot -sI https://full-selfbrowsing.com/ | head -1
 curl -A GPTBot -s  https://full-selfbrowsing.com/llms.txt | head -5
+npm --prefix showcase/angular run smoke:crawler
 ```
 
-The npm helper `npm --prefix angular run smoke:crawler` runs the full crawler smoke matrix used in the v0.9.46 UAT.
-
-## Repository Layout
-
-See the root [`README.md`](../README.md) for the full repo overview, including the Chrome extension (`extension/`) and MCP server (`mcp/`).
+See the root [README.md](../README.md) for the full repository overview.
