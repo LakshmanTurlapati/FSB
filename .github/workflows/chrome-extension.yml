@@ -1,0 +1,57 @@
+name: chrome-extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extension/**'
+      - 'scripts/package-extension.mjs'
+      - 'scripts/validate-extension.mjs'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'mcp/**'
+      - '.github/workflows/chrome-extension.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: chrome-extension-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: validate, test, package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install root deps
+        run: npm install --no-audit --no-fund
+
+      - name: Install mcp deps
+        run: npm --prefix mcp install --no-audit --no-fund
+
+      - name: Validate extension
+        run: npm run validate:extension
+
+      - name: Run extension and bridge tests
+        run: npm test
+
+      - name: Package Chrome extension
+        run: npm run package:extension
+
+      - name: Read extension version
+        id: extension_version
+        run: |
+          node -e "const { version } = require('./extension/manifest.json'); console.log('version=' + version)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Chrome extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsb-extension-v${{ steps.extension_version.outputs.version }}
+          path: dist/fsb-extension-v*.zip
+          if-no-files-found: error
