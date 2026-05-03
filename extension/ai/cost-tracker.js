@@ -137,17 +137,15 @@ CostTracker.prototype.record = function(model, inputTokens, outputTokens, provid
 /**
  * Check whether the session has exceeded its cost budget.
  *
+ * Phase 231: cost-limit enforcement DISABLED per operator request — only the
+ * iteration limit (and time limit) gate sessions now. The CostTracker continues
+ * to record totals and per-call costs for analytics/display, but checkBudget
+ * always returns exceeded=false so cost no longer terminates a session.
+ * The costLimit field is preserved for backward-compat read paths and analytics.
+ *
  * @returns {{exceeded: boolean, totalCost: number, costLimit: number, reason: string|null}}
  */
 CostTracker.prototype.checkBudget = function() {
-  if (this.totalCost >= this.costLimit) {
-    return {
-      exceeded: true,
-      totalCost: this.totalCost,
-      costLimit: this.costLimit,
-      reason: 'Session cost ($' + this.totalCost.toFixed(2) + ') exceeded limit ($' + this.costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
-    };
-  }
   return { exceeded: false, totalCost: this.totalCost, costLimit: this.costLimit, reason: null };
 };
 

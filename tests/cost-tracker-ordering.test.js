@@ -55,7 +55,9 @@ console.log('\n--- agent-loop hydration and breaker tests ---');
 assert(agentLoopSource.includes('session._costTracker.totalCost = session.totalCost || 0;'), 'CostTracker hydration preserves totalCost');
 assert(agentLoopSource.includes('session._costTracker.totalInputTokens = session.totalInputTokens || 0;'), 'CostTracker hydration preserves totalInputTokens');
 assert(agentLoopSource.includes('session._costTracker.totalOutputTokens = session.totalOutputTokens || 0;'), 'CostTracker hydration preserves totalOutputTokens');
-assert(agentLoopSource.includes('var budget = session._costTracker.checkBudget();'), 'checkSafetyBreakers still prefers CostTracker.checkBudget');
+// Phase 231: cost circuit breaker REMOVED from checkSafetyBreakers — only iteration + time limits gate sessions now.
+assert(!agentLoopSource.includes('var budget = session._costTracker.checkBudget();'), 'Phase 231: checkSafetyBreakers no longer calls CostTracker.checkBudget (cost limit removed)');
+assert(agentLoopSource.includes('Cost circuit breaker REMOVED in Phase 231'), 'Phase 231: removal is documented in agent-loop.js');
 
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 process.exit(failed > 0 ? 1 : 0);

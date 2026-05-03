@@ -157,22 +157,10 @@ function checkSafetyBreakers(session) {
     };
   }
 
-  // Cost circuit breaker (SAFE-01, D-01, ADOPT-02)
-  if (session._costTracker) {
-    var budget = session._costTracker.checkBudget();
-    if (budget.exceeded) {
-      return { shouldStop: true, reason: budget.reason };
-    }
-  } else {
-    // Fallback: direct read (backward compat when CostTracker unavailable)
-    var costLimit = (session.safetyConfig && session.safetyConfig.costLimit) || _al_SESSION_DEFAULTS.costLimit || 2.00;
-    if ((state.totalCost || 0) >= costLimit) {
-      return {
-        shouldStop: true,
-        reason: 'Session cost ($' + (state.totalCost || 0).toFixed(2) + ') exceeded limit ($' + costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
-      };
-    }
-  }
+  // Cost circuit breaker REMOVED in Phase 231 per operator request — iteration
+  // limit (above) and time limit (below) are sufficient gates. CostTracker
+  // continues to record totals for analytics; checkBudget() always returns
+  // exceeded=false now and is intentionally not called here.
 
   // Time limit (SAFE-02, D-02)
   var timeLimit = (session.safetyConfig && session.safetyConfig.timeLimit) || _al_SESSION_DEFAULTS.timeLimit || 600000;
