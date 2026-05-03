@@ -353,12 +353,34 @@
     return true;
   }
 
+  /**
+   * Phase 229-02 (OVERLAY-05): phases that mean "model is thinking, no
+   * observable action yet". Used to suppress generic phase-label text in
+   * .fsb-step-text when session elapsed < 1s -- avoids the 'Thinking...'
+   * flash on fast turns. Codebase normalizes 'thinking' -> 'planning' via
+   * normalizeOverlayPhase, but both inputs are accepted defensively.
+   * 'reasoning' is NOT a phase produced anywhere in the codebase as of
+   * v0.9.50 and is therefore omitted from the set.
+   */
+  var THINKING_PHASES = new Set(['planning', 'thinking']);
+
+  /**
+   * @param {string|null|undefined} phase
+   * @returns {boolean} true if phase is a generic thinking-class label.
+   */
+  function isThinkingPhase(phase) {
+    if (!phase || typeof phase !== 'string') return false;
+    return THINKING_PHASES.has(phase.toLowerCase());
+  }
+
   var exportsObj = {
     clampOverlayPercent: clampOverlayPercent,
     sanitizeOverlayText: sanitizeOverlayText,
     sanitizeActionText: sanitizeActionText,
+    firstSentence: firstSentence,
     normalizeOverlayPhase: normalizeOverlayPhase,
     humanizeOverlayPhase: humanizeOverlayPhase,
+    isThinkingPhase: isThinkingPhase,
     buildOverlayState: buildOverlayState,
     shouldApplyOverlayState: shouldApplyOverlayState
   };

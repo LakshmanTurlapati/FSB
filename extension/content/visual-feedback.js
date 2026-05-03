@@ -617,13 +617,22 @@
       // to prevent post-completion status messages from altering the display
       if (this._frozen) return;
 
+      // Phase 229-02 (OVERLAY-05 first-sentence guard): legacy state.stepText
+      // bypasses the upstream sanitization pipeline in overlay-state.js. Route
+      // it through sanitizeActionText(firstSentence(...)) so multi-sentence /
+      // raw-tool-call strings cannot leak directly into .fsb-step-text.
+      var legacyUtils = window.FSBOverlayStateUtils;
       var overlayState = state && state.display ? state : {
         lifecycle: 'running',
         phase: state && state.phase ? state.phase : 'planning',
         display: {
           title: state && state.taskName ? String(state.taskName) : '-',
           subtitle: state && state.taskSummary ? String(state.taskSummary) : '',
-          detail: state && state.stepText ? String(state.stepText) : 'Working'
+          detail: state && state.stepText
+            ? (legacyUtils && typeof legacyUtils.sanitizeActionText === 'function' && typeof legacyUtils.firstSentence === 'function'
+                ? legacyUtils.sanitizeActionText(legacyUtils.firstSentence(String(state.stepText)))
+                : String(state.stepText))
+            : 'Working'
         },
         progress: state && state.progress !== undefined
           ? {
@@ -672,11 +681,24 @@
         clientBadgeEl.style.display = clientLabel ? 'inline-flex' : 'none';
       }
 
+      // Phase 229-02 (OVERLAY-05): suppress generic 'thinking-class' phase
+      // labels in detail when session elapsed < 1s. Avoids the 'Thinking...'
+      // / 'Planning...' flash on fast turns. Only suppresses when detail is
+      // the generic placeholder ('Working' or the phase label) -- real status
+      // text (e.g. AI summary 'Reviewing search results') flows through.
+      var elapsedMs = this._startTime ? (performance.now() - this._startTime) : 0;
+      var isThinking = utils && typeof utils.isThinkingPhase === 'function'
+        && utils.isThinkingPhase(overlayState.phase);
+      var detailIsGeneric = !display.detail
+        || display.detail === 'Working'
+        || display.detail === phaseLabel;
+      var suppressDetail = isThinking && detailIsGeneric && elapsedMs < 1000;
+
       // Phase 229-01 (OVERLAY-01): debounce text writes (flushes immediately on final).
       var wantsText = {
         title: display.title || '-',
         subtitle: display.subtitle || '',
-        detail: display.detail || 'Working',
+        detail: suppressDetail ? '' : (display.detail || 'Working'),
         stepNumberLabel: progress.label || phaseLabel
       };
       var isFinal = overlayState.lifecycle === 'final';
