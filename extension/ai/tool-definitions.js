@@ -39,7 +39,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'execute_js',
-    description: 'Run JavaScript directly in the active page. The most powerful tool in FSB\'s kit -- full DOM access in the page context lets you do almost anything: read structured content, mutate state, query computed styles, strip cross-origin iframes for inspection, drive complex widgets, scrape JSON from window globals, capture a DOM screenshot via injected html2canvas, or script multi-step interactions in one shot. Code runs as a function body -- use `return` to send values back (results are stringified). Async work splits across calls: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Reach for execute_js whenever the standard tools are too rigid or the data you need isn\'t exposed by read_page / get_dom_snapshot. Related: read_page, get_dom_snapshot, navigate.',
+    description: 'Run JavaScript directly in the active page. The most powerful tool in FSB\'s kit -- full DOM access in the page context. NOT A SHORTCUT: do NOT use execute_js as a substitute for real interaction tools (drag, click, type, scroll). If the user asked to drag X to Y, use drag_drop or drag -- not `element.innerHTML = ...`. If the user asked to expand each comment, click each toggle -- do not append URL fragments. JS bypasses framework event listeners (react-beautiful-dnd, Sortable.js, react-select, Trello/Notion column reorders) and produces false-success traces. PROPER USE: read structured content, mutate state where no interaction tool exists, query computed styles, strip cross-origin iframes for inspection, drive complex widgets that have no DOM-tool equivalent, scrape JSON from window globals, capture a DOM screenshot via injected html2canvas, or script multi-step JS-only operations in one shot. Code runs as a function body -- use `return` to send values back (results are stringified). Async work splits across calls: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Related: read_page, get_dom_snapshot, navigate, drag_drop (for drag tasks instead of innerHTML swap), click (for click tasks instead of synthetic events).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -140,7 +140,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click',
-    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click).',
+    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). CUSTOM DROPDOWN PATTERN: custom (non-native) dropdowns require TWO clicks -- (1) `click` the dropdown control to open the listbox, (2) `click` the option element. Example: react-select / Material-UI Select / Headless UI -- `click e5` opens, `click e23` picks "Green". `select_option` only works on native <select> elements. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click), select_option (for native <select> only).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'select_option',
-    description: 'Select an option from a dropdown by value. When to use: to choose from <select> dropdown menus. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (for custom non-native dropdowns).',
+    description: 'Select an option from a NATIVE <select> dropdown by value or visible text. NATIVE-ONLY: this tool only works on real <select> elements -- it has no effect on custom (div-based) dropdowns like react-select, Material-UI Select, Headless UI Listbox, or any non-<select> picker. For CUSTOM DROPDOWNS, use the two-click pattern instead: (1) `click` the dropdown control to open the listbox, (2) `click` the desired option element. Example: react-select on react-select.com -- `click e5` to open, then `click e23` on the "Green" option. If `select_option` returns no error but the dropdown value does not change, you are on a custom dropdown -- switch to the two-click pattern. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (the correct tool for custom non-native dropdowns).',
     inputSchema: {
       type: 'object',
       properties: {
