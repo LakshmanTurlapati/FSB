@@ -1,63 +1,72 @@
 # FSB Chrome Extension
 
-The `extension/` directory contains the entire Chrome extension package
-(Manifest V3). Load this directory as an unpacked extension in Chrome to
-run FSB locally.
+`extension/` is the unpacked Chrome extension package for FSB v0.9.50. Load this directory, not the repository root, when running locally.
 
-## Load as Unpacked
+## Load Unpacked
 
-1. Open `chrome://extensions` in Chrome (or any Chromium-based browser
-   version 88+).
-2. Toggle **Developer mode** on (top-right).
-3. Click **Load unpacked** and select the `extension/` directory at the
-   root of this repository (i.e., the directory containing this README).
-4. The "FSB" extension appears in your extensions list. Pin it from the
-   toolbar puzzle icon for easy access.
-5. Click the FSB toolbar icon to open the popup, or right-click and
-   choose **Open side panel** for the persistent panel.
+1. Open `chrome://extensions` in Chrome or another Chromium browser.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the repository's `extension/` directory.
+5. Pin FSB from the toolbar puzzle icon.
+6. Open the popup from the toolbar, or right-click the extension and choose **Open side panel**.
 
-To pick up code changes during development, click the **reload** icon
-on the FSB card in `chrome://extensions`. Reload the open tabs after
-reloading the extension so the content scripts re-inject.
+After code changes, reload the extension from `chrome://extensions` and refresh any open tabs so content scripts re-inject.
 
 ## Key Entry Points
 
 | Path | Role |
 |------|------|
-| `manifest.json` | MV3 manifest (permissions, entry points, web-accessible resources) |
-| `background.js` | Service worker; orchestrates AI calls, tool execution, sessions |
-| `canvas-interceptor.js` | MAIN-world content script; runs at `document_start` |
-| `content/` | Content scripts (DOM analysis, action execution, lifecycle, messaging) |
-| `ui/` | Popup, side panel, control panel, options HTML/CSS/JS |
-| `ai/` | AI provider integrations, tool definitions, agent loop, transcript store |
-| `agents/` | Agent runtime (executor, manager, scheduler, server-sync) |
-| `ws/` | WebSocket clients (MCP bridge, MCP tool dispatcher, ws-client) |
-| `offscreen/` | Offscreen document (speech-to-text) |
-| `utils/` | Shared utilities (analytics, logger, ring buffer, redaction, etc.) |
-| `lib/` | Vendored third-party libraries (Chart.js, gpt-tokenizer, mermaid, etc.) |
-| `site-guides/` | Per-site automation guides |
-| `site-maps/` | Generated site-map JSON (web-accessible) |
-| `test-data/` | Fixture data exposed to content scripts (web-accessible) |
-| `shared/` | UI styles shared across surfaces |
-| `config/` | Extension config bootstrap (config.js, init-config.js, secure-config.js) |
-| `assets/` | Icons and image assets |
+| `manifest.json` | MV3 manifest, permissions, entry points, and web-accessible resources. |
+| `background.js` | Service worker for sessions, model calls, MCP bridge handling, storage, and orchestration. |
+| `canvas-interceptor.js` | MAIN-world content script loaded at `document_start`. |
+| `content/` | DOM analysis, action execution, messaging, lifecycle, visual feedback, and DOM streaming. |
+| `ui/` | Popup, side panel, control panel, unlock screens, and shared UI behavior. |
+| `ai/` | Provider integration, model discovery, tool registry, agent loop, transcripts, and state emitters. |
+| `ws/` | WebSocket bridge client and MCP tool dispatcher. |
+| `lib/` | Vendored libraries plus memory and visualization subsystems. |
+| `site-guides/` | Domain and category-specific automation guidance. |
+| `config/` | Defaults, migration, and secure encrypted configuration. |
+| `assets/` | Icons, logos, and screenshots. |
 
-## Packaging for the Chrome Web Store
+## Validation
 
-The repo-root `package.json` defines `npm run package`, which produces a
-zip archive of the extension. Run from the repository root, not from
-`extension/`. The zip excludes development files and node_modules.
+Run from the repository root:
 
-## CI Validation
+```bash
+npm run validate:extension
+npm test
+```
 
-From the repository root: `npm run validate:extension` performs static
-validation (manifest sanity, JS syntax check across all extension JS
-files). The Node test suite (`npm test`) covers extension modules that
-can run under Node (analytics, cost tracker, transcript store, MCP
-bridge contracts, etc.).
+`validate:extension` checks manifest sanity and JavaScript syntax across the extension tree. The Node test suite covers extension modules that can run outside Chrome, including analytics, costs, transcript storage, tool routing, MCP bridge contracts, and regression cases.
 
-## Repository Layout
+## Debugging
 
-See the root `README.md` for the full repository overview, including
-the MCP server (`mcp/`) and the showcase site
-(`showcase/`).
+- Inspect the service worker from `chrome://extensions` with **Inspect views: service worker**.
+- Check the active tab console for content script logs.
+- Use the options page log viewer for session history, action results, and warnings.
+- If MCP calls fail, confirm the MCP bridge is connected and the active tab is not a restricted browser page.
+
+## Manifest Notes
+
+The extension declares permissions for tabs, scripting, storage, side panel, debugger-backed coordinate tools, web navigation, alarms, clipboard write, offscreen speech-to-text, and broad host access. Those permissions support supervised browser automation and should be reviewed when adding new public behavior.
+
+## Local Data
+
+The extension stores settings, encrypted keys, analytics, memory, logs, vault data, and legacy agent records in Chrome storage. Uninstalling the extension or clearing extension storage can remove that local state. Export settings from the control panel before destructive browser cleanup if you need to preserve local configuration.
+
+## Public Surfaces
+
+The extension is driven through:
+
+- popup and side panel chat
+- control panel settings and diagnostics
+- content-script visual overlay
+- local WebSocket bridge for `fsb-mcp-server`
+- optional showcase/dashboard sync flows
+
+## Packaging Note
+
+The root `npm run package` command currently creates a repository-level zip named for the release version. Review the archive contents before using it as a Chrome Web Store submission package.
+
+See the root [README.md](../README.md) for full repo setup, MCP usage, and showcase deployment context.
