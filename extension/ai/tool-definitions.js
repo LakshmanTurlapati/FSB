@@ -832,6 +832,25 @@ const TOOL_REGISTRY = [
   },
 
   {
+    name: 'search_memory',
+    description: 'Search FSB memory for relevant past experiences on similar sites or tasks. Returns memories ranked by relevance using keyword + recency scoring (same scorer the MCP search_memory tool uses). PURPOSE: consult prior experience before deciding the next action so you do not redo work or repeat known-bad selectors. WHEN TO USE: (a) before attempting an unfamiliar interaction pattern on a new domain, (b) when stuck after 3+ failed attempts on the same target, or (c) when the prompt-injected memory hints clearly do not cover the current sub-task. Use sparingly -- this is a read-only research call, not a per-turn ritual. PARAMETERS: query (natural-language search, required), domain (optional filter such as "amazon.com" -- pass the bare hostname), type (optional: task | episodic | semantic | procedural), topN (optional max results, default 5, hard-capped at 25). RETURNS: array of memory entries with id, type, text excerpt, and metadata. RELATED: report_progress (narrate what you learned), get_site_guide (curated selectors instead of free-form memory).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural language search query describing the situation or pattern you are looking for' },
+        domain: { type: 'string', description: 'Optional domain filter, e.g. "amazon.com" -- pass the bare hostname without scheme' },
+        type: { type: 'string', enum: ['task', 'episodic', 'semantic', 'procedural'], description: 'Optional memory type filter' },
+        topN: { type: 'number', description: 'Maximum results to return (default 5, capped at 25)' }
+      },
+      required: ['query']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
     name: 'report_progress',
     description: 'Bonus pairing with start_visual_session: sends real-time narration to the overlay using the same session_token. Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
     inputSchema: {

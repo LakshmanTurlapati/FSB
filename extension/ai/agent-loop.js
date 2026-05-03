@@ -1641,6 +1641,53 @@ async function runAgentIteration(sessionId, options) {
         } catch (err) {
           result = { success: false, hadEffect: false, error: 'get_page_snapshot failed: ' + err.message, navigationTriggered: false, result: null };
         }
+      } else if (call.name === 'search_memory') {
+        // Phase 225-02 (TOOLS-04): autopilot can consult FSB memory mid-task
+        // via the same memoryManager.search the MCP search_memory tool hits.
+        // Soft per-session call cap (default 5) prevents the LLM from spamming
+        // the memory subsystem and inflating cost/latency; on overage we
+        // return a graceful budget-exhausted response instead of erroring.
+        var smArgs = call.args || {};
+        var smQuery = (typeof smArgs.query === 'string') ? smArgs.query : '';
+        var smTopN = Math.max(1, Math.min(25, parseInt(smArgs.topN, 10) || 5));
+        if (!smQuery) {
+          result = { success: false, hadEffect: false, error: 'search_memory requires a non-empty query', navigationTriggered: false, result: null };
+        } else {
+          var smState = session.agentState || (session.agentState = {});
+          smState.searchMemoryCalls = (smState.searchMemoryCalls || 0) + 1;
+          var smCap = (typeof smState.searchMemoryBudget === 'number') ? smState.searchMemoryBudget : 5;
+          if (smState.searchMemoryCalls > smCap) {
+            result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+              result: { query: smQuery, results: [], budgetExhausted: true,
+                note: 'search_memory per-session budget (' + smCap + ') exhausted -- rely on prompt-injected memory hints or proceed without further memory lookups.' } };
+          } else {
+            try {
+              var smManager = (typeof memoryManager !== 'undefined') ? memoryManager
+                : (typeof globalThis !== 'undefined' && globalThis.memoryManager) ? globalThis.memoryManager
+                : null;
+              if (!smManager || typeof smManager.search !== 'function') {
+                result = { success: false, hadEffect: false, error: 'Memory search unavailable', navigationTriggered: false, result: null };
+              } else {
+                var smFilters = {};
+                if (smArgs.domain) smFilters.domain = smArgs.domain;
+                if (smArgs.type) smFilters.type = smArgs.type;
+                var smResults = await smManager.search(smQuery, smFilters, { topN: smTopN });
+                var smList = (Array.isArray(smResults) ? smResults : []).slice(0, smTopN).map(function(m) {
+                  return {
+                    id: (m && m.id) || null,
+                    type: (m && m.type) || null,
+                    text: String((m && m.text) || '').slice(0, 500),
+                    metadata: (m && m.metadata) || {}
+                  };
+                });
+                result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+                  result: { query: smQuery, results: smList, count: smList.length, callsUsed: smState.searchMemoryCalls, callsRemaining: Math.max(0, smCap - smState.searchMemoryCalls) } };
+              }
+            } catch (smErr) {
+              result = { success: false, hadEffect: false, error: 'search_memory failed: ' + (smErr.message || String(smErr)), navigationTriggered: false, result: null };
+            }
+          }
+        }
       } else if (call.name === 'get_site_guide') {
         // CTX-02: Load site guide for domain
         var domain = (call.args && call.args.domain) || '';
