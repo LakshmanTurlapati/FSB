@@ -483,6 +483,84 @@ console.log('\n--- Test: ActionGlowOverlay reduced-motion block still present (r
 }
 
 // ---------------------------------------------------------------------------
+// Phase 230: pill shows phase wording instead of percent during run
+// ---------------------------------------------------------------------------
+console.log('\n=== describe: Phase 230 — pill phase wording ===');
+
+const overlayMod = loadOverlayStateModule();
+
+console.log('\n--- Phase 230: determinate progress at 37% with phase=acting → label is "Acting…", percent preserved ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'acting',
+    progressPercent: 37,
+    statusText: 'Clicking submit'
+  }, null);
+  assertEq(state.progress.label, 'Acting…',
+    'Phase 230: determinate label is phase wording with ellipsis, not percent');
+  assertEq(state.progress.percent, 37,
+    'Phase 230: numeric .percent preserved on progress for the scaleX bar');
+  assertEq(state.progress.mode, 'determinate',
+    'Phase 230: determinate mode preserved');
+}
+
+console.log('\n--- Phase 230: phase=writing → "Writing…" with ellipsis ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'writing',
+    progressPercent: 60
+  }, null);
+  assertEq(state.progress.label, 'Writing…',
+    'Phase 230: writing phase shows "Writing…"');
+}
+
+console.log('\n--- Phase 230: phase=complete → "Complete" with NO ellipsis (terminal) ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'complete',
+    progressPercent: 100,
+    statusText: 'All done'
+  }, null);
+  // Note: depending on lifecycle the label may be 'Done' from the final-state branch,
+  // but it should NEVER be 'Complete…' or any ellipsis-suffixed terminal label.
+  assert(state.progress.label.indexOf('…') === -1,
+    'Phase 230: complete-phase label has no ellipsis suffix');
+}
+
+console.log('\n--- Phase 230: phase=error → "Error" with NO ellipsis (terminal) ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'error',
+    statusText: 'Something failed'
+  }, null);
+  assert(state.progress.label.indexOf('…') === -1,
+    'Phase 230: error-phase label has no ellipsis suffix');
+}
+
+console.log('\n--- Phase 230: unknown/degraded phase falls back without ellipsis ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'waiting',
+    lifecycle: 'running',
+    sessionToken: 'tok',
+    version: 1
+  }, null);
+  assert(state.progress.label.indexOf('…') === -1,
+    'Phase 230: unknown phase ("waiting") falls back without ellipsis (degraded behavior preserved)');
+}
+
+console.log('\n--- Phase 230: indeterminate planning phase → "Planning…" ---');
+{
+  const state = overlayMod.buildOverlayState({
+    phase: 'planning'
+  }, null);
+  assertEq(state.progress.label, 'Planning…',
+    'Phase 230: indeterminate planning shows "Planning…"');
+  assertEq(state.progress.mode, 'indeterminate',
+    'Phase 230: indeterminate mode preserved');
+}
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log('\n=========================================');

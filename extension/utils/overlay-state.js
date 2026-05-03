@@ -143,6 +143,17 @@
     return labels[phase] || sanitizeOverlayText(phase || 'Working', 32) || 'Working';
   }
 
+  // Phase 230: phases that represent active work — these get an ellipsis suffix
+  // in the overlay pill (e.g. "Acting…"). Terminal / degraded phases do not.
+  var ELLIPSIS_PHASES = {
+    analyzing: true, planning: true, acting: true,
+    recovering: true, writing: true, switching_tab: true
+  };
+  function humanizePhaseWithSuffix(phase) {
+    var label = humanizeOverlayPhase(phase);
+    return ELLIPSIS_PHASES[phase] ? label + '…' : label;
+  }
+
   function getDefaultDetail(phase, result) {
     if (result === 'success') return 'Task completed';
     if (result === 'partial') return 'Task partially completed';
@@ -263,13 +274,16 @@
   function buildOverlayProgress(statusData, session, normalizedPhase, lifecycle, result) {
     if (lifecycle === 'cleared') return null;
 
+    // Phase 230: pill shows phase wording (e.g. "Acting…") instead of percent during run.
+    // The numeric percent is preserved on `progress.percent` so the scaleX bar still drives off it.
+    // Completion / error labels stay literal ("Done" / "Error" / "Partial") with no ellipsis.
     var explicit = normalizeExplicitProgress(statusData && statusData.progress);
     if (explicit) {
       if (explicit.mode === 'determinate' && !explicit.label) {
-        explicit.label = explicit.percent + '%';
+        explicit.label = humanizePhaseWithSuffix(normalizedPhase);
       }
       if (explicit.mode === 'indeterminate' && !explicit.label) {
-        explicit.label = humanizeOverlayPhase(normalizedPhase);
+        explicit.label = humanizePhaseWithSuffix(normalizedPhase);
       }
       return explicit;
     }
@@ -280,7 +294,7 @@
       return {
         mode: 'determinate',
         percent: explicitPercent,
-        label: explicitPercent + '%',
+        label: humanizePhaseWithSuffix(normalizedPhase),
         eta: null
       };
     }
@@ -305,10 +319,11 @@
       }
     }
 
+    // Phase 230: indeterminate fallback uses phase-with-suffix helper.
     return {
       mode: 'indeterminate',
       percent: null,
-      label: humanizeOverlayPhase(normalizedPhase),
+      label: humanizePhaseWithSuffix(normalizedPhase),
       eta: null
     };
   }

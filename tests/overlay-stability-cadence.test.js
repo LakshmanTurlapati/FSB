@@ -325,11 +325,12 @@ console.log('\n--- Test 3: 10 rapid updates within 50ms coalesce to latest ---')
   }
   // None should have visibly changed yet (all coalesced into pending).
   assertEq(detailEl.textContent, 'first', 'rapid bursts do not write during debounce window');
-  // Wait > 400ms real time so the setTimeout fires.
-  await sleep(450);
+  // Phase 230: wait > MIN_DISPLAY_DURATION_MS (1200ms) for the floor-extended
+  // setTimeout to fire. Phase 229's 400ms debounce alone is no longer sufficient.
+  await sleep(1300);
   // performance.now() didn't change during sleep (nowMs is mocked); flush
   // happens via setTimeout -- it writes whatever is in _pendingDisplay (latest).
-  assertEq(detailEl.textContent, 'burst-9', 'after debounce window, latest queued value flushes');
+  assertEq(detailEl.textContent, 'burst-9', 'after dwell+debounce window, latest queued value flushes');
   o.destroy();
 }
 
@@ -346,6 +347,69 @@ console.log('\n--- Test 4: lifecycle === "final" flushes immediately, bypassing 
   // Now a final update should flush immediately.
   o.update(makeState({ lifecycle: 'final', detail: 'FINAL', title: 'Done', result: 'success' }));
   assertEq(detailEl.textContent, 'FINAL', 'final lifecycle bypasses debounce and flushes synchronously');
+  o.destroy();
+}
+
+console.log('\n--- Phase 230 Test A: dwell floor honored — 800ms gap < 1200ms holds first text ---');
+{
+  setNow(3500);
+  const o = buildOverlay();
+  o.update(makeState({ detail: 'first' }));
+  const detailEl = o.container.querySelector('.fsb-step-text');
+  assertEq(detailEl.textContent, 'first', 'first write present');
+  // Advance 800ms in mocked time — past 400ms debounce, before 1200ms dwell floor.
+  advanceNow(800);
+  o.update(makeState({ detail: 'second' }));
+  // Dwell floor blocks immediate flush; second is queued in pending.
+  assertEq(detailEl.textContent, 'first', 'Phase 230: dwell floor holds first text past debounce window');
+  // Wait the remaining ~400ms (real time) for the floor-extended setTimeout to fire.
+  await sleep(500);
+  assertEq(detailEl.textContent, 'second', 'Phase 230: after dwell floor expires, second text flushes');
+  o.destroy();
+}
+
+console.log('\n--- Phase 230 Test B: latest-wins during dwell hold ---');
+{
+  setNow(5000);
+  const o = buildOverlay();
+  o.update(makeState({ detail: 'A' }));
+  const detailEl = o.container.querySelector('.fsb-step-text');
+  assertEq(detailEl.textContent, 'A', 'A flushed');
+  // Three updates within the dwell window, all queued, latest wins.
+  advanceNow(200);
+  o.update(makeState({ detail: 'B' }));
+  advanceNow(200);
+  o.update(makeState({ detail: 'C' }));
+  advanceNow(200);
+  o.update(makeState({ detail: 'D' }));
+  assertEq(detailEl.textContent, 'A', 'A still visible during dwell window');
+  // Wait long enough for floor to expire.
+  await sleep(1300);
+  assertEq(detailEl.textContent, 'D', 'Phase 230: latest queued (D) wins after dwell expires');
+  o.destroy();
+}
+
+console.log('\n--- Phase 230 Test C: lifecycle === final bypasses dwell floor ---');
+{
+  setNow(7000);
+  const o = buildOverlay();
+  o.update(makeState({ detail: 'pre' }));
+  advanceNow(100); // 100ms — well inside dwell floor
+  // Final lifecycle should flush immediately even though dwell hasn't expired.
+  o.update(makeState({ lifecycle: 'final', detail: 'POST', title: 'Done', result: 'success' }));
+  const detailEl = o.container.querySelector('.fsb-step-text');
+  assertEq(detailEl.textContent, 'POST', 'Phase 230: final lifecycle bypasses dwell floor');
+  o.destroy();
+}
+
+console.log('\n--- Phase 230 Test D: first write of session bypasses dwell floor ---');
+{
+  setNow(8000);
+  const o = buildOverlay();
+  // Cold path — _lastTextWriteAt is 0; should write immediately, not wait 1200ms.
+  o.update(makeState({ detail: 'cold' }));
+  const detailEl = o.container.querySelector('.fsb-step-text');
+  assertEq(detailEl.textContent, 'cold', 'Phase 230: first write bypasses dwell floor (cold path immediate)');
   o.destroy();
 }
 

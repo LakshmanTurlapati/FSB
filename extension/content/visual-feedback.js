@@ -229,6 +229,11 @@
   // Phase 229-01: minimum interval (ms) between visible status-text writes.
   // Rapid bursts of update() inside this window coalesce to the latest payload.
   const PROGRESS_TEXT_DEBOUNCE_MS = 400;
+  // Phase 230: minimum dwell time (ms) — once text becomes visible, it must stay
+  // for at least this long before a new payload can replace it. Stacks on top
+  // of the 400ms debounce; the effective wait is max(debounce_remaining, dwell_remaining).
+  // Bypassed for the first write of a session and for `lifecycle === 'final'`.
+  const MIN_DISPLAY_DURATION_MS = 1200;
 
   class ProgressOverlay {
     constructor() {
@@ -267,13 +272,18 @@
       this._pendingDisplay = wantsText;
       var now = performance.now();
       var elapsed = now - this._lastTextWriteAt;
-      if (elapsed >= PROGRESS_TEXT_DEBOUNCE_MS && this._textDebounceTimer === null) {
+      // Phase 230: first write of session bypasses dwell floor (don't sit on a blank pill).
+      var isFirstWrite = this._lastTextWriteAt === 0;
+      var dwellFloor = isFirstWrite ? 0 : MIN_DISPLAY_DURATION_MS;
+      var debounceFloor = PROGRESS_TEXT_DEBOUNCE_MS;
+      var requiredWait = Math.max(debounceFloor, dwellFloor);
+      if (elapsed >= requiredWait && this._textDebounceTimer === null) {
         this._flushPendingText();
         return;
       }
       if (this._textDebounceTimer === null) {
         var self = this;
-        var delay = Math.max(0, PROGRESS_TEXT_DEBOUNCE_MS - elapsed);
+        var delay = Math.max(0, requiredWait - elapsed);
         this._textDebounceTimer = setTimeout(function() {
           self._textDebounceTimer = null;
           self._flushPendingText();
