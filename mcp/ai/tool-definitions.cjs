@@ -39,7 +39,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'execute_js',
-    description: 'Run JavaScript directly in the active page. The most powerful tool in FSB\'s kit -- full DOM access in the page context lets you do almost anything: read structured content, mutate state, query computed styles, strip cross-origin iframes for inspection, drive complex widgets, scrape JSON from window globals, capture a DOM screenshot via injected html2canvas, or script multi-step interactions in one shot. Code runs as a function body -- use `return` to send values back (results are stringified). Async work splits across calls: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Reach for execute_js whenever the standard tools are too rigid or the data you need isn\'t exposed by read_page / get_dom_snapshot. Related: read_page, get_dom_snapshot, navigate.',
+    description: 'Run JavaScript directly in the active page. PRIMARY INTERACTION TOOL: try execute_js FIRST for clicks, scrolls, reads, attribute lookups, and most other DOM work -- it bypasses overlay/obscured-element issues, viewport constraints, and CDP timeouts that block native click/scroll. Typical patterns: `return document.querySelector(\'#add-to-cart-button\').click(), true;` for clicks; `return Array.from(document.querySelectorAll(\'a\')).map(a=>a.href);` for extraction; `window.scrollTo(0, document.body.scrollHeight); return true;` for scroll. After a JS click, verify with read_page or get_page_snapshot (a true click should produce observable DOM change). FALLBACK TO NATIVE TOOLS WHEN: (1) JS click reports success but the page state did not change (framework swallowed the synthetic event -- use native click which fires real CDP events that React/Angular/Vue listen to); (2) typing into controlled text inputs (use native `type` so React onChange fires correctly -- `element.value = ...` will NOT update component state); (3) real drag operations on react-beautiful-dnd / Sortable.js / Trello-style widgets (use drag_drop / drag for real pointer events); (4) form submission that depends on validated input state (use native click on submit). Code runs as a function body -- use `return` to send values back (results are stringified). Async work: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Related: read_page (verify result), get_dom_snapshot (debug after JS click), click / type / drag_drop (fallbacks when JS doesn\'t take effect).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -140,7 +140,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click',
-    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click).',
+    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). CUSTOM DROPDOWN PATTERN: custom (non-native) dropdowns require TWO clicks -- (1) `click` the dropdown control to open the listbox, (2) `click` the option element. Example: react-select / Material-UI Select / Headless UI -- `click e5` opens, `click e23` picks "Green". `select_option` only works on native <select> elements. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click), select_option (for native <select> only).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'select_option',
-    description: 'Select an option from a dropdown by value. When to use: to choose from <select> dropdown menus. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (for custom non-native dropdowns).',
+    description: 'Select an option from a NATIVE <select> dropdown by value or visible text. NATIVE-ONLY: this tool only works on real <select> elements -- it has no effect on custom (div-based) dropdowns like react-select, Material-UI Select, Headless UI Listbox, or any non-<select> picker. For CUSTOM DROPDOWNS, use the two-click pattern instead: (1) `click` the dropdown control to open the listbox, (2) `click` the desired option element. Example: react-select on react-select.com -- `click e5` to open, then `click e23` on the "Green" option. If `select_option` returns no error but the dropdown value does not change, you are on a custom dropdown -- switch to the two-click pattern. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (the correct tool for custom non-native dropdowns).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -824,6 +824,25 @@ const TOOL_REGISTRY = [
         }
       },
       required: ['domain']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'search_memory',
+    description: 'Search FSB memory for relevant past experiences on similar sites or tasks. Returns memories ranked by relevance using keyword + recency scoring (same scorer the MCP search_memory tool uses). PURPOSE: consult prior experience before deciding the next action so you do not redo work or repeat known-bad selectors. WHEN TO USE: (a) before attempting an unfamiliar interaction pattern on a new domain, (b) when stuck after 3+ failed attempts on the same target, or (c) when the prompt-injected memory hints clearly do not cover the current sub-task. Use sparingly -- this is a read-only research call, not a per-turn ritual. PARAMETERS: query (natural-language search, required), domain (optional filter such as "amazon.com" -- pass the bare hostname), type (optional: task | episodic | semantic | procedural), topN (optional max results, default 5, hard-capped at 25). RETURNS: array of memory entries with id, type, text excerpt, and metadata. RELATED: report_progress (narrate what you learned), get_site_guide (curated selectors instead of free-form memory).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural language search query describing the situation or pattern you are looking for' },
+        domain: { type: 'string', description: 'Optional domain filter, e.g. "amazon.com" -- pass the bare hostname without scheme' },
+        type: { type: 'string', enum: ['task', 'episodic', 'semantic', 'procedural'], description: 'Optional memory type filter' },
+        topN: { type: 'number', description: 'Maximum results to return (default 5, capped at 25)' }
+      },
+      required: ['query']
     },
     _route: 'background',
     _readOnly: true,

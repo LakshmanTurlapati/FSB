@@ -1,5 +1,5 @@
 /**
- * Agent Loop Engine for FSB v0.9.31
+ * Agent Loop Engine for FSB v0.9.50
  *
  * Core tool_use protocol loop that replaces startAutomationLoop.
  * Each iteration is a separate setTimeout callback (not a blocking while-loop)
@@ -42,6 +42,7 @@ if (typeof importScripts !== 'undefined') {
     if (typeof createSafetyBreakerHook === 'undefined') importScripts('ai/hooks/safety-hooks.js');
     if (typeof createPermissionHook === 'undefined') importScripts('ai/hooks/permission-hook.js');
     if (typeof createToolProgressHook === 'undefined') importScripts('ai/hooks/progress-hook.js');
+    if (typeof GoalProgressTracker === 'undefined') importScripts('ai/goal-progress-tracker.js');
   } catch (_e) {
     // Already loaded -- ignore
   }
@@ -61,7 +62,7 @@ if (typeof require !== 'undefined') {
 }
 
 // Phase 156-158 Node.js require for testing
-var _al_costTracker, _al_transcriptStore, _al_hookPipeline, _al_turnResult, _al_actionHistory, _al_engineConfig, _al_permCtx, _al_safetyHooks, _al_permHook, _al_progressHook;
+var _al_costTracker, _al_transcriptStore, _al_hookPipeline, _al_turnResult, _al_actionHistory, _al_engineConfig, _al_permCtx, _al_safetyHooks, _al_permHook, _al_progressHook, _al_goalProgress;
 if (typeof require !== 'undefined') {
   try {
     _al_costTracker = require('./cost-tracker.js');
@@ -74,10 +75,19 @@ if (typeof require !== 'undefined') {
     _al_safetyHooks = require('./hooks/safety-hooks.js');
     _al_permHook = require('./hooks/permission-hook.js');
     _al_progressHook = require('./hooks/progress-hook.js');
+    _al_goalProgress = require('./goal-progress-tracker.js');
   } catch (_e) {
     // Running in Chrome extension context
   }
 }
+
+// Phase 227-02: GoalProgressTracker references for both Chrome (globals) and Node.
+var _al_GoalProgressTracker = (typeof GoalProgressTracker !== 'undefined')
+  ? GoalProgressTracker
+  : (_al_goalProgress?.GoalProgressTracker || null);
+var _al_getGoalProgressOverrideThreshold = (typeof getGoalProgressOverrideThreshold !== 'undefined')
+  ? getGoalProgressOverrideThreshold
+  : (_al_goalProgress?.getOverrideThreshold || function () { return 8; });
 
 // Resolve references for both Chrome (globals) and Node (require)
 // Use var throughout to avoid const/let redeclaration errors in importScripts shared scope
@@ -112,6 +122,66 @@ var _al_createPermissionHook = (typeof createPermissionHook !== 'undefined') ? c
 var _al_createToolProgressHook = (typeof createToolProgressHook !== 'undefined') ? createToolProgressHook : (_al_progressHook?.createToolProgressHook || null);
 var _al_createIterationProgressHook = (typeof createIterationProgressHook !== 'undefined') ? createIterationProgressHook : (_al_progressHook?.createIterationProgressHook || null);
 var _al_createCompletionProgressHook = (typeof createCompletionProgressHook !== 'undefined') ? createCompletionProgressHook : (_al_progressHook?.createCompletionProgressHook || null);
+
+// ---------------------------------------------------------------------------
+// Phase 233: Meta-cognitive attempt tracking.
+//
+// Source-of-truth-independent loop detection: counts mutation tool attempts
+// directly from the LLM's per-iteration toolCalls (not from session.actionHistory,
+// which has known recording gaps). Threshold: warn at 4, force-stop at 6
+// attempts on the same target within a 12-iteration sliding window.
+// ---------------------------------------------------------------------------
+var _META_INTERACT_TOOLS = {
+  click: 1, click_at: 1, double_click: 1, double_click_at: 1,
+  type_text: 1, press_enter: 1, press_key: 1, clear_input: 1,
+  select_option: 1, check_box: 1, hover: 1, focus: 1,
+  drag_drop: 1, drag: 1, click_and_hold: 1, drag_variable_speed: 1,
+  execute_js: 1, fill_credential: 1
+};
+var _META_WARN_THRESHOLD = 4;
+var _META_FORCE_STOP_THRESHOLD = 6;
+var _META_WINDOW_ITERATIONS = 12;
+
+function _extractMetaTargetKey(call) {
+  if (!call || !call.args) return null;
+  var a = call.args;
+  if (a.selector) return 'sel:' + String(a.selector).slice(0, 80);
+  if (a.elementId) return 'id:' + String(a.elementId).slice(0, 40);
+  if (a.element_id) return 'id:' + String(a.element_id).slice(0, 40);
+  if (call.name === 'execute_js' && a.code) {
+    var code = String(a.code);
+    var m = code.match(/querySelector(?:All)?\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (m) return 'sel:' + m[1].slice(0, 80);
+    m = code.match(/getElementById\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (m) return 'id:' + m[1].slice(0, 40);
+    return 'js:' + code.replace(/\s+/g, ' ').slice(0, 60);
+  }
+  if (a.text) return 'text:' + String(a.text).slice(0, 60);
+  if (a.url) return 'url:' + String(a.url).slice(0, 80);
+  if (a.key) return 'key:' + String(a.key);
+  return null;
+}
+
+function _trackMetaAttempt(session, call, iterNum) {
+  if (!_META_INTERACT_TOOLS[call.name]) return null;
+  var key = _extractMetaTargetKey(call);
+  if (!key) return null;
+  if (!session._metaAttempts) session._metaAttempts = {};
+  if (!session._metaAttempts[key]) session._metaAttempts[key] = [];
+  session._metaAttempts[key].push({ iteration: iterNum, tool: call.name, timestamp: Date.now() });
+  // Window-prune: keep only attempts within the last N iterations.
+  var pruned = session._metaAttempts[key].filter(function(a) {
+    return iterNum - a.iteration <= _META_WINDOW_ITERATIONS;
+  });
+  session._metaAttempts[key] = pruned;
+  if (pruned.length >= _META_FORCE_STOP_THRESHOLD) {
+    return { forceStop: true, target: key, attempts: pruned };
+  }
+  if (pruned.length >= _META_WARN_THRESHOLD) {
+    return { forceStop: false, target: key, attempts: pruned };
+  }
+  return null;
+}
 var _al_createErrorProgressHook = (typeof createErrorProgressHook !== 'undefined') ? createErrorProgressHook : (_al_progressHook?.createErrorProgressHook || null);
 
 
@@ -147,22 +217,10 @@ function checkSafetyBreakers(session) {
     };
   }
 
-  // Cost circuit breaker (SAFE-01, D-01, ADOPT-02)
-  if (session._costTracker) {
-    var budget = session._costTracker.checkBudget();
-    if (budget.exceeded) {
-      return { shouldStop: true, reason: budget.reason };
-    }
-  } else {
-    // Fallback: direct read (backward compat when CostTracker unavailable)
-    var costLimit = (session.safetyConfig && session.safetyConfig.costLimit) || _al_SESSION_DEFAULTS.costLimit || 2.00;
-    if ((state.totalCost || 0) >= costLimit) {
-      return {
-        shouldStop: true,
-        reason: 'Session cost ($' + (state.totalCost || 0).toFixed(2) + ') exceeded limit ($' + costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
-      };
-    }
-  }
+  // Cost circuit breaker REMOVED in Phase 231 per operator request — iteration
+  // limit (above) and time limit (below) are sufficient gates. CostTracker
+  // continues to record totals for analytics; checkBudget() always returns
+  // exceeded=false now and is intentionally not called here.
 
   // Time limit (SAFE-02, D-02)
   var timeLimit = (session.safetyConfig && session.safetyConfig.timeLimit) || _al_SESSION_DEFAULTS.timeLimit || 600000;
@@ -195,6 +253,20 @@ function detectStuck(session, toolResults) {
   const state = session.agentState || {};
   var stuckThreshold = _al_SESSION_DEFAULTS.stuckThreshold || 3;
   var forceStopThreshold = _al_SESSION_DEFAULTS.stuckForceStopThreshold || 5;
+
+  // Phase 227-01: strict CONSECUTIVE-same-fingerprint thresholds
+  // Independent of the existing windowed isRepetitive heuristic below.
+  // warn at 3 consecutive identical mutation tuples, force-stop at 5.
+  var actionRepeatWarnThreshold = 3;
+  var actionRepeatForceStopThreshold = 5;
+
+  // Resolve STUCK_REASONS via the require shim used elsewhere in this file
+  // (extension context attaches via window/globals; Node uses _al_turnResult).
+  var STUCK_REASONS = (typeof _al_turnResult !== 'undefined' && _al_turnResult && _al_turnResult.STUCK_REASONS)
+    ? _al_turnResult.STUCK_REASONS
+    : (typeof globalThis !== 'undefined' && globalThis.STUCK_REASONS)
+      ? globalThis.STUCK_REASONS
+      : { ACTION_REPETITION: 'stuck_action_repetition', NO_GOAL_PROGRESS: 'stuck_no_goal_progress', DOM_HASH: 'stuck_dom_hash' };
 
   // --- Read-only tools that never change the page ---
   var READ_ONLY_TOOLS = {
@@ -240,6 +312,19 @@ function detectStuck(session, toolResults) {
     state.actionFingerprints = state.actionFingerprints.slice(-20);
   }
 
+  // Phase 227-01: strict consecutive-same-fingerprint counter.
+  // Skips the read-only sentinel so pure-read iterations don't count
+  // toward action-repetition force-stop. A single different fingerprint
+  // RESETS the counter to 1 (e.g. A,A,A,B,A => counter at 1, not 4).
+  if (fingerprint !== '_read_only_') {
+    if (state.lastFingerprint === fingerprint) {
+      state.consecutiveSameFingerprintCount = (state.consecutiveSameFingerprintCount || 0) + 1;
+    } else {
+      state.consecutiveSameFingerprintCount = 1;
+    }
+    state.lastFingerprint = fingerprint;
+  }
+
   // Check repetition: count how many of the last 10 fingerprints match the current one
   var windowSize = Math.min(state.actionFingerprints.length, 10);
   var recent = state.actionFingerprints.slice(-windowSize);
@@ -250,16 +335,120 @@ function detectStuck(session, toolResults) {
   // Repetitive if 60%+ of recent iterations have same fingerprint and window >= 5
   var isRepetitive = windowSize >= 5 && (matchCount / windowSize) >= 0.6;
 
+  // Phase 227-01: strict consecutive-repetition signal (independent path).
+  var consecCount = state.consecutiveSameFingerprintCount || 0;
+  var isActionRepetition = consecCount >= actionRepeatWarnThreshold;
+
+  // --- Phase 227-02: Goal-progress unique-state-vector tracker ---
+  // Lazily initialise the tracker on the session. Record this iteration's
+  // (url, focusedElementId, actionOutcomeKey) signals BEFORE evaluating
+  // precedence. The actual goalStuck decision is consulted AFTER the
+  // action-repetition path so the more specific signal always wins.
+  var goalStuck = false;
+  var goalWindowSize = 8;
+  if (_al_GoalProgressTracker) {
+    if (!session.goalProgressTracker) {
+      session.goalProgressTracker = new _al_GoalProgressTracker();
+    }
+    // Source url: prefer session.lastKnownUrl, then last toolResult with a url field.
+    var gpUrl = session.lastKnownUrl || null;
+    if (!gpUrl) {
+      for (var u = toolResults.length - 1; u >= 0; u--) {
+        var trU = toolResults[u];
+        var maybeUrl = (trU && trU.result && (trU.result.url || trU.result.currentUrl)) || (trU && trU.args && trU.args.url) || null;
+        if (maybeUrl) { gpUrl = maybeUrl; break; }
+      }
+    }
+    // Source focusedElementId + actionOutcomeKey: last MUTATION toolResult.
+    var gpFocused = null;
+    var gpOutcomeKey = null;
+    for (var v = toolResults.length - 1; v >= 0; v--) {
+      var trV = toolResults[v];
+      if (!trV || READ_ONLY_TOOLS[trV.name]) continue;
+      var fid = '';
+      if (trV.args) {
+        fid = trV.args.selector || trV.args.elementId || trV.args.element_id || '';
+      }
+      gpFocused = fid || null;
+      var success = !!(trV.result && trV.result.success);
+      var hadEffect = !!(trV.result && trV.result.hadEffect);
+      gpOutcomeKey = trV.name + ':' + (success ? 'ok' : 'err') + ':' + (hadEffect ? 'fx' : 'nf');
+      break;
+    }
+    var iterForTracker = state.iterationCount || session.iterationCount || (state.actionFingerprints ? state.actionFingerprints.length : 0);
+    session.goalProgressTracker.record({
+      iteration: iterForTracker,
+      url: gpUrl,
+      focusedElementId: gpFocused,
+      actionOutcomeKey: gpOutcomeKey
+    });
+    var taskTypeForGoal = session.taskType || (session.agentState && session.agentState.taskType) || null;
+    goalWindowSize = _al_getGoalProgressOverrideThreshold(taskTypeForGoal);
+    goalStuck = !session.goalProgressTracker.hasProgressed(iterForTracker, goalWindowSize);
+    // Reset goal-progress warning counter on actual progress.
+    if (!goalStuck) {
+      state.goalProgressWarningCount = 0;
+    }
+  }
+
   // --- 3. Determine stuck state ---
   var isStuckByNoChange = state.consecutiveNoChangeCount >= stuckThreshold;
-  var isStuck = isStuckByNoChange || isRepetitive;
+  var isStuck = isStuckByNoChange || isRepetitive || isActionRepetition || goalStuck;
 
   if (!isStuck) {
-    // Not stuck -- reset warning count
+    // Not stuck -- reset warning + consecutive counter
     if (state.stuckWarningCount > 0 && !isRepetitive) {
       state.stuckWarningCount = 0;
     }
-    return { isStuck: false, shouldForceStop: false, hint: null };
+    return { isStuck: false, shouldForceStop: false, reasonCode: null, hint: null };
+  }
+
+  // Phase 227-01: strict consecutive-repetition takes precedence over the
+  // windowed/no-change paths so attribution is the most specific reason.
+  if (isActionRepetition) {
+    if (consecCount >= actionRepeatForceStopThreshold) {
+      return {
+        isStuck: true,
+        shouldForceStop: true,
+        reasonCode: STUCK_REASONS.ACTION_REPETITION,
+        hint: 'AUTOMATION FORCE-STOPPED (stuck_action_repetition): repeated identical action ' +
+          fingerprint + ' for ' + consecCount + ' consecutive iterations. ' +
+          'The current approach cannot complete this task. Session terminated.'
+      };
+    }
+    var severityAR = consecCount >= 4 ? 'CRITICAL' : 'WARNING';
+    return {
+      isStuck: true,
+      shouldForceStop: false,
+      reasonCode: STUCK_REASONS.ACTION_REPETITION,
+      hint: severityAR + ' (stuck_action_repetition ' + consecCount + '/' + actionRepeatForceStopThreshold + '): ' +
+        'repeated identical action ' + fingerprint + '. ' +
+        'Try a different selector, tool, or strategy NOW. ' +
+        '(1) Use execute_js with framework-specific event dispatching. ' +
+        '(2) Try a different selector or elementId. ' +
+        '(3) Use keyboard navigation (press_key Tab/Enter/ArrowDown). ' +
+        '(4) Skip this sub-task or call fail_task if impossible.'
+    };
+  }
+
+  // Phase 227-02: goal-progress check runs AFTER action-repetition (precedence
+  // rule -- action-repetition is the more specific signal so it wins when both
+  // fire). Window grace period (default 8 iterations, or 16 for form_fill) is
+  // already baked into goalStuck, so we warn at the first hit and force-stop
+  // at the second consecutive hit.
+  if (goalStuck) {
+    state.goalProgressWarningCount = (state.goalProgressWarningCount || 0) + 1;
+    var goalForceStop = state.goalProgressWarningCount >= 2;
+    return {
+      isStuck: true,
+      shouldForceStop: goalForceStop,
+      reasonCode: STUCK_REASONS.NO_GOAL_PROGRESS,
+      hint: (goalForceStop ? 'AUTOMATION FORCE-STOPPED' : 'WARNING') +
+        ' (stuck_no_goal_progress): no new URLs/focused-elements/distinct-outcomes recorded in last ' +
+        goalWindowSize + ' iterations. The current strategy is not advancing toward the goal. ' +
+        'Try: (1) navigate to a different URL, (2) read the page to confirm what state you\'re in, ' +
+        '(3) use a fundamentally different tool, or (4) call fail_task if blocked.'
+    };
   }
 
   // --- 4. Escalating warnings + force stop ---
@@ -282,6 +471,7 @@ function detectStuck(session, toolResults) {
     return {
       isStuck: true,
       shouldForceStop: true,
+      reasonCode: STUCK_REASONS.DOM_HASH,
       hint: 'AUTOMATION FORCE-STOPPED: ' + reason + ' for ' +
         state.stuckWarningCount + ' consecutive checks (' +
         (state.stuckWarningCount * stuckThreshold) + '+ iterations). ' +
@@ -301,7 +491,7 @@ function detectStuck(session, toolResults) {
     '(4) If this sub-task is impossible, skip it and move to the next step. ' +
     '(5) If the entire task is impossible with current tools, call fail_task with a clear explanation.';
 
-  return { isStuck: true, shouldForceStop: false, hint: hint };
+  return { isStuck: true, shouldForceStop: false, reasonCode: STUCK_REASONS.DOM_HASH, hint: hint };
 }
 
 
@@ -1576,6 +1766,28 @@ async function runAgentIteration(sessionId, options) {
       });
     }
 
+    // Phase 233 Fix A: defensive iteration intent log. session.actionHistory
+    // has known recording gaps (mutation tools sometimes don't reach the push
+    // at line ~2110 due to early-returns or other code paths). toolCallLog
+    // captures the LLM's intent for every iteration unconditionally — this
+    // is the source of truth for debugging "why did the agent loop here?".
+    // Window-cap at 200 entries to bound memory.
+    if (!session.toolCallLog) session.toolCallLog = [];
+    for (var _tlci = 0; _tlci < toolCalls.length; _tlci++) {
+      var _tlc = toolCalls[_tlci];
+      var _tlp = _tlc.args || {};
+      session.toolCallLog.push({
+        iteration: iterNum,
+        timestamp: Date.now(),
+        tool: _tlc.name,
+        target: _tlp.selector || _tlp.elementId || _tlp.element_id || _tlp.text || _tlp.url || _tlp.key || null,
+        codeSnippet: _tlc.name === 'execute_js' && _tlp.code ? String(_tlp.code).slice(0, 120) : null
+      });
+    }
+    if (session.toolCallLog.length > 200) {
+      session.toolCallLog = session.toolCallLog.slice(-200);
+    }
+
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)
     var toolResults = [];
     var lastNonProgressToolCall = null;
@@ -1640,6 +1852,53 @@ async function runAgentIteration(sessionId, options) {
           }
         } catch (err) {
           result = { success: false, hadEffect: false, error: 'get_page_snapshot failed: ' + err.message, navigationTriggered: false, result: null };
+        }
+      } else if (call.name === 'search_memory') {
+        // Phase 225-02 (TOOLS-04): autopilot can consult FSB memory mid-task
+        // via the same memoryManager.search the MCP search_memory tool hits.
+        // Soft per-session call cap (default 5) prevents the LLM from spamming
+        // the memory subsystem and inflating cost/latency; on overage we
+        // return a graceful budget-exhausted response instead of erroring.
+        var smArgs = call.args || {};
+        var smQuery = (typeof smArgs.query === 'string') ? smArgs.query : '';
+        var smTopN = Math.max(1, Math.min(25, parseInt(smArgs.topN, 10) || 5));
+        if (!smQuery) {
+          result = { success: false, hadEffect: false, error: 'search_memory requires a non-empty query', navigationTriggered: false, result: null };
+        } else {
+          var smState = session.agentState || (session.agentState = {});
+          smState.searchMemoryCalls = (smState.searchMemoryCalls || 0) + 1;
+          var smCap = (typeof smState.searchMemoryBudget === 'number') ? smState.searchMemoryBudget : 5;
+          if (smState.searchMemoryCalls > smCap) {
+            result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+              result: { query: smQuery, results: [], budgetExhausted: true,
+                note: 'search_memory per-session budget (' + smCap + ') exhausted -- rely on prompt-injected memory hints or proceed without further memory lookups.' } };
+          } else {
+            try {
+              var smManager = (typeof memoryManager !== 'undefined') ? memoryManager
+                : (typeof globalThis !== 'undefined' && globalThis.memoryManager) ? globalThis.memoryManager
+                : null;
+              if (!smManager || typeof smManager.search !== 'function') {
+                result = { success: false, hadEffect: false, error: 'Memory search unavailable', navigationTriggered: false, result: null };
+              } else {
+                var smFilters = {};
+                if (smArgs.domain) smFilters.domain = smArgs.domain;
+                if (smArgs.type) smFilters.type = smArgs.type;
+                var smResults = await smManager.search(smQuery, smFilters, { topN: smTopN });
+                var smList = (Array.isArray(smResults) ? smResults : []).slice(0, smTopN).map(function(m) {
+                  return {
+                    id: (m && m.id) || null,
+                    type: (m && m.type) || null,
+                    text: String((m && m.text) || '').slice(0, 500),
+                    metadata: (m && m.metadata) || {}
+                  };
+                });
+                result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+                  result: { query: smQuery, results: smList, count: smList.length, callsUsed: smState.searchMemoryCalls, callsRemaining: Math.max(0, smCap - smState.searchMemoryCalls) } };
+              }
+            } catch (smErr) {
+              result = { success: false, hadEffect: false, error: 'search_memory failed: ' + (smErr.message || String(smErr)), navigationTriggered: false, result: null };
+            }
+          }
         }
       } else if (call.name === 'get_site_guide') {
         // CTX-02: Load site guide for domain
@@ -1916,6 +2175,63 @@ async function runAgentIteration(sessionId, options) {
       session.messages.push(resultMsg);
     }
 
+    // m3. Phase 233: meta-cognitive attempt-counter. Operates directly on
+    // toolCalls (the LLM's intent for this iteration) instead of actionHistory,
+    // so it works even when the actionHistory recording pipeline silently
+    // drops mutation tools (the bug that made Phase 226/227/232 stuck-detection
+    // ineffective). Counts repeated attempts on the same target within a
+    // 12-iteration sliding window. Warn at 4 attempts (inject explicit
+    // SYSTEM ATTEMPT-LOG message), force-stop at 6.
+    var _metaLastMutation = null;
+    for (var _mci = toolCalls.length - 1; _mci >= 0; _mci--) {
+      if (_META_INTERACT_TOOLS[toolCalls[_mci].name]) { _metaLastMutation = toolCalls[_mci]; break; }
+    }
+    if (_metaLastMutation) {
+      var _metaSignal = _trackMetaAttempt(session, _metaLastMutation, iterNum);
+      if (_metaSignal) {
+        var _iterList = _metaSignal.attempts.map(function(a) { return a.iteration; }).join(', ');
+        var _toolList = _metaSignal.attempts.map(function(a) { return a.tool; }).join(', ');
+        var _attemptCount = _metaSignal.attempts.length;
+        if (_metaSignal.forceStop) {
+          var _metaTerminal = createTerminalOutcome('stopped', {
+            reason: 'meta_cognitive_loop_break',
+            summary: 'Automation stopped: meta-cognitive loop detected — ' + _attemptCount +
+                     ' attempts on `' + _metaSignal.target + '` across iterations ' + _iterList +
+                     ' with no observable progress.'
+          });
+          applyTerminalOutcome(session, _metaTerminal);
+          if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+            automationLogger.log('warn', 'Meta-cognitive loop break', {
+              sessionId: sessionId, iteration: iterNum, target: _metaSignal.target,
+              attempts: _attemptCount, iterations: _iterList, tools: _toolList
+            });
+          }
+          if (typeof endSessionOverlays === 'function') {
+            await endSessionOverlays(session, 'safety');
+          }
+          await persist(sessionId, session);
+          await finalizeSession(sessionId, session, _metaTerminal);
+          return;
+        }
+        var _metaMsg = 'SYSTEM ATTEMPT-LOG: You have attempted to interact with `' + _metaSignal.target +
+          '` ' + _attemptCount + ' times across iterations ' + _iterList + ' using tools [' + _toolList + ']. ' +
+          'Each attempt may have reported success, but the same target keeps being retried — strongly suggesting ' +
+          'the action is silently failing OR the success indicator is invisible to your snapshot tools. ' +
+          'Choose ONE of: ' +
+          '(1) Report task complete based ONLY on what you can directly observe in the page (do NOT assume the click worked). ' +
+          '(2) Call fail_task with a specific blocker (e.g. "button intercepted by overlay", "anti-automation no-op", "variant selection required"). ' +
+          '(3) Take a fundamentally different approach (different selector path, different starting URL, different sub-task). ' +
+          'Do NOT attempt the same target a ' + (_attemptCount + 1) + 'th time.';
+        session.messages.push({ role: 'user', content: _metaMsg });
+        if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+          automationLogger.log('warn', 'Meta-cognitive attempt-log injected', {
+            sessionId: sessionId, iteration: iterNum, target: _metaSignal.target,
+            attempts: _attemptCount, iterations: _iterList, tools: _toolList
+          });
+        }
+      }
+    }
+
     // n. Emit afterIteration hook (stuck detection + safety breakers run as hook handlers)
     if (hooks) {
       var afterIterResult = await hooks.emit(_al_LIFECYCLE_EVENTS.AFTER_ITERATION, {
@@ -1939,7 +2255,15 @@ async function runAgentIteration(sessionId, options) {
       }
       // Check if safety breaker hook stopped the iteration
       if (afterIterResult.stopped) {
-        var safetyReason3 = mapSafetyReasonToConstant(afterIterResult.stoppedBy);
+        // Phase 227-01: prefer stuck-detection reasonCode when source is stuckDetection
+        // so outcomeDetails.reason carries the specific stuck signal.
+        var stoppingResult = (afterIterResult.results || []).find(function(r) { return r && r.shouldStop; });
+        var safetyReason3;
+        if (stoppingResult && stoppingResult.source === 'stuckDetection' && stoppingResult.reasonCode) {
+          safetyReason3 = stoppingResult.reasonCode;
+        } else {
+          safetyReason3 = mapSafetyReasonToConstant(afterIterResult.stoppedBy);
+        }
         var safetyTerminal3 = createTerminalOutcome('stopped', {
           reason: safetyReason3,
           summary: 'Automation stopped: ' + (afterIterResult.stoppedBy || 'Safety breaker triggered')
@@ -1966,11 +2290,16 @@ async function runAgentIteration(sessionId, options) {
           });
         }
       }
-      // Force-stop when stuck detection escalates past threshold
+      // Force-stop when stuck detection escalates past threshold.
+      // Phase 227-01: attribute reason from detectStuck.reasonCode so
+      // outcomeDetails.reason reflects the specific stuck signal
+      // (stuck_action_repetition or stuck_dom_hash). Falls back to
+      // stuck_dom_hash for backward compatibility.
       if (stuckCheck.shouldForceStop) {
+        var stuckReason = stuckCheck.reasonCode || 'stuck_dom_hash';
         var stuckTerminal = createTerminalOutcome('stopped', {
-          reason: 'stuck_force_stop',
-          summary: 'Automation stopped: stuck detection escalated past threshold. ' + (stuckCheck.hint ? stuckCheck.hint.substring(0, 200) : '')
+          reason: stuckReason,
+          summary: 'Automation stopped: stuck detection escalated past threshold (' + stuckReason + '). ' + (stuckCheck.hint ? stuckCheck.hint.substring(0, 200) : '')
         });
         applyTerminalOutcome(session, stuckTerminal);
         if (typeof endSessionOverlays === 'function') {

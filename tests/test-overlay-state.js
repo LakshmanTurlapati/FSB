@@ -45,7 +45,8 @@ const explicitState = overlayStateUtils.buildOverlayState({
 
 assertEqual(explicitState.progress.mode, 'determinate', 'explicit progress is determinate');
 assertEqual(explicitState.progress.percent, 42, 'explicit progress percent is preserved');
-assertEqual(explicitState.progress.label, '42%', 'explicit progress label is derived');
+// Phase 230: pill shows phase wording instead of percent during run; numeric percent preserved on .percent for the bar.
+assertEqual(explicitState.progress.label, 'Acting…', 'Phase 230: explicit progress label shows phase wording with ellipsis (was percent)');
 
 console.log('\n--- multi-site progress uses completed companies ---');
 
@@ -297,12 +298,14 @@ console.log('\n--- progress label never shows Step X/Y ---');
 const indeterminateProgress = overlayStateUtils.buildOverlayState({
   phase: 'acting'
 }, null);
-assertEqual(indeterminateProgress.progress.label, 'Acting', 'indeterminate label shows phase name not Step X/Y');
+// Phase 230: in-progress phases get an ellipsis suffix (Acting → Acting…).
+assertEqual(indeterminateProgress.progress.label, 'Acting…', 'Phase 230: indeterminate label shows phase wording with ellipsis');
 
 const planningProgress = overlayStateUtils.buildOverlayState({
   phase: 'thinking'
 }, null);
-assertEqual(planningProgress.progress.label, 'Planning', 'thinking phase label shows Planning');
+// Phase 230: 'thinking' normalizes to 'planning' which is an ellipsis phase.
+assertEqual(planningProgress.progress.label, 'Planning…', 'Phase 230: thinking phase label shows Planning… with ellipsis');
 
 console.log('\n--- multisite and sheets counters preserved ---');
 

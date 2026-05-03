@@ -1,5 +1,6 @@
 import { Component, HostListener, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { APP_VERSION } from '../../core/seo/version';
 import { ThemeService } from '../../core/theme.service';
 
 @Component({
@@ -11,6 +12,7 @@ import { ThemeService } from '../../core/theme.service';
 })
 export class ShowcaseShellComponent {
   private themeService = inject(ThemeService);
+  readonly appVersion = APP_VERSION;
   mobileMenuOpen = false;
   navScrolled = false;
 

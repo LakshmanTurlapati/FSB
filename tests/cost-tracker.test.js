@@ -183,29 +183,27 @@ console.log('\n--- CostTracker.checkBudget(): under limit ---');
   assertClose(budget.totalCost, 0.45, 'checkBudget echoes totalCost');
 }
 
-// --- CostTracker.checkBudget(): over limit -------------------------------
+// --- CostTracker.checkBudget(): Phase 231 — enforcement disabled ---------
 
-console.log('\n--- CostTracker.checkBudget(): over limit ---');
+console.log('\n--- CostTracker.checkBudget(): Phase 231 — limit no longer enforced ---');
 {
   const ct = new CostTracker(0.50);
   ct.record('grok-4-1-fast-reasoning', 1000000, 1000000);
-  // Cost: 0.70 — exceeds 0.50
+  // Cost: 0.70 — would have exceeded 0.50 pre-Phase-231
   const budget = ct.checkBudget();
-  assertEqual(budget.exceeded, true, 'over limit -> exceeded is true');
-  assert(typeof budget.reason === 'string' && budget.reason.length > 0, 'over limit -> has reason string');
-  assert(budget.reason.indexOf('$0.70') !== -1, 'reason mentions actual cost');
-  assert(budget.reason.indexOf('$0.50') !== -1, 'reason mentions limit');
+  assertEqual(budget.exceeded, false, 'Phase 231: cost over old limit no longer triggers exceeded');
+  assertEqual(budget.reason, null, 'Phase 231: no termination reason emitted');
+  assertClose(budget.totalCost, 0.70, 'totalCost still tracked accurately for analytics');
+  assertEqual(budget.costLimit, 0.50, 'costLimit field preserved for backward-compat reads');
 }
 
-// --- CostTracker.checkBudget(): at exact limit ---------------------------
-
-console.log('\n--- CostTracker.checkBudget(): at exact limit ---');
+console.log('\n--- CostTracker.checkBudget(): Phase 231 — at-limit also no longer enforced ---');
 {
   const ct = new CostTracker(0.70);
   ct.record('grok-4-1-fast-reasoning', 1000000, 1000000);
   // Cost: exactly 0.70
   const budget = ct.checkBudget();
-  assertEqual(budget.exceeded, true, 'at exact limit -> exceeded is true (>= comparison)');
+  assertEqual(budget.exceeded, false, 'Phase 231: at-limit no longer triggers exceeded');
 }
 
 // --- CostTracker.toJSON() serialization ----------------------------------

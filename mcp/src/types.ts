@@ -15,6 +15,7 @@ export type MCPMessageType =
   | 'mcp:get-dom'             // Read DOM snapshot
   | 'mcp:get-tabs'            // List open tabs
   | 'mcp:get-site-guides'     // Read site guide data
+  | 'mcp:get-page-snapshot'   // Markdown snapshot of current page DOM
   | 'mcp:get-memory'          // Read memory system
   | 'mcp:get-config'          // Read extension config (keys redacted)
   | 'mcp:read-page'           // Read page text content

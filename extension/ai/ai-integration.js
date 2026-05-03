@@ -28,6 +28,12 @@ TOOL SELECTION GUIDE -- choose the right interaction method:
 
 DECISION RULE: If the target element has a ref (e.g., e5), use DOM tools. If it is inside a canvas, SVG viewport, or interactive map with no refs, use CDP coordinate tools with pixel positions from element position data.
 
+DRAG TASKS: Use drag_drop (DOM refs) or drag (CDP coordinates) -- this is the one category where executejs is a poor first choice, because react-beautiful-dnd / Sortable.js / Trello listen for real pointer events. Example: for "drag box A onto box B", emit \`dragdrop e5 e12\`, NOT \`executejs "column.innerHTML = ..."\`.
+
+CLICK / SCROLL / READ TASKS: Try executejs FIRST. Native click frequently fails on overlay-intercepted, off-screen, or CDP-timing-sensitive buttons. Pattern: \`executejs "document.querySelector('#add-to-cart-button').click(); return true;"\`. Then verify with readpage. If JS click reports success but the page did not change, fall back to native click (synthetic event was swallowed by the framework).
+
+SCROLL-LOAD TASKS: Before repeating scroll, check whether the page has a "More" / "Next" / "Load more" link or button. If yes, click it. Example: on news.ycombinator.com, after first 30 stories click the "More" link rather than scrolling further.
+
 CLI COMMAND REFERENCE (verb ref "args" --flags):
 
 NAVIGATION:
@@ -505,6 +511,9 @@ RULES:
 5. For extraction tasks, extract visible items, scroll down, repeat until atBottom
 6. Use refs from the LATEST page content -- stale refs cause failures
 7. Maximum 8 commands per response
+8. JS-FIRST: prefer executejs for clicks / scrolls / reads (e.g. executejs "document.querySelector('#add-to-cart-button').click(); return true;"); verify with readpage; fall back to native tools only if the JS call reports success but page state did not change. Drag tasks remain native (dragdrop / drag) -- frameworks like react-beautiful-dnd need real pointer events. Never invent URL fragments or query params to fake the action.
+9. NO PROGRESS HEURISTIC: if the same target+tool repeats >3 times without progress, change strategy or fail; check for "More" / "Next" pagination link before scrolling again.
+10. ACTION-MATCHES-REQUEST: before \`done\`, verify the action performed matches the action requested -- otherwise fix or \`fail\` honestly.
 {TOOL_HINTS}
 {SITE_SCENARIOS}`;
 
@@ -2640,6 +2649,7 @@ Output: done "detailed summary of what was accomplished"
 - Include specific data found (exact values, not "found it")
 - If critical actions failed, retry before using done
 - NEVER mention internal terms like "snapshot", "DOM", "ref", "element ref", "page content block" in done summaries -- write naturally as a human would describe the result
+- ACTION-MATCHES-REQUEST SELF-CHECK: Before \`done\`, verify the action you actually performed matches the action the user requested. If the user said "drag X to Y", confirm a drag interaction occurred -- not a JS innerHTML swap. If the user said "expand all collapsed comments", confirm each [+] toggle was clicked -- not that a URL hack hid the markers. Mismatch -> fix the work or \`fail\` with the honest reason; do NOT claim success.
 
 === REASONING FRAMEWORK (THINK BEFORE ACTING) ===
 
@@ -2676,6 +2686,10 @@ BEFORE TAKING ANY ACTION, you MUST complete this reasoning process in # comments
 
 4. Off-screen navigation links: If a link element is marked [off-screen] and has an href URL,
    prefer using navigate with that URL instead of clicking the element.
+
+5. JS-FIRST INTERACTION POLICY: Try executejs FIRST for clicks, scrolls, attribute reads, and most DOM operations. It bypasses overlay-intercepted clicks, off-screen elements, and CDP timeouts that frequently block native tools (e.g., Amazon's "Add to cart" button is a known native-click failure -- a one-line \`executejs "document.querySelector('#add-to-cart-button').click(); return true;"\` succeeds where native click loops). After a JS click, ALWAYS verify with readpage or a snapshot -- a real click produces observable DOM change. FALL BACK TO NATIVE TOOLS WHEN: (a) JS click reported success but page state did not change (framework swallowed the synthetic event -- React/Angular/Vue need real pointer events; use native click); (b) typing into controlled inputs -- use native type tool, never element.value= (React onChange will not fire); (c) real drag on react-beautiful-dnd / Sortable.js / Trello (use dragdrop for real pointer events); (d) form submission depending on validated input state (use native click on submit). Hard rule: do NOT invent URL fragments / query parameters to fake an end state -- run the actual action (JS or native).
+
+6. NO-PROGRESS HEURISTIC: If you have repeated the same action target (same element ref, same tool, same parameters) more than 3 times without observable progress toward the goal, change strategy: try a different tool, click a different element, re-read the page state with readpage, or fail with a clear blocker. Hard cap: do not iterate the same action more than 5 times in any session.
 
 === RULES FOR SPECIFIC SCENARIOS ===
 

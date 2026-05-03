@@ -1,13 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.49
-milestone_name: "Remote Control Rebrand & Showcase Metrics Wire-up"
-status: ready-to-plan
-last_shipped: v0.9.48
-last_updated: "2026-05-02T00:00:00.000Z"
-last_activity: 2026-05-02
+milestone: none
+milestone_name: (no active milestone)
+status: v0.9.50 shipped 2026-05-03; awaiting `/gsd-new-milestone` to define next
+last_updated: "2026-05-03T11:30:00.000Z"
+last_activity: 2026-05-03 — v0.9.50 archived; tech_debt audit accepted; gap-closure phases 234-236 carried forward
 progress:
-  total_phases: 1
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,43 +20,47 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.49 — rebrand "Agents" surface to "Remote Control (Beta)" and wire extension control-panel metrics into the showcase /dashboard on connect
+**Current focus:** v0.9.50 — autopilot refinement to MCP-parity (4 phases: 224-227)
 
 ## Current Position
 
-Phase: 223 — Remote Control rename + showcase metrics wire-up
-Plan: Not yet decomposed (run `/gsd-plan-phase 223`)
-Status: Ready to plan
-Last activity: 2026-05-02 — Milestone v0.9.49 started
+Phase: Not started (roadmap ready)
+Plan: —
+Status: Roadmap created, awaiting `/gsd-plan-phase 224`
+Last activity: 2026-05-02 — ROADMAP.md authored for v0.9.50 (Phases 224-227)
 
 ## Performance Metrics
 
-- Phases shipped this milestone: 0/1 (target)
-- Plans shipped this milestone: 0/0 (decomposed at plan time)
-- Active requirements: TBD (defined below)
+- Phases shipped this milestone: 0/4
+- Plans shipped this milestone: 0/0 (TBD per phase)
+- Active requirements: 13 (4 categories: AUDIT, TOOLS, PROMPT, TARGET, VERIFY) + 3 cross-cutting GUARD criteria embedded per phase
 
 ## Accumulated Context
 
 ### Decisions
 
-- [v0.9.49]: One phase, single-purpose. Rebrand + metrics wire-up share the same surface (control panel) and same connect lifecycle, so atomic phase keeps verification in one cycle.
-- [v0.9.49]: "Beta" badge ships with the rename — signals to existing users the surface is intentionally narrowing scope (post agent-sunset).
-- [v0.9.49]: Metrics push triggers on connect (WS handshake / pairing complete), not on a polling loop, to match the existing remote-control state-broadcast pattern from Phase 209.
+- [v0.9.50]: MCP tool surface is the reference baseline. External agents (Claude Desktop, OpenClaw, Codex) achieve near-100% via MCP — autopilot must mirror that contract shape and annotation quality.
+- [v0.9.50]: Both tool-surface audit AND prompt/context refinement in scope (not prompt-only).
+- [v0.9.50]: Verification is operator-driven via MCP `run_task` + log inspection, not autonomous test harness.
+- [v0.9.50]: Branch-locked to `Refinements`. No git push, no PRs until explicit user command.
+- [v0.9.50]: Top failure modes targeted — wrong element / misclicks, wrong tool / strategy choice. Loops and completion drift secondary.
+- [v0.9.50/roadmap]: AUDIT phase (224) sequenced first — its inventory and baseline log run are inputs to every other phase.
+- [v0.9.50/roadmap]: VERIFY-01/02 placed in Phase 224 (not own phase) so the operator can re-run the recipe after every implementation phase.
+- [v0.9.50/roadmap]: GUARD-01/02/03 embedded as standing success criteria on every implementation phase rather than a dedicated guard phase — regression checks travel with the work.
+- [v0.9.50/roadmap]: 4 atomic phases preferred over larger bundles to keep operator verification cycles tight.
 
 ### Pending Todos
 
-- Define REQUIREMENTS.md for v0.9.49.
-- Roadmap Phase 223 (continues from Phase 222).
-- After roadmap: `/gsd-plan-phase 223`.
+- `/gsd-plan-phase 224` — Audit & Verification Baseline
+- After each phase: re-run verification recipe and confirm GUARD criteria
 
 ### Blockers/Concerns
 
-- Existing dashboard tab labelled "Agents" was already partially deprecated in Phase 212; current copy may already be inconsistent. Rebrand must audit all surfaces (sidepanel, options, showcase mirror) for residual "agents" strings.
-- Showcase `/dashboard` is currently SPA-only (excluded from prerender per v0.9.46 decisions). Metrics wire-up is post-load runtime concern, no SEO impact.
-- Connect-time metrics push must not regress the Phase 209 `remoteControlStateChanged` broadcast contract (D-16/D-17/D-18 in Phase 213 SYNC-02).
+- Must preserve every existing autopilot capability — regression risk on any tool surface change.
+- Operator verification loop means longer feedback cycles per change; favor small, atomic refinements.
 
 ## Session Continuity
 
-Last session ended with: v0.9.48 archived, v0.9.49 milestone scoped (rename + metrics wire-up).
+Last session ended with: ROADMAP.md authored for v0.9.50 (Phases 224-227); REQUIREMENTS.md traceability filled.
 
-Next session should: define REQUIREMENTS.md, then spawn roadmapper for Phase 223.
+Next session should: spawn `/gsd-plan-phase 224` to plan the Audit & Verification Baseline phase.

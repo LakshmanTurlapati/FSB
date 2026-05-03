@@ -194,6 +194,8 @@ function buildClientHarness(options = {}) {
     console,
     Math: deterministicMath,
     Date,
+    EventTarget,
+    CustomEvent,
     setTimeout: timers.setTimeout,
     clearTimeout: timers.clearTimeout,
     setInterval: timers.setInterval,
@@ -202,6 +204,11 @@ function buildClientHarness(options = {}) {
     globalThis: {}
   };
   context.globalThis = context;
+  // Phase 225-01: optionally seed the in-process lifecycle bus before mcp-bridge-client.js
+  // captures it. background.js installs this on globalThis in real Chrome.
+  if (options.installLifecycleBus) {
+    context.fsbAutomationLifecycleBus = new EventTarget();
+  }
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'extension', 'ws', 'mcp-bridge-client.js'), 'utf8');
   const footer = `
@@ -210,7 +217,8 @@ this.__phase198 = {
   mcpBridgeClient,
   MCP_BRIDGE_STATE_KEY: typeof MCP_BRIDGE_STATE_KEY !== 'undefined' ? MCP_BRIDGE_STATE_KEY : undefined,
   MCP_RECONNECT_ALARM: typeof MCP_RECONNECT_ALARM !== 'undefined' ? MCP_RECONNECT_ALARM : undefined,
-  MCP_RECONNECT_MAX_MS: typeof MCP_RECONNECT_MAX_MS !== 'undefined' ? MCP_RECONNECT_MAX_MS : undefined
+  MCP_RECONNECT_MAX_MS: typeof MCP_RECONNECT_MAX_MS !== 'undefined' ? MCP_RECONNECT_MAX_MS : undefined,
+  lifecycleBus: typeof fsbAutomationLifecycleBus !== 'undefined' ? fsbAutomationLifecycleBus : null
 };
 `;
   vm.runInNewContext(`${source}\n${footer}`, context, { filename: 'ws/mcp-bridge-client.js' });
@@ -373,6 +381,70 @@ async function runAutomationRuntimeEventShapeCase() {
   assert(harness.timers.timeouts[0]?.cleared === true, 'run_task clears timeout after completion');
 }
 
+async function runAutomationLifecycleBusCase() {
+  console.log('\n--- Phase 225-01: run_task resolves via lifecycle bus ---');
+
+  const sessionId = 'session_lifecycle_bus_completion';
+  const harness = buildClientHarness({
+    installLifecycleBus: true,
+    dispatchMcpMessageRoute: async () => ({ success: true, sessionId }),
+  });
+  const client = harness.exports.mcpBridgeClient;
+  client._send = () => {};
+
+  // The harness installed the lifecycle bus inside the vm context before
+  // mcp-bridge-client.js evaluated. Reach into the same context to dispatch.
+  const bus = harness.exports.lifecycleBus;
+
+  const resultPromise = client._handleStartAutomation({ task: 'lifecycle bus path' }, 'mcp-msg-225-01');
+  await flushMicrotasks();
+
+  // Dispatch a terminal event ONLY on the bus (not on chrome.runtime.onMessage)
+  // to assert the bus-only resolution path that fixes the same-SW broadcast gap.
+  bus.dispatchEvent(new CustomEvent('automationComplete', {
+    detail: {
+      action: 'automationComplete',
+      sessionId,
+      result: { summary: 'lifecycle bus completion received' },
+    },
+  }));
+
+  const result = await resultPromise;
+  assertDeepEqual(
+    toPlainObject(result),
+    {
+      sessionId,
+      status: 'completed',
+      result: { summary: 'lifecycle bus completion received' },
+    },
+    'lifecycle bus automationComplete resolves run_task without chrome.runtime.onMessage',
+  );
+  assert(harness.timers.timeouts[0]?.cleared === true, 'lifecycle bus path clears the run_task 300s timeout');
+
+  // Cleanup so subsequent cases get a fresh bus.
+  delete globalThis.fsbAutomationLifecycleBus;
+}
+
+async function runBackgroundLifecycleBroadcasterSourceCase() {
+  console.log('\n--- Phase 225-01: background lifecycle broadcaster ---');
+
+  const backgroundSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'background.js'), 'utf8');
+  const requiredSnippets = [
+    'globalThis.fsbAutomationLifecycleBus = new EventTarget()',
+    'function fsbBroadcastAutomationLifecycle(message)',
+    "bus.dispatchEvent(new CustomEvent(message.action, { detail: message }))",
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert(backgroundSource.includes(snippet), `background.js includes ${snippet}`);
+  }
+
+  // Ensure terminal broadcasts route through the helper, not raw chrome.runtime.sendMessage.
+  const terminalBroadcastRegex = /chrome\.runtime\.sendMessage\(\{\s*\n\s*action:\s*'automation(Complete|Error)'/g;
+  const lingering = backgroundSource.match(terminalBroadcastRegex);
+  assert(!lingering, 'background.js no longer calls chrome.runtime.sendMessage directly for automationComplete/automationError');
+}
+
 async function runVisualSessionRouteCase() {
   console.log('\n--- visual-session route dispatch ---');
 
@@ -471,6 +543,8 @@ async function run() {
   await runServiceWorkerWakeCase();
   await runConnectedTransitionCase();
   await runAutomationRuntimeEventShapeCase();
+  await runAutomationLifecycleBusCase();
+  await runBackgroundLifecycleBroadcasterSourceCase();
   await runVisualSessionRouteCase();
   runBackgroundArmingSourceCase();
 

@@ -5125,3 +5125,76 @@ textarea.form-input {
     animation: pulse 2s ease-in-out infinite;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Model Discovery (Phase 228 / Plan 02)
+ * Inline indicator chip + refresh button row used by the model selector.
+ * Tokens reused from the existing semantic palette to stay theme-aware.
+ * ------------------------------------------------------------------------- */
+.model-select-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+}
+.model-select-row .form-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.model-select-row #refreshModelsBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.discovery-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  max-width: 100%;
+}
+.discovery-status[hidden] {
+  display: none;
+}
+.discovery-status.info {
+  background: var(--info-light);
+  border-color: var(--info-color);
+  color: var(--info-color);
+}
+.discovery-status.warning {
+  background: var(--warning-light);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
+}
+.discovery-status.error {
+  background: var(--error-light);
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+.discovery-status.loading {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+.discovery-status.loading::before {
+  content: '';
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  animation: discovery-spin 0.8s linear infinite;
+}
+
+@keyframes discovery-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .discovery-status.loading::before { animation: none; }
+}

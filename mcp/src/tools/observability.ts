@@ -36,7 +36,7 @@ export function registerObservabilityTools(
 
   server.tool(
     'get_session_detail',
-    'Get full detail for a past automation session including logs, action history, and timing. Use after list_sessions to inspect what happened. Returns structured JSON or human-readable text report. Related: list_sessions (find session IDs first), get_logs (get raw log entries).',
+    'Get full detail for an automation session including logs, action history, and timing. Use after list_sessions to inspect what happened. For an in-flight session id (one that get_task_status reports as currentSessionId), returns a partial snapshot with `final: false` and the latest known action; the full payload becomes available once the session finishes. Returns structured JSON or human-readable text report. Related: list_sessions (find session IDs first), get_logs (get raw log entries), get_task_status (check if a session is still in flight).',
     {
       sessionId: z.string().describe('Session ID from list_sessions'),
       format: z.enum(['json', 'text']).optional().describe('Output format: json (structured, default) or text (human-readable report)'),

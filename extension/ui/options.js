@@ -1,4 +1,4 @@
-// FSB v0.9.31 - Modern Dashboard Control Panel Script
+// FSB v0.9.50 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
@@ -288,9 +288,50 @@ function setupEventListeners() {
   // Model provider change
   if (elements.modelProvider) {
     elements.modelProvider.addEventListener('change', (e) => {
-      updateModelOptions(e.target.value);
-      updateApiKeyVisibility(e.target.value);
+      const provider = e.target.value;
+      // Phase 228 / Plan 02: in-scope providers route through dynamic discovery;
+      // out-of-scope (lmstudio, custom) keep their existing flows.
+      const ui = (typeof globalThis !== 'undefined') ? globalThis.FSBDiscoveryUI : null;
+      if (ui && ui.IN_SCOPE_PROVIDERS && ui.IN_SCOPE_PROVIDERS[provider]) {
+        ui.runDiscovery(provider, { previousSelection: elements.modelName?.value });
+      } else {
+        updateModelOptions(provider);
+      }
+      updateApiKeyVisibility(provider);
       markUnsavedChanges();
+    });
+  }
+
+  // Phase 228 / Plan 02: API-key inputs trigger debounced discovery for the
+  // selected provider. We attach to all 5 in-scope key inputs once at wiring
+  // time; the handler is a no-op if the user is currently on a different
+  // provider (we still re-discover when they switch back via provider-change).
+  (function wireDiscoveryKeyInputs() {
+    const ui = (typeof globalThis !== 'undefined') ? globalThis.FSBDiscoveryUI : null;
+    if (!ui) return;
+    Object.keys(ui.IN_SCOPE_PROVIDERS).forEach((provider) => {
+      const inputId = ui.IN_SCOPE_PROVIDERS[provider];
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      input.addEventListener('input', () => {
+        if (elements.modelProvider && elements.modelProvider.value !== provider) return;
+        ui.scheduleDiscoveryFromKeyChange(provider);
+      });
+    });
+  })();
+
+  // Phase 228 / Plan 02: Refresh button — bypasses cache via force=true.
+  const refreshBtn = document.getElementById('refreshModelsBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      const provider = elements.modelProvider?.value;
+      const ui = (typeof globalThis !== 'undefined') ? globalThis.FSBDiscoveryUI : null;
+      if (!ui || !ui.IN_SCOPE_PROVIDERS[provider]) {
+        // Out-of-scope providers — fall through to legacy refresh path.
+        if (provider) updateModelOptions(provider);
+        return;
+      }
+      ui.runDiscovery(provider, { force: true, previousSelection: elements.modelName?.value });
     });
   }
   
@@ -640,9 +681,23 @@ function loadSettings() {
     
     // Update model provider and options
     if (elements.modelProvider) {
-      elements.modelProvider.value = settings.modelProvider || 'xai';
-      updateModelOptions(settings.modelProvider || 'xai');
-      updateApiKeyVisibility(settings.modelProvider || 'xai');
+      const initialProvider = settings.modelProvider || 'xai';
+      elements.modelProvider.value = initialProvider;
+      const ui = (typeof globalThis !== 'undefined') ? globalThis.FSBDiscoveryUI : null;
+      if (ui && ui.IN_SCOPE_PROVIDERS[initialProvider]) {
+        // Phase 232: discoverModels() now hydrates from chrome.storage.local
+        // before checking cache, so a previously-discovered list shows
+        // immediately on page open (no need to re-click Discover after a
+        // service-worker restart). Sticky selection in renderModelDropdown
+        // ensures settings.modelName is preserved even if not in the list.
+        ui.runDiscovery(initialProvider, {
+          previousSelection: settings.modelName,
+          silentIfNoKey: true
+        });
+      } else {
+        updateModelOptions(initialProvider);
+      }
+      updateApiKeyVisibility(initialProvider);
     }
     
     // Update model name
@@ -6058,6 +6113,281 @@ function initializeSyncSection() {
 }
 
 
+// ---------------------------------------------------------------------------
+// Phase 228 / Plan 02: FSBDiscoveryUI
+//
+// Discovery wiring helpers. Exposed on globalThis so tests can drive them
+// directly without booting the whole DOMContentLoaded path. The DOM-bound
+// event listeners below (provider change, API-key input debounce, refresh
+// button click) all delegate into runDiscovery() so behavior is centralized.
+//
+// Out-of-scope providers (lmstudio, custom) are explicitly NOT handled here;
+// updateModelOptions() retains its existing flow for those.
+//
+// Persistence (chrome.storage.local writes for modelName) is NOT touched by
+// this module — Plan 228-03 owns the validation migration.
+// ---------------------------------------------------------------------------
+(function defineFSBDiscoveryUI(global) {
+  'use strict';
+
+  const IN_SCOPE_PROVIDERS = Object.freeze({
+    xai: 'apiKey',
+    gemini: 'geminiApiKey',
+    openai: 'openaiApiKey',
+    anthropic: 'anthropicApiKey',
+    openrouter: 'openrouterApiKey'
+  });
+
+  // Per-provider debounce timers for API-key input handling.
+  const _debounceTimers = {};
+  const DEFAULT_DEBOUNCE_MS = 500;
+
+  function _doc() { return (typeof document !== 'undefined') ? document : null; }
+
+  function _getInputValueForProvider(provider) {
+    const inputId = IN_SCOPE_PROVIDERS[provider];
+    if (!inputId) return '';
+    const doc = _doc();
+    if (!doc) return '';
+    const el = doc.getElementById(inputId);
+    return (el && typeof el.value === 'string') ? el.value.trim() : '';
+  }
+
+  function setDiscoveryStatus(state) {
+    const doc = _doc();
+    if (!doc) return;
+    const chip = doc.getElementById('modelDiscoveryStatus');
+    if (!chip) return;
+    const kind = state && state.kind;
+    const text = (state && state.text) || '';
+
+    // Reset variant classes
+    ['info', 'warning', 'error', 'loading'].forEach(c => chip.classList.remove(c));
+
+    if (kind === 'hidden' || !kind) {
+      chip.hidden = true;
+      chip.setAttribute('hidden', '');
+      chip.textContent = '';
+      return;
+    }
+
+    chip.classList.add(kind);
+    chip.textContent = text;
+    chip.hidden = false;
+    chip.removeAttribute('hidden');
+  }
+
+  function renderModelDropdown(models, selectedId) {
+    const doc = _doc();
+    if (!doc) return null;
+    const sel = doc.getElementById('modelName');
+    if (!sel) return null;
+    sel.innerHTML = '';
+    const list = models || [];
+
+    // Phase 232: sticky selection. If the user previously saved a model that's
+    // not in the freshly-discovered list (preview model expired, provider
+    // pruned the list, etc.), preserve it as a synthetic "(saved)" entry at
+    // the top of the dropdown rather than silently reassigning the selection.
+    const presentIds = new Set(list.map(m => String(m.id)));
+    const savedMissing = selectedId && !presentIds.has(String(selectedId));
+    if (savedMissing) {
+      const opt = doc.createElement('option');
+      opt.value = selectedId;
+      opt.textContent = '(saved) ' + selectedId;
+      sel.appendChild(opt);
+    }
+
+    let chosen = null;
+    list.forEach((m, idx) => {
+      const opt = doc.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.displayName || m.name || m.id;
+      sel.appendChild(opt);
+      if (selectedId && m.id === selectedId) chosen = m.id;
+      if (chosen == null && !savedMissing && idx === 0) chosen = m.id;
+    });
+    if (savedMissing) chosen = selectedId;
+    sel.value = chosen || '';
+    sel.disabled = false;
+    return chosen;
+  }
+
+  function _setControlsDisabled(disabled) {
+    const doc = _doc();
+    if (!doc) return;
+    const sel = doc.getElementById('modelName');
+    const btn = doc.getElementById('refreshModelsBtn');
+    if (sel) sel.disabled = !!disabled;
+    if (btn) btn.disabled = !!disabled;
+  }
+
+  function _renderLoading() {
+    const doc = _doc();
+    if (!doc) return;
+    const sel = doc.getElementById('modelName');
+    if (sel) {
+      sel.innerHTML = '';
+      const opt = doc.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Discovering models...';
+      sel.appendChild(opt);
+    }
+    _setControlsDisabled(true);
+    setDiscoveryStatus({ kind: 'loading', text: 'Discovering models...' });
+  }
+
+  function _renderAuthFailed(message) {
+    const doc = _doc();
+    if (!doc) return;
+    const sel = doc.getElementById('modelName');
+    if (sel) {
+      sel.innerHTML = '';
+      const opt = doc.createElement('option');
+      opt.value = '';
+      opt.textContent = 'API key invalid';
+      sel.appendChild(opt);
+    }
+    _setControlsDisabled(false);
+    setDiscoveryStatus({ kind: 'error', text: 'API key invalid for this provider' + (message ? ' (' + message + ')' : '') });
+  }
+
+  function _renderFallback(provider, chipText) {
+    const fallbackTable = global.FALLBACK_MODELS || {};
+    const list = (fallbackTable[provider] || []).map(m => ({
+      id: m.id,
+      displayName: m.name || m.id,
+      description: m.description
+    }));
+    renderModelDropdown(list);
+    _setControlsDisabled(false);
+    setDiscoveryStatus({ kind: 'warning', text: chipText });
+  }
+
+  /**
+   * runDiscovery(provider, opts?)
+   *  opts.force            -> clear discovery cache before calling discoverModels
+   *  opts.previousSelection-> id to retain in the rendered dropdown if present
+   *  opts.silentIfNoKey    -> when true and no API key present, render fallback
+   *                            silently (no chip). Used on initial page load.
+   */
+  async function runDiscovery(provider, opts) {
+    const options = opts || {};
+    if (!IN_SCOPE_PROVIDERS[provider]) {
+      // Out-of-scope provider — do nothing; legacy updateModelOptions handles it.
+      return { ok: false, reason: 'out-of-scope', provider };
+    }
+
+    const apiKey = _getInputValueForProvider(provider);
+    if (!apiKey) {
+      // No key yet. Phase 232: prefer the persistent discovery cache
+      // (chrome.storage.local) so a list discovered in a prior session is
+      // shown immediately on reopen. Fall back to FALLBACK_MODELS only when
+      // the persistent cache is empty/expired.
+      let cachedIds = [];
+      if (typeof global.hydrateDiscoveryCache === 'function') {
+        try { await global.hydrateDiscoveryCache(); } catch (_) { /* noop */ }
+      }
+      if (typeof global.getDiscoveredModelIds === 'function') {
+        try { cachedIds = global.getDiscoveredModelIds(provider) || []; } catch (_) { cachedIds = []; }
+      }
+      if (cachedIds.length) {
+        const list = cachedIds.map(id => ({ id, displayName: id }));
+        renderModelDropdown(list, options.previousSelection);
+        setDiscoveryStatus(options.silentIfNoKey
+          ? { kind: 'hidden' }
+          : { kind: 'info', text: list.length + ' models (cached)' });
+        return { ok: true, models: list, source: 'persistent-cache', provider };
+      }
+      if (options.silentIfNoKey) {
+        const fallbackTable = global.FALLBACK_MODELS || {};
+        const list = (fallbackTable[provider] || []).map(m => ({ id: m.id, displayName: m.name || m.id }));
+        renderModelDropdown(list, options.previousSelection);
+        setDiscoveryStatus({ kind: 'hidden' });
+      } else {
+        _renderFallback(provider, 'Enter an API key to discover live models');
+      }
+      return { ok: false, reason: 'missing-api-key', provider };
+    }
+
+    if (options.force && typeof global.clearDiscoveryCache === 'function') {
+      try { global.clearDiscoveryCache(provider); } catch (_) { /* noop */ }
+    }
+
+    if (typeof global.discoverModels !== 'function') {
+      _renderFallback(provider, 'Using fallback models — discovery unavailable');
+      return { ok: false, reason: 'discovery-unavailable', provider };
+    }
+
+    _renderLoading();
+
+    let result;
+    try {
+      result = await global.discoverModels(provider, apiKey);
+    } catch (err) {
+      _renderFallback(provider, 'Using fallback models — discovery unavailable');
+      return { ok: false, reason: 'network-failed', provider, message: String(err && err.message || err) };
+    }
+
+    if (result && result.ok) {
+      const list = (result.models || []).map(m => ({
+        id: m.id,
+        displayName: m.displayName || m.name || m.id
+      }));
+      const chosen = renderModelDropdown(list, options.previousSelection);
+      _setControlsDisabled(false);
+      const cached = result.source === 'cache';
+      const text = cached
+        ? list.length + ' models (cached)'
+        : list.length + ' models discovered';
+      setDiscoveryStatus({ kind: 'info', text });
+      // Phase 232: when the user's saved model is not in the discovered list,
+      // renderModelDropdown now keeps it selected as a synthetic "(saved)"
+      // entry, so chosen === previousSelection and no reassignment happens.
+      return result;
+    }
+
+    // Failure path
+    const reason = result && result.reason;
+    if (reason === 'auth-failed') {
+      _renderAuthFailed(result && result.message);
+      return result;
+    }
+    if (reason === 'network-failed' || reason === 'timeout' || reason === 'empty-response') {
+      _renderFallback(provider, 'Using fallback models — discovery unavailable');
+      return result;
+    }
+    if (reason === 'missing-api-key') {
+      _renderFallback(provider, 'Enter an API key to discover live models');
+      return result;
+    }
+    // Unknown failure — best-effort fallback
+    _renderFallback(provider, 'Using fallback models — discovery unavailable');
+    return result || { ok: false, reason: 'unknown', provider };
+  }
+
+  function scheduleDiscoveryFromKeyChange(provider, opts) {
+    if (!IN_SCOPE_PROVIDERS[provider]) return;
+    const wait = (opts && typeof opts.debounceMs === 'number') ? opts.debounceMs : DEFAULT_DEBOUNCE_MS;
+    if (_debounceTimers[provider]) clearTimeout(_debounceTimers[provider]);
+    _debounceTimers[provider] = setTimeout(() => {
+      _debounceTimers[provider] = null;
+      runDiscovery(provider, { force: true });
+    }, wait);
+  }
+
+  const api = {
+    IN_SCOPE_PROVIDERS,
+    runDiscovery,
+    scheduleDiscoveryFromKeyChange,
+    setDiscoveryStatus,
+    renderModelDropdown
+  };
+
+  global.FSBDiscoveryUI = api;
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+
+
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -6067,6 +6397,7 @@ if (typeof module !== 'undefined' && module.exports) {
     showToast,
     loadSessionList,
     viewSession,
-    deleteSession
+    deleteSession,
+    FSBDiscoveryUI: globalThis.FSBDiscoveryUI
   };
 }

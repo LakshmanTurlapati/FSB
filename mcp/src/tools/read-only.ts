@@ -44,6 +44,16 @@ const MESSAGE_TYPE_MAP: Record<
     type: 'mcp:execute-action',
     payload: { tool: 'readsheet', params: { range: p.range } },
   }),
+  get_page_snapshot: () => ({
+    type: 'mcp:get-page-snapshot',
+    payload: {},
+  }),
+  get_site_guide: (p) => ({
+    type: 'mcp:get-site-guides',
+    payload: {
+      ...(p.domain ? { domain: p.domain, url: p.domain } : {}),
+    },
+  }),
 };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +63,8 @@ const MESSAGE_TYPE_MAP: Record<
 const TIMEOUT_OVERRIDES: Record<string, number> = {
   read_page: 45_000,
   list_tabs: 5_000,
+  get_page_snapshot: 45_000,
+  get_site_guide: 15_000,
 };
 
 // ---------------------------------------------------------------------------

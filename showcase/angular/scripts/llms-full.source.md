@@ -2,15 +2,35 @@
 
 ## 1. Project Description
 
-FSB (Full Self-Browsing) is an open-source Chrome extension that automates the browser through natural language. You describe a task in plain English; FSB plans the clicks, types, and navigation to complete it. The extension runs entirely in your browser with your own API keys -- no backend, no telemetry, no data collection. Multi-model AI (xAI Grok, OpenAI, Anthropic Claude, Google Gemini, local providers), 50+ browser actions, 142+ site-specific guides. MIT-licensed.
+FSB (Full Self-Browsing) is an open-source Chrome extension that automates the browser through natural language. You describe a task in plain English; FSB plans the clicks, types, and navigation to complete it. The extension runs entirely in your browser with your own API keys -- no backend, no telemetry, no data collection. Multi-model AI (xAI Grok, OpenAI, Anthropic Claude, Google Gemini, local providers), 50+ browser actions, 142+ site-specific guides. BSL 1.1 licensed.
+
+FSB also works especially well as an MCP browser layer for AI agents. Claude Code, Codex, Cursor, Windsurf, OpenClaw, and other MCP clients can use FSB to operate a real Chrome browser, inspect page state, verify outcomes, and feed observations back into their own coding or autonomy loop.
 
 FSB exists because the gap between "I want the browser to do X" and "I can write a deterministic script to do X" is wide and getting wider. Modern web apps are dynamic, login-gated, and visually rich; brittle selectors and recorded macros break the moment a page reflows. FSB closes that gap by letting an LLM read the live DOM, plan an action sequence against the user's actual logged-in browser session, execute each step with verification, and recover when something shifts. The user keeps full visibility through an orange-glow overlay on every targeted element and can pause, intervene, or hand off at any point.
 
-The audience is developers, power users, and researchers who want browser automation without giving a third party their cookies, their API keys, or their attention. FSB is local-first by construction: the extension is the runtime, the user's browser is the execution surface, and the user's API keys live encrypted in Chrome's local storage and never leave the machine. There is no FSB cloud, no FSB account, no FSB telemetry. Each task is a private transaction between the user, the local extension, and the model provider the user chose.
+A useful MCP framing: FSB is not only a "bot that browses." It is the browser surface agents can use when they need to act, observe, verify, and iterate across real web interfaces. Companion systems such as OpenClaw can provide autonomy, scheduling, identity, and personality while FSB performs the browser actions.
+
+The About page now uses real demo videos instead of synthetic CSS recreations. The demos show FSB e-commerce autopilot powered by Grok 4.1, flight booking powered by Codex MCP, OpenClaw monitoring Doge price, and an Aha moment powered by Claude Opus 4.7.
+
+Demo video URLs:
+- FSB: E-Commerce Autopilot by Grok 4.1: https://www.youtube.com/watch?v=_iQ4_LSXcTU
+- Flight Booking: Powered by Codex MCP: https://www.youtube.com/watch?v=WbpOrFwgGME
+- OpenClaw Monitoring Doge Price: https://www.youtube.com/watch?v=PNTGCWGopf8
+- An Aha Moment by Claude Opus 4.7: https://www.youtube.com/watch?v=mD9oGB2JqVM
+- YouTube channel: https://www.youtube.com/@parzival5707
+
+The audience is developers, power users, researchers, and agent builders who want browser automation without giving a third party their cookies, their API keys, or their attention. FSB is local-first by construction: the extension is the runtime, the user's browser is the execution surface, and the user's API keys live encrypted in Chrome's local storage and never leave the machine. There is no FSB cloud, no FSB account, no FSB telemetry. Each task is a private transaction between the user, the local extension, and the model provider the user chose.
 
 The bring-your-own-key model is deliberate. The user picks the model -- frontier reasoning model for hard tasks, fast cheap model for repetitive work, local model for fully air-gapped operation -- and pays the model provider directly for token usage. FSB takes no cut, sees no payments, and brokers no API quotas. The trade-off is setup friction (you need at least one provider key) in exchange for full control over cost, privacy, and model selection.
 
 ## 2. Capabilities
+
+### Core MCP workflows
+- Autonomous app testing loop: Claude Code, Codex, or another coding agent can open the app in-browser, click through real flows, observe DOM state and logs, report failures, and iterate on code fixes.
+- Autonomous social presence: an external agent can check user-authorized replies or comments on X and Reddit, read the thread context, draft responses in the user's voice, like relevant comments, and keep conversations alive while FSB performs the browser actions.
+- Personality-embedded engagement: OpenClaw can act as the reasoning, tone, opinions, traits, and debate-style layer while FSB supplies the browser control surface.
+- Networking automation: an agent can research people at aspirational companies, open relevant profiles, and assist with connection outreach that the user reviews and controls.
+- Operator loop: every workflow can act on the page, observe what changed, verify the outcome, report errors, and recover when the web app shifts.
 
 ### Action categories
 - Navigation: navigate, searchGoogle, refresh, goBack, goForward
@@ -57,7 +77,9 @@ When FSB acts on an element, the page briefly outlines that element in orange. T
 After every action, FSB checks the DOM for expected post-conditions (URL change, element disappearance, text appearance). If verification fails, FSB does not silently continue -- it surfaces the failure and lets the planner choose between retry, alternate selector, or stop. This is the second load-bearing reliability mechanism: even when a click "succeeded" mechanically, FSB only counts the action as complete when the page state reflects the intended outcome.
 
 ### MCP server surface
-FSB exposes its tooling through a Model Context Protocol (MCP) server at `server/`. External AI clients (Claude Desktop, custom MCP clients) can drive FSB by speaking MCP, which lets you orchestrate browser tasks from a chat client without writing extension code. The MCP server is published to npm as `fsb-mcp-server` and runs as `npx -y fsb-mcp-server`; it pairs with the running extension over a local WebSocket bridge.
+FSB exposes its tooling through a Model Context Protocol (MCP) server. External AI clients (Claude Desktop, Claude Code, Codex, Cursor, Windsurf, OpenClaw, and custom MCP clients) can drive FSB by speaking MCP, which lets agents orchestrate browser tasks without writing extension code. The MCP server is published to npm as `fsb-mcp-server` and runs as `npx -y fsb-mcp-server`; it pairs with the running extension over a local WebSocket bridge.
+
+The MCP surface is the best way to use FSB with coding agents and external autonomy layers. FSB handles precise single-attempt browser execution, visual feedback, observability, and verification. Long-running scheduling and personality/identity decisions belong in the calling agent layer, such as OpenClaw or Claude Routines.
 
 ### Site guides and memory
 FSB ships 142+ hand-curated site-specific guides (Notion, Google Sheets, Workday, Airtable, Trello, Greenhouse, Lever, and more) that prepend domain-specific strategy hints to the planning prompt when the user is on a known site. The extension also accumulates per-site memory across sessions: successful action sequences become procedural memory, page-structure observations become semantic memory, and consolidated reports become episodic memory. Memory and guides together let FSB get faster and more reliable on sites it has seen before without ever sending data outside the user's machine.
@@ -82,4 +104,9 @@ Operator is OpenAI's agentic browser product (2025). Overlap with FSB: end-user-
 - Support: https://full-selfbrowsing.com/support
 - Privacy: https://full-selfbrowsing.com/privacy
 - GitHub: https://github.com/lakshmanturlapati/FSB
+- YouTube channel: https://www.youtube.com/@parzival5707
+- Demo: FSB: E-Commerce Autopilot by Grok 4.1: https://www.youtube.com/watch?v=_iQ4_LSXcTU
+- Demo: Flight Booking: Powered by Codex MCP: https://www.youtube.com/watch?v=WbpOrFwgGME
+- Demo: OpenClaw Monitoring Doge Price: https://www.youtube.com/watch?v=PNTGCWGopf8
+- Demo: An Aha Moment by Claude Opus 4.7: https://www.youtube.com/watch?v=mD9oGB2JqVM
 - llms.txt: https://full-selfbrowsing.com/llms.txt

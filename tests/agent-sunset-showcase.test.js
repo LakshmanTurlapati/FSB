@@ -2,7 +2,7 @@
  * Phase 212-03 regression tests
  *
  * Verifies the showcase mirror of the agents sunset:
- *   - AGENTS-04: home-page feature card replaced; vanilla + Angular dashboards show sunset card.
+ *   - AGENTS-04: vanilla + Angular dashboards show the sunset card and removed agent UI stays removed.
  *   - D-19: _lz decompression and ext:remote-control-state consumers are BYTE-FOR-BYTE
  *           preserved on a LIVE (non-commented) line in both showcase/js/dashboard.js
  *           and showcase/angular/.../dashboard-page.component.ts.
@@ -51,22 +51,7 @@ function fail(label, detail) {
   if (detail) console.log('       ' + detail);
 }
 
-// ---- Section 1: AGENTS-04 home-page sunset card ----
-
-{
-  const src = read('showcase/angular/src/app/pages/home/home-page.component.html');
-  const headline = countSubstring(src, 'Background Agents Retired') >= 1;
-  const openClaw = src.indexOf('github.com/openclaw') !== -1;
-  const routines = src.indexOf('anthropic.com/claude/routines') !== -1;
-  const noopener = (src.match(/rel="noopener noreferrer"/g) || []).length;
-  if (headline && openClaw && routines && noopener >= 2) {
-    pass('AGENTS-04 home-page sunset card present (headline + both successors + rel=noopener noreferrer x' + noopener + ')');
-  } else {
-    fail('AGENTS-04 home-page sunset card incomplete', 'headline=' + headline + ' openClaw=' + openClaw + ' routines=' + routines + ' noopener=' + noopener);
-  }
-}
-
-// ---- Section 2: AGENTS-04 vanilla dashboard sunset card + preserve transport surfaces ----
+// ---- Section 1: AGENTS-04 vanilla dashboard sunset card + preserve transport surfaces ----
 
 {
   const src = read('showcase/dashboard.html');
@@ -84,7 +69,7 @@ function fail(label, detail) {
   }
 }
 
-// ---- Section 3: AGENTS-04 Angular dashboard sunset card ----
+// ---- Section 2: AGENTS-04 Angular dashboard sunset card ----
 
 {
   const src = read('showcase/angular/src/app/pages/dashboard/dashboard-page.component.html');
@@ -97,7 +82,7 @@ function fail(label, detail) {
   }
 }
 
-// ---- Section 4: D-19 _lz decompression byte-for-byte preserved on a LIVE line ----
+// ---- Section 3: D-19 _lz decompression byte-for-byte preserved on a LIVE line ----
 
 {
   const lzNeedle = "if (envelope._lz && envelope.d && typeof LZString !== 'undefined') {";
@@ -112,7 +97,7 @@ function fail(label, detail) {
   }
 }
 
-// ---- Section 5: D-19 ext:remote-control-state byte-for-byte preserved on a LIVE line ----
+// ---- Section 4: D-19 ext:remote-control-state byte-for-byte preserved on a LIVE line ----
 
 {
   const vanillaNeedle = "if (msg.type === 'ext:remote-control-state') {";
@@ -128,10 +113,9 @@ function fail(label, detail) {
   }
 }
 
-// ---- Section 6: AGENTS-04 no emojis in modified showcase files ----
+// ---- Section 5: AGENTS-04 no emojis in dashboard sunset files ----
 
 const showcaseFiles = [
-  'showcase/angular/src/app/pages/home/home-page.component.html',
   'showcase/dashboard.html',
   'showcase/angular/src/app/pages/dashboard/dashboard-page.component.html',
 ];
@@ -145,7 +129,7 @@ const showcaseFiles = [
       violations.push(f + ' -- found 4-byte UTF-8 character: U+' + m[0].codePointAt(0).toString(16).toUpperCase());
     }
   }
-  if (violations.length === 0) pass('AGENTS-04 no emojis in modified showcase HTML/template files');
+  if (violations.length === 0) pass('AGENTS-04 no emojis in dashboard sunset HTML/template files');
   else fail('AGENTS-04 emojis detected', violations.join('; '));
 }
 

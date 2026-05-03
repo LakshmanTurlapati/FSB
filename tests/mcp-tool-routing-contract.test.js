@@ -49,7 +49,8 @@ const requiredPublicRoutes = [
   'search_memory',
   'get_memory_stats',
   'read_page',
-  'get_dom_snapshot'
+  'get_dom_snapshot',
+  'get_page_snapshot'
 ];
 
 const requiredMessageRoutes = [
@@ -62,6 +63,7 @@ const requiredMessageRoutes = [
   'mcp:stop-automation',
   'mcp:get-status',
   'mcp:get-site-guides',
+  'mcp:get-page-snapshot',
   'mcp:list-sessions',
   'mcp:get-session',
   'mcp:get-logs',
@@ -138,11 +140,13 @@ const groupDefinitions = {
   read: {
     tools: [
       'read_page',
-      'get_dom_snapshot'
+      'get_dom_snapshot',
+      'get_page_snapshot'
     ],
     messages: [
       'mcp:read-page',
-      'mcp:get-dom'
+      'mcp:get-dom',
+      'mcp:get-page-snapshot'
     ]
   }
 };

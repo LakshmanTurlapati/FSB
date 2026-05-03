@@ -28,6 +28,8 @@ const requiredSmokeTools = [
   'navigate',
   'read_page',
   'get_dom_snapshot',
+  'get_page_snapshot',
+  'get_site_guide',
   'click',
   'start_visual_session',
   'end_visual_session',
@@ -71,6 +73,8 @@ async function run() {
       'mcp:execute-action': ({ payload }) => ({ success: true, executed: payload.tool }),
       'mcp:read-page': { success: true, content: 'Example page' },
       'mcp:get-dom': { success: true, elements: [{ ref: 'e5' }] },
+      'mcp:get-page-snapshot': { success: true, snapshot: '# Example\n- e1: button "Submit"', elementCount: 1 },
+      'mcp:get-site-guides': { success: true, guide: { site: 'example.com', selectors: {} } },
       'mcp:start-visual-session': ({ payload }) => ({
         success: true,
         sessionToken: 'visual_token_123',
@@ -126,6 +130,20 @@ async function run() {
     domSnapshotCall && domSnapshotCall.message,
     { type: 'mcp:get-dom', payload: { maxElements: 5 } },
     'get_dom_snapshot routes through mcp:get-dom with maxElements payload',
+  );
+
+  const pageSnapshotCall = await invokeTool(harness, 'get_page_snapshot');
+  assertDeepEqual(
+    pageSnapshotCall && pageSnapshotCall.message,
+    { type: 'mcp:get-page-snapshot', payload: {} },
+    'get_page_snapshot routes through mcp:get-page-snapshot with empty payload',
+  );
+
+  const siteGuideCall = await invokeTool(harness, 'get_site_guide', { domain: 'example.com' });
+  assertDeepEqual(
+    siteGuideCall && siteGuideCall.message,
+    { type: 'mcp:get-site-guides', payload: { domain: 'example.com', url: 'example.com' } },
+    'get_site_guide routes through mcp:get-site-guides with domain payload',
   );
 
   const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });

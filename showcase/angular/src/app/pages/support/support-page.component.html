@@ -112,7 +112,7 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Sync (Beta) is the FSB extension tab that pairs the extension with the dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a>. Once paired, the dashboard shows live connection state, session counters, cost and token usage, and the active controlled tab. Background agent scheduling has been retired in v0.9.45rc1 -- see OpenClaw or Claude Routines for that workflow.</p>
+              <p>Sync (Beta) is the FSB extension tab that pairs the extension with the dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a>. Once paired, the dashboard shows live connection state, session counters, cost and token usage, and the active controlled tab. Background scheduling has been retired in v0.9.45rc1 -- use OpenClaw or Claude Routines for recurring autonomy, and FSB for precise browser execution.</p>
             </div>
           </div>
         </div>
@@ -124,7 +124,19 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code or Cursor. Install the <code>fsb-mcp-server</code> npm package, add it to your MCP client configuration, and you can automate browsers directly from your IDE. FSB exposes 50+ browser actions as MCP tools.</p>
+              <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code, Codex, Cursor, or OpenClaw. Install the <code>fsb-mcp-server</code> npm package, add it to your MCP client configuration, and you can automate browsers directly from your IDE. FSB exposes 50+ browser actions as MCP tools.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item reveal">
+          <div class="faq-question" (click)="toggleFaq($event)">
+            <h3>How does FSB help Claude Code or Codex test apps?</h3>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              <p>Connect FSB as an MCP server, then let the coding agent open the local app, click through real flows, observe DOM state, capture console or task errors, and report failures back into the coding session. This closes the manual loop between code generation, browser testing, logging, and fixing.</p>
             </div>
           </div>
         </div>
@@ -136,7 +148,7 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a> lets you pair with your FSB extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor agent runs -- all from any device with a web browser.</p>
+              <p>Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a> lets you pair with your FSB extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor current execution state from any device with a web browser.</p>
             </div>
           </div>
         </div>
@@ -160,7 +172,7 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Install the server with <code>npm install -g fsb-mcp-server</code>, then add it to your MCP client config (Claude Code, Cursor, Windsurf, etc.). In the FSB extension, open Options and enable the MCP bridge -- it will listen for connections on a local WebSocket. Once connected, your AI coding assistant can call any of FSB's browser tools directly from your editor.</p>
+              <p>Install the server with <code>npm install -g fsb-mcp-server</code>, then add it to your MCP client config (Claude Code, Codex, Cursor, Windsurf, etc.). In the FSB extension, open Options and enable the MCP bridge -- it will listen for connections on a local WebSocket. Once connected, your AI coding assistant can call any of FSB's browser tools directly from your editor.</p>
             </div>
           </div>
         </div>
@@ -172,7 +184,7 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> gives you 50+ granular tools -- navigate, click, type, scroll, read page content, take screenshots, fill spreadsheets, and more. <strong>Autopilot mode</strong> lets you describe a task in natural language and FSB's AI handles the step-by-step execution. You also get read-only tools like <code>read_page</code>, <code>get_dom_snapshot</code>, and <code>list_sessions</code> for observing browser state without changing it.</p>
+              <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> gives you 50+ granular tools -- navigate, click, type, scroll, read page content, take screenshots, fill spreadsheets, and more. <strong>Autopilot mode</strong> lets you describe a task in natural language and FSB's AI handles the step-by-step execution. This is especially useful when coding agents need to test an app in-browser and bring observations back to the editor.</p>
             </div>
           </div>
         </div>

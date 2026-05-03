@@ -31,6 +31,7 @@ const MCP_PHASE199_TOOL_ROUTES = {
   stop_task: { routeFamily: 'autopilot', messageType: 'mcp:stop-automation', handler: handleToolAliasRoute },
   get_task_status: { routeFamily: 'autopilot', messageType: 'mcp:get-status', handler: handleToolAliasRoute },
   get_site_guide: { routeFamily: 'read-only', messageType: 'mcp:get-site-guides', handler: handleToolAliasRoute },
+  get_page_snapshot: { routeFamily: 'read-only', messageType: 'mcp:get-page-snapshot', handler: handleToolAliasRoute },
   list_sessions: { routeFamily: 'observability', messageType: 'mcp:list-sessions', handler: handleToolAliasRoute },
   get_session_detail: { routeFamily: 'observability', messageType: 'mcp:get-session', handler: handleToolAliasRoute },
   get_logs: { routeFamily: 'observability', messageType: 'mcp:get-logs', handler: handleToolAliasRoute },
@@ -48,6 +49,7 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-tabs': { routeFamily: 'read-only', helperName: '_handleGetTabs' },
   'mcp:get-diagnostics': { routeFamily: 'diagnostics', handler: handleGetDiagnosticsMessageRoute },
   'mcp:get-site-guides': { routeFamily: 'read-only', handler: handleGetSiteGuidesRoute },
+  'mcp:get-page-snapshot': { routeFamily: 'read-only', handler: handleGetPageSnapshotRoute },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
   'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' },
   'mcp:start-visual-session': { routeFamily: 'visual-session', handler: handleStartVisualSessionRoute },
@@ -493,6 +495,11 @@ function sanitizeSessionDetail(session) {
   if (Array.isArray(session.actionHistory)) {
     sanitized.actionHistory = session.actionHistory.slice(-100).map(sanitizeActionHistoryEntry);
   }
+  // Phase 233: defensive iteration intent log (toolCallLog) — captures every
+  // tool call the LLM emitted regardless of whether actionHistory recorded it.
+  if (Array.isArray(session.toolCallLog)) {
+    sanitized.toolCallLog = session.toolCallLog.slice(-200);
+  }
   return sanitized;
 }
 
@@ -649,11 +656,42 @@ async function handleStartAutomationRoute({ payload, client }) {
 
 async function handleStopAutomationRoute({ payload, client }) {
   const tab = await getActiveTabFromClient(client).catch(() => null);
+
+  // Phase 225-01 (Task 2): MCP stop_task tool ships no sessionId in its
+  // schema, so payload.sessionId is undefined and handleStopAutomation cannot
+  // find anything in storage. Resolve to the in-flight session via the active
+  // sessions map (same source get_task_status uses for currentSessionId).
+  let sessionId = payload && payload.sessionId;
+  if (!sessionId) {
+    const sessions = getActiveSessionsMap();
+    const ids = Array.from(sessions.keys());
+    if (ids.length > 0) {
+      sessionId = ids[0];
+      try {
+        const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
+          ? globalThis.redactForLog
+          : (v) => v;
+        console.log('[FSB MCP] stop_task resolved in-flight session', redact({ sessionId }));
+      } catch (_e) { /* logging never blocks dispatch */ }
+    }
+  }
+
+  if (!sessionId) {
+    return {
+      success: false,
+      errorCode: 'session_not_found',
+      tool: 'stop_task',
+      routeFamily: 'autopilot',
+      error: 'No active automation session to stop',
+      recoveryHint: 'Use get_task_status to confirm whether a session is running before calling stop_task.'
+    };
+  }
+
   return callCallbackHandler(
     'handleStopAutomation',
     {
       action: 'stopAutomation',
-      sessionId: payload.sessionId
+      sessionId
     },
     tab?.id ? { tab: { id: tab.id } } : {}
   );
@@ -674,6 +712,69 @@ async function handleGetStatusRoute() {
     currentMaxIterations: firstSession?.maxIterations || 20,
     currentActionCount: firstSession?.actionHistory?.length || 0
   };
+}
+
+async function handleGetPageSnapshotRoute({ payload, client }) {
+  const tab = await getActiveTabFromClient(client).catch(() => null);
+  if (!tab?.id) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+      errorCode: 'no_active_tab',
+      error: 'No active tab available for page snapshot'
+    });
+  }
+
+  if (isRestrictedMcpUrl(tab.url || '')) {
+    return buildRestrictedMcpResponse({
+      currentUrl: tab.url || '',
+      pageType: getPageTypeDescriptionForMcp(tab.url || ''),
+      tool: 'get_page_snapshot',
+      error: 'Active tab is restricted'
+    });
+  }
+
+  const charBudget = boundedPositiveInt(payload?.charBudget, 12000, 32000);
+  const maxElements = boundedPositiveInt(payload?.maxElements, 80, 250);
+
+  const sendToContentScript = (typeof client?._sendToContentScript === 'function')
+    ? (tabId, message) => client._sendToContentScript(tabId, message)
+    : (tabId, message) => new Promise((resolve, reject) => {
+        try {
+          getChromeTabsApi();
+          chrome.tabs.sendMessage(tabId, message, { frameId: 0 }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve(response || {});
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+  try {
+    const response = await sendToContentScript(tab.id, {
+      action: 'getMarkdownSnapshot',
+      options: { charBudget, maxElements }
+    });
+    if (response && response.success && response.markdownSnapshot) {
+      return {
+        success: true,
+        tool: 'get_page_snapshot',
+        snapshot: response.markdownSnapshot,
+        elementCount: response.elementCount || 0,
+        url: tab.url || '',
+        tabId: tab.id
+      };
+    }
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      error: (response && response.error) || 'Snapshot unavailable'
+    });
+  } catch (error) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      error: error.message || String(error)
+    });
+  }
 }
 
 async function handleGetSiteGuidesRoute({ payload }) {
@@ -717,6 +818,27 @@ async function handleListSessionsMessageRoute({ payload }) {
   };
 }
 
+function buildInFlightSessionSnapshot(sessionId, session) {
+  if (!session || typeof session !== 'object') return null;
+  const lastAction = Array.isArray(session.actionHistory) && session.actionHistory.length > 0
+    ? session.actionHistory[session.actionHistory.length - 1]
+    : null;
+  return {
+    sessionId,
+    final: false,
+    status: session.status || 'in-flight',
+    startedAt: session.startTime || null,
+    iterationCount: session.iterationCount || 0,
+    maxIterations: session.maxIterations || null,
+    actionCount: Array.isArray(session.actionHistory) ? session.actionHistory.length : 0,
+    currentAction: lastAction ? sanitizeActionHistoryEntry(lastAction) : null,
+    taskDescription: typeof session.task === 'string' ? boundedString(session.task, 500) : null,
+    tabId: typeof session.tabId === 'number' ? session.tabId : null,
+    lastUrl: typeof session.lastUrl === 'string' ? session.lastUrl : null,
+    note: 'In-flight session: no terminal outcome yet. Re-query after completion (or via list_sessions) for full history.'
+  };
+}
+
 async function handleGetSessionMessageRoute({ payload }) {
   if (!payload.sessionId) {
     return createMcpInvalidParamsError('get_session_detail', 'get_session_detail requires sessionId', { routeFamily: 'observability' });
@@ -726,10 +848,41 @@ async function handleGetSessionMessageRoute({ payload }) {
   }
 
   const session = await automationLogger.loadSession(payload.sessionId);
+  if (session) {
+    return {
+      success: true,
+      session: sanitizeSessionDetail(session)
+    };
+  }
+
+  // Phase 225-01 (Task 2): historical lookup missed -- fall back to in-flight
+  // sessions. Active sessions live in the activeSessions map (same source
+  // currentSessionId is derived from in handleGetStatusRoute) and are NOT yet
+  // in the history store. Without this fallback, get_session_detail returns
+  // "Session not found" while the session is actively running.
+  const activeSessions = getActiveSessionsMap();
+  const liveSession = activeSessions.get(payload.sessionId);
+  if (liveSession) {
+    try {
+      const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
+        ? globalThis.redactForLog
+        : (v) => v;
+      console.log('[FSB MCP] get_session_detail resolved in-flight session', redact({ sessionId: payload.sessionId, status: liveSession.status }));
+    } catch (_e) { /* logging never blocks dispatch */ }
+    return {
+      success: true,
+      session: buildInFlightSessionSnapshot(payload.sessionId, liveSession),
+      inFlight: true
+    };
+  }
+
   return {
-    success: Boolean(session),
-    session: sanitizeSessionDetail(session),
-    ...(session ? {} : { error: 'Session not found' })
+    success: false,
+    errorCode: 'session_not_found',
+    tool: 'get_session_detail',
+    routeFamily: 'observability',
+    error: `Session ${payload.sessionId} not found in active or historical sessions`,
+    recoveryHint: 'Use list_sessions to see historical sessions, or get_task_status to check for an active session.'
   };
 }
 

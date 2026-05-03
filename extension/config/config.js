@@ -1,5 +1,5 @@
 /**
- * Configuration management for FSB v0.9.31
+ * Configuration management for FSB v0.9.50
  * This file handles loading configuration from environment variables and Chrome storage
  */
 
@@ -169,19 +169,47 @@ class Config {
       return modelName || '';
     }
 
-    // Get valid models for the provider
-    const validModels = this.availableModels[provider] || [];
-    const validModelIds = validModels.map(m => m.id);
+    // Default fallbacks per provider (used when modelName is empty/missing)
+    const defaultModels = {
+      'xai': 'grok-4-1-fast',
+      'gemini': 'gemini-2.5-flash',
+      'openai': 'gpt-4o',
+      'anthropic': 'claude-sonnet-4-6',
+      'openrouter': 'openai/gpt-4o',
+      'lmstudio': '',
+      'custom': ''
+    };
 
-    // Check if current model is valid
-    if (validModelIds.includes(modelName)) {
+    // Empty/missing modelName -> per-provider default (existing behavior)
+    if (!modelName) {
+      console.warn(`[Config] Model "${modelName}" is not valid for provider "${provider}"`);
+      return defaultModels[provider] || 'grok-4-1-fast';
+    }
+
+    // Build the union of (a) hardcoded FALLBACK_MODELS and (b) the live
+    // discovery cache. Phase 228/Plan 03: this lets a freshly-discovered
+    // model id (one the user picked from the populated dropdown) survive
+    // a config reload without being silently rewritten back to the default.
+    const validIds = new Set();
+    const validModels = this.availableModels[provider] || [];
+    for (const m of validModels) validIds.add(m.id);
+
+    if (typeof globalThis !== 'undefined' && typeof globalThis.getDiscoveredModelIds === 'function') {
+      try {
+        const discovered = globalThis.getDiscoveredModelIds(provider) || [];
+        for (const id of discovered) validIds.add(id);
+      } catch (_) { /* discovery lookup is best-effort */ }
+    }
+
+    if (validIds.has(modelName)) {
       return modelName;
     }
 
-    // Model is invalid - attempt to correct it
-    console.warn(`[Config] Model "${modelName}" is not valid for provider "${provider}"`);
-
-    // Common corrections for xAI models - map legacy/invalid models to valid ones
+    // Legacy known-bad xAI ids -- preserved exactly. These are explicit
+    // migrations from deprecated/renamed model ids; they apply even when
+    // the discovery cache is populated, because the user almost certainly
+    // saved one of these from a past extension version (not from a fresh
+    // pick) and routing to a non-existent endpoint would just 404.
     const xaiCorrections = {
       'grok-3-fast': 'grok-4-1-fast',
       'grok-3-fast-beta': 'grok-4-1-fast',
@@ -193,23 +221,19 @@ class Config {
       'grok-beta': 'grok-3'
     };
 
-    // Check if we have a known correction
     if (provider === 'xai' && xaiCorrections[modelName]) {
+      console.warn(`[Config] Model "${modelName}" is not valid for provider "${provider}"`);
       return xaiCorrections[modelName];
     }
 
-    // Default fallbacks per provider
-    const defaultModels = {
-      'xai': 'grok-4-1-fast',
-      'gemini': 'gemini-2.5-flash',
-      'openai': 'gpt-4o',
-      'anthropic': 'claude-sonnet-4-6',
-      'openrouter': 'openai/gpt-4o',
-      'lmstudio': '',
-      'custom': ''
-    };
-
-    return defaultModels[provider] || 'grok-4-1-fast';
+    // NEW (Plan 03): preserve user choice instead of silently rewriting.
+    // The user may have picked a freshly-discovered id whose cache entry
+    // was lost across an extension reload (service worker restarts clear
+    // the in-memory _cache). Rewriting to the default would undo the
+    // user's selection. Next discovery run will repopulate the cache;
+    // until then the saved id flows straight through to ai-integration.
+    console.warn(`[Config] Model "${modelName}" not in hardcoded list or discovery cache for provider "${provider}"; preserving user choice for re-validation on next discovery.`);
+    return modelName;
   }
   
   // Check if running in development mode

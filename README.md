@@ -858,7 +858,7 @@ FSB provides real time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v0.9.31
+### Completed in v0.9.50
 - Full automation engine with smart iteration and stuck recovery
 - Four AI providers (xAI, OpenAI, Anthropic, Gemini) across 21 models
 - Universal model agnostic provider architecture

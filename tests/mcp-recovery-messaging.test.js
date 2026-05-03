@@ -92,6 +92,28 @@ async function run() {
         assert(text.includes('https://example.com'), 'navigation fixture mentions URL');
       },
     },
+    {
+      // Phase 225-01: replace the misleading "Page navigation / Refresh page state"
+      // fallback with an accurate Session lookup diagnostic when get_session_detail
+      // or stop_task cannot resolve the session id in either active or historical
+      // stores.
+      label: 'session_not_found',
+      input: {
+        success: false,
+        errorCode: 'session_not_found',
+        tool: 'get_session_detail',
+        routeFamily: 'observability',
+        error: 'Session session_xyz not found in active or historical sessions',
+        recoveryHint: 'Use list_sessions to see historical sessions, or get_task_status to check for an active session.',
+      },
+      checks(text) {
+        assert(text.includes('Session lookup'), 'session_not_found fixture names Session lookup layer');
+        assert(text.includes('list_sessions'), 'session_not_found fixture suggests list_sessions');
+        assert(text.includes('get_task_status'), 'session_not_found fixture suggests get_task_status');
+        assert(!text.includes('Page navigation'), 'session_not_found fixture does NOT use the misleading Page navigation label');
+        assert(!text.includes('Refresh page state'), 'session_not_found fixture does NOT use the misleading Refresh page state hint');
+      },
+    },
   ];
 
   for (const fixture of fixtures) {
