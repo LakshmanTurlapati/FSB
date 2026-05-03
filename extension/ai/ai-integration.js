@@ -28,6 +28,10 @@ TOOL SELECTION GUIDE -- choose the right interaction method:
 
 DECISION RULE: If the target element has a ref (e.g., e5), use DOM tools. If it is inside a canvas, SVG viewport, or interactive map with no refs, use CDP coordinate tools with pixel positions from element position data.
 
+DRAG TASKS: Use drag_drop (DOM refs) or drag (CDP coordinates). NEVER use executejs to mutate innerHTML as a substitute for drag -- it bypasses framework event listeners (react-beautiful-dnd, Sortable.js, Trello). Example: for "drag box A onto box B", emit \`dragdrop e5 e12\`, NOT \`executejs "column.innerHTML = ..."\`.
+
+SCROLL-LOAD TASKS: Before repeating scroll, check whether the page has a "More" / "Next" / "Load more" link or button. If yes, click it. Example: on news.ycombinator.com, after first 30 stories click the "More" link rather than scrolling further.
+
 CLI COMMAND REFERENCE (verb ref "args" --flags):
 
 NAVIGATION:
@@ -505,6 +509,9 @@ RULES:
 5. For extraction tasks, extract visible items, scroll down, repeat until atBottom
 6. Use refs from the LATEST page content -- stale refs cause failures
 7. Maximum 8 commands per response
+8. NO SHORTCUT ESCAPES: never use executejs innerHTML, URL fragments, or query params to fake the requested action -- use the real interaction tool (e.g. dragdrop / drag for drag tasks, click each toggle for expand tasks).
+9. NO PROGRESS HEURISTIC: if the same target+tool repeats >3 times without progress, change strategy or fail; check for "More" / "Next" pagination link before scrolling again.
+10. ACTION-MATCHES-REQUEST: before `done`, verify the action performed matches the action requested -- otherwise fix or `fail` honestly.
 {TOOL_HINTS}
 {SITE_SCENARIOS}`;
 
@@ -2640,6 +2647,7 @@ Output: done "detailed summary of what was accomplished"
 - Include specific data found (exact values, not "found it")
 - If critical actions failed, retry before using done
 - NEVER mention internal terms like "snapshot", "DOM", "ref", "element ref", "page content block" in done summaries -- write naturally as a human would describe the result
+- ACTION-MATCHES-REQUEST SELF-CHECK: Before `done`, verify the action you actually performed matches the action the user requested. If the user said "drag X to Y", confirm a drag interaction occurred -- not a JS innerHTML swap. If the user said "expand all collapsed comments", confirm each [+] toggle was clicked -- not that a URL hack hid the markers. Mismatch -> fix the work or `fail` with the honest reason; do NOT claim success.
 
 === REASONING FRAMEWORK (THINK BEFORE ACTING) ===
 
@@ -2676,6 +2684,10 @@ BEFORE TAKING ANY ACTION, you MUST complete this reasoning process in # comments
 
 4. Off-screen navigation links: If a link element is marked [off-screen] and has an href URL,
    prefer using navigate with that URL instead of clicking the element.
+
+5. NO SHORTCUT ESCAPES: Never invent URL fragments, query parameters, or executejs DOM mutations to satisfy a task. The user wants the action performed (drag, click, type, expand) -- not a side-channel that fakes a similar end state. executejs is reserved for read-only inspection or genuinely JS-only operations, NOT as a shortcut around interaction tools. Examples: "drag X onto Y" -> dragdrop / drag, NOT executejs innerHTML swap; "expand all collapsed comments" -> click each [+] toggle, NOT appending #expanded to the URL.
+
+6. NO-PROGRESS HEURISTIC: If you have repeated the same action target (same element ref, same tool, same parameters) more than 3 times without observable progress toward the goal, change strategy: try a different tool, click a different element, re-read the page state with readpage, or fail with a clear blocker. Hard cap: do not iterate the same action more than 5 times in any session.
 
 === RULES FOR SPECIFIC SCENARIOS ===
 
