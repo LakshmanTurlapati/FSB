@@ -229,21 +229,23 @@ console.log('\n--- checkSafetyBreakers: falls back to SESSION_DEFAULTS when no s
 // detectStuck: action repetition detection
 // -----------------------------------------------------------------------
 
-console.log('\n--- detectStuck: repeated click(e28) triggers stuck despite hadEffect=true ---');
+console.log('\n--- detectStuck: 3x click(e28) hits warn phase (Phase 227-01 strict consecutive counter) ---');
 {
   const session = { agentState: {}, actionHistory: [] };
-  // Simulate 6 iterations of click(e28) -- all report hadEffect: true
-  // but they're all the same fingerprint -> repetition detection kicks in
+  // Simulate 3 iterations of click(e28) -- all report hadEffect: true
+  // but they're all the same fingerprint -> strict consecutive counter
+  // warns at 3 (Phase 227-01) and force-stops at 5.
   const clickResults = [
     { callId: 'x', name: 'click', args: { selector: 'e28' }, result: { success: true, hadEffect: true } }
   ];
   let lastResult = null;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 3; i++) {
     lastResult = detectStuck(session, clickResults);
   }
-  assertEqual(lastResult.isStuck, true, 'stuck detected via action repetition (6x click(e28))');
-  assertEqual(lastResult.shouldForceStop, false, 'not force-stopped yet (warning phase)');
+  assertEqual(lastResult.isStuck, true, 'stuck detected via action repetition (3x click(e28) -- warn threshold)');
+  assertEqual(lastResult.shouldForceStop, false, 'not force-stopped yet (warn phase, count=3 < 5)');
   assert(typeof lastResult.hint === 'string' && lastResult.hint.includes('WARNING'), 'hint contains WARNING');
+  assertEqual(lastResult.reasonCode, 'stuck_action_repetition', 'reasonCode attributes to action repetition');
 }
 
 console.log('\n--- detectStuck: varied actions do NOT trigger repetition ---');

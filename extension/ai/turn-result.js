@@ -36,6 +36,26 @@ var STOP_REASONS = {
   STUCK: 'stuck'
 };
 
+/**
+ * Reason codes attributed to stuck-detection terminal outcomes.
+ * Wired into outcomeDetails.reason via createTerminalOutcome from
+ * agent-loop.js detectStuck().
+ *
+ * - ACTION_REPETITION: strict consecutive same-fingerprint counter
+ *   (Phase 227 -- handles cases where DOM keeps changing but the
+ *   model invokes the identical (tool, target) tuple repeatedly).
+ * - DOM_HASH: legacy windowed/no-change heuristic (renamed from
+ *   the prior 'stuck_force_stop' literal for attribution clarity).
+ * - NO_GOAL_PROGRESS: reserved for future goal-progress-based
+ *   detector (Phase 227-02 / TARGET-02 follow-up).
+ * @type {Object.<string, string>}
+ */
+var STUCK_REASONS = {
+  ACTION_REPETITION: 'stuck_action_repetition',
+  NO_GOAL_PROGRESS: 'stuck_no_goal_progress',
+  DOM_HASH: 'stuck_dom_hash'
+};
+
 // ---------------------------------------------------------------------------
 // Factory function
 // ---------------------------------------------------------------------------
@@ -147,6 +167,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     createTurnResult: createTurnResult,
     STOP_REASONS: STOP_REASONS,
+    STUCK_REASONS: STUCK_REASONS,
     summarizeTurnResult: summarizeTurnResult,
     accumulateTurnResults: accumulateTurnResults
   };

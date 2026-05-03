@@ -196,6 +196,20 @@ function detectStuck(session, toolResults) {
   var stuckThreshold = _al_SESSION_DEFAULTS.stuckThreshold || 3;
   var forceStopThreshold = _al_SESSION_DEFAULTS.stuckForceStopThreshold || 5;
 
+  // Phase 227-01: strict CONSECUTIVE-same-fingerprint thresholds
+  // Independent of the existing windowed isRepetitive heuristic below.
+  // warn at 3 consecutive identical mutation tuples, force-stop at 5.
+  var actionRepeatWarnThreshold = 3;
+  var actionRepeatForceStopThreshold = 5;
+
+  // Resolve STUCK_REASONS via the require shim used elsewhere in this file
+  // (extension context attaches via window/globals; Node uses _al_turnResult).
+  var STUCK_REASONS = (typeof _al_turnResult !== 'undefined' && _al_turnResult && _al_turnResult.STUCK_REASONS)
+    ? _al_turnResult.STUCK_REASONS
+    : (typeof globalThis !== 'undefined' && globalThis.STUCK_REASONS)
+      ? globalThis.STUCK_REASONS
+      : { ACTION_REPETITION: 'stuck_action_repetition', NO_GOAL_PROGRESS: 'stuck_no_goal_progress', DOM_HASH: 'stuck_dom_hash' };
+
   // --- Read-only tools that never change the page ---
   var READ_ONLY_TOOLS = {
     read_page: true, get_text: true, get_attribute: true, read_sheet: true,
@@ -240,6 +254,19 @@ function detectStuck(session, toolResults) {
     state.actionFingerprints = state.actionFingerprints.slice(-20);
   }
 
+  // Phase 227-01: strict consecutive-same-fingerprint counter.
+  // Skips the read-only sentinel so pure-read iterations don't count
+  // toward action-repetition force-stop. A single different fingerprint
+  // RESETS the counter to 1 (e.g. A,A,A,B,A => counter at 1, not 4).
+  if (fingerprint !== '_read_only_') {
+    if (state.lastFingerprint === fingerprint) {
+      state.consecutiveSameFingerprintCount = (state.consecutiveSameFingerprintCount || 0) + 1;
+    } else {
+      state.consecutiveSameFingerprintCount = 1;
+    }
+    state.lastFingerprint = fingerprint;
+  }
+
   // Check repetition: count how many of the last 10 fingerprints match the current one
   var windowSize = Math.min(state.actionFingerprints.length, 10);
   var recent = state.actionFingerprints.slice(-windowSize);
@@ -250,16 +277,48 @@ function detectStuck(session, toolResults) {
   // Repetitive if 60%+ of recent iterations have same fingerprint and window >= 5
   var isRepetitive = windowSize >= 5 && (matchCount / windowSize) >= 0.6;
 
+  // Phase 227-01: strict consecutive-repetition signal (independent path).
+  var consecCount = state.consecutiveSameFingerprintCount || 0;
+  var isActionRepetition = consecCount >= actionRepeatWarnThreshold;
+
   // --- 3. Determine stuck state ---
   var isStuckByNoChange = state.consecutiveNoChangeCount >= stuckThreshold;
-  var isStuck = isStuckByNoChange || isRepetitive;
+  var isStuck = isStuckByNoChange || isRepetitive || isActionRepetition;
 
   if (!isStuck) {
-    // Not stuck -- reset warning count
+    // Not stuck -- reset warning + consecutive counter
     if (state.stuckWarningCount > 0 && !isRepetitive) {
       state.stuckWarningCount = 0;
     }
-    return { isStuck: false, shouldForceStop: false, hint: null };
+    return { isStuck: false, shouldForceStop: false, reasonCode: null, hint: null };
+  }
+
+  // Phase 227-01: strict consecutive-repetition takes precedence over the
+  // windowed/no-change paths so attribution is the most specific reason.
+  if (isActionRepetition) {
+    if (consecCount >= actionRepeatForceStopThreshold) {
+      return {
+        isStuck: true,
+        shouldForceStop: true,
+        reasonCode: STUCK_REASONS.ACTION_REPETITION,
+        hint: 'AUTOMATION FORCE-STOPPED (stuck_action_repetition): repeated identical action ' +
+          fingerprint + ' for ' + consecCount + ' consecutive iterations. ' +
+          'The current approach cannot complete this task. Session terminated.'
+      };
+    }
+    var severityAR = consecCount >= 4 ? 'CRITICAL' : 'WARNING';
+    return {
+      isStuck: true,
+      shouldForceStop: false,
+      reasonCode: STUCK_REASONS.ACTION_REPETITION,
+      hint: severityAR + ' (stuck_action_repetition ' + consecCount + '/' + actionRepeatForceStopThreshold + '): ' +
+        'repeated identical action ' + fingerprint + '. ' +
+        'Try a different selector, tool, or strategy NOW. ' +
+        '(1) Use execute_js with framework-specific event dispatching. ' +
+        '(2) Try a different selector or elementId. ' +
+        '(3) Use keyboard navigation (press_key Tab/Enter/ArrowDown). ' +
+        '(4) Skip this sub-task or call fail_task if impossible.'
+    };
   }
 
   // --- 4. Escalating warnings + force stop ---
@@ -282,6 +341,7 @@ function detectStuck(session, toolResults) {
     return {
       isStuck: true,
       shouldForceStop: true,
+      reasonCode: STUCK_REASONS.DOM_HASH,
       hint: 'AUTOMATION FORCE-STOPPED: ' + reason + ' for ' +
         state.stuckWarningCount + ' consecutive checks (' +
         (state.stuckWarningCount * stuckThreshold) + '+ iterations). ' +
@@ -301,7 +361,7 @@ function detectStuck(session, toolResults) {
     '(4) If this sub-task is impossible, skip it and move to the next step. ' +
     '(5) If the entire task is impossible with current tools, call fail_task with a clear explanation.';
 
-  return { isStuck: true, shouldForceStop: false, hint: hint };
+  return { isStuck: true, shouldForceStop: false, reasonCode: STUCK_REASONS.DOM_HASH, hint: hint };
 }
 
 
@@ -1986,7 +2046,15 @@ async function runAgentIteration(sessionId, options) {
       }
       // Check if safety breaker hook stopped the iteration
       if (afterIterResult.stopped) {
-        var safetyReason3 = mapSafetyReasonToConstant(afterIterResult.stoppedBy);
+        // Phase 227-01: prefer stuck-detection reasonCode when source is stuckDetection
+        // so outcomeDetails.reason carries the specific stuck signal.
+        var stoppingResult = (afterIterResult.results || []).find(function(r) { return r && r.shouldStop; });
+        var safetyReason3;
+        if (stoppingResult && stoppingResult.source === 'stuckDetection' && stoppingResult.reasonCode) {
+          safetyReason3 = stoppingResult.reasonCode;
+        } else {
+          safetyReason3 = mapSafetyReasonToConstant(afterIterResult.stoppedBy);
+        }
         var safetyTerminal3 = createTerminalOutcome('stopped', {
           reason: safetyReason3,
           summary: 'Automation stopped: ' + (afterIterResult.stoppedBy || 'Safety breaker triggered')
@@ -2013,11 +2081,16 @@ async function runAgentIteration(sessionId, options) {
           });
         }
       }
-      // Force-stop when stuck detection escalates past threshold
+      // Force-stop when stuck detection escalates past threshold.
+      // Phase 227-01: attribute reason from detectStuck.reasonCode so
+      // outcomeDetails.reason reflects the specific stuck signal
+      // (stuck_action_repetition or stuck_dom_hash). Falls back to
+      // stuck_dom_hash for backward compatibility.
       if (stuckCheck.shouldForceStop) {
+        var stuckReason = stuckCheck.reasonCode || 'stuck_dom_hash';
         var stuckTerminal = createTerminalOutcome('stopped', {
-          reason: 'stuck_force_stop',
-          summary: 'Automation stopped: stuck detection escalated past threshold. ' + (stuckCheck.hint ? stuckCheck.hint.substring(0, 200) : '')
+          reason: stuckReason,
+          summary: 'Automation stopped: stuck detection escalated past threshold (' + stuckReason + '). ' + (stuckCheck.hint ? stuckCheck.hint.substring(0, 200) : '')
         });
         applyTerminalOutcome(session, stuckTerminal);
         if (typeof endSessionOverlays === 'function') {

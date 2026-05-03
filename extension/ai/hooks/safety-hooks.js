@@ -77,11 +77,13 @@ function createStuckDetectionHook(detectStuckFn) {
     try {
       var result = detectStuckFn(context.session, context.toolResults);
       if (result && result.isStuck) {
-        // Force-stop when stuck detection escalates past threshold
+        // Force-stop when stuck detection escalates past threshold.
+        // Phase 227-01: propagate reasonCode so downstream attribution
+        // surfaces the specific stuck signal (action_repetition vs dom_hash).
         if (result.shouldForceStop) {
-          return { shouldStop: true, isStuck: true, hint: result.hint, reason: result.hint, source: 'stuckDetection' };
+          return { shouldStop: true, isStuck: true, hint: result.hint, reason: result.hint, reasonCode: result.reasonCode || null, source: 'stuckDetection' };
         }
-        return { shouldStop: false, isStuck: true, hint: result.hint, source: 'stuckDetection' };
+        return { shouldStop: false, isStuck: true, hint: result.hint, reasonCode: result.reasonCode || null, source: 'stuckDetection' };
       }
       return { shouldStop: false, isStuck: false };
     } catch (err) {
