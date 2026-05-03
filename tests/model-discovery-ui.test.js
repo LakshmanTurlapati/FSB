@@ -57,10 +57,11 @@ assert(
 );
 
 // The discovery script must load BEFORE options.js so globalThis.discoverModels
-// is defined when options.js wires its event handlers.
+// is defined when options.js wires its event handlers. Look at <script src=...>
+// occurrences specifically (a code comment elsewhere mentions options.js too).
 {
-  const discIdx = HTML.indexOf('model-discovery.js');
-  const optIdx  = HTML.indexOf('options.js');
+  const discIdx = HTML.indexOf('src="../ai/model-discovery.js"');
+  const optIdx  = HTML.indexOf('src="options.js"');
   assert(
     discIdx > -1 && optIdx > -1 && discIdx < optIdx,
     '[Task 1] model-discovery.js script tag appears before options.js'
@@ -194,8 +195,14 @@ global.chrome = {
   runtime: { sendMessage: () => {} }
 };
 
-// Mock discoverModels + clearDiscoveryCache — installed BEFORE we load
-// options.js so the FSBDiscoveryUI module captures the mocks via globalThis.
+// Load real model-discovery.js FIRST to capture FALLBACK_MODELS, then
+// override globalThis.discoverModels / globalThis.clearDiscoveryCache with
+// our mocks. (The real module attaches these to globalThis as a side
+// effect — installing mocks after the require() ensures FSBDiscoveryUI
+// resolves to our mocks at call time.)
+const { FALLBACK_MODELS } = require('../extension/ai/model-discovery.js');
+global.FALLBACK_MODELS = FALLBACK_MODELS;
+
 let discoverCalls = [];
 let pendingResolvers = [];
 let nextResult = null;
@@ -214,11 +221,6 @@ global.discoverModels = function (provider, apiKey) {
 global.clearDiscoveryCache = function (provider) {
   clearCalls.push(provider);
 };
-
-// FALLBACK_MODELS — load from real module so the fallback path uses
-// production data.
-const { FALLBACK_MODELS } = require('../extension/ai/model-discovery.js');
-global.FALLBACK_MODELS = FALLBACK_MODELS;
 
 // Minimal config shim — options.js imports `config.availableModels` at module
 // scope. Provide a plausible empty-shaped value so module load doesn't throw.
@@ -263,8 +265,10 @@ function setProviderKey(provider, value) {
   ({ xai: xaiKey, gemini: geminiKey, openai: openaiKey, anthropic: anthropicKey, openrouter: openrouterKey })[provider].value = value;
 }
 
-// 1. ok:true live → info chip + dropdown populated --------------------------
-(async function test_ok_live() {
+// Run behavioral tests sequentially so each gets a clean reset() before
+// the previous test's promise resolves.
+async function runSequentialTests() {
+async function test_ok_live() {
   reset();
   setProviderKey('xai', 'sk-xai-good');
   providerSelect.value = 'xai';
@@ -282,10 +286,11 @@ function setProviderKey(provider, value) {
   assert(/2 models discovered/i.test(statusChip.textContent), '[T2/ok-live] chip text reports model count');
   assert(statusChip.hidden === false, '[T2/ok-live] chip is visible');
   assert(modelSelect.disabled === false, '[T2/ok-live] dropdown is re-enabled after success');
-})();
+}
+await test_ok_live();
 
 // 2. ok:true cache → info chip with "(cached)" -----------------------------
-(async function test_ok_cache() {
+async function test_ok_cache() {
   reset();
   setProviderKey('xai', 'sk-xai-good');
   nextResult = { ok: true, source: 'cache', models: [{ id: 'grok-4-1-fast', displayName: 'Grok 4.1 Fast' }], provider: 'xai' };
@@ -293,10 +298,11 @@ function setProviderKey(provider, value) {
   await ui.runDiscovery('xai');
   assert(/cached/i.test(statusChip.textContent), '[T2/ok-cache] chip text says cached');
   assert(statusChip.classList.contains('info'), '[T2/ok-cache] chip class is info');
-})();
+}
+await test_ok_cache();
 
 // 3. auth-failed → error chip, NO fallback ---------------------------------
-(async function test_auth_failed() {
+async function test_auth_failed() {
   reset();
   setProviderKey('xai', 'sk-bad');
   nextResult = { ok: false, reason: 'auth-failed', message: 'Authentication failed (401)', provider: 'xai' };
@@ -305,17 +311,17 @@ function setProviderKey(provider, value) {
 
   assert(statusChip.classList.contains('error'), '[T2/auth-failed] chip class is error');
   assert(/invalid/i.test(statusChip.textContent), '[T2/auth-failed] chip text mentions "invalid"');
-  // Dropdown should NOT contain FALLBACK_MODELS.xai entries — instead a single "API key invalid" option
   const ids = modelSelect.children.map(c => c.value);
   const fallbackIds = FALLBACK_MODELS.xai.map(m => m.id);
   const overlaps = ids.filter(i => fallbackIds.includes(i));
   assert(overlaps.length === 0, '[T2/auth-failed] dropdown is NOT populated from FALLBACK_MODELS');
   assert(modelSelect.children.length >= 1 && /invalid/i.test(modelSelect.children[0].textContent),
     '[T2/auth-failed] dropdown shows "API key invalid" placeholder option');
-})();
+}
+await test_auth_failed();
 
 // 4. network-failed → warning chip + FALLBACK_MODELS ------------------------
-(async function test_network_failed() {
+async function test_network_failed() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: false, reason: 'network-failed', message: 'down', provider: 'xai' };
@@ -323,39 +329,43 @@ function setProviderKey(provider, value) {
   assert(statusChip.classList.contains('warning'), '[T2/network-failed] chip class is warning');
   assert(/fallback/i.test(statusChip.textContent), '[T2/network-failed] chip text mentions fallback');
   assert(modelSelect.children.length === FALLBACK_MODELS.xai.length, '[T2/network-failed] dropdown populated from FALLBACK_MODELS.xai');
-})();
+}
+await test_network_failed();
 
-// 5. timeout → warning + fallback (same path as network) --------------------
-(async function test_timeout() {
+// 5. timeout → warning + fallback ------------------------------------------
+async function test_timeout() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: false, reason: 'timeout', message: 'slow', provider: 'xai' };
   await ui.runDiscovery('xai');
   assert(statusChip.classList.contains('warning'), '[T2/timeout] chip class is warning');
   assert(modelSelect.children.length === FALLBACK_MODELS.xai.length, '[T2/timeout] dropdown populated from FALLBACK_MODELS.xai');
-})();
+}
+await test_timeout();
 
 // 6. empty-response → warning + fallback ------------------------------------
-(async function test_empty() {
+async function test_empty() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: false, reason: 'empty-response', message: 'none', provider: 'xai' };
   await ui.runDiscovery('xai');
   assert(statusChip.classList.contains('warning'), '[T2/empty] chip class is warning');
   assert(modelSelect.children.length === FALLBACK_MODELS.xai.length, '[T2/empty] dropdown populated from FALLBACK_MODELS.xai');
-})();
+}
+await test_empty();
 
-// 7. missing-api-key (force=true emitted, suppress on initial silent) -------
-(async function test_missing_key_silent() {
+// 7. missing-api-key (silent on initial load) -------------------------------
+async function test_missing_key_silent() {
   reset();
   setProviderKey('xai', '');
   await ui.runDiscovery('xai', { silentIfNoKey: true });
   assert(discoverCalls.length === 0, '[T2/missing-silent] discoverModels NOT called when key missing + silent');
   assert(statusChip.hidden === true, '[T2/missing-silent] chip stays hidden when key missing + silent');
   assert(modelSelect.children.length === FALLBACK_MODELS.xai.length, '[T2/missing-silent] dropdown still populated from fallback');
-})();
+}
+await test_missing_key_silent();
 
-(async function test_missing_key_loud() {
+async function test_missing_key_loud() {
   reset();
   setProviderKey('xai', '');
   await ui.runDiscovery('xai');
@@ -363,50 +373,52 @@ function setProviderKey(provider, value) {
   assert(statusChip.classList.contains('warning'), '[T2/missing-loud] chip class is warning');
   assert(/api key/i.test(statusChip.textContent), '[T2/missing-loud] chip prompts for API key');
   assert(modelSelect.children.length === FALLBACK_MODELS.xai.length, '[T2/missing-loud] dropdown populated from fallback');
-})();
+}
+await test_missing_key_loud();
 
 // 8. lmstudio / custom no-op ------------------------------------------------
-(async function test_out_of_scope_providers() {
+async function test_out_of_scope_providers() {
   reset();
   await ui.runDiscovery('lmstudio');
   assert(discoverCalls.length === 0, '[T2/oos] discoverModels NOT called for lmstudio');
   reset();
   await ui.runDiscovery('custom');
   assert(discoverCalls.length === 0, '[T2/oos] discoverModels NOT called for custom');
-})();
+}
+await test_out_of_scope_providers();
 
 // 9. Refresh button calls clearDiscoveryCache then discoverModels -----------
-(async function test_refresh_force() {
+async function test_refresh_force() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: true, source: 'live', models: [{ id: 'grok-4-1-fast', displayName: 'Grok 4.1 Fast' }], provider: 'xai' };
   await ui.runDiscovery('xai', { force: true });
   assert(clearCalls.length === 1 && clearCalls[0] === 'xai', '[T2/refresh] clearDiscoveryCache called with provider before refresh');
   assert(discoverCalls.length === 1, '[T2/refresh] discoverModels called once after cache clear');
-})();
+}
+await test_refresh_force();
 
-// 10. Loading state shows while pending --------------------------------------
-(async function test_loading_state() {
+// 10. Loading state shows while pending -------------------------------------
+async function test_loading_state() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = '__pending__';
   const promise = ui.runDiscovery('xai');
-  // Synchronously after invocation, loading UI should be applied:
   assert(statusChip.classList.contains('loading'), '[T2/loading] chip class is loading while pending');
   assert(modelSelect.disabled === true, '[T2/loading] dropdown disabled while pending');
   assert(refreshBtn.disabled === true, '[T2/loading] refresh button disabled while pending');
   assert(modelSelect.children.length === 1 && /discovering/i.test(modelSelect.children[0].textContent),
     '[T2/loading] dropdown shows "Discovering models..." option while pending');
 
-  // Resolve and verify cleanup
   pendingResolvers.forEach(r => r({ ok: true, source: 'live', models: [{ id: 'grok-4-1-fast', displayName: 'Grok 4.1 Fast' }], provider: 'xai' }));
   await promise;
   assert(modelSelect.disabled === false, '[T2/loading] dropdown re-enabled after resolve');
   assert(refreshBtn.disabled === false, '[T2/loading] refresh button re-enabled after resolve');
-})();
+}
+await test_loading_state();
 
-// 11. Selection preservation -------------------------------------------------
-(async function test_selection_preserved() {
+// 11. Selection preservation ------------------------------------------------
+async function test_selection_preserved() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: true, source: 'live', models: [
@@ -416,9 +428,10 @@ function setProviderKey(provider, value) {
 
   await ui.runDiscovery('xai', { previousSelection: 'grok-4' });
   assert(modelSelect.value === 'grok-4', '[T2/preserve] previously selected model id retained when present in new list');
-})();
+}
+await test_selection_preserved();
 
-(async function test_selection_falls_back_to_first() {
+async function test_selection_falls_back_to_first() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: true, source: 'live', models: [
@@ -427,17 +440,15 @@ function setProviderKey(provider, value) {
 
   await ui.runDiscovery('xai', { previousSelection: 'grok-zzz-not-here' });
   assert(modelSelect.value === 'grok-4-1-fast', '[T2/preserve] falls back to first model id when previous selection absent');
-})();
+}
+await test_selection_falls_back_to_first();
 
-// 12. Debounced API-key handler (must use the helper-provided debounce) -----
-(async function test_debounce() {
+// 12. Debounced API-key handler --------------------------------------------
+async function test_debounce() {
   reset();
   setProviderKey('xai', 'sk-good');
   nextResult = { ok: true, source: 'live', models: [{ id: 'grok-4-1-fast', displayName: 'Grok 4.1 Fast' }], provider: 'xai' };
 
-  // FSBDiscoveryUI.scheduleDiscoveryFromKeyChange(provider) coalesces multiple
-  // rapid calls into a single discovery after a 500ms (or test-overridable)
-  // window. We pass debounceMs=20 to keep the test snappy.
   ui.scheduleDiscoveryFromKeyChange('xai', { debounceMs: 20 });
   ui.scheduleDiscoveryFromKeyChange('xai', { debounceMs: 20 });
   ui.scheduleDiscoveryFromKeyChange('xai', { debounceMs: 20 });
@@ -445,15 +456,18 @@ function setProviderKey(provider, value) {
   await new Promise(r => setTimeout(r, 60));
   assert(discoverCalls.length === 1, '[T2/debounce] 3 rapid scheduleDiscoveryFromKeyChange calls coalesce to 1 discovery');
   assert(clearCalls[0] === 'xai', '[T2/debounce] cache cleared for provider before discovery');
-})();
+}
+await test_debounce();
 
-// ---------------------------------------------------------------------------
-// Final report (await microtasks)
-// ---------------------------------------------------------------------------
-setTimeout(() => {
+} // end runSequentialTests
+
+runSequentialTests().then(() => {
   console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
   if (failed > 0) {
     failures.forEach(f => console.error('  - ' + f));
     process.exit(1);
   }
-}, 200);
+}).catch((err) => {
+  console.error('FATAL: test runner crashed:', err);
+  process.exit(1);
+});
