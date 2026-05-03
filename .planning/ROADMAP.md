@@ -26,6 +26,7 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - [ ] **Phase 226: Prompt Refinement** -- Tool-selection decision rules for ambiguous pairs, strengthened element-targeting guidance, and DOM/element-ref context formatting audited against MCP-driving agents
 - [ ] **Phase 227: Target Precision** -- Selector/element-ref disambiguation pass and targeted fixes for misclick patterns surfaced by Phase 224 baseline
 - [ ] **Phase 228: Dynamic Model Discovery** -- Replace hardcoded model lists with live `/v1/models` (or equivalent) API calls per provider, surfaced once user enters API key
+- [ ] **Phase 229: Overlay Stability Refinement** -- Eliminate visual overlay twitching/flicker (status text, glow positioning, progress bar) via debounce + minimum-display-duration + state-driven render; refine what is shown vs hidden during long actions
 
 ## Phase Details
 
@@ -112,6 +113,26 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - [x] 228-02-PLAN.md — UI integration in control_panel.html (DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR)
 - [ ] 228-03-PLAN.md — Wire discovery into runtime read paths + GUARD-01 regression sweep (DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION)
 
+#### Phase 229: Overlay Stability Refinement
+**Goal**: The FSB automation visual overlay (status text, orange-glow target highlight, progress bar, action counter) is "twitching like crazy" during real automation runs — refine update cadence, minimum-display-duration, and what-to-show-when so the overlay reads as steady and informative instead of jittery
+**Depends on**: v0.9.26 progress overlay foundation (display firewall, scaleX progress bar, rAF timer); v0.9.5 first-sentence text extraction; v0.9.21 context-aware target feedback
+**Requirements** (provisional, refined during planning):
+  - OVERLAY-01: Status text changes debounced — minimum 400ms between visible updates; rapid-fire AI summaries coalesce instead of stacking
+  - OVERLAY-02: Orange-glow target highlight position recalculated only on real layout changes (resize, scroll), not on every action; eliminate per-action recompute jitter
+  - OVERLAY-03: Progress bar advances monotonically (no backwards jumps); intermediate phase-detection updates clamped to floor of current %
+  - OVERLAY-04: Action counter ("Actions: N") updates batched per-iteration, not per-tool-call within an iteration
+  - OVERLAY-05: Overlay text content audit — what should be shown vs hidden during long actions (e.g. hide "thinking…" if elapsed < 1s; show only "first useful sentence" of AI summary, never raw multi-line)
+  - OVERLAY-06: Reduced-motion users get even-stricter coalescing (no animations on text changes; only on completion green-flash)
+**Success Criteria** (what must be TRUE):
+  1. Real automation rerun (use Phase 224 baseline prompts e.g. PROMPT-04 Excalidraw) shows visually-steady overlay with no visible flicker on text/glow/bar; operator-confirmable
+  2. No layout shift (CLS=0) on overlay during a run; verified via Performance panel snapshot or test instrumentation
+  3. Reduced-motion media query honored; no animation on prefers-reduced-motion users
+  4. No regression: completion green-flash, 3s auto-hide, M:SS elapsed timer, tabular-nums all preserved (v0.9.26 contract)
+  5. GUARD-01 holds: every Validated capability still operational; GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
+**Plans**: 2 plans
+- [x] 229-01-PLAN.md — Update cadence + position stability (OVERLAY-01, OVERLAY-02, OVERLAY-03, OVERLAY-04)
+- [ ] 229-02-PLAN.md — Content audit + reduced-motion (OVERLAY-05, OVERLAY-06)
+
 ## Backlog
 
 ### v0.9.46 deferred (carried into next milestone or backlog)
@@ -153,6 +174,8 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 | 225. Tools Alignment | 2/3 | In Progress|  |
 | 226. Prompt Refinement | 0/2 | Planned | - |
 | 227. Target Precision | 2/2 | Complete   | 2026-05-03 |
+| 228. Dynamic Model Discovery | 2/3 | In Progress | - |
+| 229. Overlay Stability Refinement | 1/2 | In Progress|  |
 
 <details>
 <summary>✅ v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up (Phase 223) — SHIPPED 2026-05-02</summary>
