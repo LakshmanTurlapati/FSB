@@ -226,6 +226,10 @@
    * Promoted to the browser's top layer via Popover API for guaranteed
    * rendering above all page content (including complex apps like Google Docs).
    */
+  // Phase 229-01: minimum interval (ms) between visible status-text writes.
+  // Rapid bursts of update() inside this window coalesce to the latest payload.
+  const PROGRESS_TEXT_DEBOUNCE_MS = 400;
+
   class ProgressOverlay {
     constructor() {
       this.host = null;
@@ -235,6 +239,65 @@
       this._timerRAF = null;
       this._frozen = false;
       this._autoHideTimer = null;
+      // Phase 229-01 cadence/stability fields:
+      this._pendingDisplay = null;       // latest queued text payload
+      this._textDebounceTimer = null;    // setTimeout handle
+      this._lastTextWriteAt = 0;         // performance.now() of last visible text write
+      this._lastVisiblePercent = 0;      // monotonic clamp floor
+      this._lastActionCount = null;      // last written actionCount (batching gate)
+    }
+
+    /**
+     * Phase 229-01 (OVERLAY-01): debounced status-text writer.
+     * Coalesces bursts of text changes inside PROGRESS_TEXT_DEBOUNCE_MS to the
+     * latest payload. Bypasses the debounce when isFinal === true so the
+     * v0.9.26 completion freeze (green-flash, Done pill) renders without delay.
+     */
+    _scheduleTextWrite(wantsText, isFinal) {
+      if (!this.container) return;
+      if (isFinal) {
+        if (this._textDebounceTimer !== null) {
+          clearTimeout(this._textDebounceTimer);
+          this._textDebounceTimer = null;
+        }
+        this._pendingDisplay = wantsText;
+        this._flushPendingText();
+        return;
+      }
+      this._pendingDisplay = wantsText;
+      var now = performance.now();
+      var elapsed = now - this._lastTextWriteAt;
+      if (elapsed >= PROGRESS_TEXT_DEBOUNCE_MS && this._textDebounceTimer === null) {
+        this._flushPendingText();
+        return;
+      }
+      if (this._textDebounceTimer === null) {
+        var self = this;
+        var delay = Math.max(0, PROGRESS_TEXT_DEBOUNCE_MS - elapsed);
+        this._textDebounceTimer = setTimeout(function() {
+          self._textDebounceTimer = null;
+          self._flushPendingText();
+        }, delay);
+      }
+      // else: existing timer will pick up the latest _pendingDisplay when it fires.
+    }
+
+    /**
+     * Phase 229-01: flush the latest pending text payload to the DOM.
+     */
+    _flushPendingText() {
+      if (!this.container || !this._pendingDisplay) return;
+      var p = this._pendingDisplay;
+      var taskEl = this.container.querySelector('.fsb-task');
+      var summaryEl = this.container.querySelector('.fsb-summary');
+      var stepTextEl = this.container.querySelector('.fsb-step-text');
+      var stepNumberEl = this.container.querySelector('.fsb-step-number');
+      if (taskEl) taskEl.textContent = p.title;
+      if (summaryEl) summaryEl.textContent = p.subtitle;
+      if (stepTextEl) stepTextEl.textContent = p.detail;
+      if (stepNumberEl) stepNumberEl.textContent = p.stepNumberLabel;
+      this._lastTextWriteAt = performance.now();
+      this._pendingDisplay = null;
     }
 
     /**
@@ -588,6 +651,8 @@
       if (!this._startTime && overlayState.lifecycle !== 'cleared') {
         this._startTime = performance.now();
         this._frozen = false;
+        // Phase 229-01 (OVERLAY-03): reset monotonic floor for new session.
+        this._lastVisiblePercent = 0;
         var phaseEl = this.container.querySelector('.fsb-phase');
         if (phaseEl) phaseEl.textContent = '0:00';  // seed before first rAF fires
         this._startTimerLoop();
@@ -607,22 +672,28 @@
         clientBadgeEl.style.display = clientLabel ? 'inline-flex' : 'none';
       }
 
-      this.container.querySelector('.fsb-task').textContent = display.title || '-';
-      this.container.querySelector('.fsb-summary').textContent = display.subtitle || '';
-      this.container.querySelector('.fsb-step-text').textContent = display.detail || 'Working';
-      this.container.querySelector('.fsb-step-number').textContent = progress.label || phaseLabel;
+      // Phase 229-01 (OVERLAY-01): debounce text writes (flushes immediately on final).
+      var wantsText = {
+        title: display.title || '-',
+        subtitle: display.subtitle || '',
+        detail: display.detail || 'Working',
+        stepNumberLabel: progress.label || phaseLabel
+      };
+      var isFinal = overlayState.lifecycle === 'final';
+      this._scheduleTextWrite(wantsText, isFinal);
 
       // .fsb-phase elapsed timer display (D-02) -- initial 0:00 seeded in timer-start block above
 
-      // Action count display (D-06, D-07, DISP-03)
+      // Phase 229-01 (OVERLAY-04): action counter batching -- write only when value changes.
       var actionCount = overlayState.actionCount;
       var etaEl = this.container.querySelector('.fsb-eta');
-      if (etaEl) {
+      if (etaEl && actionCount !== this._lastActionCount) {
         if (actionCount !== null && actionCount !== undefined) {
           etaEl.textContent = 'Actions: ' + actionCount;
         } else {
           etaEl.textContent = '';
         }
+        this._lastActionCount = actionCount;
       }
 
       var bar = this.container.querySelector('.fsb-progress-bar');
@@ -631,7 +702,10 @@
         bar.classList.remove('indeterminate');
         bar.classList.remove('hidden');
         fill.style.width = '100%';
-        fill.style.transform = 'scaleX(' + (progress.percent / 100) + ')';
+        // Phase 229-01 (OVERLAY-03): monotonic clamp -- never let bar visibly retreat.
+        var clampedPercent = Math.max(this._lastVisiblePercent || 0, progress.percent);
+        this._lastVisiblePercent = clampedPercent;
+        fill.style.transform = 'scaleX(' + (clampedPercent / 100) + ')';
       } else {
         fill.style.width = '38%';
         fill.style.transform = '';
@@ -724,6 +798,15 @@
         clearTimeout(this._autoHideTimer);
         this._autoHideTimer = null;
       }
+      // Phase 229-01: clear cadence/stability state so a re-created overlay starts clean.
+      if (this._textDebounceTimer !== null) {
+        clearTimeout(this._textDebounceTimer);
+        this._textDebounceTimer = null;
+      }
+      this._pendingDisplay = null;
+      this._lastTextWriteAt = 0;
+      this._lastVisiblePercent = 0;
+      this._lastActionCount = null;
       this._startTime = null;
       this._frozen = false;
       if (this.host) {
@@ -1072,6 +1155,10 @@
       this.currentGeometry = null;
       this.currentMode = null;
       this._isVisible = false;
+      // Phase 229-01 (OVERLAY-02): rect memoization fields.
+      this._rectDirty = true;
+      this._onWindowChange = null;
+      this._listenersAttached = false;
     }
 
     /**
@@ -1482,7 +1569,11 @@
       }
 
       // Position over element
+      // Phase 229-01 (OVERLAY-02): initial sync compute, then mark cache clean
+      // so the first rAF tick does not redundantly recompute.
+      this._rectDirty = true;
       this._updatePosition();
+      this._rectDirty = false;
       if (!this.currentGeometry) {
         this.destroy();
         return;
@@ -1573,13 +1664,30 @@
     }
 
     _startTracking() {
+      // Phase 229-01 (OVERLAY-02): attach invalidation listeners ONCE per lifecycle.
+      // Cached rect is reused on every rAF tick until resize/scroll/show() fires.
+      if (!this._listenersAttached) {
+        this._onWindowChange = () => { this._rectDirty = true; };
+        window.addEventListener('resize', this._onWindowChange);
+        window.addEventListener('scroll', this._onWindowChange, { passive: true, capture: true });
+        this._listenersAttached = true;
+      }
       const track = () => {
         // PERF: Stop tracking if host element was removed from DOM (prevents RAF leak)
         if (!this.host || !document.documentElement.contains(this.host)) {
           this.trackingId = null;
           return;
         }
-        this._updatePosition();
+        // Cheap (no layout flush) connection check -- preserves destroy-on-disconnect.
+        if (this.targetElement && !this.targetElement.isConnected) {
+          this.destroy();
+          return;
+        }
+        // Only recompute geometry when rect cache is dirty.
+        if (this._rectDirty) {
+          this._updatePosition();
+          this._rectDirty = false;
+        }
         if (this.targetElement) {
           this.trackingId = requestAnimationFrame(track);
         }
@@ -1591,6 +1699,13 @@
       if (this.trackingId) {
         cancelAnimationFrame(this.trackingId);
         this.trackingId = null;
+      }
+      // Phase 229-01 (OVERLAY-02): remove invalidation listeners so they do not leak.
+      if (this._listenersAttached && this._onWindowChange) {
+        window.removeEventListener('resize', this._onWindowChange);
+        window.removeEventListener('scroll', this._onWindowChange, { passive: true, capture: true });
+        this._listenersAttached = false;
+        this._onWindowChange = null;
       }
     }
 
@@ -2125,4 +2240,15 @@
   FSB.lastActionStatusText = lastActionStatusText;
 
   window.FSB._modules['visual-feedback'] = { loaded: true, timestamp: Date.now() };
+
+  // Phase 229-01: test-only export hook (CommonJS) so jsdom-free node tests
+  // can construct ProgressOverlay/ActionGlowOverlay in isolation. Production
+  // Chrome extension context never enters this branch (no module global).
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      ProgressOverlay: ProgressOverlay,
+      ActionGlowOverlay: ActionGlowOverlay,
+      PROGRESS_TEXT_DEBOUNCE_MS: PROGRESS_TEXT_DEBOUNCE_MS
+    };
+  }
 })();
