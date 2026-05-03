@@ -1,4 +1,4 @@
-// FSB v0.9.31 - Modern Dashboard Control Panel Script
+// FSB v0.9.50 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
@@ -685,9 +685,11 @@ function loadSettings() {
       elements.modelProvider.value = initialProvider;
       const ui = (typeof globalThis !== 'undefined') ? globalThis.FSBDiscoveryUI : null;
       if (ui && ui.IN_SCOPE_PROVIDERS[initialProvider]) {
-        // Phase 228 / Plan 02: silent discovery on initial load — chip stays
-        // hidden when no API key is present yet, and the dropdown is seeded
-        // from FALLBACK_MODELS until the user enters a key or hits Refresh.
+        // Phase 232: discoverModels() now hydrates from chrome.storage.local
+        // before checking cache, so a previously-discovered list shows
+        // immediately on page open (no need to re-click Discover after a
+        // service-worker restart). Sticky selection in renderModelDropdown
+        // ensures settings.modelName is preserved even if not in the list.
         ui.runDiscovery(initialProvider, {
           previousSelection: settings.modelName,
           silentIfNoKey: true
@@ -6181,15 +6183,31 @@ function initializeSyncSection() {
     const sel = doc.getElementById('modelName');
     if (!sel) return null;
     sel.innerHTML = '';
+    const list = models || [];
+
+    // Phase 232: sticky selection. If the user previously saved a model that's
+    // not in the freshly-discovered list (preview model expired, provider
+    // pruned the list, etc.), preserve it as a synthetic "(saved)" entry at
+    // the top of the dropdown rather than silently reassigning the selection.
+    const presentIds = new Set(list.map(m => String(m.id)));
+    const savedMissing = selectedId && !presentIds.has(String(selectedId));
+    if (savedMissing) {
+      const opt = doc.createElement('option');
+      opt.value = selectedId;
+      opt.textContent = '(saved) ' + selectedId;
+      sel.appendChild(opt);
+    }
+
     let chosen = null;
-    (models || []).forEach((m, idx) => {
+    list.forEach((m, idx) => {
       const opt = doc.createElement('option');
       opt.value = m.id;
       opt.textContent = m.displayName || m.name || m.id;
       sel.appendChild(opt);
       if (selectedId && m.id === selectedId) chosen = m.id;
-      if (chosen == null && idx === 0) chosen = m.id;
+      if (chosen == null && !savedMissing && idx === 0) chosen = m.id;
     });
+    if (savedMissing) chosen = selectedId;
     sel.value = chosen || '';
     sel.disabled = false;
     return chosen;
@@ -6262,8 +6280,25 @@ function initializeSyncSection() {
 
     const apiKey = _getInputValueForProvider(provider);
     if (!apiKey) {
-      // No key yet — fall back to FALLBACK_MODELS so the dropdown is never
-      // empty. Suppress the chip on initial silent load.
+      // No key yet. Phase 232: prefer the persistent discovery cache
+      // (chrome.storage.local) so a list discovered in a prior session is
+      // shown immediately on reopen. Fall back to FALLBACK_MODELS only when
+      // the persistent cache is empty/expired.
+      let cachedIds = [];
+      if (typeof global.hydrateDiscoveryCache === 'function') {
+        try { await global.hydrateDiscoveryCache(); } catch (_) { /* noop */ }
+      }
+      if (typeof global.getDiscoveredModelIds === 'function') {
+        try { cachedIds = global.getDiscoveredModelIds(provider) || []; } catch (_) { cachedIds = []; }
+      }
+      if (cachedIds.length) {
+        const list = cachedIds.map(id => ({ id, displayName: id }));
+        renderModelDropdown(list, options.previousSelection);
+        setDiscoveryStatus(options.silentIfNoKey
+          ? { kind: 'hidden' }
+          : { kind: 'info', text: list.length + ' models (cached)' });
+        return { ok: true, models: list, source: 'persistent-cache', provider };
+      }
       if (options.silentIfNoKey) {
         const fallbackTable = global.FALLBACK_MODELS || {};
         const list = (fallbackTable[provider] || []).map(m => ({ id: m.id, displayName: m.name || m.id }));
@@ -6306,10 +6341,9 @@ function initializeSyncSection() {
         ? list.length + ' models (cached)'
         : list.length + ' models discovered';
       setDiscoveryStatus({ kind: 'info', text });
-      // Selection preservation diagnostic
-      if (options.previousSelection && chosen !== options.previousSelection) {
-        try { console.warn('[FSBDiscoveryUI] previous model "' + options.previousSelection + '" not in discovered list; selected "' + chosen + '" instead'); } catch (_) {}
-      }
+      // Phase 232: when the user's saved model is not in the discovered list,
+      // renderModelDropdown now keeps it selected as a synthetic "(saved)"
+      // entry, so chosen === previousSelection and no reassignment happens.
       return result;
     }
 

@@ -218,10 +218,59 @@
   }
 
   // ---------------------------------------------------------------------------
-  // In-memory cache. Keyed by `${provider}:${hashApiKey(apiKey)}`.
+  // Cache. Two-tier: in-memory Map (fast) backed by chrome.storage.local
+  // (survives MV3 service-worker restart). Phase 232: previously the in-memory
+  // cache evaporated on SW kill, so the options page kept showing an empty
+  // dropdown until the user re-clicked Discover. Now we hydrate from storage
+  // on first access and persist every successful write.
+  //
+  // Storage schema (chrome.storage.local):
+  //   { fsbDiscoveryCache: { "<provider>:<apiKeyHash>": { result, expiresAt } } }
+  //
+  // Tests run in plain Node (no chrome global) — storage layer is a no-op then.
   // ---------------------------------------------------------------------------
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  const STORAGE_KEY = 'fsbDiscoveryCache';
   const _cache = new Map();
+  let _hydratedFromStorage = false;
+
+  function _hasStorage() {
+    return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+  }
+
+  async function _hydrateCacheFromStorage() {
+    if (_hydratedFromStorage || !_hasStorage()) {
+      _hydratedFromStorage = true;
+      return;
+    }
+    try {
+      const data = await new Promise((resolve) => {
+        chrome.storage.local.get([STORAGE_KEY], (d) => resolve(d || {}));
+      });
+      const stored = data && data[STORAGE_KEY];
+      if (stored && typeof stored === 'object') {
+        const now = Date.now();
+        for (const k of Object.keys(stored)) {
+          const entry = stored[k];
+          if (entry && entry.expiresAt > now && entry.result) {
+            _cache.set(k, entry);
+          }
+        }
+      }
+    } catch (_) { /* storage unavailable; fall through */ }
+    _hydratedFromStorage = true;
+  }
+
+  function _persistCacheToStorage() {
+    if (!_hasStorage()) return;
+    try {
+      const obj = {};
+      for (const [k, v] of _cache.entries()) {
+        if (v && v.expiresAt > Date.now()) obj[k] = v;
+      }
+      chrome.storage.local.set({ [STORAGE_KEY]: obj }, () => { /* noop */ });
+    } catch (_) { /* noop */ }
+  }
 
   function _cacheKey(provider, apiKey) {
     return provider + ':' + hashApiKey(apiKey);
@@ -230,12 +279,14 @@
   function clearDiscoveryCache(provider) {
     if (!provider) {
       _cache.clear();
+      _persistCacheToStorage();
       return;
     }
     const prefix = provider + ':';
     for (const k of Array.from(_cache.keys())) {
       if (k.startsWith(prefix)) _cache.delete(k);
     }
+    _persistCacheToStorage();
   }
 
   // ---------------------------------------------------------------------------
@@ -290,6 +341,9 @@
         provider
       };
     }
+
+    // Phase 232: hydrate persistent cache before reading (no-op in tests).
+    await _hydrateCacheFromStorage();
 
     // Cache hit?
     const key = _cacheKey(provider, apiKey);
@@ -408,8 +462,16 @@
     };
 
     _cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+    _persistCacheToStorage();
 
     return result;
+  }
+
+  // Phase 232: also expose hydration so the options page can warm the cache
+  // BEFORE the first runDiscovery call, ensuring the dropdown reflects the
+  // last-known-good list immediately on page open.
+  async function hydrateDiscoveryCache() {
+    return _hydrateCacheFromStorage();
   }
 
   // ---------------------------------------------------------------------------
@@ -421,7 +483,8 @@
     FALLBACK_MODELS,
     clearDiscoveryCache,
     getDiscoveredModelIds,
-    hashApiKey
+    hashApiKey,
+    hydrateDiscoveryCache
   };
 
   if (global) {
@@ -431,6 +494,7 @@
     global.clearDiscoveryCache = clearDiscoveryCache;
     global.getDiscoveredModelIds = getDiscoveredModelIds;
     global.hashApiKeyForDiscovery = hashApiKey;
+    global.hydrateDiscoveryCache = hydrateDiscoveryCache;
     global.FSBModelDiscovery = api;
   }
 

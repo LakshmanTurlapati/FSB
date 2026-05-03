@@ -439,7 +439,12 @@ async function test_selection_falls_back_to_first() {
   ], provider: 'xai' };
 
   await ui.runDiscovery('xai', { previousSelection: 'grok-zzz-not-here' });
-  assert(modelSelect.value === 'grok-4-1-fast', '[T2/preserve] falls back to first model id when previous selection absent');
+  // Phase 232: sticky selection preserves the user's saved choice as a
+  // synthetic "(saved)" entry instead of silently reassigning to the first
+  // discovered model.
+  assert(modelSelect.value === 'grok-zzz-not-here', '[T2/preserve] sticky selection keeps previousSelection even when not in discovered list');
+  const optionTexts = (modelSelect.children || []).map(o => o.textContent);
+  assert(optionTexts.some(t => t.indexOf('grok-zzz-not-here') !== -1), '[T2/preserve] synthetic option for missing model is rendered');
 }
 await test_selection_falls_back_to_first();
 

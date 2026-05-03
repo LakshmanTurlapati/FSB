@@ -1,5 +1,5 @@
 /**
- * Agent Loop Engine for FSB v0.9.31
+ * Agent Loop Engine for FSB v0.9.50
  *
  * Core tool_use protocol loop that replaces startAutomationLoop.
  * Each iteration is a separate setTimeout callback (not a blocking while-loop)
@@ -122,6 +122,66 @@ var _al_createPermissionHook = (typeof createPermissionHook !== 'undefined') ? c
 var _al_createToolProgressHook = (typeof createToolProgressHook !== 'undefined') ? createToolProgressHook : (_al_progressHook?.createToolProgressHook || null);
 var _al_createIterationProgressHook = (typeof createIterationProgressHook !== 'undefined') ? createIterationProgressHook : (_al_progressHook?.createIterationProgressHook || null);
 var _al_createCompletionProgressHook = (typeof createCompletionProgressHook !== 'undefined') ? createCompletionProgressHook : (_al_progressHook?.createCompletionProgressHook || null);
+
+// ---------------------------------------------------------------------------
+// Phase 233: Meta-cognitive attempt tracking.
+//
+// Source-of-truth-independent loop detection: counts mutation tool attempts
+// directly from the LLM's per-iteration toolCalls (not from session.actionHistory,
+// which has known recording gaps). Threshold: warn at 4, force-stop at 6
+// attempts on the same target within a 12-iteration sliding window.
+// ---------------------------------------------------------------------------
+var _META_INTERACT_TOOLS = {
+  click: 1, click_at: 1, double_click: 1, double_click_at: 1,
+  type_text: 1, press_enter: 1, press_key: 1, clear_input: 1,
+  select_option: 1, check_box: 1, hover: 1, focus: 1,
+  drag_drop: 1, drag: 1, click_and_hold: 1, drag_variable_speed: 1,
+  execute_js: 1, fill_credential: 1
+};
+var _META_WARN_THRESHOLD = 4;
+var _META_FORCE_STOP_THRESHOLD = 6;
+var _META_WINDOW_ITERATIONS = 12;
+
+function _extractMetaTargetKey(call) {
+  if (!call || !call.args) return null;
+  var a = call.args;
+  if (a.selector) return 'sel:' + String(a.selector).slice(0, 80);
+  if (a.elementId) return 'id:' + String(a.elementId).slice(0, 40);
+  if (a.element_id) return 'id:' + String(a.element_id).slice(0, 40);
+  if (call.name === 'execute_js' && a.code) {
+    var code = String(a.code);
+    var m = code.match(/querySelector(?:All)?\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (m) return 'sel:' + m[1].slice(0, 80);
+    m = code.match(/getElementById\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (m) return 'id:' + m[1].slice(0, 40);
+    return 'js:' + code.replace(/\s+/g, ' ').slice(0, 60);
+  }
+  if (a.text) return 'text:' + String(a.text).slice(0, 60);
+  if (a.url) return 'url:' + String(a.url).slice(0, 80);
+  if (a.key) return 'key:' + String(a.key);
+  return null;
+}
+
+function _trackMetaAttempt(session, call, iterNum) {
+  if (!_META_INTERACT_TOOLS[call.name]) return null;
+  var key = _extractMetaTargetKey(call);
+  if (!key) return null;
+  if (!session._metaAttempts) session._metaAttempts = {};
+  if (!session._metaAttempts[key]) session._metaAttempts[key] = [];
+  session._metaAttempts[key].push({ iteration: iterNum, tool: call.name, timestamp: Date.now() });
+  // Window-prune: keep only attempts within the last N iterations.
+  var pruned = session._metaAttempts[key].filter(function(a) {
+    return iterNum - a.iteration <= _META_WINDOW_ITERATIONS;
+  });
+  session._metaAttempts[key] = pruned;
+  if (pruned.length >= _META_FORCE_STOP_THRESHOLD) {
+    return { forceStop: true, target: key, attempts: pruned };
+  }
+  if (pruned.length >= _META_WARN_THRESHOLD) {
+    return { forceStop: false, target: key, attempts: pruned };
+  }
+  return null;
+}
 var _al_createErrorProgressHook = (typeof createErrorProgressHook !== 'undefined') ? createErrorProgressHook : (_al_progressHook?.createErrorProgressHook || null);
 
 
@@ -1706,6 +1766,28 @@ async function runAgentIteration(sessionId, options) {
       });
     }
 
+    // Phase 233 Fix A: defensive iteration intent log. session.actionHistory
+    // has known recording gaps (mutation tools sometimes don't reach the push
+    // at line ~2110 due to early-returns or other code paths). toolCallLog
+    // captures the LLM's intent for every iteration unconditionally — this
+    // is the source of truth for debugging "why did the agent loop here?".
+    // Window-cap at 200 entries to bound memory.
+    if (!session.toolCallLog) session.toolCallLog = [];
+    for (var _tlci = 0; _tlci < toolCalls.length; _tlci++) {
+      var _tlc = toolCalls[_tlci];
+      var _tlp = _tlc.args || {};
+      session.toolCallLog.push({
+        iteration: iterNum,
+        timestamp: Date.now(),
+        tool: _tlc.name,
+        target: _tlp.selector || _tlp.elementId || _tlp.element_id || _tlp.text || _tlp.url || _tlp.key || null,
+        codeSnippet: _tlc.name === 'execute_js' && _tlp.code ? String(_tlp.code).slice(0, 120) : null
+      });
+    }
+    if (session.toolCallLog.length > 200) {
+      session.toolCallLog = session.toolCallLog.slice(-200);
+    }
+
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)
     var toolResults = [];
     var lastNonProgressToolCall = null;
@@ -2091,6 +2173,63 @@ async function runAgentIteration(sessionId, options) {
         { name: tr.name }
       );
       session.messages.push(resultMsg);
+    }
+
+    // m3. Phase 233: meta-cognitive attempt-counter. Operates directly on
+    // toolCalls (the LLM's intent for this iteration) instead of actionHistory,
+    // so it works even when the actionHistory recording pipeline silently
+    // drops mutation tools (the bug that made Phase 226/227/232 stuck-detection
+    // ineffective). Counts repeated attempts on the same target within a
+    // 12-iteration sliding window. Warn at 4 attempts (inject explicit
+    // SYSTEM ATTEMPT-LOG message), force-stop at 6.
+    var _metaLastMutation = null;
+    for (var _mci = toolCalls.length - 1; _mci >= 0; _mci--) {
+      if (_META_INTERACT_TOOLS[toolCalls[_mci].name]) { _metaLastMutation = toolCalls[_mci]; break; }
+    }
+    if (_metaLastMutation) {
+      var _metaSignal = _trackMetaAttempt(session, _metaLastMutation, iterNum);
+      if (_metaSignal) {
+        var _iterList = _metaSignal.attempts.map(function(a) { return a.iteration; }).join(', ');
+        var _toolList = _metaSignal.attempts.map(function(a) { return a.tool; }).join(', ');
+        var _attemptCount = _metaSignal.attempts.length;
+        if (_metaSignal.forceStop) {
+          var _metaTerminal = createTerminalOutcome('stopped', {
+            reason: 'meta_cognitive_loop_break',
+            summary: 'Automation stopped: meta-cognitive loop detected — ' + _attemptCount +
+                     ' attempts on `' + _metaSignal.target + '` across iterations ' + _iterList +
+                     ' with no observable progress.'
+          });
+          applyTerminalOutcome(session, _metaTerminal);
+          if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+            automationLogger.log('warn', 'Meta-cognitive loop break', {
+              sessionId: sessionId, iteration: iterNum, target: _metaSignal.target,
+              attempts: _attemptCount, iterations: _iterList, tools: _toolList
+            });
+          }
+          if (typeof endSessionOverlays === 'function') {
+            await endSessionOverlays(session, 'safety');
+          }
+          await persist(sessionId, session);
+          await finalizeSession(sessionId, session, _metaTerminal);
+          return;
+        }
+        var _metaMsg = 'SYSTEM ATTEMPT-LOG: You have attempted to interact with `' + _metaSignal.target +
+          '` ' + _attemptCount + ' times across iterations ' + _iterList + ' using tools [' + _toolList + ']. ' +
+          'Each attempt may have reported success, but the same target keeps being retried — strongly suggesting ' +
+          'the action is silently failing OR the success indicator is invisible to your snapshot tools. ' +
+          'Choose ONE of: ' +
+          '(1) Report task complete based ONLY on what you can directly observe in the page (do NOT assume the click worked). ' +
+          '(2) Call fail_task with a specific blocker (e.g. "button intercepted by overlay", "anti-automation no-op", "variant selection required"). ' +
+          '(3) Take a fundamentally different approach (different selector path, different starting URL, different sub-task). ' +
+          'Do NOT attempt the same target a ' + (_attemptCount + 1) + 'th time.';
+        session.messages.push({ role: 'user', content: _metaMsg });
+        if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+          automationLogger.log('warn', 'Meta-cognitive attempt-log injected', {
+            sessionId: sessionId, iteration: iterNum, target: _metaSignal.target,
+            attempts: _attemptCount, iterations: _iterList, tools: _toolList
+          });
+        }
+      }
     }
 
     // n. Emit afterIteration hook (stuck detection + safety breakers run as hook handlers)

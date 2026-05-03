@@ -495,6 +495,11 @@ function sanitizeSessionDetail(session) {
   if (Array.isArray(session.actionHistory)) {
     sanitized.actionHistory = session.actionHistory.slice(-100).map(sanitizeActionHistoryEntry);
   }
+  // Phase 233: defensive iteration intent log (toolCallLog) — captures every
+  // tool call the LLM emitted regardless of whether actionHistory recorded it.
+  if (Array.isArray(session.toolCallLog)) {
+    sanitized.toolCallLog = session.toolCallLog.slice(-200);
+  }
   return sanitized;
 }
 
