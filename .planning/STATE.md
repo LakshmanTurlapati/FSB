@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.50
-milestone_name: Autopilot Refinement
-status: Roadmap created, awaiting `/gsd-plan-phase 224`
-last_updated: "2026-05-03T07:15:03.229Z"
-last_activity: 2026-05-02 — ROADMAP.md authored for v0.9.50 (Phases 224-227)
+milestone: none
+milestone_name: (no active milestone)
+status: v0.9.50 shipped 2026-05-03; awaiting `/gsd-new-milestone` to define next
+last_updated: "2026-05-03T11:30:00.000Z"
+last_activity: 2026-05-03 — v0.9.50 archived; tech_debt audit accepted; gap-closure phases 234-236 carried forward
 progress:
-  total_phases: 7
-  completed_phases: 6
-  total_plans: 17
-  completed_plans: 16
-  percent: 94
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State

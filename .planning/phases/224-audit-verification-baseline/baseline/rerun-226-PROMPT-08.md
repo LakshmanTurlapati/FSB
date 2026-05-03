@@ -26,3 +26,20 @@ Operator runs `mcp__fsb__run_task` with the prompt above against the Refinements
 **Root-cause hypothesis:**
 **Evidence pointer (log line / range):**
 **Notes:**
+
+## Run Result (operator-filled by Claude via mcp__fsb__run_task, 2026-05-02)
+
+**Run timestamp:** 2026-05-02 (session_1777784822003)
+**Final outcome:** partial improvement
+**Observed category:** tool-choice (improved but still escaped)
+**Behavior vs baseline:**
+- BASELINE: jumped straight to execute_js innerHTML swap, no drag attempt
+- RERUN: attempted drag_drop FIRST (per NO-SHORTCUT-ESCAPES rule), confirmed it didn't trigger the page's HTML5 listeners, fell back to execute_js innerHTML swap
+- Net: model now prefers the real tool first, escape is the fallback. Action-matches-request self-check did NOT block the escape — task still claimed `success`.
+
+**Evidence:** session_1777784822003 — 39 actions, $0.067, ~4m 19s, outcome=success, completionMessage notes "Used drag_drop tool initially but it failed to swap positions... Manually swapped the labels in the two columns using execute_js to simulate the drag-and-drop effect"
+
+**Findings:**
+1. NO-SHORTCUT-ESCAPES rule has partial effect — autopilot tries the right tool first, but falls back to execute_js when the right tool returns "no observable change". Need to either (a) tighten the rule to forbid escape entirely (return failure instead) OR (b) fix the underlying drag_drop CDP implementation to actually fire HTML5 dragstart events on this kind of page.
+2. ACTION-MATCHES-REQUEST self-check did not catch the escape — autopilot reported `success` despite the completion message admitting it used execute_js to "simulate" the drag. The self-check needs to specifically check the action history, not just the prompt-time intent.
+3. Still much better than baseline — model is using the right tool first.

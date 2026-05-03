@@ -2,11 +2,11 @@
 
 ## Status
 
-Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap created 2026-05-02. First phase: 224 (continues numbering from v0.9.49's Phase 223).
+No active milestone. v0.9.50 shipped 2026-05-03; next milestone TBD via `/gsd-new-milestone`.
 
 ## Milestones
 
-- 🟡 **v0.9.50 Autopilot Refinement (MCP-Parity)** -- in progress (Phases 224-227)
+- ✅ **v0.9.50 Autopilot Refinement (MCP-Parity)** -- shipped 2026-05-03 (Phases 224-230 + opportunistic 231-233; archive: [v0.9.50-ROADMAP.md](milestones/v0.9.50-ROADMAP.md))
 - ✅ **v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up** -- shipped 2026-05-02 (Phase 223 + Sync consolidation; archive: [v0.9.49-ROADMAP.md](milestones/v0.9.49-ROADMAP.md))
 - ✅ **v0.9.48 Angular 20 Migration** -- shipped 2026-05-02 (deadline 2026-05-19 met 17 days early)
 - ✅ **v0.9.47 Workspace Reorganization** -- shipped 2026-05-02
@@ -16,122 +16,6 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - ✅ **v0.9.36 MCP Visual Lifecycle & Client Identity** -- shipped 2026-04-24
 - ✅ **v0.9.35 MCP Plug-and-Play Reliability** -- shipped 2026-04-24
 - ✅ **v0.9.34 Vault, Payments & Secure MCP Access** -- shipped 2026-04-22
-
-## Phases
-
-### v0.9.50 Autopilot Refinement (MCP-Parity)
-
-- [ ] **Phase 224: Audit & Verification Baseline** -- Side-by-side autopilot vs MCP tool surface inventory, baseline `run_task` log capture with failure categorization, and reproducible operator verification recipe
-- [ ] **Phase 225: Tools Alignment** -- Adopt MCP-style annotations, reconcile parameter shapes, achieve routing parity (CDP click_at, click_and_hold, drag, scroll_at), and audit autopilot-only/MCP-only tool gaps
-- [ ] **Phase 226: Prompt Refinement** -- Tool-selection decision rules for ambiguous pairs, strengthened element-targeting guidance, and DOM/element-ref context formatting audited against MCP-driving agents
-- [ ] **Phase 227: Target Precision** -- Selector/element-ref disambiguation pass and targeted fixes for misclick patterns surfaced by Phase 224 baseline
-- [ ] **Phase 228: Dynamic Model Discovery** -- Replace hardcoded model lists with live `/v1/models` (or equivalent) API calls per provider, surfaced once user enters API key
-- [ ] **Phase 229: Overlay Stability Refinement** -- Eliminate visual overlay twitching/flicker (status text, glow positioning, progress bar) via debounce + minimum-display-duration + state-driven render; refine what is shown vs hidden during long actions
-
-## Phase Details
-
-### v0.9.50 Phase Details
-
-#### Phase 224: Audit & Verification Baseline
-**Goal**: Establish the evidence base — what autopilot's tool surface looks like vs MCP, what's actually failing in the wild, and how the operator will repeatably verify each subsequent phase
-**Depends on**: Nothing (first phase of milestone)
-**Requirements**: AUDIT-01, AUDIT-02, VERIFY-01, VERIFY-02
-**Success Criteria** (what must be TRUE):
-  1. Operator can read a single audit document listing every autopilot tool side-by-side with its MCP counterpart, with annotation/parameter/routing gaps explicitly called out
-  2. A baseline `run_task` log run against the fixed prompt set exists on disk, with each outcome categorized (element / tool-choice / completion / infra / other)
-  3. Operator can re-run the verification recipe end-to-end from documentation alone (no tribal knowledge), scoring outcomes by category
-  4. Logs from any autopilot failure are sufficient to attribute the failure to a category without adding instrumentation per run
-  5. GUARD-01 holds: every Validated capability in PROJECT.md still operational after this phase (smoke verified); GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
-**Plans**: 3 plans
-- [ ] 224-01-PLAN.md — Tool Surface Audit (AUDIT-01)
-- [ ] 224-02-PLAN.md — Verification Recipe + Logging Inventory (VERIFY-01, VERIFY-02)
-- [ ] 224-03-PLAN.md — Baseline Run Capture (AUDIT-02)
-
-#### Phase 225: Tools Alignment
-**Goal**: Autopilot's tool layer matches MCP's contract shape — annotations, parameter shapes, and reachable execution paths — so the same prompt drives the same effective behavior
-**Depends on**: Phase 224 (uses AUDIT-01 gap list as scope and AUDIT-02 failures to prioritize)
-**Requirements**: TOOLS-01, TOOLS-02, TOOLS-03, TOOLS-04
-**Success Criteria** (what must be TRUE):
-  1. Every autopilot tool definition that appeared weaker in the audit now carries MCP-style purpose / when-to-use / examples / parameter descriptions
-  2. Parameter shapes and defaults for any tool present in both surfaces are byte-aligned (or divergence has a documented justification)
-  3. Autopilot can reach CDP click_at, click_and_hold, drag, scroll_at execution paths via its own tool layer (verified by `run_task` against prompts that previously failed in baseline)
-  4. Each autopilot-only tool retained has a documented justification; each MCP-only capability that closes a known gap is either surfaced to autopilot or has a recorded deferral note
-  5. Re-running the Phase 224 verification recipe shows reduced failures in the tool-choice and routing categories without new failures in any other category
-  6. GUARD-01 holds: every Validated capability still operational (smoke verified); GUARD-02 holds: `npm test` green; GUARD-03 holds: no tool removals without explicit deprecation note + operator confirmation
-**Plans**: 3 plans
-- [x] 225-01-PLAN.md — MCP autopilot reliability (run_task return-on-completion + in-flight session lookup)
-- [ ] 225-02-PLAN.md — MCP read-only surface gaps (get_page_snapshot/get_site_guide) + autopilot search_memory exposure
-- [x] 225-03-PLAN.md — CDP drag reachability verification + conditional wiring fix
-
-#### Phase 226: Prompt Refinement
-**Goal**: Autopilot's system prompt and context formatting drive correct tool selection and element targeting at parity with what MCP-driving external agents see
-**Depends on**: Phase 225 (prompts reference the now-aligned tool contracts) and Phase 224 (uses baseline failures to focus guidance)
-**Requirements**: PROMPT-01, PROMPT-02, PROMPT-03
-**Success Criteria** (what must be TRUE):
-  1. Tool-selection guide in the system prompt contains explicit decision rules for click vs CDP click_at, type vs press_enter, scroll vs scroll_at, and any other ambiguous pairs surfaced by AUDIT-02
-  2. Element-targeting guidance addresses parent/nested confusion and label/control disambiguation with examples
-  3. DOM snapshot and element-ref formatting matches the clarity MCP-driving agents see (or divergence is documented with rationale)
-  4. Re-running the Phase 224 verification recipe shows reduced failures in the tool-choice and element categories
-  5. GUARD-01 holds: every Validated capability still operational (smoke verified); GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
-**Plans**: 2 plans
-- [ ] 226-01-PLAN.md — System prompt rules (no-shortcut-escapes, pagination-before-scroll, no-progress-toward-goal, action-matches-request self-check)
-- [ ] 226-02-PLAN.md — Tool annotations + dropdown two-click pattern (select_option native-only, click two-click pattern, execute_js not-a-shortcut)
-
-#### Phase 227: Target Precision (REINTERPRETED → Stuck-Detection Enhancement)
-**Goal**: Phase 224 baseline showed element-targeting clean; reinterpret to add code-side enforcement of the no-progress-toward-goal heuristic so PROMPT-05 / PROMPT-10 / EDGE-11 long-loop failures terminate cleanly with attributed reason codes
-**Depends on**: Phase 226 (prompt baseline stable) and Phase 224 (uses logged loop patterns + LOGGING-INVENTORY gap C-1)
-**Requirements**: TARGET-02 (TARGET-01 explicitly deferred per CONTEXT — no element-targeting evidence in baseline)
-**Success Criteria** (what must be TRUE):
-  1. Consecutive-action-repetition detector fires at warn=3 / force-stop=5 with outcomeDetails.reason='stuck_action_repetition'
-  2. Goal-progress heuristic (windowed unique-state-vector) fires with outcomeDetails.reason='stuck_no_goal_progress' when no progress in last N iterations (default 8, per-task-type override)
-  3. Existing DOM-hash stuck-detection preserved and attributed as 'stuck_dom_hash'
-  4. PROMPT-05 / PROMPT-10 / EDGE-11 baseline reruns terminate <50 actions with new reason codes; PASS prompts (01,02,04,06,07,09,13) show no false-positive stuck fires
-  5. GUARD-01 holds: every Validated capability still operational (smoke verified); GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
-**Plans**: 2 plans
-- [x] 227-01-PLAN.md — Action-repetition detector + outcome-reason attribution (warn@3 / force-stop@5)
-- [x] 227-02-PLAN.md — Goal-progress heuristic (unique-state-vector, task-type override, action-repetition precedence)
-
-#### Phase 228: Dynamic Model Discovery
-**Goal**: Replace hardcoded provider model lists with live API discovery — once user enters an API key for a provider, fetch and surface the actual available text-generation models from that provider's `/v1/models` (or equivalent) endpoint
-**Depends on**: Existing universal-provider architecture (v0.2.0); Phases 224-227 (no direct dependency, but lands after autopilot stability work)
-**Requirements**: DISCOVERY-MODULE, DISCOVERY-FILTER, DISCOVERY-CACHE, DISCOVERY-FALLBACK, DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR, DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION
-**Providers in scope**:
-  - xAI: `GET https://api.x.ai/v1/models`
-  - OpenAI: `GET https://api.openai.com/v1/models`
-  - Anthropic: `GET https://api.anthropic.com/v1/models`
-  - Google Gemini: `GET https://generativelanguage.googleapis.com/v1beta/models?key=API_KEY`
-  - OpenRouter: `GET https://openrouter.ai/api/v1/models`
-**Success Criteria** (what must be TRUE):
-  1. When user enters/changes API key for a provider, FSB calls that provider's models endpoint and populates the model selection dropdown with discovered models filtered to text-generation only
-  2. Hardcoded model lists (CLAUDE.md "xAI Models" section, etc.) are removed from runtime selection — preserved only as fallback constants
-  3. On fetch failure (network error, 401, rate limit), UI gracefully falls back to last-known-good cached list and surfaces a clear "discovered list unavailable" indicator
-  4. Filtering logic excludes embedding/audio/vision-only/image-generation models; rationale documented in code
-  5. Per-provider response shape differences handled in a single discovery module (not per-provider duplication) — extends the v0.2.0 universal-provider pattern
-  6. GUARD-01 holds: every Validated capability still operational; GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
-**Plans**: 3 plans
-- [x] 228-01-PLAN.md — Discovery module + per-provider configs + fallback constants (DISCOVERY-MODULE, DISCOVERY-FILTER, DISCOVERY-CACHE, DISCOVERY-FALLBACK)
-- [x] 228-02-PLAN.md — UI integration in control_panel.html (DISCOVERY-UI, DISCOVERY-REFRESH, DISCOVERY-INDICATOR)
-- [ ] 228-03-PLAN.md — Wire discovery into runtime read paths + GUARD-01 regression sweep (DISCOVERY-RUNTIME, DISCOVERY-VALIDATE-FALLBACK, DISCOVERY-NO-REGRESSION)
-
-#### Phase 229: Overlay Stability Refinement
-**Goal**: The FSB automation visual overlay (status text, orange-glow target highlight, progress bar, action counter) is "twitching like crazy" during real automation runs — refine update cadence, minimum-display-duration, and what-to-show-when so the overlay reads as steady and informative instead of jittery
-**Depends on**: v0.9.26 progress overlay foundation (display firewall, scaleX progress bar, rAF timer); v0.9.5 first-sentence text extraction; v0.9.21 context-aware target feedback
-**Requirements** (provisional, refined during planning):
-  - OVERLAY-01: Status text changes debounced — minimum 400ms between visible updates; rapid-fire AI summaries coalesce instead of stacking
-  - OVERLAY-02: Orange-glow target highlight position recalculated only on real layout changes (resize, scroll), not on every action; eliminate per-action recompute jitter
-  - OVERLAY-03: Progress bar advances monotonically (no backwards jumps); intermediate phase-detection updates clamped to floor of current %
-  - OVERLAY-04: Action counter ("Actions: N") updates batched per-iteration, not per-tool-call within an iteration
-  - OVERLAY-05: Overlay text content audit — what should be shown vs hidden during long actions (e.g. hide "thinking…" if elapsed < 1s; show only "first useful sentence" of AI summary, never raw multi-line)
-  - OVERLAY-06: Reduced-motion users get even-stricter coalescing (no animations on text changes; only on completion green-flash)
-**Success Criteria** (what must be TRUE):
-  1. Real automation rerun (use Phase 224 baseline prompts e.g. PROMPT-04 Excalidraw) shows visually-steady overlay with no visible flicker on text/glow/bar; operator-confirmable
-  2. No layout shift (CLS=0) on overlay during a run; verified via Performance panel snapshot or test instrumentation
-  3. Reduced-motion media query honored; no animation on prefers-reduced-motion users
-  4. No regression: completion green-flash, 3s auto-hide, M:SS elapsed timer, tabular-nums all preserved (v0.9.26 contract)
-  5. GUARD-01 holds: every Validated capability still operational; GUARD-02 holds: `npm test` green; GUARD-03 holds: no autopilot tools removed
-**Plans**: 2 plans
-- [x] 229-01-PLAN.md — Update cadence + position stability (OVERLAY-01, OVERLAY-02, OVERLAY-03, OVERLAY-04)
-- [ ] 229-02-PLAN.md — Content audit + reduced-motion (OVERLAY-05, OVERLAY-06)
 
 ## Backlog
 
@@ -151,13 +35,21 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 - MCP visual-session auto-wrap for autopilot flows (carry-over from v0.9.36 deferred set)
 - Loop / completion-detection refinement (secondary failure modes — defer unless surfaced by AUDIT-02)
 
+### v0.9.50 gap-closure phases (planned but not executed; carry to next milestone)
+
+These were created by `/gsd-plan-milestone-gaps` against the v0.9.50 audit but not run before milestone completion. Planning artifacts in `.planning/phases/234-*`, `235-*`, `236-*`.
+
+- **Phase 234**: REQUIREMENTS.md backfill + traceability sweep (largely auto-completed by archive-time updates; thin formalization remaining)
+- **Phase 235**: Retroactive GSD coverage for Phases 231/232/233 (PLAN/SUMMARY/VERIFICATION docs; split stray `mcp/ai/tool-definitions.cjs` drift; commit 232+233)
+- **Phase 236**: MCP `run_task` return-on-completion publish (`fsb-mcp-server@0.7.5` ship + lifecycle bus subscriber)
+
 ### v0.9.50 follow-up (from rerun verification, deferred from Phase 227-VERIFICATION)
 
-- **Stuck-detection diagnostic-tool filtering**: PROMPT-10 rerun showed autopilot evades the strict 5-consecutive-fingerprint detector by interleaving `get_dom_snapshot` / `report_progress` between primary actions. Add filter to exclude diagnostic-only tools from the fingerprint window.
+- **Stuck-detection diagnostic-tool filtering**: PROMPT-10 rerun showed autopilot evades the strict 5-consecutive-fingerprint detector by interleaving `get_dom_snapshot` / `report_progress` between primary actions — partially addressed by Phase 233 meta-cognitive tracker.
 - **Fingerprint-family matching**: detect `[click→snapshot→click→snapshot]` as a single repeating family, not 4 distinct fingerprints.
-- **No-shortcut-escapes fallback policy**: PROMPT-08 rerun showed model now picks the right tool first (drag_drop) but falls back to `execute_js` when CDP returns no observable change. Tighten to "report failure, do not escape".
+- **No-shortcut-escapes fallback policy**: PROMPT-08 rerun showed model picks the right tool first (drag_drop) but falls back to `execute_js` when CDP returns no observable change. Tighten to "report failure, do not escape".
 - **Action-matches-request self-check enhancement**: must look at actual action history, not prompt-time intent. PROMPT-08 rerun showed false success despite admitting JS escape in completionMessage.
-- **MCP `run_task` 300s timeout end-to-end verification**: extension-side fix landed in Plan 225-01; needs `fsb-mcp-server` republish (0.7.4 → 0.7.5) OR Claude Code MCP host repoint to local `mcp/build/` to verify end-to-end.
+- **MCP `run_task` 300s timeout end-to-end verification**: extension-side fix landed in Plan 225-01; needs `fsb-mcp-server` republish (0.7.4 → 0.7.5) OR Claude Code MCP host repoint to local `mcp/build/` to verify end-to-end. Tracked as Phase 236.
 
 ### Carry-over from prior milestones
 
@@ -168,14 +60,14 @@ Active milestone: **v0.9.50 Autopilot Refinement (MCP-Parity)** — roadmap crea
 
 ## Progress
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 224. Audit & Verification Baseline | 0/3 | Planned | - |
-| 225. Tools Alignment | 2/3 | In Progress|  |
-| 226. Prompt Refinement | 0/2 | Planned | - |
-| 227. Target Precision | 2/2 | Complete   | 2026-05-03 |
-| 228. Dynamic Model Discovery | 2/3 | In Progress | - |
-| 229. Overlay Stability Refinement | 1/2 | In Progress|  |
+<details>
+<summary>✅ v0.9.50 Autopilot Refinement (MCP-Parity) (Phases 224-230 + opportunistic 231-233) — SHIPPED 2026-05-03</summary>
+
+Archive: [milestones/v0.9.50-ROADMAP.md](milestones/v0.9.50-ROADMAP.md) · [milestones/v0.9.50-REQUIREMENTS.md](milestones/v0.9.50-REQUIREMENTS.md) · [v0.9.50-MILESTONE-AUDIT.md](v0.9.50-MILESTONE-AUDIT.md)
+
+54 commits, 91 files changed (+7607/−362). Audit status: tech_debt accepted (3 gap-closure phases 234-236 carried into next milestone).
+
+</details>
 
 <details>
 <summary>✅ v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up (Phase 223) — SHIPPED 2026-05-02</summary>
@@ -224,16 +116,5 @@ Archive:
 
 Older milestone phase details live in the archived roadmap snapshots under `.planning/milestones/`.
 
-### Phase 1: Stuck-detection & escape-fallback tuning
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 0
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 1 to break down)
-
 ---
-*Roadmap updated for v0.9.50: 2026-05-02*
-*First phase: 224 (continues numbering from v0.9.49's Phase 223)*
+*Roadmap last updated: 2026-05-03 (v0.9.50 archived; next milestone TBD via `/gsd-new-milestone`)*

@@ -10,25 +10,28 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.48 Angular 20 Migration — 2026-05-02 (Angular 19 EOL deadline of 2026-05-19 met 17 days early). `showcase/angular/` is on Angular 20.3.x with TypeScript 5.9.3. All v0.9.46 SEO/GEO surfaces preserved; production smoke crawler against `https://full-selfbrowsing.com/` passed 46/46 assertions post-deploy.
+**Last shipped:** v0.9.50 Autopilot Refinement (MCP-Parity) — 2026-05-03. Phases 224-230 (audit + tool alignment + prompt refinement + stuck-detection + dynamic model discovery + overlay stability + dwell floor) plus three opportunistic phases 231-233 (cost-limit removal, model-discovery cache + sticky selection, meta-cognitive attempt tracker). 54 commits, 91 files changed (+7607/−362). Audit status `tech_debt` accepted; gap-closure phases 234-236 (REQUIREMENTS backfill, retro GSD coverage for 231/232/233, MCP `run_task` return-on-completion publish) carried into next milestone.
 
-**Three milestones shipped today (2026-05-02):**
-- v0.9.46 Site Discoverability (SEO + GEO) — prerender, JSON-LD, robots/sitemap/llms files
-- v0.9.47 Workspace Reorganization — `extension/` + `mcp/` + `showcase/` clean boundaries
-- v0.9.48 Angular 20 Migration — schematic-driven upgrade ahead of EOL
+**Recent shipping cadence:**
+- v0.9.50 Autopilot Refinement (MCP-Parity) — shipped 2026-05-03
+- v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up — shipped 2026-05-02
+- v0.9.48 Angular 20 Migration — shipped 2026-05-02
+- v0.9.47 Workspace Reorganization — shipped 2026-05-02
+- v0.9.46 Site Discoverability (SEO + GEO) — shipped 2026-05-02
 
-**MCP server:** `fsb-mcp-server@0.7.4` published to npm 2026-05-02.
+**Version:** Extension + showcase APP_VERSION at `0.9.50`. MCP server still at `fsb-mcp-server@0.7.4` (0.7.5 publish gated by Phase 236).
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone: v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up
+## Next Milestone Goals (TBD)
 
-**Goal:** Rebrand the extension's "Agents" surface to "Remote Control (Beta)" and stream connect-time control-panel metrics into the showcase site dashboard.
+No active milestone. Likely candidates from v0.9.50 carry-forward and follow-up:
 
-**Target features:**
-- Rename the "Agents" dashboard tab to "Remote Control" with a Beta badge in the extension control panel.
-- Strip residual "agents" copy from the renamed surface so it reads as the remote-control panel end-to-end.
-- On connect, push extension control-panel metrics (connection state, session counters, cost/token usage, active tab + URL) to the showcase `/dashboard` so it renders live data instead of static placeholders.
+- **Phase 236 standalone milestone**: ship `fsb-mcp-server@0.7.5` so `mcp__fsb__run_task` returns when the agent completes instead of hitting the 300s ceiling
+- **Phase 234/235 cleanup milestone**: REQUIREMENTS.md backfill + retroactive GSD coverage for Phases 231/232/233 (commit 232 + 233; split unrelated `mcp/ai/tool-definitions.cjs` drift)
+- **Autopilot reliability follow-up**: action-history recording bug fix (mutation tools missing from `session.actionHistory`), PROMPT-08 fallback policy tightening
+- **GEO content pack** (carry-over): FAQ + comparison pages + per-route OG images
+- Run `/gsd-new-milestone` to formalize the next milestone
 
 ## Future Milestone Candidates (deferred)
 
@@ -458,4 +461,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-30 -- milestone v0.9.46 (Site Discoverability) started*
+*Last updated: 2026-05-02 -- after v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up shipped*

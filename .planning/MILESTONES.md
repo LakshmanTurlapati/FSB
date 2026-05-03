@@ -1,5 +1,49 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.50 Autopilot Refinement (MCP-Parity) (Shipped: 2026-05-03)
+
+**Phases completed:** 7 GSD-tracked (224-230) + 3 opportunistic (231-233 untracked); 54 commits, 91 files changed (+7607 / −362)
+
+**Archive:** `.planning/milestones/v0.9.50-ROADMAP.md` and `.planning/milestones/v0.9.50-REQUIREMENTS.md`
+
+**Audit status:** `tech_debt` accepted — `.planning/v0.9.50-MILESTONE-AUDIT.md`
+
+**Key accomplishments:**
+
+- Established autopilot baseline (Phase 224) — side-by-side autopilot-vs-MCP tool surface inventory, baseline `run_task` log run with failure categorization, reproducible operator verification recipe. Surfaced two unexpected findings: element targeting was already clean; real failure modes were tool-choice escapes and stuck-no-detection long loops.
+- Tool layer aligned with MCP (Phase 225) — verified annotation parity is structural via shared TOOL_REGISTRY (no-op fix); shipped MCP autopilot reliability fixes (in-flight session lookup, stop_task on active session); confirmed CDP routing parity. MCP server-side `run_task` return-on-completion subscribe deferred to Phase 236.
+- Prompt rules added with baseline-evidence (Phase 226) — 5 new system prompt rules + dropdown two-click pattern. Mid-milestone reversal: original "no-shortcut-escapes" rule replaced with "JS-first" policy after Amazon Add-to-cart loops showed native click failing repeatedly while JS click succeeded in one shot.
+- Stuck-detection enhanced (Phase 227 + meta-cognitive Phase 233) — strict consecutive-action-repetition detector (warn@3, force-stop@5) plus windowed goal-progress heuristic, both with attributed reason codes. Phase 233 added per-target attempt counter (warn@4, force-stop@6, 12-iteration window) that pools mixed click+execute_js attempts and operates independently of the lossy `actionHistory` pipeline.
+- Dynamic model discovery shipped (Phase 228) — replaced hardcoded model lists with live `/v1/models` API calls per provider (xAI, OpenAI, Anthropic, Gemini, OpenRouter); FALLBACK_MODELS preserved as constants; per-provider response shape handled in single discovery module.
+- Visual overlay stabilization (Phases 229 + 230) — 400ms debounce, glow position memoization, monotonic progress clamp, reduced-motion CSS, then 1200ms minimum-display-duration floor on top; replaced percent in pill with phase wording ("Acting…", "Thinking…", "Writing…").
+- Cost-limit removed (Phase 231 untracked) — $2/session cost circuit breaker disabled per operator request; iteration limit + time limit gate sessions now.
+- Model-discovery cache + sticky selection (Phase 232 untracked) — discovered model list now persists to `chrome.storage.local` with 24h TTL (survives MV3 service-worker restarts); user's saved model preserved as `(saved)` synthetic entry rather than silently reassigned.
+- Version bumped 0.9.31 → 0.9.50 across extension manifest, package.json, runtime headers, README, showcase APP_VERSION.
+
+**Accepted debt (tech_debt audit):**
+
+- MCP `run_task` 300s ceiling — extension-side completion broadcaster ships, MCP server-side subscriber not yet published (Phase 236).
+- Phase 230 documentation gap — single atomic commit, no per-plan SUMMARYs (work itself sound; Phase 234 formalizes).
+- PROMPT-08 fallback escape — drag still falls back to `execute_js` JS-swap when CDP returns observable no-op; partially mitigated by Phase 233 meta-cognitive force-stop.
+- Three opportunistic phases (231/232/233) bypassed GSD lifecycle — 231 committed clean, 232+233 uncommitted at archive time. Phase 235 retroactive coverage planned.
+- REQUIREMENTS.md grew from declared 13 to actual 36 REQ-IDs over the milestone; mid-milestone REQ families (DISCOVERY-*, OVERLAY-*, DWELL-*) backfilled at completion time.
+- Stray `mcp/ai/tool-definitions.cjs` drift from another phase mixed into Phase 232's working tree.
+- `actionHistory` recording bug — primary mutation tools (click) and most execute_js calls don't reach `session.actionHistory.push`. Worked around in Phase 233 with defensive `session.toolCallLog`. Root-cause fix not in scope.
+
+**Gap-closure phases planned (carry to next milestone):** 234 (REQUIREMENTS backfill formalization), 235 (retro PLAN/SUMMARY/VERIFICATION for 231/232/233 + commit cleanup), 236 (MCP `run_task` return-on-completion publish + lifecycle bus subscriber).
+
+---
+
+## v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up (Shipped: 2026-05-02)
+
+**Phases completed:** 1 phases, 4 plans, 6 tasks
+
+**Key accomplishments:**
+
+- Full local CI matrix green (validate:extension OK, npm test all suites pass, showcase:build OK, showcase:smoke 46/0); autonomous UAT AUTO-PASS recorded against all four ROADMAP success criteria with live-extension visual confirmation deferred as carry-over validation debt.
+
+---
+
 ## v0.9.48 Angular 20 Migration (Shipped: 2026-05-02)
 
 **Delivered:** Migrated `showcase/angular/` from Angular 19 to Angular 20 ahead of the 2026-05-19 Angular 19 EOL (shipped 17 days early). All v0.9.46 SEO/GEO surfaces preserved; production smoke crawler against `https://full-selfbrowsing.com/` passed 46/46 assertions post-deploy.
