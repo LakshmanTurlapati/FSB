@@ -557,6 +557,17 @@
           transform: none;
           width: 45%;
         }
+        /* Phase 229-02 (OVERLAY-06): strict text-surface no-animation. */
+        .fsb-task,
+        .fsb-summary,
+        .fsb-step-text,
+        .fsb-step-number,
+        .fsb-eta {
+          transition: none !important;
+          animation: none !important;
+        }
+        /* .fsb-progress-fill.complete background change is a single state,
+           not an animation -- preserved as the only celebratory cue. */
       }
     `;
 

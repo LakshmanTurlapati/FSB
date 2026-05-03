@@ -416,7 +416,9 @@ console.log('\n--- Test: ProgressOverlay shadow CSS has reduced-motion block cov
 {
   // Locate the ProgressOverlay shadow style block (~line 410-560 of visual-feedback.js)
   // and verify the @media block contains text-surface selectors.
-  const reducedMotionRegex = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/g;
+  // Match an @media block with up to ~6 nested rule blocks (covers both
+  // ProgressOverlay and ActionGlowOverlay reduced-motion sections).
+  const reducedMotionRegex = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{(?:[^{}]*\{[^{}]*\}){1,12}[^{}]*\}/g;
   const blocks = visualFeedbackSrc.match(reducedMotionRegex) || [];
   assert(blocks.length >= 2,
     'at least 2 @media (prefers-reduced-motion: reduce) blocks present (ProgressOverlay + ActionGlowOverlay); got ' + blocks.length);
@@ -464,7 +466,9 @@ console.log('\n--- Test: green-flash completion under matchMedia(reduced-motion)
 console.log('\n--- Test: ActionGlowOverlay reduced-motion block still present (regression guard) ---');
 {
   // Find the second @media (prefers-reduced-motion: reduce) block.
-  const reducedMotionRegex = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/g;
+  // Match an @media block with up to ~6 nested rule blocks (covers both
+  // ProgressOverlay and ActionGlowOverlay reduced-motion sections).
+  const reducedMotionRegex = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{(?:[^{}]*\{[^{}]*\}){1,12}[^{}]*\}/g;
   const blocks = visualFeedbackSrc.match(reducedMotionRegex) || [];
   // Last block should be ActionGlowOverlay's
   const glowBlock = blocks[blocks.length - 1] || '';
