@@ -31,6 +31,8 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     'The provided visual-session token does not match an active client-owned visual session. The token may be stale, already finalized, or already cleared. Start a new visual session or use the latest token returned by start_visual_session.',
   'visual_surface_busy':
     'The active visual surface is already owned by an FSB automation session. Wait for the current run to finish or stop it before starting a client-owned visual session.',
+  'session_not_found':
+    'The requested session id was not found in the active automation map or in the saved session history. The id may be stale, mistyped, or for a session that has been cleared.',
 };
 
 const DEFAULT_RESTRICTED_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
@@ -44,6 +46,7 @@ const LAYER_LABELS = {
   restrictedPage: 'Restricted page',
   pageNavigation: 'Page navigation',
   visualSession: 'Visual session contract',
+  sessionLookup: 'Session lookup',
 } as const;
 
 type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
@@ -217,6 +220,14 @@ function buildLayeredDetail(
         detected: LAYER_LABELS.visualSession,
         why: 'The active tab is already owned by an FSB automation run, so a second visual-session owner cannot claim the surface right now.',
         nextAction: 'Wait for the current automation to finish or stop it before starting a client-owned visual session.',
+      };
+    case 'session_not_found':
+      return {
+        detected: LAYER_LABELS.sessionLookup,
+        why: errorMsg || 'The requested session id was not found in the active automation map or in the saved session history.',
+        nextAction: typeof fsbResult?.recoveryHint === 'string' && fsbResult.recoveryHint.trim().length > 0
+          ? fsbResult.recoveryHint
+          : 'Use list_sessions to see historical sessions, or get_task_status to check for an active session.',
       };
     case 'no_active_tab':
       return {

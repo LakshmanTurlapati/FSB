@@ -649,11 +649,42 @@ async function handleStartAutomationRoute({ payload, client }) {
 
 async function handleStopAutomationRoute({ payload, client }) {
   const tab = await getActiveTabFromClient(client).catch(() => null);
+
+  // Phase 225-01 (Task 2): MCP stop_task tool ships no sessionId in its
+  // schema, so payload.sessionId is undefined and handleStopAutomation cannot
+  // find anything in storage. Resolve to the in-flight session via the active
+  // sessions map (same source get_task_status uses for currentSessionId).
+  let sessionId = payload && payload.sessionId;
+  if (!sessionId) {
+    const sessions = getActiveSessionsMap();
+    const ids = Array.from(sessions.keys());
+    if (ids.length > 0) {
+      sessionId = ids[0];
+      try {
+        const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
+          ? globalThis.redactForLog
+          : (v) => v;
+        console.log('[FSB MCP] stop_task resolved in-flight session', redact({ sessionId }));
+      } catch (_e) { /* logging never blocks dispatch */ }
+    }
+  }
+
+  if (!sessionId) {
+    return {
+      success: false,
+      errorCode: 'session_not_found',
+      tool: 'stop_task',
+      routeFamily: 'autopilot',
+      error: 'No active automation session to stop',
+      recoveryHint: 'Use get_task_status to confirm whether a session is running before calling stop_task.'
+    };
+  }
+
   return callCallbackHandler(
     'handleStopAutomation',
     {
       action: 'stopAutomation',
-      sessionId: payload.sessionId
+      sessionId
     },
     tab?.id ? { tab: { id: tab.id } } : {}
   );
@@ -717,6 +748,27 @@ async function handleListSessionsMessageRoute({ payload }) {
   };
 }
 
+function buildInFlightSessionSnapshot(sessionId, session) {
+  if (!session || typeof session !== 'object') return null;
+  const lastAction = Array.isArray(session.actionHistory) && session.actionHistory.length > 0
+    ? session.actionHistory[session.actionHistory.length - 1]
+    : null;
+  return {
+    sessionId,
+    final: false,
+    status: session.status || 'in-flight',
+    startedAt: session.startTime || null,
+    iterationCount: session.iterationCount || 0,
+    maxIterations: session.maxIterations || null,
+    actionCount: Array.isArray(session.actionHistory) ? session.actionHistory.length : 0,
+    currentAction: lastAction ? sanitizeActionHistoryEntry(lastAction) : null,
+    taskDescription: typeof session.task === 'string' ? boundedString(session.task, 500) : null,
+    tabId: typeof session.tabId === 'number' ? session.tabId : null,
+    lastUrl: typeof session.lastUrl === 'string' ? session.lastUrl : null,
+    note: 'In-flight session: no terminal outcome yet. Re-query after completion (or via list_sessions) for full history.'
+  };
+}
+
 async function handleGetSessionMessageRoute({ payload }) {
   if (!payload.sessionId) {
     return createMcpInvalidParamsError('get_session_detail', 'get_session_detail requires sessionId', { routeFamily: 'observability' });
@@ -726,10 +778,41 @@ async function handleGetSessionMessageRoute({ payload }) {
   }
 
   const session = await automationLogger.loadSession(payload.sessionId);
+  if (session) {
+    return {
+      success: true,
+      session: sanitizeSessionDetail(session)
+    };
+  }
+
+  // Phase 225-01 (Task 2): historical lookup missed -- fall back to in-flight
+  // sessions. Active sessions live in the activeSessions map (same source
+  // currentSessionId is derived from in handleGetStatusRoute) and are NOT yet
+  // in the history store. Without this fallback, get_session_detail returns
+  // "Session not found" while the session is actively running.
+  const activeSessions = getActiveSessionsMap();
+  const liveSession = activeSessions.get(payload.sessionId);
+  if (liveSession) {
+    try {
+      const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
+        ? globalThis.redactForLog
+        : (v) => v;
+      console.log('[FSB MCP] get_session_detail resolved in-flight session', redact({ sessionId: payload.sessionId, status: liveSession.status }));
+    } catch (_e) { /* logging never blocks dispatch */ }
+    return {
+      success: true,
+      session: buildInFlightSessionSnapshot(payload.sessionId, liveSession),
+      inFlight: true
+    };
+  }
+
   return {
-    success: Boolean(session),
-    session: sanitizeSessionDetail(session),
-    ...(session ? {} : { error: 'Session not found' })
+    success: false,
+    errorCode: 'session_not_found',
+    tool: 'get_session_detail',
+    routeFamily: 'observability',
+    error: `Session ${payload.sessionId} not found in active or historical sessions`,
+    recoveryHint: 'Use list_sessions to see historical sessions, or get_task_status to check for an active session.'
   };
 }
 
