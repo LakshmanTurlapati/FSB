@@ -42,6 +42,7 @@ if (typeof importScripts !== 'undefined') {
     if (typeof createSafetyBreakerHook === 'undefined') importScripts('ai/hooks/safety-hooks.js');
     if (typeof createPermissionHook === 'undefined') importScripts('ai/hooks/permission-hook.js');
     if (typeof createToolProgressHook === 'undefined') importScripts('ai/hooks/progress-hook.js');
+    if (typeof GoalProgressTracker === 'undefined') importScripts('ai/goal-progress-tracker.js');
   } catch (_e) {
     // Already loaded -- ignore
   }
@@ -61,7 +62,7 @@ if (typeof require !== 'undefined') {
 }
 
 // Phase 156-158 Node.js require for testing
-var _al_costTracker, _al_transcriptStore, _al_hookPipeline, _al_turnResult, _al_actionHistory, _al_engineConfig, _al_permCtx, _al_safetyHooks, _al_permHook, _al_progressHook;
+var _al_costTracker, _al_transcriptStore, _al_hookPipeline, _al_turnResult, _al_actionHistory, _al_engineConfig, _al_permCtx, _al_safetyHooks, _al_permHook, _al_progressHook, _al_goalProgress;
 if (typeof require !== 'undefined') {
   try {
     _al_costTracker = require('./cost-tracker.js');
@@ -74,10 +75,19 @@ if (typeof require !== 'undefined') {
     _al_safetyHooks = require('./hooks/safety-hooks.js');
     _al_permHook = require('./hooks/permission-hook.js');
     _al_progressHook = require('./hooks/progress-hook.js');
+    _al_goalProgress = require('./goal-progress-tracker.js');
   } catch (_e) {
     // Running in Chrome extension context
   }
 }
+
+// Phase 227-02: GoalProgressTracker references for both Chrome (globals) and Node.
+var _al_GoalProgressTracker = (typeof GoalProgressTracker !== 'undefined')
+  ? GoalProgressTracker
+  : (_al_goalProgress?.GoalProgressTracker || null);
+var _al_getGoalProgressOverrideThreshold = (typeof getGoalProgressOverrideThreshold !== 'undefined')
+  ? getGoalProgressOverrideThreshold
+  : (_al_goalProgress?.getOverrideThreshold || function () { return 8; });
 
 // Resolve references for both Chrome (globals) and Node (require)
 // Use var throughout to avoid const/let redeclaration errors in importScripts shared scope
@@ -281,9 +291,61 @@ function detectStuck(session, toolResults) {
   var consecCount = state.consecutiveSameFingerprintCount || 0;
   var isActionRepetition = consecCount >= actionRepeatWarnThreshold;
 
+  // --- Phase 227-02: Goal-progress unique-state-vector tracker ---
+  // Lazily initialise the tracker on the session. Record this iteration's
+  // (url, focusedElementId, actionOutcomeKey) signals BEFORE evaluating
+  // precedence. The actual goalStuck decision is consulted AFTER the
+  // action-repetition path so the more specific signal always wins.
+  var goalStuck = false;
+  var goalWindowSize = 8;
+  if (_al_GoalProgressTracker) {
+    if (!session.goalProgressTracker) {
+      session.goalProgressTracker = new _al_GoalProgressTracker();
+    }
+    // Source url: prefer session.lastKnownUrl, then last toolResult with a url field.
+    var gpUrl = session.lastKnownUrl || null;
+    if (!gpUrl) {
+      for (var u = toolResults.length - 1; u >= 0; u--) {
+        var trU = toolResults[u];
+        var maybeUrl = (trU && trU.result && (trU.result.url || trU.result.currentUrl)) || (trU && trU.args && trU.args.url) || null;
+        if (maybeUrl) { gpUrl = maybeUrl; break; }
+      }
+    }
+    // Source focusedElementId + actionOutcomeKey: last MUTATION toolResult.
+    var gpFocused = null;
+    var gpOutcomeKey = null;
+    for (var v = toolResults.length - 1; v >= 0; v--) {
+      var trV = toolResults[v];
+      if (!trV || READ_ONLY_TOOLS[trV.name]) continue;
+      var fid = '';
+      if (trV.args) {
+        fid = trV.args.selector || trV.args.elementId || trV.args.element_id || '';
+      }
+      gpFocused = fid || null;
+      var success = !!(trV.result && trV.result.success);
+      var hadEffect = !!(trV.result && trV.result.hadEffect);
+      gpOutcomeKey = trV.name + ':' + (success ? 'ok' : 'err') + ':' + (hadEffect ? 'fx' : 'nf');
+      break;
+    }
+    var iterForTracker = state.iterationCount || session.iterationCount || (state.actionFingerprints ? state.actionFingerprints.length : 0);
+    session.goalProgressTracker.record({
+      iteration: iterForTracker,
+      url: gpUrl,
+      focusedElementId: gpFocused,
+      actionOutcomeKey: gpOutcomeKey
+    });
+    var taskTypeForGoal = session.taskType || (session.agentState && session.agentState.taskType) || null;
+    goalWindowSize = _al_getGoalProgressOverrideThreshold(taskTypeForGoal);
+    goalStuck = !session.goalProgressTracker.hasProgressed(iterForTracker, goalWindowSize);
+    // Reset goal-progress warning counter on actual progress.
+    if (!goalStuck) {
+      state.goalProgressWarningCount = 0;
+    }
+  }
+
   // --- 3. Determine stuck state ---
   var isStuckByNoChange = state.consecutiveNoChangeCount >= stuckThreshold;
-  var isStuck = isStuckByNoChange || isRepetitive || isActionRepetition;
+  var isStuck = isStuckByNoChange || isRepetitive || isActionRepetition || goalStuck;
 
   if (!isStuck) {
     // Not stuck -- reset warning + consecutive counter
@@ -318,6 +380,26 @@ function detectStuck(session, toolResults) {
         '(2) Try a different selector or elementId. ' +
         '(3) Use keyboard navigation (press_key Tab/Enter/ArrowDown). ' +
         '(4) Skip this sub-task or call fail_task if impossible.'
+    };
+  }
+
+  // Phase 227-02: goal-progress check runs AFTER action-repetition (precedence
+  // rule -- action-repetition is the more specific signal so it wins when both
+  // fire). Window grace period (default 8 iterations, or 16 for form_fill) is
+  // already baked into goalStuck, so we warn at the first hit and force-stop
+  // at the second consecutive hit.
+  if (goalStuck) {
+    state.goalProgressWarningCount = (state.goalProgressWarningCount || 0) + 1;
+    var goalForceStop = state.goalProgressWarningCount >= 2;
+    return {
+      isStuck: true,
+      shouldForceStop: goalForceStop,
+      reasonCode: STUCK_REASONS.NO_GOAL_PROGRESS,
+      hint: (goalForceStop ? 'AUTOMATION FORCE-STOPPED' : 'WARNING') +
+        ' (stuck_no_goal_progress): no new URLs/focused-elements/distinct-outcomes recorded in last ' +
+        goalWindowSize + ' iterations. The current strategy is not advancing toward the goal. ' +
+        'Try: (1) navigate to a different URL, (2) read the page to confirm what state you\'re in, ' +
+        '(3) use a fundamentally different tool, or (4) call fail_task if blocked.'
     };
   }
 
