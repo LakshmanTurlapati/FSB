@@ -31,6 +31,7 @@ const MCP_PHASE199_TOOL_ROUTES = {
   stop_task: { routeFamily: 'autopilot', messageType: 'mcp:stop-automation', handler: handleToolAliasRoute },
   get_task_status: { routeFamily: 'autopilot', messageType: 'mcp:get-status', handler: handleToolAliasRoute },
   get_site_guide: { routeFamily: 'read-only', messageType: 'mcp:get-site-guides', handler: handleToolAliasRoute },
+  get_page_snapshot: { routeFamily: 'read-only', messageType: 'mcp:get-page-snapshot', handler: handleToolAliasRoute },
   list_sessions: { routeFamily: 'observability', messageType: 'mcp:list-sessions', handler: handleToolAliasRoute },
   get_session_detail: { routeFamily: 'observability', messageType: 'mcp:get-session', handler: handleToolAliasRoute },
   get_logs: { routeFamily: 'observability', messageType: 'mcp:get-logs', handler: handleToolAliasRoute },
@@ -48,6 +49,7 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-tabs': { routeFamily: 'read-only', helperName: '_handleGetTabs' },
   'mcp:get-diagnostics': { routeFamily: 'diagnostics', handler: handleGetDiagnosticsMessageRoute },
   'mcp:get-site-guides': { routeFamily: 'read-only', handler: handleGetSiteGuidesRoute },
+  'mcp:get-page-snapshot': { routeFamily: 'read-only', handler: handleGetPageSnapshotRoute },
   'mcp:get-dom': { routeFamily: 'read-only', helperName: '_handleGetDOM' },
   'mcp:read-page': { routeFamily: 'read-only', helperName: '_handleReadPage' },
   'mcp:start-visual-session': { routeFamily: 'visual-session', handler: handleStartVisualSessionRoute },
@@ -705,6 +707,69 @@ async function handleGetStatusRoute() {
     currentMaxIterations: firstSession?.maxIterations || 20,
     currentActionCount: firstSession?.actionHistory?.length || 0
   };
+}
+
+async function handleGetPageSnapshotRoute({ payload, client }) {
+  const tab = await getActiveTabFromClient(client).catch(() => null);
+  if (!tab?.id) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+      errorCode: 'no_active_tab',
+      error: 'No active tab available for page snapshot'
+    });
+  }
+
+  if (isRestrictedMcpUrl(tab.url || '')) {
+    return buildRestrictedMcpResponse({
+      currentUrl: tab.url || '',
+      pageType: getPageTypeDescriptionForMcp(tab.url || ''),
+      tool: 'get_page_snapshot',
+      error: 'Active tab is restricted'
+    });
+  }
+
+  const charBudget = boundedPositiveInt(payload?.charBudget, 12000, 32000);
+  const maxElements = boundedPositiveInt(payload?.maxElements, 80, 250);
+
+  const sendToContentScript = (typeof client?._sendToContentScript === 'function')
+    ? (tabId, message) => client._sendToContentScript(tabId, message)
+    : (tabId, message) => new Promise((resolve, reject) => {
+        try {
+          getChromeTabsApi();
+          chrome.tabs.sendMessage(tabId, message, { frameId: 0 }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve(response || {});
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+  try {
+    const response = await sendToContentScript(tab.id, {
+      action: 'getMarkdownSnapshot',
+      options: { charBudget, maxElements }
+    });
+    if (response && response.success && response.markdownSnapshot) {
+      return {
+        success: true,
+        tool: 'get_page_snapshot',
+        snapshot: response.markdownSnapshot,
+        elementCount: response.elementCount || 0,
+        url: tab.url || '',
+        tabId: tab.id
+      };
+    }
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      error: (response && response.error) || 'Snapshot unavailable'
+    });
+  } catch (error) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      error: error.message || String(error)
+    });
+  }
 }
 
 async function handleGetSiteGuidesRoute({ payload }) {

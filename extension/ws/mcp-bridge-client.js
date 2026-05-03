@@ -335,6 +335,9 @@ class MCPBridgeClient {
       case 'mcp:get-site-guides':
         return this._handleGetSiteGuides(payload);
 
+      case 'mcp:get-page-snapshot':
+        return this._handleGetPageSnapshot(payload);
+
       case 'mcp:get-memory':
         return this._handleGetMemory(payload);
 
@@ -765,6 +768,15 @@ class MCPBridgeClient {
   async _handleGetSiteGuides(payload) {
     const response = await dispatchMcpMessageRoute({
       type: 'mcp:get-site-guides',
+      payload,
+      client: this
+    });
+    return response || {};
+  }
+
+  async _handleGetPageSnapshot(payload = {}) {
+    const response = await dispatchMcpMessageRoute({
+      type: 'mcp:get-page-snapshot',
       payload,
       client: this
     });
