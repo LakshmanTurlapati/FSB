@@ -2535,6 +2535,24 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// Phase 237 -- registry tab-release hook.
+// Standalone listener (NOT a modification of the two existing onRemoved listeners
+// for session/port cleanup above and the keyboard-emulator detach further below).
+// releaseTab is idempotent per registry contract (plan-01 task 1 test 7), so
+// duplicate fires from listener reordering or future consolidation are no-ops.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  try {
+    if (globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.releaseTab === 'function') {
+      // Fire-and-forget: releaseTab is internally promise-chain-locked.
+      // Matches the non-blocking pattern of the existing v0.9.36 cleanup listeners.
+      globalThis.fsbAgentRegistryInstance.releaseTab(tabId);
+    }
+  } catch (err) {
+    // Defensive: never let registry errors stop the existing onRemoved cleanup chain.
+  }
+});
+
 // Send periodic heartbeats to keep port connections validated
 // PERF: Store interval ID so it can be cleared on suspension
 const _heartbeatIntervalId = setInterval(() => {
