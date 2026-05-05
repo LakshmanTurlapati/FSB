@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * Phase 237 plan 01 -- agent registry CRUD + helpers + mutex.
+ * Phase 237 plan 01 + 02 -- agent registry CRUD + helpers + mutex + storage.
  *
- * Validates:
+ * Plan 01 validates:
  *   - Module export shape (constants + class + helpers)
  *   - formatAgentIdForDisplay (D-02 canonical 6-char prefix helper)
  *   - registerAgent ID minting (AGENT-01: caller-supplied ids ignored)
@@ -13,13 +13,29 @@
  *   - releaseTab idempotency (Pitfall 6)
  *   - releaseAgent removes agent and all bound tabs
  *
- * Storage round-trip and hydrate reconciliation are covered in plan 02.
+ * Plan 02 validates (AGENT-02 + AGENT-03):
+ *   - Storage write-through round-trip on register / bind / release / agent release
+ *   - Empty registry removes the storage key
+ *   - Versioned envelope { v: 1, records: { ... } } shape
+ *   - Version mismatch and corrupt envelope fall through gracefully
+ *   - hydrate() rebuilds Maps from storage (SW-eviction simulation)
+ *   - hydrate() drops ghost records (tab no longer in chrome.tabs.query)
+ *   - hydrate() emits agent:reaped diagnostic events via rateLimitedWarn
+ *   - hydrate() is idempotent (second call no-op) and gated by withRegistryLock
+ *   - hydrate() conservative on chrome.tabs.query failure (does not drop)
+ *   - emitAgentReapedEvent shape (D-03 verbatim) and lazy-reference safety
  *
  * Run: node tests/agent-registry.test.js
  */
 
 const assert = require('assert');
-const reg = require('../extension/utils/agent-registry.js');
+const path = require('path');
+const REGISTRY_MODULE_PATH = require.resolve('../extension/utils/agent-registry.js');
+
+// Initial require for plan 01 tests; plan 02 storage tests fresh-require per test
+// after installing chrome mock so the module's lazy globalThis.chrome reference
+// resolves against the mock.
+const reg = require(REGISTRY_MODULE_PATH);
 const {
   AgentRegistry,
   formatAgentIdForDisplay,
@@ -29,6 +45,114 @@ const {
   FSB_AGENT_LOG_PREFIX,
   FSB_AGENT_ID_PREFIX
 } = reg;
+
+// ---- Plan 02 chrome mock harness (createStorageArea copied from
+// tests/mcp-bridge-client-lifecycle.test.js:33-70 verbatim; chrome.tabs added) -----
+
+function createStorageArea(initial) {
+  const store = Object.assign({}, initial || {});
+  return {
+    async get(keys) {
+      if (keys == null) return Object.assign({}, store);
+      if (Array.isArray(keys)) {
+        const out = {};
+        keys.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(store, key)) out[key] = store[key];
+        });
+        return out;
+      }
+      if (typeof keys === 'string') {
+        return Object.prototype.hasOwnProperty.call(store, keys)
+          ? { [keys]: store[keys] }
+          : {};
+      }
+      if (typeof keys === 'object') {
+        const out = {};
+        Object.keys(keys).forEach((key) => {
+          out[key] = Object.prototype.hasOwnProperty.call(store, key) ? store[key] : keys[key];
+        });
+        return out;
+      }
+      return Object.assign({}, store);
+    },
+    async set(values) {
+      Object.assign(store, values);
+    },
+    async remove(keys) {
+      const list = Array.isArray(keys) ? keys : [keys];
+      list.forEach((key) => { delete store[key]; });
+    },
+    _dump() {
+      return Object.assign({}, store);
+    }
+  };
+}
+
+function createChromeTabsMock(initialTabs) {
+  let tabs = (initialTabs || []).map((t) => Object.assign({}, t));
+  const listeners = { onRemoved: [] };
+  let queryThrows = false;
+  return {
+    async query(_filter) {
+      if (queryThrows) throw new Error('tabs.query unavailable');
+      return tabs.slice();
+    },
+    async get(tabId) {
+      const found = tabs.find((t) => t.id === tabId);
+      if (!found) throw new Error('No tab with id: ' + tabId);
+      return found;
+    },
+    onRemoved: {
+      addListener(fn) { listeners.onRemoved.push(fn); },
+      _emit(tabId) { listeners.onRemoved.forEach((fn) => { fn(tabId); }); }
+    },
+    _setTabs(newTabs) { tabs = newTabs.slice(); },
+    _addTab(t) { tabs.push(Object.assign({}, t)); },
+    _removeTab(tabId) { tabs = tabs.filter((t) => t.id !== tabId); },
+    _setQueryThrows(v) { queryThrows = !!v; }
+  };
+}
+
+function setupChromeMock(opts) {
+  opts = opts || {};
+  const session = createStorageArea(opts.session || {});
+  const local = createStorageArea(opts.local || {});
+  const tabs = createChromeTabsMock(opts.tabs || []);
+  globalThis.chrome = {
+    runtime: { id: 'phase-237-test', lastError: null },
+    storage: { session: session, local: local },
+    tabs: tabs
+  };
+  return { session: session, local: local, tabs: tabs };
+}
+
+function teardownChromeMock() {
+  delete globalThis.chrome;
+}
+
+function setupDiagnosticCapture() {
+  const captured = [];
+  globalThis.rateLimitedWarn = function(prefix, category, message, ctx) {
+    captured.push({
+      prefix: prefix,
+      category: category,
+      message: message,
+      ctx: ctx
+    });
+  };
+  globalThis.redactForLog = function(v) { return { kind: typeof v }; };
+  return captured;
+}
+
+function teardownDiagnosticCapture() {
+  delete globalThis.rateLimitedWarn;
+  delete globalThis.redactForLog;
+}
+
+function freshRequireRegistry() {
+  delete require.cache[REGISTRY_MODULE_PATH];
+  return require(REGISTRY_MODULE_PATH);
+}
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -311,19 +435,534 @@ const UUID_PATTERN = /^agent_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
   }
   console.log('  PASS: listAgents returns defensive clones');
 
-  console.log('--- hydrate / _persist are stubbed (plan 02 wires storage) ---');
+  console.log('--- hydrate / _persist are async functions (plan 02 wires real storage) ---');
   {
     const registry = freshRegistry();
     assert.strictEqual(typeof registry.hydrate, 'function', 'hydrate exists');
     assert.strictEqual(typeof registry._persist, 'function', '_persist exists');
-    const hyd = registry.hydrate();
-    assert.ok(hyd && typeof hyd.then === 'function', 'hydrate returns a promise');
-    await hyd;
-    const per = registry._persist();
-    assert.ok(per && typeof per.then === 'function', '_persist returns a promise');
-    await per;
+    // Real plan-02 calls require chrome mock; here we only verify shape.
   }
-  console.log('  PASS: hydrate and _persist stubs return resolved promises');
+  console.log('  PASS: hydrate and _persist exist as functions');
+
+  // === Plan 02: storage round-trip ============================================
+
+  console.log('--- Plan 02 / Test 1: storage round-trip -- registerAgent persists ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const ids = [];
+      for (let i = 0; i < 5; i++) {
+        const r = await registry.registerAgent();
+        ids.push(r.agentId);
+      }
+      const dump = mock.session._dump();
+      const payload = dump[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      assert.ok(payload && typeof payload === 'object', 'payload exists');
+      assert.strictEqual(payload.v, 1, 'payload.v === 1');
+      assert.ok(payload.records && typeof payload.records === 'object', 'payload.records exists');
+      assert.strictEqual(Object.keys(payload.records).length, 5, '5 records persisted');
+      ids.forEach((id) => {
+        const rec = payload.records[id];
+        assert.ok(rec, 'record exists for ' + id);
+        assert.strictEqual(rec.agentId, id, 'record.agentId matches');
+        assert.strictEqual(typeof rec.createdAt, 'number', 'record.createdAt is number');
+        assert.ok(Array.isArray(rec.tabIds), 'record.tabIds is array');
+        assert.strictEqual(rec.tabIds.length, 0, 'record.tabIds is empty');
+        assert.ok(!('connection_id' in rec), 'no connection_id field (D-04)');
+      });
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: registerAgent writes through to chrome.storage.session');
+
+  console.log('--- Plan 02 / Test 2: storage round-trip -- bindTab persists ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const r = await registry.registerAgent();
+      await registry.bindTab(r.agentId, 100);
+      await registry.bindTab(r.agentId, 200);
+      const payload = mock.session._dump()[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      const tabIds = payload.records[r.agentId].tabIds;
+      assert.ok(tabIds.includes(100), 'tab 100 persisted');
+      assert.ok(tabIds.includes(200), 'tab 200 persisted');
+      assert.strictEqual(tabIds.length, 2, 'exactly 2 tabIds');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bindTab writes through to chrome.storage.session');
+
+  console.log('--- Plan 02 / Test 3: storage round-trip -- releaseTab persists ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const r = await registry.registerAgent();
+      await registry.bindTab(r.agentId, 100);
+      await registry.bindTab(r.agentId, 200);
+      await registry.bindTab(r.agentId, 300);
+      await registry.releaseTab(200);
+      const payload = mock.session._dump()[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      const tabIds = payload.records[r.agentId].tabIds;
+      assert.ok(tabIds.includes(100), 'tab 100 still present');
+      assert.ok(tabIds.includes(300), 'tab 300 still present');
+      assert.ok(!tabIds.includes(200), 'tab 200 no longer present');
+      assert.strictEqual(tabIds.length, 2, 'exactly 2 tabIds remain');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: releaseTab writes through to chrome.storage.session');
+
+  console.log('--- Plan 02 / Test 4: storage round-trip -- releaseAgent removes from storage ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const A = (await registry.registerAgent()).agentId;
+      const B = (await registry.registerAgent()).agentId;
+      await registry.bindTab(A, 100);
+      await registry.bindTab(B, 200);
+      await registry.releaseAgent(A, 'test');
+      const payload = mock.session._dump()[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      assert.ok(payload, 'payload still exists (B remains)');
+      const keys = Object.keys(payload.records);
+      assert.strictEqual(keys.length, 1, 'exactly 1 record remains');
+      assert.strictEqual(keys[0], B, 'remaining record is B');
+      assert.ok(!(A in payload.records), 'agent A removed from storage');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: releaseAgent writes through to chrome.storage.session');
+
+  console.log('--- Plan 02 / Test 5: empty registry removes the storage key ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const r = await registry.registerAgent();
+      // Verify it was written.
+      assert.ok(
+        fresh.FSB_AGENT_REGISTRY_STORAGE_KEY in mock.session._dump(),
+        'key present after registerAgent'
+      );
+      await registry.releaseAgent(r.agentId, 'test');
+      const dump = mock.session._dump();
+      assert.ok(
+        !(fresh.FSB_AGENT_REGISTRY_STORAGE_KEY in dump),
+        'storage key removed when records are empty'
+      );
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: empty records map removes the storage key');
+
+  console.log('--- Plan 02 / Test 6: version mismatch returns null ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 99,
+          records: { ghost: { agentId: 'ghost', createdAt: 1, tabIds: [] } }
+        }
+      }
+    });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      assert.strictEqual(registry.listAgents().length, 0, 'version mismatch -> empty in-memory state');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: version mismatch falls through to empty state');
+
+  console.log('--- Plan 02 / Test 7: SW-eviction simulation -- fresh instance repopulates from storage ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_a': { agentId: 'agent_a', createdAt: 1234, tabIds: [100] }
+          }
+        }
+      },
+      tabs: [{ id: 100 }]
+    });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      assert.strictEqual(registry.listAgents().length, 1, 'one agent rehydrated');
+      assert.strictEqual(registry.getOwner(100), 'agent_a', 'tab 100 -> agent_a after hydrate');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate rebuilds Maps from a valid persisted snapshot');
+
+  console.log('--- Plan 02 / Test 8: corrupt envelope falls through gracefully ---');
+  {
+    const mock = setupChromeMock({
+      session: { fsbAgentRegistry: 'not-an-object' }
+    });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      let threw = false;
+      try {
+        await registry.hydrate();
+      } catch (e) {
+        threw = true;
+      }
+      assert.strictEqual(threw, false, 'hydrate did not throw on corrupt envelope');
+      assert.strictEqual(registry.listAgents().length, 0, 'no records on corrupt envelope');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: corrupt envelope handled defensively, no throw');
+
+  // === Plan 02: ghost-record reconciliation + diagnostic emission =============
+
+  console.log('--- Plan 02 / Test 9: hydrate drops ghost records and emits diagnostic ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_550e8400-e29b-41d4-a716-446655440000': {
+              agentId: 'agent_550e8400-e29b-41d4-a716-446655440000',
+              createdAt: 1000,
+              tabIds: [100]
+            },
+            'agent_999e8400-e29b-41d4-a716-446655440000': {
+              agentId: 'agent_999e8400-e29b-41d4-a716-446655440000',
+              createdAt: 2000,
+              tabIds: [999]
+            }
+          }
+        }
+      },
+      tabs: [{ id: 100 }] // tab 999 is the ghost
+    });
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      assert.strictEqual(registry.listAgents().length, 1, 'ghost agent dropped');
+      assert.strictEqual(
+        registry.getOwner(100),
+        'agent_550e8400-e29b-41d4-a716-446655440000',
+        'tab 100 -> live agent'
+      );
+      assert.strictEqual(registry.getOwner(999), null, 'tab 999 has no owner');
+      assert.strictEqual(captured.length, 1, 'exactly 1 warn captured');
+      const warn = captured[0];
+      assert.strictEqual(warn.prefix, 'AGT', 'prefix is AGT');
+      assert.strictEqual(
+        warn.category,
+        'agent-reaped-tab_not_found',
+        'category is agent-reaped-tab_not_found'
+      );
+      assert.strictEqual(warn.ctx.tabId, 999, 'ctx.tabId === 999');
+      assert.strictEqual(warn.ctx.reason, 'tab_not_found', 'ctx.reason === tab_not_found');
+      assert.strictEqual(
+        warn.ctx.agentIdShort,
+        fresh.formatAgentIdForDisplay('agent_999e8400-e29b-41d4-a716-446655440000'),
+        'ctx.agentIdShort matches display formatter'
+      );
+      // Storage written back.
+      const payload = mock.session._dump()[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      assert.ok(
+        !('agent_999e8400-e29b-41d4-a716-446655440000' in payload.records),
+        'ghost agent removed from storage'
+      );
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate drops ghosts and emits a diagnostic per drop');
+
+  console.log('--- Plan 02 / Test 10: hydrate drops MULTIPLE ghosts (one warn per record) ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_live-0000-0000-0000-000000000001': {
+              agentId: 'agent_live-0000-0000-0000-000000000001',
+              createdAt: 1, tabIds: [100]
+            },
+            'agent_g111-0000-0000-0000-000000000001': {
+              agentId: 'agent_g111-0000-0000-0000-000000000001',
+              createdAt: 2, tabIds: [991]
+            },
+            'agent_g222-0000-0000-0000-000000000002': {
+              agentId: 'agent_g222-0000-0000-0000-000000000002',
+              createdAt: 3, tabIds: [992]
+            },
+            'agent_g333-0000-0000-0000-000000000003': {
+              agentId: 'agent_g333-0000-0000-0000-000000000003',
+              createdAt: 4, tabIds: [993]
+            }
+          }
+        }
+      },
+      tabs: [{ id: 100 }]
+    });
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      assert.strictEqual(registry.listAgents().length, 1, 'only live agent remains');
+      assert.strictEqual(captured.length, 3, 'one warn emitted per ghost (3 total)');
+      const tabIds = captured.map((w) => w.ctx.tabId).sort();
+      assert.deepStrictEqual(tabIds, [991, 992, 993], 'each ghost tab seen exactly once');
+      captured.forEach((w) => {
+        assert.strictEqual(w.prefix, 'AGT', 'all warns have AGT prefix');
+        assert.strictEqual(
+          w.category,
+          'agent-reaped-tab_not_found',
+          'all warns are tab_not_found category'
+        );
+      });
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: 3 ghosts -> 3 warns (one per record)');
+
+  console.log('--- Plan 02 / Test 11: hydrate is idempotent (second call no-op) ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_a-0000-0000-0000-000000000001': {
+              agentId: 'agent_a-0000-0000-0000-000000000001',
+              createdAt: 1, tabIds: [100]
+            },
+            'agent_g-0000-0000-0000-000000000002': {
+              agentId: 'agent_g-0000-0000-0000-000000000002',
+              createdAt: 2, tabIds: [999]
+            }
+          }
+        }
+      },
+      tabs: [{ id: 100 }]
+    });
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      const stateAfter1 = registry.listAgents().map((r) => r.agentId).sort();
+      const captured1 = captured.length;
+      await registry.hydrate();
+      const stateAfter2 = registry.listAgents().map((r) => r.agentId).sort();
+      const captured2 = captured.length;
+      assert.deepStrictEqual(stateAfter1, stateAfter2, 'state unchanged across hydrate calls');
+      assert.strictEqual(captured1, captured2, 'no NEW warns on second hydrate');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate idempotent; second call adds no warns');
+
+  console.log('--- Plan 02 / Test 12: hydrate is gated by withRegistryLock ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_a-0000-0000-0000-000000000001': {
+              agentId: 'agent_a-0000-0000-0000-000000000001',
+              createdAt: 1, tabIds: [100]
+            }
+          }
+        }
+      },
+      tabs: [{ id: 100 }]
+    });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const [_h, regResult] = await Promise.all([
+        registry.hydrate(),
+        registry.registerAgent()
+      ]);
+      assert.strictEqual(registry.listAgents().length, 2, 'hydrated agent + new agent both present');
+      assert.strictEqual(
+        registry.getOwner(100),
+        'agent_a-0000-0000-0000-000000000001',
+        'hydrate completed before register observable'
+      );
+      assert.ok(regResult && regResult.agentId, 'registerAgent returned a fresh id');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: concurrent hydrate + registerAgent serialized under mutex');
+
+  console.log('--- Plan 02 / Test 13: hydrate is conservative when chrome.tabs.query throws ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_x-0000-0000-0000-000000000001': {
+              agentId: 'agent_x-0000-0000-0000-000000000001',
+              createdAt: 1, tabIds: [100]
+            },
+            'agent_y-0000-0000-0000-000000000002': {
+              agentId: 'agent_y-0000-0000-0000-000000000002',
+              createdAt: 2, tabIds: [200]
+            },
+            'agent_z-0000-0000-0000-000000000003': {
+              agentId: 'agent_z-0000-0000-0000-000000000003',
+              createdAt: 3, tabIds: [300]
+            }
+          }
+        }
+      },
+      tabs: []
+    });
+    mock.tabs._setQueryThrows(true);
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      assert.strictEqual(registry.listAgents().length, 3, 'no records dropped on query failure');
+      const reapingWarns = captured.filter((w) => w.category && w.category.indexOf('agent-reaped-') === 0);
+      assert.strictEqual(reapingWarns.length, 0, 'no reaping warns emitted on query failure');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: chrome.tabs.query failure -> conservative no-drop posture');
+
+  console.log('--- Plan 02 / Test 14: emitAgentReapedEvent has correct payload shape (D-03) ---');
+  {
+    setupChromeMock();
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      assert.ok(
+        fresh._internal && typeof fresh._internal.emitAgentReapedEvent === 'function',
+        '_internal.emitAgentReapedEvent exists'
+      );
+      fresh._internal.emitAgentReapedEvent(
+        'agent_550e8400-e29b-41d4-a716-446655440000',
+        999,
+        'tab_not_found'
+      );
+      assert.strictEqual(captured.length, 1, 'exactly 1 warn captured');
+      const w = captured[0];
+      assert.strictEqual(w.prefix, 'AGT', 'prefix === AGT');
+      assert.strictEqual(w.category, 'agent-reaped-tab_not_found', 'category per-reason');
+      assert.strictEqual(w.message, 'agent reaped', 'message === "agent reaped"');
+      assert.deepStrictEqual(
+        w.ctx,
+        {
+          agentIdShort: 'agent_550e84',
+          tabId: 999,
+          reason: 'tab_not_found'
+        },
+        'ctx shape matches D-03 verbatim'
+      );
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: emitAgentReapedEvent emits exact D-03 payload');
+
+  console.log('--- Plan 02 / Test 15: emit is safe when rateLimitedWarn is absent (Pitfall 5) ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_g-0000-0000-0000-000000000001': {
+              agentId: 'agent_g-0000-0000-0000-000000000001',
+              createdAt: 1, tabIds: [999]
+            }
+          }
+        }
+      },
+      tabs: []
+    });
+    // NOTE: deliberately do NOT install rateLimitedWarn.
+    delete globalThis.rateLimitedWarn;
+    delete globalThis.redactForLog;
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      let threw = false;
+      try {
+        await registry.hydrate();
+      } catch (e) {
+        threw = true;
+      }
+      assert.strictEqual(threw, false, 'hydrate did not throw without rateLimitedWarn');
+      assert.strictEqual(registry.listAgents().length, 0, 'ghost still dropped');
+      // Storage rewritten without ghost.
+      const dump = mock.session._dump();
+      const payload = dump[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      // Either the key is removed (records empty) or records is empty object.
+      if (payload) {
+        assert.strictEqual(Object.keys(payload.records).length, 0, 'storage records empty');
+      }
+    } finally {
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: missing rateLimitedWarn does not crash reaping path');
 
   console.log('\nAll assertions passed.');
 })().catch((err) => {

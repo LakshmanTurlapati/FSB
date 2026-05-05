@@ -2,10 +2,11 @@
   'use strict';
 
   /**
-   * Phase 237 plan 01 -- agent registry foundation.
+   * Phase 237 plan 01 + 02 -- agent registry foundation with storage write-
+   * through and SW-wake reconciliation.
    *
    * Keystone module that owns "who owns which tab" for v0.9.60 multi-agent
-   * tab concurrency. This file ships the SKELETON only:
+   * tab concurrency.
    *
    *   - In-memory Maps (agents, tabOwners, tabsByAgent)
    *   - registerAgent / releaseAgent / bindTab / releaseTab
@@ -13,15 +14,21 @@
    *   - formatAgentIdForDisplay (D-02 canonical 6-char prefix helper)
    *   - withRegistryLock (4-line promise-chain mutex; serializes all
    *     mutating ops within the single-threaded MV3 service worker)
-   *
-   * The chrome.storage.session write-through mirror and SW-wake reconciliation
-   * land in plan 02. The hydrate() and _persist() methods here are stubs that
-   * resolve immediately. Plan 02 replaces them with real implementations.
+   *   - chrome.storage.session write-through under FSB_AGENT_REGISTRY_STORAGE_KEY
+   *     in versioned envelope { v: 1, records: { ... } } (AGENT-02)
+   *   - hydrate() rebuilds Maps from storage and reconciles against
+   *     chrome.tabs.query({}); ghost records are dropped from BOTH in-memory
+   *     Maps AND storage. Each drop emits an agent:reaped event through the
+   *     existing Phase 211 LOG-04 ring buffer via rateLimitedWarn (AGENT-03).
    *
    * Background.js wiring lands in plan 03.
    *
    * Per CONTEXT.md D-01: file path is utils/, sibling to mcp-visual-session.js
    * (the legacy sunset directory is intentionally avoided).
+   *
+   * Per CONTEXT.md D-03: ghost-record drops emit through rateLimitedWarn with
+   * per-reason category 'agent-reaped-<reason>' so different drop reasons
+   * surface independently in the diagnostics ring.
    *
    * Per CONTEXT.md D-04: registry is connection-agnostic in Phase 237.
    * The MCP-transport linkage field lands cleanly in Phase 241.
@@ -35,6 +42,85 @@
   var FSB_AGENT_DISPLAY_HEX_LENGTH = 6;
   var FSB_AGENT_LOG_PREFIX = 'AGT';
   var FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE = 'agent-reaped';
+
+  // ---- Storage helpers (mirror background.js:563-591 with v: 1 envelope) --
+  //
+  // Both helpers reference globalThis.chrome lazily so the module loads
+  // cleanly under Node test harnesses where chrome is mocked AFTER module
+  // load. Errors are swallowed to a return-null / no-op posture; the SW
+  // boot path must NEVER be poisoned by a storage hiccup.
+
+  function _getChrome() {
+    return (typeof globalThis !== 'undefined' && globalThis.chrome) ? globalThis.chrome : null;
+  }
+
+  async function readPersistedAgentRegistry() {
+    var c = _getChrome();
+    if (!c || !c.storage || !c.storage.session || typeof c.storage.session.get !== 'function') {
+      return null;
+    }
+    try {
+      var stored = await c.storage.session.get([FSB_AGENT_REGISTRY_STORAGE_KEY]);
+      var payload = stored ? stored[FSB_AGENT_REGISTRY_STORAGE_KEY] : null;
+      if (!payload || typeof payload !== 'object') return null;
+      if (payload.v !== FSB_AGENT_REGISTRY_PAYLOAD_VERSION) return null;
+      return payload;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function writePersistedAgentRegistry(records) {
+    var c = _getChrome();
+    if (!c || !c.storage || !c.storage.session) return;
+    try {
+      var nextRecords = (records && typeof records === 'object') ? records : {};
+      if (Object.keys(nextRecords).length === 0) {
+        if (typeof c.storage.session.remove === 'function') {
+          await c.storage.session.remove(FSB_AGENT_REGISTRY_STORAGE_KEY);
+        }
+        return;
+      }
+      var payload = {};
+      payload[FSB_AGENT_REGISTRY_STORAGE_KEY] = {
+        v: FSB_AGENT_REGISTRY_PAYLOAD_VERSION,
+        records: nextRecords
+      };
+      if (typeof c.storage.session.set === 'function') {
+        await c.storage.session.set(payload);
+      }
+    } catch (_e) {
+      // best-effort; do not throw
+    }
+  }
+
+  // ---- Diagnostic emission (RESEARCH.md Pattern 5 Option A; CONTEXT.md D-03)
+  //
+  // Lazy-references globalThis.rateLimitedWarn so a module load order issue
+  // (Pitfall 5) does not crash the reaping path. Reaping is mandatory; the
+  // diagnostic is best-effort.
+
+  function emitAgentReapedEvent(agentId, tabId, reason) {
+    var event = {
+      type: 'agent:reaped',
+      agentId: agentId,
+      tabId: tabId,
+      reason: reason,
+      timestamp: Date.now(),
+      agentIdShort: formatAgentIdForDisplay(agentId)
+    };
+    if (typeof globalThis !== 'undefined' && typeof globalThis.rateLimitedWarn === 'function') {
+      try {
+        globalThis.rateLimitedWarn(
+          FSB_AGENT_LOG_PREFIX,
+          FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE + '-' + reason,
+          'agent reaped',
+          { agentIdShort: event.agentIdShort, tabId: tabId, reason: reason }
+        );
+      } catch (_e) { /* swallow */ }
+    }
+    return event;
+  }
 
   // ---- Promise-chain mutex (RESEARCH.md Pattern 3 verbatim) ---------------
   //
@@ -125,7 +211,7 @@
    */
   AgentRegistry.prototype.registerAgent = function(/* opts ignored */) {
     var self = this;
-    return withRegistryLock(function() {
+    return withRegistryLock(async function() {
       var agentId = mintAgentId();
       var record = {
         agentId: agentId,
@@ -134,11 +220,11 @@
       };
       self._agents.set(agentId, record);
       self._tabsByAgent.set(agentId, new Set());
-      // Plan 02 will add: await self._persist();
-      return Promise.resolve({
+      await self._persist();
+      return {
         agentId: agentId,
         agentIdShort: formatAgentIdForDisplay(agentId)
-      });
+      };
     });
   };
 
@@ -150,9 +236,9 @@
    */
   AgentRegistry.prototype.releaseAgent = function(agentId, _reason) {
     var self = this;
-    return withRegistryLock(function() {
+    return withRegistryLock(async function() {
       if (typeof agentId !== 'string' || !self._agents.has(agentId)) {
-        return Promise.resolve(false);
+        return false;
       }
       var ownedTabs = self._tabsByAgent.get(agentId);
       if (ownedTabs) {
@@ -164,8 +250,8 @@
       }
       self._tabsByAgent.delete(agentId);
       self._agents.delete(agentId);
-      // Plan 02 will add: await self._persist();
-      return Promise.resolve(true);
+      await self._persist();
+      return true;
     });
   };
 
@@ -179,18 +265,18 @@
    */
   AgentRegistry.prototype.bindTab = function(agentId, tabId) {
     var self = this;
-    return withRegistryLock(function() {
+    return withRegistryLock(async function() {
       if (typeof agentId !== 'string' || !self._agents.has(agentId)) {
-        return Promise.resolve(false);
+        return false;
       }
       if (!isPositiveInteger(tabId)) {
-        return Promise.resolve(false);
+        return false;
       }
       // If another agent already owns this tab, refuse silently. Phase 240
       // ships the dispatch-gate enforcement that decides displace-vs-reject.
       var currentOwner = self._tabOwners.get(tabId);
       if (currentOwner && currentOwner !== agentId) {
-        return Promise.resolve(false);
+        return false;
       }
       self._tabOwners.set(tabId, agentId);
       var ownedTabs = self._tabsByAgent.get(agentId);
@@ -203,8 +289,8 @@
       if (record) {
         record.tabIds = Array.from(ownedTabs);
       }
-      // Plan 02 will add: await self._persist();
-      return Promise.resolve(true);
+      await self._persist();
+      return true;
     });
   };
 
@@ -220,9 +306,10 @@
    */
   AgentRegistry.prototype.releaseTab = function(tabId) {
     var self = this;
-    return withRegistryLock(function() {
+    return withRegistryLock(async function() {
       if (!self._tabOwners.has(tabId)) {
-        return Promise.resolve(false);
+        // No-op path: do NOT persist. Idempotency guarantee.
+        return false;
       }
       var agentId = self._tabOwners.get(tabId);
       self._tabOwners.delete(tabId);
@@ -234,8 +321,8 @@
           record.tabIds = Array.from(ownedTabs);
         }
       }
-      // Plan 02 will add: await self._persist();
-      return Promise.resolve(true);
+      await self._persist();
+      return true;
     });
   };
 
@@ -279,31 +366,128 @@
   };
 
   /**
-   * STUB in plan 01. Plan 02 implements:
-   *   - Read fsbAgentRegistry from chrome.storage.session
-   *   - Rebuild Maps from persisted records
-   *   - Reconcile against chrome.tabs.query({}); drop ghost records
-   *   - Emit agent:reaped diagnostic events for dropped records
-   *   - Write reconciled snapshot back to storage
+   * Hydrate the registry from chrome.storage.session and reconcile against
+   * the live tab set. Idempotent (second call is a no-op). Gated by
+   * withRegistryLock so concurrent registerAgent / bindTab / etc. calls
+   * cannot interleave with the rebuild + reconcile pass.
    *
-   * In plan 01 this resolves immediately and flips _hydrated true so any
-   * gating code in plan 02/03 that checks the flag will not deadlock when
-   * stubbed against a fresh registry.
+   * Steps (RESEARCH.md Pattern 4):
+   *   1. Rebuild Maps from { v: 1, records: { ... } } envelope
+   *   2. Query chrome.tabs.query({}) to build liveTabIds Set
+   *   3. Drop records whose tabIds are not in the live set; if all of an
+   *      agent's tabs are ghosts, drop the agent record too. Conservative
+   *      posture if chrome.tabs.query throws: do NOT drop anything.
+   *   4. Emit one rateLimitedWarn('AGT', 'agent-reaped-<reason>', ...) per
+   *      drop with redactedContext { agentIdShort, tabId, reason }.
+   *   5. If any records were reaped, write the reconciled snapshot back to
+   *      storage so memory and disk stay in sync.
    */
   AgentRegistry.prototype.hydrate = function() {
+    if (this._hydrated) return Promise.resolve();
     var self = this;
-    return withRegistryLock(function() {
+    return withRegistryLock(async function() {
+      if (self._hydrated) return; // double-check after lock acquisition
+
+      var payload = await readPersistedAgentRegistry();
+      var records = (payload && payload.records && typeof payload.records === 'object')
+        ? payload.records : {};
+
+      // Step 1: rebuild Maps from persisted records.
+      Object.keys(records).forEach(function(agentId) {
+        var record = records[agentId];
+        if (!record || typeof record !== 'object') return;
+        var tabIds = Array.isArray(record.tabIds) ? record.tabIds.slice() : [];
+        self._agents.set(agentId, {
+          agentId: record.agentId || agentId,
+          createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
+          tabIds: tabIds.slice()
+        });
+        self._tabsByAgent.set(agentId, new Set(tabIds));
+        tabIds.forEach(function(tabId) { self._tabOwners.set(tabId, agentId); });
+      });
+
+      // Step 2: query live tabs. If chrome.tabs.query is unavailable or throws,
+      // be conservative: keep everything (do not reap).
+      var c = _getChrome();
+      if (!c || !c.tabs || typeof c.tabs.query !== 'function') {
+        self._hydrated = true;
+        return;
+      }
+      var liveTabs;
+      try {
+        liveTabs = await c.tabs.query({});
+      } catch (_e) {
+        self._hydrated = true;
+        return;
+      }
+      var liveTabIds = new Set();
+      (liveTabs || []).forEach(function(t) {
+        if (t && typeof t.id === 'number') liveTabIds.add(t.id);
+      });
+
+      // Step 3: drop ghost records.
+      var reapedThisWake = [];
+      var tabOwnerSnapshot = Array.from(self._tabOwners.entries());
+      tabOwnerSnapshot.forEach(function(entry) {
+        var tabId = entry[0];
+        var agentId = entry[1];
+        if (!liveTabIds.has(tabId)) {
+          reapedThisWake.push({ agentId: agentId, tabId: tabId, reason: 'tab_not_found' });
+          self._tabOwners.delete(tabId);
+          var setRef = self._tabsByAgent.get(agentId);
+          if (setRef) {
+            setRef.delete(tabId);
+            // If this was the agent's last tab, the entire record is a ghost.
+            // Phase 241 owns the "agent legitimately has no tabs" lifecycle;
+            // here on hydrate specifically, an agent with all-ghost tabs IS
+            // itself a ghost.
+            if (setRef.size === 0) {
+              self._tabsByAgent.delete(agentId);
+              self._agents.delete(agentId);
+            } else {
+              var rec = self._agents.get(agentId);
+              if (rec) rec.tabIds = Array.from(setRef);
+            }
+          }
+        }
+      });
+
+      // Step 4: emit one diagnostic event per reaped record (rate-limited).
+      reapedThisWake.forEach(function(reap) {
+        emitAgentReapedEvent(reap.agentId, reap.tabId, reap.reason);
+      });
+
+      // Step 5: write reconciled snapshot back if anything changed.
+      if (reapedThisWake.length > 0) {
+        await self._persist();
+      }
+
       self._hydrated = true;
-      return Promise.resolve();
     });
   };
 
   /**
-   * STUB in plan 01. Plan 02 implements write-through to chrome.storage.session
-   * under FSB_AGENT_REGISTRY_STORAGE_KEY with the v=1 envelope shape.
+   * Write-through helper. Serializes the live in-memory Maps into a plain
+   * object keyed by agentId and writes the { v: 1, records } envelope to
+   * chrome.storage.session under FSB_AGENT_REGISTRY_STORAGE_KEY. When the
+   * registry is empty, writePersistedAgentRegistry removes the key entirely
+   * (no stale envelope).
+   *
+   * Called from inside withRegistryLock by registerAgent / bindTab /
+   * releaseTab / releaseAgent and from hydrate Step 5.
    */
-  AgentRegistry.prototype._persist = function() {
-    return Promise.resolve();
+  AgentRegistry.prototype._persist = async function() {
+    var records = {};
+    var self = this;
+    this._agents.forEach(function(record, agentId) {
+      var tabSet = self._tabsByAgent.get(agentId);
+      records[agentId] = {
+        agentId: record.agentId,
+        createdAt: record.createdAt,
+        tabIds: tabSet ? Array.from(tabSet) : []
+      };
+    });
+    await writePersistedAgentRegistry(records);
   };
 
   /**
@@ -334,7 +518,13 @@
     FSB_AGENT_ID_PREFIX: FSB_AGENT_ID_PREFIX,
     FSB_AGENT_DISPLAY_HEX_LENGTH: FSB_AGENT_DISPLAY_HEX_LENGTH,
     FSB_AGENT_LOG_PREFIX: FSB_AGENT_LOG_PREFIX,
-    FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE: FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE
+    FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE: FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE,
+    // _internal: test-only hooks. NOT to be consumed by production callers.
+    _internal: {
+      emitAgentReapedEvent: emitAgentReapedEvent,
+      readPersistedAgentRegistry: readPersistedAgentRegistry,
+      writePersistedAgentRegistry: writePersistedAgentRegistry
+    }
   };
 
   global.FsbAgentRegistry = exportsObj;
