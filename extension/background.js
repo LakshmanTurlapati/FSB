@@ -774,6 +774,29 @@ async function restorePersistedMcpVisualSessions() {
   });
 }
 
+// Phase 237 -- Agent Registry boot.
+// Hydrates registry from chrome.storage.session and reconciles against live tabs.
+// Idempotent: subsequent calls within the same SW lifetime are no-ops.
+// Failure mode: log via rateLimitedWarn and continue; never poison SW startup.
+async function bootstrapAgentRegistry() {
+  if (!globalThis.FsbAgentRegistry || !globalThis.FsbAgentRegistry.AgentRegistry) return;
+  if (!globalThis.fsbAgentRegistryInstance) {
+    globalThis.fsbAgentRegistryInstance = new globalThis.FsbAgentRegistry.AgentRegistry();
+  }
+  try {
+    await globalThis.fsbAgentRegistryInstance.hydrate();
+  } catch (err) {
+    if (typeof globalThis.rateLimitedWarn === 'function') {
+      globalThis.rateLimitedWarn(
+        'AGT',
+        'hydrate-failed',
+        'agent registry hydrate failed',
+        typeof globalThis.redactForLog === 'function' ? globalThis.redactForLog(err) : { kind: 'error' }
+      );
+    }
+  }
+}
+
 function findActiveAutomationSessionForTab(tabId) {
   if (!Number.isFinite(tabId)) return null;
   for (const session of activeSessions.values()) {
@@ -2279,6 +2302,12 @@ async function restoreSessionsFromStorage() {
 
     // Restore conversation session mappings after sessions are restored
     await restoreConversationSessions();
+    // Phase 237 -- hydrate the agent registry adjacent to the visual-session
+    // restore site so registry ownership is reconciled before any message
+    // handler can read getOwner(tabId). The bootstrap function swallows its
+    // own errors, but we still chain a defensive .catch in case construction
+    // throws so SW boot is never poisoned.
+    await bootstrapAgentRegistry().catch(() => {});
     await restorePersistedMcpVisualSessions();
 
     automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size, conversationSessions: conversationSessions.size });
