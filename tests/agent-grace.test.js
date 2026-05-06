@@ -359,6 +359,264 @@ function teardownDiagnosticCapture() {
   }
   console.log('  PASS: RECONNECT_GRACE_MS default = 10000');
 
+  // ===========================================================================
+  // Phase 241 plan 02 task 2 -- bridge-side onopen/onclose wiring tests.
+  //
+  // These tests load extension/ws/mcp-bridge-client.js into a sandbox via vm,
+  // instantiate MCPBridgeClient with a fake WebSocket constructor, and verify
+  // that the bridge mints a connection_id at onopen, stages release at onclose,
+  // and cancels the prior staged release on reconnect.
+  // ===========================================================================
+  const fs = require('fs');
+  const path = require('path');
+  const vm = require('vm');
+
+  function buildBridgeWithRegistry(reg) {
+    // Fake WebSocket whose onopen/onclose we trigger manually.
+    class FakeWebSocket {
+      constructor(_url) {
+        this.readyState = FakeWebSocket.CONNECTING;
+        this.sent = [];
+        this.onopen = null;
+        this.onclose = null;
+        this.onmessage = null;
+        this.onerror = null;
+      }
+      open() { this.readyState = FakeWebSocket.OPEN; if (this.onopen) this.onopen(); }
+      close() { this.readyState = FakeWebSocket.CLOSED; if (this.onclose) this.onclose(); }
+      send(p) { this.sent.push(p); }
+    }
+    FakeWebSocket.CONNECTING = 0;
+    FakeWebSocket.OPEN = 1;
+    FakeWebSocket.CLOSED = 3;
+
+    const chromeMock = {
+      runtime: { id: 'phase-241-bridge-test' },
+      storage: {
+        session: createStorageArea({}),
+        local: createStorageArea({}),
+        onChanged: { addListener() {} }
+      },
+      alarms: {
+        async create() {}, async clear() { return true; }, async getAll() { return []; }
+      },
+      tabs: {
+        async query() { return []; },
+        async get() { throw new Error('no tab'); }
+      }
+    };
+
+    const ctx = {
+      chrome: chromeMock,
+      WebSocket: FakeWebSocket,
+      console: { log() {}, warn() {}, error() {} },
+      Math: Math,
+      Date: Date,
+      crypto: globalThis.crypto || require('crypto').webcrypto,
+      EventTarget: EventTarget,
+      CustomEvent: typeof CustomEvent === 'function' ? CustomEvent : function CustomEvent() {},
+      setTimeout: setTimeout,
+      clearTimeout: clearTimeout,
+      setInterval: setInterval,
+      clearInterval: clearInterval,
+      dispatchMcpMessageRoute: async () => ({ success: true }),
+      // Phase 241: install the test registry singleton so the bridge's onopen
+      // and onclose hooks can call cancelStagedRelease / stageReleaseByConnectionId
+      // against it.
+      fsbAgentRegistryInstance: reg,
+      globalThis: {}
+    };
+    ctx.globalThis = ctx;
+
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'extension', 'ws', 'mcp-bridge-client.js'),
+      'utf8'
+    );
+    const footer = `
+this.__phase241bridge = {
+  MCPBridgeClient,
+  mcpBridgeClient,
+  RECONNECT_GRACE_MS: typeof RECONNECT_GRACE_MS !== 'undefined' ? RECONNECT_GRACE_MS : null
+};
+`;
+    vm.runInNewContext(source + '\n' + footer, ctx, { filename: 'ws/mcp-bridge-client.js' });
+    return { exports: ctx.__phase241bridge, FakeWebSocket };
+  }
+
+  console.log('--- Test 9 (bridge): onopen mints connection_id ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const harness = buildBridgeWithRegistry(reg);
+      const client = harness.exports.mcpBridgeClient;
+      assert.strictEqual(harness.exports.RECONNECT_GRACE_MS, 10000,
+        'bridge module exposes RECONNECT_GRACE_MS = 10000');
+
+      assert.strictEqual(typeof client._connectionId, 'undefined', 'no connectionId pre-connect');
+      client.connect();
+      // Trigger onopen via the fake socket.
+      client._ws.open();
+      assert.strictEqual(typeof client._connectionId, 'string',
+        'connectionId is a string after onopen');
+      assert.ok(client._connectionId.length > 8, 'connectionId is non-trivial in length');
+      // Optional UUID-ish shape check (hyphens allowed).
+      assert.ok(/[a-f0-9-]/i.test(client._connectionId), 'connectionId looks UUID-ish');
+      // getConnectionId() helper exposes the current id.
+      assert.strictEqual(client.getConnectionId(), client._connectionId,
+        'getConnectionId() reflects the current id');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bridge onopen mints connection_id');
+
+  console.log('--- Test 10 (bridge): onclose stages release for stamped agents ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const harness = buildBridgeWithRegistry(reg);
+      const client = harness.exports.mcpBridgeClient;
+      client.connect();
+      client._ws.open();
+      const conn = client._connectionId;
+
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, conn);
+      await reg.bindTab(A, 600);
+
+      // Trigger onclose.
+      client._ws.close();
+      // Allow microtask for the staged-release withRegistryLock promise.
+      await new Promise((r) => setTimeout(r, 20));
+
+      assert.ok(reg._stagedReleases.has(conn),
+        'staged release tracked under bridge connection_id');
+      const entry = reg._stagedReleases.get(conn);
+      assert.ok(entry.agentIds.indexOf(A) !== -1, 'staged entry includes agent A');
+      assert.ok(reg._agents.has(A), 'A still in _agents during grace window');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bridge onclose stages release via stageReleaseByConnectionId');
+
+  console.log('--- Test 11 (bridge): onopen-after-close cancels prior staged release ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const harness = buildBridgeWithRegistry(reg);
+      const client = harness.exports.mcpBridgeClient;
+
+      client.connect();
+      client._ws.open();
+      const firstConn = client._connectionId;
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, firstConn);
+      await reg.bindTab(A, 700);
+
+      // Disconnect: stages release for firstConn.
+      client._ws.close();
+      await new Promise((r) => setTimeout(r, 20));
+      assert.ok(reg._stagedReleases.has(firstConn), 'first conn staged');
+
+      // Reconnect: assigns a NEW connection_id and cancels the prior staged release.
+      client.connect();
+      client._ws.open();
+      const secondConn = client._connectionId;
+      assert.notStrictEqual(secondConn, firstConn, 'reconnect mints a fresh connection_id');
+      await new Promise((r) => setTimeout(r, 20));
+
+      assert.strictEqual(reg._stagedReleases.has(firstConn), false,
+        'prior staged release cancelled on reopen');
+      assert.ok(reg._agents.has(A), 'A preserved through the grace window');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bridge onopen cancels prior staged release on reconnect');
+
+  console.log('--- Test 12 (bridge): onclose with no stamped agents is a no-op ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const harness = buildBridgeWithRegistry(reg);
+      const client = harness.exports.mcpBridgeClient;
+
+      client.connect();
+      client._ws.open();
+      // No agents stamped under this connection_id.
+      client._ws.close();
+      await new Promise((r) => setTimeout(r, 20));
+
+      assert.strictEqual(reg._stagedReleases.size, 0,
+        '_stagedReleases stays empty when no agents match');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bridge onclose with no stamped agents is a clean no-op');
+
+  console.log('--- Test 13 (bridge): RECONNECT_GRACE_MS const used by bridge ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const harness = buildBridgeWithRegistry(reg);
+      const client = harness.exports.mcpBridgeClient;
+
+      client.connect();
+      client._ws.open();
+      const conn = client._connectionId;
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, conn);
+
+      const before = Date.now();
+      client._ws.close();
+      await new Promise((r) => setTimeout(r, 20));
+
+      const entry = reg._stagedReleases.get(conn);
+      assert.ok(entry, 'staged entry created');
+      // Default grace is 10s ± 50ms tolerance.
+      const gap = entry.deadline - before;
+      assert.ok(gap >= 9950 && gap <= 10500,
+        'bridge passed RECONNECT_GRACE_MS=10000 (got ' + gap + ')');
+      // Cancel so the test process does not have to wait 10s.
+      await reg.cancelStagedRelease(conn);
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bridge passes RECONNECT_GRACE_MS=10000 to stageReleaseByConnectionId');
+
   console.log('PASS grace');
 })().catch(err => {
   console.error('FAIL grace:', err && err.stack || err);
