@@ -109,7 +109,7 @@ export function registerAutopilotTools(
         const agentId = await agentScope.ensure(bridge);
         const result = await bridge.sendAndWait(
           { type: 'mcp:start-automation', payload: { task, agentId } },
-          { timeout: 300_000, onProgress },
+          { timeout: 600_000, onProgress },   // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
         );
         return mapFSBError(result);
       });

@@ -764,9 +764,55 @@ class MCPBridgeClient {
         resolve(value);
       };
 
-      const timeout = setTimeout(() => {
-        settle({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' }, 'timeout');
-      }, 300000);
+      // Phase 239 plan 03 -- raise 300s ceiling to 600s safety net per D-06
+      // and emit partial_outcome resolution shape so MCP host salvages
+      // partial state. The lifecycle bus is now the everyday resolve source
+      // (Plan 01 made it fire reliably from all 5 cleanup paths); this
+      // safety net stays in place as a true backstop until SC#5 UAT proves
+      // zero dropped events.
+      const RUN_TASK_SAFETY_NET_MS = 600_000;
+
+      const timeout = setTimeout(async () => {
+        // Pitfall 5 guard mirror -- if the lifecycle bus already settled,
+        // settle() at the bottom of this callback is a no-op. We still do
+        // the snapshot read because the async work is wrapped in best-effort
+        // try/catches and the cost is bounded.
+        let partial_state = null;
+        try {
+          var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.readSnapshot === 'function') {
+            partial_state = await store.readSnapshot(sessionId);
+          }
+        } catch (_e) { /* best-effort -- partial_state stays null */ }
+
+        // D-04: pre-settle write of 'partial' status (state transition;
+        // settle's existing terminal write would otherwise mark this as
+        // 'complete'). Write BEFORE settle so the snapshot reflects the
+        // timeout disposition. If the lifecycle bus fires between this
+        // write and the settle call, settle's existing terminal write at
+        // the end will overwrite with 'complete'/'stopped'/'error' -- this
+        // is the correct behavior because the lifecycle event was the
+        // actual outcome.
+        try {
+          if (store && typeof store.writeSnapshot === 'function' && partial_state) {
+            await store.writeSnapshot(sessionId, {
+              ...partial_state,
+              status: 'partial',
+              final_result: { partial_outcome: 'timeout' },
+            });
+          }
+        } catch (_e) { /* best-effort */ }
+
+        // D-06: resolve with partial_outcome -- single-resolve invariant
+        // via settle (which holds the settled-flag guard).
+        settle({
+          sessionId,
+          success: true,
+          partial_outcome: 'timeout',
+          partial_state,
+          hint: 'lifecycle event missing -- audit cleanup paths',
+        }, 'safety_net_600s');
+      }, RUN_TASK_SAFETY_NET_MS);
 
       // Phase 239 plan 02 -- start the 30s heartbeat ticker. First _sendProgress
       // fires at t=30s (we deliberately do NOT fire-immediate so the legacy
