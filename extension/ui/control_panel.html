@@ -406,6 +406,35 @@
               </div>
             </div>
 
+            <!-- Phase 241 D-05 / POOL-05: Agent Concurrency cap (range 1-64, default 8) -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <div class="settings-card-icon">
+                  <i class="fas fa-users"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>Agent Concurrency</h3>
+                  <p>Maximum simultaneous agents</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="setting-item">
+                  <div class="setting-label">
+                    <span>Concurrency Cap</span>
+                    <span class="setting-value-display" id="fsbAgentCapDisplay">8</span>
+                  </div>
+                  <input type="number" id="fsbAgentCap" class="form-input"
+                         min="1" max="64" step="1" value="8">
+                  <button type="button" class="form-secondary-btn" id="fsbAgentCapReset" style="margin-top: 8px;">
+                    Reset to default (8)
+                  </button>
+                  <div class="setting-hint">
+                    Default 8. Range 1 to 64. Lowering this value while active agents are running does not evict them; new claims past the new cap are rejected (grandfather behavior).
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Performance Card -->
             <div class="settings-card full-width">
               <div class="settings-card-header">

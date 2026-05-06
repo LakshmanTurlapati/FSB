@@ -27,7 +27,9 @@ const defaultSettings = {
   // CAPTCHA Solver
   captchaSolverEnabled: false,
   captchaApiKey: '',
-  autoRefineSiteMaps: true
+  autoRefineSiteMaps: true,
+  // Phase 241 D-05 / POOL-05: max simultaneous agents (range 1-64, default 8).
+  fsbAgentCap: 8
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -147,6 +149,10 @@ function cacheElements() {
   elements.elementCacheSizePreset = document.getElementById('elementCacheSizePreset');
   elements.elementCacheSizeCustom = document.getElementById('elementCacheSizeCustom');
   elements.elementCacheSizeDisplay = document.getElementById('elementCacheSizeDisplay');
+  // Phase 241 D-05 / POOL-05: Agent Concurrency cap card.
+  elements.fsbAgentCap = document.getElementById('fsbAgentCap');
+  elements.fsbAgentCapDisplay = document.getElementById('fsbAgentCapDisplay');
+  elements.fsbAgentCapReset = document.getElementById('fsbAgentCapReset');
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
   elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
@@ -281,6 +287,30 @@ function setupEventListeners() {
           elements.elementCacheSizeDisplay.textContent = value;
         }
       }
+      markUnsavedChanges();
+    });
+  }
+
+  // Phase 241 D-05 / POOL-05 / POOL-06: Agent Concurrency cap input + reset.
+  // Real-time clamp: parseInt -> 1..64 integer; non-numeric -> default 8.
+  // Defense-in-depth layer 2 (HTML min/max is layer 1; SW setCap is layer 3).
+  if (elements.fsbAgentCap) {
+    elements.fsbAgentCap.addEventListener('input', (e) => {
+      let raw = parseInt(e.target.value, 10);
+      if (!Number.isFinite(raw)) raw = 8;
+      if (raw < 1) raw = 1;
+      if (raw > 64) raw = 64;
+      if (e.target.value !== String(raw)) e.target.value = String(raw);
+      if (elements.fsbAgentCapDisplay) {
+        elements.fsbAgentCapDisplay.textContent = String(raw);
+      }
+      markUnsavedChanges();
+    });
+  }
+  if (elements.fsbAgentCapReset) {
+    elements.fsbAgentCapReset.addEventListener('click', () => {
+      if (elements.fsbAgentCap) elements.fsbAgentCap.value = '8';
+      if (elements.fsbAgentCapDisplay) elements.fsbAgentCapDisplay.textContent = '8';
       markUnsavedChanges();
     });
   }
@@ -772,6 +802,21 @@ function loadSettings() {
       }
     }
 
+    // Phase 241 D-05 / POOL-05: Agent Concurrency cap. Re-clamp on read in
+    // case storage was tampered with (T-241-11) or set by an older build.
+    if (elements.fsbAgentCap) {
+      let capValue = (typeof settings.fsbAgentCap === 'number' && Number.isFinite(settings.fsbAgentCap))
+        ? settings.fsbAgentCap
+        : 8;
+      if (capValue < 1) capValue = 1;
+      if (capValue > 64) capValue = 64;
+      capValue = Math.floor(capValue);
+      elements.fsbAgentCap.value = String(capValue);
+      if (elements.fsbAgentCapDisplay) {
+        elements.fsbAgentCapDisplay.textContent = String(capValue);
+      }
+    }
+
     if (elements.prioritizeViewport) {
       elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
     }
@@ -827,7 +872,10 @@ function saveSettings() {
     enableLogin: elements.enableLogin?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || '',
-    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true
+    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
+    // Phase 241 D-05 / POOL-05: Agent Concurrency cap. Defense-in-depth
+    // layer 2 (input clamp = layer 1; SW setCap on storage.onChanged = layer 3).
+    fsbAgentCap: parseInt(elements.fsbAgentCap?.value, 10) || 8
   };
   
   chrome.storage.local.set(settings, () => {
