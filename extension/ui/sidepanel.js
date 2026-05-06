@@ -217,6 +217,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.showSidepanelProgress != null) {
     showSidepanelProgressEnabled = changes.showSidepanelProgress.newValue ?? false;
   }
+  // Phase 243 plan 03 (UI-02) follow-up: refresh chip when registry mutates
+  // for the active tab (ownership claimed/released/transferred). The
+  // sidepanel persists across tab switches, so without this branch the chip
+  // would show stale ownership data when an agent claims or releases the
+  // active tab while the user stays on it.
+  if (area === 'session' && changes && changes.fsbAgentRegistry) {
+    refreshOwnerChip();
+  }
 });
 
 // Phase 243 plan 03 (UI-02): refresh the read-only "owned by Agent X" chip.
