@@ -964,6 +964,103 @@ const UUID_PATTERN = /^agent_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
   }
   console.log('  PASS: missing rateLimitedWarn does not crash reaping path');
 
+  // === Phase 240 token + metadata (additive coverage) =========================
+
+  console.log('--- Phase 240 / Test 1: bindTab returns { agentId, tabId, ownershipToken } ---');
+  {
+    const mock = setupChromeMock({ tabs: [{ id: 100, incognito: false, windowId: 10 }] });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const reg = await registry.registerAgent();
+      const result = await registry.bindTab(reg.agentId, 100);
+      assert.ok(result && typeof result === 'object', 'bindTab return is an object');
+      assert.strictEqual(result.agentId, reg.agentId, 'result.agentId === registered agentId');
+      assert.strictEqual(result.tabId, 100, 'result.tabId === bound tabId');
+      assert.ok(typeof result.ownershipToken === 'string' && result.ownershipToken.length > 0,
+        'ownershipToken is a non-empty string');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: bindTab return shape extended with ownershipToken');
+
+  console.log('--- Phase 240 / Test 2: storage envelope persists tabMetadata block ---');
+  {
+    const mock = setupChromeMock({ tabs: [{ id: 100, incognito: false, windowId: 10 }] });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      const reg = await registry.registerAgent();
+      const r = await registry.bindTab(reg.agentId, 100);
+      const dump = mock.session._dump();
+      const payload = dump[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+      assert.ok(payload, 'envelope persisted');
+      assert.strictEqual(payload.v, 1, 'envelope version is 1 (unchanged)');
+      assert.ok(payload.tabMetadata && typeof payload.tabMetadata === 'object',
+        'tabMetadata block at top level');
+      const meta = payload.tabMetadata['100'];
+      assert.ok(meta, 'metadata for tab 100');
+      assert.strictEqual(meta.ownershipToken, r.ownershipToken,
+        'persisted token matches in-memory');
+      assert.strictEqual(meta.incognito, false, 'persisted incognito flag');
+      assert.strictEqual(meta.windowId, 10, 'persisted windowId');
+      assert.ok(typeof meta.boundAt === 'number', 'persisted boundAt is numeric');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: tabMetadata persists at v: 1 (additive, no schema bump)');
+
+  console.log('--- Phase 240 / Test 3: hydrate rebuilds _tabMetadata from envelope ---');
+  {
+    const mock = setupChromeMock({
+      session: {
+        fsbAgentRegistry: {
+          v: 1,
+          records: {
+            'agent_550e8400-e29b-41d4-a716-446655440000': {
+              agentId: 'agent_550e8400-e29b-41d4-a716-446655440000',
+              createdAt: 1000,
+              tabIds: [100],
+              windowId: 10
+            }
+          },
+          tabMetadata: {
+            '100': {
+              ownershipToken: 'persist-token-aaa',
+              incognito: false,
+              windowId: 10,
+              boundAt: 999
+            }
+          }
+        }
+      },
+      tabs: [{ id: 100, incognito: false, windowId: 10 }]
+    });
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const registry = new fresh.AgentRegistry();
+      await registry.hydrate();
+      const meta = registry.getTabMetadata(100);
+      assert.ok(meta, 'getTabMetadata after hydrate returns metadata');
+      assert.strictEqual(meta.ownershipToken, 'persist-token-aaa',
+        'hydrated ownershipToken survives round-trip');
+      assert.strictEqual(meta.incognito, false);
+      assert.strictEqual(meta.windowId, 10);
+      assert.strictEqual(meta.boundAt, 999);
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate restores _tabMetadata block');
+
   console.log('\nAll assertions passed.');
 })().catch((err) => {
   console.error('TEST FAILED:', err && err.stack ? err.stack : err);

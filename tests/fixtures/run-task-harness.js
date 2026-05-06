@@ -400,10 +400,47 @@ function simulateCleanupExit(path, sessionId, opts) {
   throw new Error('Unknown simulateCleanupExit path: ' + path);
 }
 
+/**
+ * Phase 240 plan 01 -- ownership-aware tab install helper.
+ *
+ * installOwnedTab(registry, agentId, tabId)
+ *   Convenience wrapper used by Phase 240 Plan 02 + Plan 03 tests. If the
+ *   agentId is null / undefined, registers a fresh agent first; otherwise
+ *   assumes the caller has already registered the agentId (or is using a
+ *   legacy:* synthesized id). Then binds the tab and returns the bind result
+ *   { agentId, tabId, ownershipToken } so the test can thread the token
+ *   through the dispatch payload it asserts against.
+ *
+ * Example:
+ *   const { agentId, tabId, ownershipToken } = await installOwnedTab(registry, null, 100);
+ *
+ * Returns null if either step fails (mirrors the Phase 240 bindTab false-on-
+ * failure contract).
+ */
+async function installOwnedTab(registry, agentId, tabId) {
+  if (!registry || typeof registry.bindTab !== 'function') {
+    throw new Error('installOwnedTab requires a registry with bindTab');
+  }
+  let resolvedAgentId = agentId;
+  if (!resolvedAgentId) {
+    const reg = await registry.registerAgent();
+    resolvedAgentId = reg && reg.agentId;
+    if (!resolvedAgentId) return null;
+  }
+  const bindResult = await registry.bindTab(resolvedAgentId, tabId);
+  if (!bindResult || typeof bindResult !== 'object') return null;
+  return {
+    agentId: bindResult.agentId,
+    tabId: bindResult.tabId,
+    ownershipToken: bindResult.ownershipToken
+  };
+}
+
 module.exports = {
   createStorageArea,
   installChromeMock,
   createLifecycleBusSpy,
   installVirtualClock,
-  simulateCleanupExit
+  simulateCleanupExit,
+  installOwnedTab
 };
