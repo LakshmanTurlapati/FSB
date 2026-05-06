@@ -534,11 +534,16 @@ const TOOL_REGISTRY = [
 
   {
     name: 'open_tab',
-    description: 'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Active behavior: defaults to background (active=false); pass active:true to steal focus.',
     inputSchema: {
       type: 'object',
       properties: {
-        url: { type: 'string', description: 'URL to open in new tab' }
+        url: { type: 'string', description: 'URL to open in new tab' },
+        active: {
+          type: 'boolean',
+          default: false,
+          description: 'When true, the new tab is foregrounded (steals focus). Multi-agent default is FALSE (background) so this agent does not steal focus from the user or another agent. Set true ONLY when the new tab needs immediate user visibility.'
+        }
       },
       required: ['url']
     },

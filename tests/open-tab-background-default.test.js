@@ -44,28 +44,10 @@ function check(cond, msg) {
 
 const RESOLVER_PATH = path.resolve(__dirname, '..', 'extension', 'utils', 'agent-tab-resolver.js');
 
-try {
-  require(RESOLVER_PATH);
-} catch (e) {
-  if (e && e.code === 'MODULE_NOT_FOUND') {
-    console.log('SKELETON: resolver module not yet created -- expected during Wave 0');
-    process.exit(0);
-  }
-  throw e;
-}
-
-// Phase 246-01 Task 5 gate: this test asserts the FLIPPED open_tab default
-// (active: params.active === true). Before Task 5 lands, the dispatcher still
-// has the legacy `active: params.active !== false` expression, so Test 1
-// would FAIL. Detect the flipped-source state and exit 0 cleanly when the
-// flip has not yet landed.
-const fs = require('fs');
-const DISPATCHER_PATH = path.resolve(__dirname, '..', 'extension', 'ws', 'mcp-tool-dispatcher.js');
-const dispatcherSource = fs.readFileSync(DISPATCHER_PATH, 'utf8');
-if (!dispatcherSource.includes('active: params.active === true')) {
-  console.log('SKELETON: open_tab default flip not yet landed -- expected before Task 5');
-  process.exit(0);
-}
+// Phase 246-01 Task 5: open_tab default flipped; gates retired. Resolver and
+// dispatcher source must be present for the tests below to exercise the
+// flipped behavior end-to-end.
+require(RESOLVER_PATH);
 
 // ---- Mock registry helpers ------------------------------------------------
 

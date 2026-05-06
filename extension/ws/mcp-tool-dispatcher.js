@@ -914,7 +914,11 @@ async function handleOpenTabRoute({ params }) {
   // Phase 240: agentId now load-bearing for the bindTab D-08 site below.
   try {
     getChromeTabsApi();
-    const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active !== false });
+    // Phase 246 D-05: default to background; explicit active:true required to
+    // steal focus. This eliminates the "open_tab steals user focus mid-task"
+    // multi-agent UX bug. The bindTab + ownershipToken contract (D-08) below
+    // is preserved byte-for-byte.
+    const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active === true });
 
     // Phase 240 D-08: bindTab on the freshly created tab BEFORE returning
     // success. open_tab claims a tab no other agent has touched, so the
