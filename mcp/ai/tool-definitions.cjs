@@ -39,7 +39,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'execute_js',
-    description: 'Run JavaScript directly in the active page. PRIMARY INTERACTION TOOL: try execute_js FIRST for clicks, scrolls, reads, attribute lookups, and most other DOM work -- it bypasses overlay/obscured-element issues, viewport constraints, and CDP timeouts that block native click/scroll. Typical patterns: `return document.querySelector(\'#add-to-cart-button\').click(), true;` for clicks; `return Array.from(document.querySelectorAll(\'a\')).map(a=>a.href);` for extraction; `window.scrollTo(0, document.body.scrollHeight); return true;` for scroll. After a JS click, verify with read_page or get_page_snapshot (a true click should produce observable DOM change). FALLBACK TO NATIVE TOOLS WHEN: (1) JS click reports success but the page state did not change (framework swallowed the synthetic event -- use native click which fires real CDP events that React/Angular/Vue listen to); (2) typing into controlled text inputs (use native `type` so React onChange fires correctly -- `element.value = ...` will NOT update component state); (3) real drag operations on react-beautiful-dnd / Sortable.js / Trello-style widgets (use drag_drop / drag for real pointer events); (4) form submission that depends on validated input state (use native click on submit). Code runs as a function body -- use `return` to send values back (results are stringified). Async work: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Related: read_page (verify result), get_dom_snapshot (debug after JS click), click / type / drag_drop (fallbacks when JS doesn\'t take effect).',
+    description: 'Run JavaScript directly in the active page. PRIMARY INTERACTION TOOL: try execute_js FIRST for clicks, scrolls, reads, attribute lookups, and most other DOM work -- it bypasses overlay/obscured-element issues, viewport constraints, and CDP timeouts that block native click/scroll. Typical patterns: `return document.querySelector(\'#add-to-cart-button\').click(), true;` for clicks; `return Array.from(document.querySelectorAll(\'a\')).map(a=>a.href);` for extraction; `window.scrollTo(0, document.body.scrollHeight); return true;` for scroll. After a JS click, verify with read_page or get_page_snapshot (a true click should produce observable DOM change). FALLBACK TO NATIVE TOOLS WHEN: (1) JS click reports success but the page state did not change (framework swallowed the synthetic event -- use native click which fires real CDP events that React/Angular/Vue listen to); (2) typing into controlled text inputs (use native `type` so React onChange fires correctly -- `element.value = ...` will NOT update component state); (3) real drag operations on react-beautiful-dnd / Sortable.js / Trello-style widgets (use drag_drop / drag for real pointer events); (4) form submission that depends on validated input state (use native click on submit). Code runs as a function body -- use `return` to send values back (results are stringified). Async work: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Related: read_page (verify result), get_dom_snapshot (debug after JS click), click / type / drag_drop (fallbacks when JS doesn\'t take effect). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -63,7 +63,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'navigate',
-    description: 'Open a URL in the active browser tab. Returns the final URL after any redirects. When to use: as the first step to reach a target website. Related: read_page (read content after navigating), list_tabs (see what tabs are already open).',
+    description: 'Open a URL in the active browser tab. Returns the final URL after any redirects. When to use: as the first step to reach a target website. Related: read_page (read content after navigating), list_tabs (see what tabs are already open). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -80,7 +80,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'search',
-    description: 'Search for content on the current site or web. When to use: to find content on the current site or web. Automatically detects the site\'s search input (Amazon, YouTube, GitHub, etc.) via DOM heuristics -- only falls back to Google when no site search exists. Returns search results status. Related: read_page (read search results after searching), click (click a specific search result).',
+    description: 'Search for content on the current site or web. When to use: to find content on the current site or web. Automatically detects the site\'s search input (Amazon, YouTube, GitHub, etc.) via DOM heuristics -- only falls back to Google when no site search exists. Returns search results status. Related: read_page (read search results after searching), click (click a specific search result). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,7 +97,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'go_back',
-    description: 'Navigate back one page in browser history. Returns the new URL. When to use: to return to the previous page after following a link or navigating away. Related: go_forward (undo a go_back), navigate (go to a specific URL instead).',
+    description: 'Navigate back one page in browser history. Returns the new URL. When to use: to return to the previous page after following a link or navigating away. Related: go_forward (undo a go_back), navigate (go to a specific URL instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -112,7 +112,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'go_forward',
-    description: 'Navigate forward one page in browser history. Returns the new URL. When to use: after using go_back, to move forward again. Related: go_back (go back in history), navigate (go to a specific URL instead).',
+    description: 'Navigate forward one page in browser history. Returns the new URL. When to use: after using go_back, to move forward again. Related: go_back (go back in history), navigate (go to a specific URL instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -127,7 +127,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'refresh',
-    description: 'Reload the current page. Returns the refreshed URL. When to use: when page content may be stale, after errors, or to reset page state. Related: navigate (go to a different URL), wait_for_stable (wait for page to settle after refresh).',
+    description: 'Reload the current page. Returns the refreshed URL. When to use: when page content may be stale, after errors, or to reset page state. Related: navigate (go to a different URL), wait_for_stable (wait for page to settle after refresh). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -146,7 +146,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click',
-    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). CUSTOM DROPDOWN PATTERN: custom (non-native) dropdowns require TWO clicks -- (1) `click` the dropdown control to open the listbox, (2) `click` the option element. Example: react-select / Material-UI Select / Headless UI -- `click e5` opens, `click e23` picks "Green". `select_option` only works on native <select> elements. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click), select_option (for native <select> only).',
+    description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). CUSTOM DROPDOWN PATTERN: custom (non-native) dropdowns require TWO clicks -- (1) `click` the dropdown control to open the listbox, (2) `click` the option element. Example: react-select / Material-UI Select / Headless UI -- `click e5` opens, `click e23` picks "Green". `select_option` only works on native <select> elements. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click), select_option (for native <select> only). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -164,7 +164,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'type_text',
-    description: 'Type text into an input field by selector. When to use: to fill text inputs, search boxes, or text areas. Use clear_input first if the field already has text. Returns confirmation of typed text. Related: clear_input (clear field before typing), press_enter (submit after typing), get_dom_snapshot (find input selectors).',
+    description: 'Type text into an input field by selector. When to use: to fill text inputs, search boxes, or text areas. Use clear_input first if the field already has text. Returns confirmation of typed text. Related: clear_input (clear field before typing), press_enter (submit after typing), get_dom_snapshot (find input selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -182,7 +182,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'press_enter',
-    description: 'Press the Enter key to submit a form or confirm input. When to use: after typing into a search box or form field. Automatically falls back to clicking the submit button if Enter has no effect. Returns key press confirmation. Related: type_text (type before pressing Enter), click (click submit button directly).',
+    description: 'Press the Enter key to submit a form or confirm input. When to use: after typing into a search box or form field. Automatically falls back to clicking the submit button if Enter has no effect. Returns key press confirmation. Related: type_text (type before pressing Enter), click (click submit button directly). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -199,7 +199,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'press_key',
-    description: 'Press a keyboard key with optional modifiers (ctrl, shift, alt). Returns key press confirmation. When to use: for keyboard shortcuts (Ctrl+C, Ctrl+V), special keys (Escape, Tab, ArrowDown), or key combinations. Related: press_enter (dedicated Enter key tool), type_text (type full strings), focus (focus element before sending keys).',
+    description: 'Press a keyboard key with optional modifiers (ctrl, shift, alt). Returns key press confirmation. When to use: for keyboard shortcuts (Ctrl+C, Ctrl+V), special keys (Escape, Tab, ArrowDown), or key combinations. Related: press_enter (dedicated Enter key tool), type_text (type full strings), focus (focus element before sending keys). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -219,7 +219,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'select_option',
-    description: 'Select an option from a NATIVE <select> dropdown by value or visible text. NATIVE-ONLY: this tool only works on real <select> elements -- it has no effect on custom (div-based) dropdowns like react-select, Material-UI Select, Headless UI Listbox, or any non-<select> picker. For CUSTOM DROPDOWNS, use the two-click pattern instead: (1) `click` the dropdown control to open the listbox, (2) `click` the desired option element. Example: react-select on react-select.com -- `click e5` to open, then `click e23` on the "Green" option. If `select_option` returns no error but the dropdown value does not change, you are on a custom dropdown -- switch to the two-click pattern. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (the correct tool for custom non-native dropdowns).',
+    description: 'Select an option from a NATIVE <select> dropdown by value or visible text. NATIVE-ONLY: this tool only works on real <select> elements -- it has no effect on custom (div-based) dropdowns like react-select, Material-UI Select, Headless UI Listbox, or any non-<select> picker. For CUSTOM DROPDOWNS, use the two-click pattern instead: (1) `click` the dropdown control to open the listbox, (2) `click` the desired option element. Example: react-select on react-select.com -- `click e5` to open, then `click e23` on the "Green" option. If `select_option` returns no error but the dropdown value does not change, you are on a custom dropdown -- switch to the two-click pattern. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (the correct tool for custom non-native dropdowns). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -237,7 +237,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'check_box',
-    description: 'Toggle a checkbox element. Returns the new checked state. When to use: to check or uncheck form checkboxes or toggle switches. Related: get_dom_snapshot (find checkbox selectors), click (alternative for custom checkbox UI components).',
+    description: 'Toggle a checkbox element. Returns the new checked state. When to use: to check or uncheck form checkboxes or toggle switches. Related: get_dom_snapshot (find checkbox selectors), click (alternative for custom checkbox UI components). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -254,7 +254,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'hover',
-    description: 'Move the mouse over an element. Returns hover confirmation. When to use: to reveal dropdown menus, tooltips, or hover-activated content before clicking. Related: click (click revealed menu item after hover), get_dom_snapshot (find element selectors).',
+    description: 'Move the mouse over an element. Returns hover confirmation. When to use: to reveal dropdown menus, tooltips, or hover-activated content before clicking. Related: click (click revealed menu item after hover), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -271,7 +271,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'right_click',
-    description: 'Open context menu on an element. Returns context menu confirmation. When to use: to access right-click context menu options on an element. Related: click (standard left-click), get_dom_snapshot (find element selectors).',
+    description: 'Open context menu on an element. Returns context menu confirmation. When to use: to access right-click context menu options on an element. Related: click (standard left-click), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -288,7 +288,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'double_click',
-    description: 'Double-click an element. Returns click confirmation. When to use: for actions requiring double-click such as selecting a word, opening items in file managers, or activating edit mode. Related: click (single click), select_text_range (precise text selection by offsets), get_dom_snapshot (find element selectors).',
+    description: 'Double-click an element. Returns click confirmation. When to use: for actions requiring double-click such as selecting a word, opening items in file managers, or activating edit mode. Related: click (single click), select_text_range (precise text selection by offsets), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -305,7 +305,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'select_text_range',
-    description: 'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead. Related: double_click (select entire word/element text), get_text (read element text to determine offsets), get_dom_snapshot (find container selectors).',
+    description: 'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead. Related: double_click (select entire word/element text), get_text (read element text to determine offsets), get_dom_snapshot (find container selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -324,7 +324,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'drag_drop',
-    description: 'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead. Related: drag (coordinate-based drag for canvas/map), drop_file (drop files onto upload zones), get_dom_snapshot (find source and target element refs).',
+    description: 'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead. Related: drag (coordinate-based drag for canvas/map), drop_file (drop files onto upload zones), get_dom_snapshot (find source and target element refs). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -345,7 +345,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'drop_file',
-    description: 'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead. Related: drag_drop (drag DOM elements between containers), get_dom_snapshot (find dropzone selectors).',
+    description: 'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead. Related: drag_drop (drag DOM elements between containers), get_dom_snapshot (find dropzone selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -365,7 +365,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'focus',
-    description: 'Move keyboard focus to an element. Returns focus confirmation. When to use: to prepare an element for keyboard input, or to bring an element into the accessibility focus ring. Related: type_text (type into a focused input), press_key (send keystrokes to focused element), click (also focuses the clicked element).',
+    description: 'Move keyboard focus to an element. Returns focus confirmation. When to use: to prepare an element for keyboard input, or to bring an element into the accessibility focus ring. Related: type_text (type into a focused input), press_key (send keystrokes to focused element), click (also focuses the clicked element). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -382,7 +382,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'clear_input',
-    description: 'Clear the contents of an input field. Returns clear confirmation. When to use: before typing new text into an already-filled field to remove existing content. Related: type_text (type new text after clearing), get_dom_snapshot (find input selectors).',
+    description: 'Clear the contents of an input field. Returns clear confirmation. When to use: before typing new text into an already-filled field to remove existing content. Related: type_text (type new text after clearing), get_dom_snapshot (find input selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -403,7 +403,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'scroll',
-    description: 'Scroll the page up or down by a specified amount. Returns new scroll position. When to use: to bring off-screen content into view, load lazy-loaded content, or navigate long pages. Related: scroll_to_top, scroll_to_bottom (quick jumps), read_page (read content after scrolling).',
+    description: 'Scroll the page up or down by a specified amount. Returns new scroll position. When to use: to bring off-screen content into view, load lazy-loaded content, or navigate long pages. Related: scroll_to_top, scroll_to_bottom (quick jumps), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -421,7 +421,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'scroll_to_top',
-    description: 'Scroll to the top of the page. Returns confirmation. When to use: to return to the beginning of the page or reset scroll position. Related: scroll_to_bottom (jump to end), scroll (scroll by specific amount), read_page (read content after scrolling).',
+    description: 'Scroll to the top of the page. Returns confirmation. When to use: to return to the beginning of the page or reset scroll position. Related: scroll_to_bottom (jump to end), scroll (scroll by specific amount), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -436,7 +436,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'scroll_to_bottom',
-    description: 'Scroll to the bottom of the page. Returns confirmation. When to use: to reach the end of the page, load lazy content, or trigger infinite scroll. Related: scroll_to_top (jump to beginning), scroll (scroll by specific amount), read_page (read content after scrolling).',
+    description: 'Scroll to the bottom of the page. Returns confirmation. When to use: to reach the end of the page, load lazy content, or trigger infinite scroll. Related: scroll_to_top (jump to beginning), scroll (scroll by specific amount), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -451,7 +451,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'scroll_to_element',
-    description: 'Scroll a specific element into the visible viewport. Returns confirmation with element position. When to use: when you need to bring a particular element into view before interacting with it, especially on long pages where the element is off-screen. Related: scroll (scroll by pixel amount), click (interact after scrolling into view), get_dom_snapshot (find element selectors).',
+    description: 'Scroll a specific element into the visible viewport. Returns confirmation with element position. When to use: when you need to bring a particular element into view before interacting with it, especially on long pages where the element is off-screen. Related: scroll (scroll by pixel amount), click (interact after scrolling into view), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -472,7 +472,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'wait_for_element',
-    description: 'Wait until an element matching the selector appears on the page. Returns when element is found or times out. When to use: after navigation or actions that load new content asynchronously. Related: wait_for_stable (wait for all DOM changes to settle), read_page (read content after element appears).',
+    description: 'Wait until an element matching the selector appears on the page. Returns when element is found or times out. When to use: after navigation or actions that load new content asynchronously. Related: wait_for_stable (wait for all DOM changes to settle), read_page (read content after element appears). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -489,7 +489,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'wait_for_stable',
-    description: 'Wait until the page stops changing (no DOM mutations). Returns when page is stable. When to use: after actions that trigger dynamic content loading, animations, or AJAX requests. Note: read_page already auto-waits for stability internally. Related: wait_for_element (wait for a specific element), read_page (read content after page stabilizes).',
+    description: 'Wait until the page stops changing (no DOM mutations). Returns when page is stable. When to use: after actions that trigger dynamic content loading, animations, or AJAX requests. Note: read_page already auto-waits for stability internally. Related: wait_for_element (wait for a specific element), read_page (read content after page stabilizes). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -508,7 +508,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'open_tab',
-    description: 'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead).',
+    description: 'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -525,7 +525,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'switch_tab',
-    description: 'Switch the active browser tab by tab ID. Returns confirmation with the new active tab info. When to use: to move between open tabs for multi-tab workflows. Related: list_tabs (get available tab IDs first), open_tab (open a new tab).',
+    description: 'Switch the active browser tab by tab ID. Returns confirmation with the new active tab info. When to use: to move between open tabs for multi-tab workflows. Related: list_tabs (get available tab IDs first), open_tab (open a new tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -547,7 +547,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'fill_sheet',
-    description: 'Fill cells in a spreadsheet starting from a given cell with CSV data. Returns fill confirmation. When to use: for bulk data entry into Google Sheets. Related: read_sheet (read existing data before filling), navigate (go to the spreadsheet first).',
+    description: 'Fill cells in a spreadsheet starting from a given cell with CSV data. Returns fill confirmation. When to use: for bulk data entry into Google Sheets. Related: read_sheet (read existing data before filling), navigate (go to the spreadsheet first). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -566,7 +566,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'read_sheet',
-    description: 'Read cell values from a spreadsheet range. Returns cell values as array. When to use: to extract tabular data from a spreadsheet. Related: fill_sheet (write data), navigate (go to the spreadsheet first).',
+    description: 'Read cell values from a spreadsheet range. Returns cell values as array. When to use: to extract tabular data from a spreadsheet. Related: fill_sheet (write data), navigate (go to the spreadsheet first). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -587,7 +587,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click_at',
-    description: 'Click at specific viewport coordinates using CDP trusted events. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used. When to use: for canvas elements, SVG graphics, overlays, or any element where DOM-based click (click tool) does not work. Fallback for click failures. Related: click (preferred for DOM elements -- use click_at only when click fails), get_dom_snapshot (check element coordinates via position data), drag (for click-and-drag interactions).',
+    description: 'Click at specific viewport coordinates using CDP trusted events. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used. When to use: for canvas elements, SVG graphics, overlays, or any element where DOM-based click (click tool) does not work. Fallback for click failures. Related: click (preferred for DOM elements -- use click_at only when click fails), get_dom_snapshot (check element coordinates via position data), drag (for click-and-drag interactions). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -608,7 +608,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'click_and_hold',
-    description: 'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Coordinates are CSS pixels relative to the browser viewport. When to use: for record buttons, long-press menus, or any UI that requires sustained mouse press. Related: click_at (simple click without hold), drag (click, move, and release for dragging interactions).',
+    description: 'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Coordinates are CSS pixels relative to the browser viewport. When to use: for record buttons, long-press menus, or any UI that requires sustained mouse press. Related: click_at (simple click without hold), drag (click, move, and release for dragging interactions). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -627,7 +627,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'drag',
-    description: 'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport. Related: drag_drop (DOM element-to-element drag using selectors), drag_variable_speed (human-like variable-speed drag for CAPTCHAs), click_at (simple click at coordinates), click_and_hold (press and hold without moving).',
+    description: 'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport. Related: drag_drop (DOM element-to-element drag using selectors), drag_variable_speed (human-like variable-speed drag for CAPTCHAs), click_at (simple click at coordinates), click_and_hold (press and hold without moving). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -652,7 +652,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'drag_variable_speed',
-    description: 'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead. Related: drag (uniform-speed drag for canvas/maps), drag_drop (DOM element-to-element drag).',
+    description: 'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead. Related: drag (uniform-speed drag for canvas/maps), drag_drop (DOM element-to-element drag). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -675,7 +675,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'scroll_at',
-    description: 'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport. When to use: for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Related: scroll (page-level scroll up/down), scroll_to_top/scroll_to_bottom (quick page jumps).',
+    description: 'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport. When to use: for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Related: scroll (page-level scroll up/down), scroll_to_top/scroll_to_bottom (quick page jumps). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -695,7 +695,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'insert_text',
-    description: 'Insert text at the current cursor position via CDP Input.insertText. Bypasses DOM event dispatch and directly inserts into the focused element. When to use: for canvas-based editors (Excalidraw, Google Docs, Slack) where type_text does not work because there is no real input element. The element must already be focused or in edit mode (use double_click_at or click_at first). Related: type_text (for real DOM input fields), double_click_at (enter edit mode in canvas editors before inserting text), click_at (focus canvas element before inserting).',
+    description: 'Insert text at the current cursor position via CDP Input.insertText. Bypasses DOM event dispatch and directly inserts into the focused element. When to use: for canvas-based editors (Excalidraw, Google Docs, Slack) where type_text does not work because there is no real input element. The element must already be focused or in edit mode (use double_click_at or click_at first). Related: type_text (for real DOM input fields), double_click_at (enter edit mode in canvas editors before inserting text), click_at (focus canvas element before inserting). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -712,7 +712,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'double_click_at',
-    description: 'Double-click at specific viewport coordinates using CDP trusted events. Dispatches two rapid mousePressed/mouseReleased cycles with clickCount=2 on the second pair. Supports modifier keys. Coordinates are CSS pixels relative to the browser viewport. When to use: for entering edit mode in canvas-based editors (Excalidraw text boxes, Google Sheets cells), selecting words in contenteditable elements, or any double-click on coordinate-targeted elements. Related: click_at (single click at coordinates), double_click (double-click DOM elements by selector), insert_text (type text after entering edit mode via double-click).',
+    description: 'Double-click at specific viewport coordinates using CDP trusted events. Dispatches two rapid mousePressed/mouseReleased cycles with clickCount=2 on the second pair. Supports modifier keys. Coordinates are CSS pixels relative to the browser viewport. When to use: for entering edit mode in canvas-based editors (Excalidraw text boxes, Google Sheets cells), selecting words in contenteditable elements, or any double-click on coordinate-targeted elements. Related: click_at (single click at coordinates), double_click (double-click DOM elements by selector), insert_text (type text after entering edit mode via double-click). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -737,7 +737,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'read_page',
-    description: 'Read the text content of the current page. When to use: as the FIRST step after navigating to understand what is on the page. Automatically waits for DOM stability on JS-heavy sites. Returns main content prioritized over sidebars/nav/footer, capped at ~8K chars. Related: get_dom_snapshot (get structured element data with selectors for interaction), navigate (go to a page first), scroll (scroll to load more content before reading).',
+    description: 'Read the text content of the current page. When to use: as the FIRST step after navigating to understand what is on the page. Automatically waits for DOM stability on JS-heavy sites. Returns main content prioritized over sidebars/nav/footer, capped at ~8K chars. Related: get_dom_snapshot (get structured element data with selectors for interaction), navigate (go to a page first), scroll (scroll to load more content before reading). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -754,7 +754,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_text',
-    description: 'Get the text content of a specific element. Returns the element\'s text. When to use: to read a specific element\'s text without reading the whole page. Related: read_page (read full page), get_attribute (read element attributes like href, src).',
+    description: 'Get the text content of a specific element. Returns the element\'s text. When to use: to read a specific element\'s text without reading the whole page. Related: read_page (read full page), get_attribute (read element attributes like href, src). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -771,7 +771,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_attribute',
-    description: 'Get an HTML attribute value from an element. Returns the attribute value. When to use: to read href, src, value, data attributes, or ARIA properties from an element. Related: get_text (read element text content), get_dom_snapshot (find element selectors).',
+    description: 'Get an HTML attribute value from an element. Returns the attribute value. When to use: to read href, src, value, data attributes, or ARIA properties from an element. Related: get_text (read element text content), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -789,7 +789,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'set_attribute',
-    description: 'Set an HTML attribute value on an element. Returns confirmation. When to use: to modify element attributes for form manipulation, changing hidden field values, toggling ARIA states, or setting data attributes. Related: get_attribute (read attribute value first), get_dom_snapshot (find element selectors).',
+    description: 'Set an HTML attribute value on an element. Returns confirmation. When to use: to modify element attributes for form manipulation, changing hidden field values, toggling ARIA states, or setting data attributes. Related: get_attribute (read attribute value first), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -808,7 +808,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_dom_snapshot',
-    description: 'Get a structured DOM snapshot with element references (e.g., e1, e2, e3). When to use: BEFORE any interaction tool (click, type_text, etc.) to find the right selector or element ref. Returns elements with tag, text, attributes, and position data. Element refs like \'e5\' can be passed directly to click, type_text, hover, and other tools. Related: read_page (quick text content), click/type_text/hover (use refs from this snapshot).',
+    description: 'Get a structured DOM snapshot with element references (e.g., e1, e2, e3). When to use: BEFORE any interaction tool (click, type_text, etc.) to find the right selector or element ref. Returns elements with tag, text, attributes, and position data. Element refs like \'e5\' can be passed directly to click, type_text, hover, and other tools. Related: read_page (quick text content), click/type_text/hover (use refs from this snapshot). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -825,7 +825,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'list_tabs',
-    description: 'List all open browser tabs with title, URL, and active status. Returns array of tab objects. When to use: to see all open tabs before switching. Related: switch_tab (switch to a tab by ID), open_tab (open a new tab).',
+    description: 'List all open browser tabs with title, URL, and active status. Returns array of tab objects. When to use: to see all open tabs before switching. Related: switch_tab (switch to a tab by ID), open_tab (open a new tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -844,7 +844,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_page_snapshot',
-    description: 'Get a markdown snapshot of the current page DOM. Returns interactive elements with ref IDs for targeting. When to use: BEFORE any click/type/interaction to see current page state. Call this at the start of each new page or when you need to find elements. Related: read_page (plain text content), get_text (single element text).',
+    description: 'Get a markdown snapshot of the current page DOM. Returns interactive elements with ref IDs for targeting. When to use: BEFORE any click/type/interaction to see current page state. Call this at the start of each new page or when you need to find elements. Related: read_page (plain text content), get_text (single element text). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -859,7 +859,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_site_guide',
-    description: 'Get site-specific automation guidance for a domain. Returns selectors, navigation patterns, and tips for automating the site. When to use: when starting work on a new site or when standard selectors fail. Related: get_page_snapshot (see current elements), get_dom_snapshot (raw DOM).',
+    description: 'Get site-specific automation guidance for a domain. Returns selectors, navigation patterns, and tips for automating the site. When to use: when starting work on a new site or when standard selectors fail. Related: get_page_snapshot (see current elements), get_dom_snapshot (raw DOM). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -879,7 +879,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'search_memory',
-    description: 'Search FSB memory for relevant past experiences on similar sites or tasks. Returns memories ranked by relevance using keyword + recency scoring (same scorer the MCP search_memory tool uses). PURPOSE: consult prior experience before deciding the next action so you do not redo work or repeat known-bad selectors. WHEN TO USE: (a) before attempting an unfamiliar interaction pattern on a new domain, (b) when stuck after 3+ failed attempts on the same target, or (c) when the prompt-injected memory hints clearly do not cover the current sub-task. Use sparingly -- this is a read-only research call, not a per-turn ritual. PARAMETERS: query (natural-language search, required), domain (optional filter such as "amazon.com" -- pass the bare hostname), type (optional: task | episodic | semantic | procedural), topN (optional max results, default 5, hard-capped at 25). RETURNS: array of memory entries with id, type, text excerpt, and metadata. RELATED: report_progress (narrate what you learned), get_site_guide (curated selectors instead of free-form memory).',
+    description: 'Search FSB memory for relevant past experiences on similar sites or tasks. Returns memories ranked by relevance using keyword + recency scoring (same scorer the MCP search_memory tool uses). PURPOSE: consult prior experience before deciding the next action so you do not redo work or repeat known-bad selectors. WHEN TO USE: (a) before attempting an unfamiliar interaction pattern on a new domain, (b) when stuck after 3+ failed attempts on the same target, or (c) when the prompt-injected memory hints clearly do not cover the current sub-task. Use sparingly -- this is a read-only research call, not a per-turn ritual. PARAMETERS: query (natural-language search, required), domain (optional filter such as "amazon.com" -- pass the bare hostname), type (optional: task | episodic | semantic | procedural), topN (optional max results, default 5, hard-capped at 25). RETURNS: array of memory entries with id, type, text excerpt, and metadata. RELATED: report_progress (narrate what you learned), get_site_guide (curated selectors instead of free-form memory). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -899,7 +899,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'report_progress',
-    description: 'Bonus pairing with start_visual_session: sends real-time narration to the overlay using the same session_token. Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
+    description: 'Bonus pairing with start_visual_session: sends real-time narration to the overlay using the same session_token. Display a status message in the overlay. Without session_token, THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Provide session_token only when continuing a client-owned visual session previously started with start_visual_session. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -927,7 +927,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'complete_task',
-    description: 'Signal that the task is fully complete. ONLY call this when the user\'s requested task has been fully achieved -- all data collected, all entries made, all actions performed. Include a summary of what was accomplished. Provide session_token only when completing a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-lifecycle semantics.',
+    description: 'Signal that the task is fully complete. ONLY call this when the user\'s requested task has been fully achieved -- all data collected, all entries made, all actions performed. Include a summary of what was accomplished. Provide session_token only when completing a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-lifecycle semantics. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -948,7 +948,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'partial_task',
-    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Use this instead of fail_task when the user can still benefit from the completed work, especially for auth/manual handoff blockers after research, drafting, or data entry is already done. Auth/manual blockers include login required, no saved credentials, user skipped login, credentials failed, and manual approval, MFA, or external verification. Preserve three things clearly: what you completed, the exact blocker, and the manual next step the user should take. If the runtime offers one saved-credential or operator-prompt attempt, let that single attempt happen first; call partial_task only after that attempt is unavailable, skipped, exhausted, or fails. Provide session_token only when finalizing a client-owned visual session created by start_visual_session.',
+    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Use this instead of fail_task when the user can still benefit from the completed work, especially for auth/manual handoff blockers after research, drafting, or data entry is already done. Auth/manual blockers include login required, no saved credentials, user skipped login, credentials failed, and manual approval, MFA, or external verification. Preserve three things clearly: what you completed, the exact blocker, and the manual next step the user should take. If the runtime offers one saved-credential or operator-prompt attempt, let that single attempt happen first; call partial_task only after that attempt is unavailable, skipped, exhausted, or fails. Provide session_token only when finalizing a client-owned visual session created by start_visual_session. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -976,7 +976,7 @@ const TOOL_REGISTRY = [
 
   {
     name: 'fail_task',
-    description: 'Signal that the task cannot be completed. Include the reason why. Call this instead of just stopping when you encounter an unrecoverable problem. Provide session_token only when ending a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-failure semantics.',
+    description: 'Signal that the task cannot be completed. Include the reason why. Call this instead of just stopping when you encounter an unrecoverable problem. Provide session_token only when ending a client-owned visual session created by start_visual_session; otherwise omit it and keep the normal task-failure semantics. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
