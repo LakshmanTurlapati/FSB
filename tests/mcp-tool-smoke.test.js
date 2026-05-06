@@ -70,6 +70,11 @@ async function run() {
   const visualSessionModule = await loadBuildModule(pathJoin('tools', 'visual-session.js'));
   const autopilotModule = await loadBuildModule(pathJoin('tools', 'autopilot.js'));
   const observabilityModule = await loadBuildModule(pathJoin('tools', 'observability.js'));
+  // Phase 242 plan 02: agents.ts now exposes the 'back' tool (Plan 01 D-01).
+  // Loading the module here lets the smoke test register the back handler
+  // alongside the other surfaces; without this, 'back' stays in
+  // requiredSmokeTools but its handler never lands in harness.handlers.
+  const agentsModule = await loadBuildModule(pathJoin('tools', 'agents.js'));
 
   console.log('\n--- packaged runtime surface ---');
   assert(typeof runtimeModule.createRuntime === 'function', 'build/runtime.js exports createRuntime');
@@ -78,6 +83,7 @@ async function run() {
   assert(typeof visualSessionModule.registerVisualSessionTools === 'function', 'build/tools/visual-session.js exports registerVisualSessionTools');
   assert(typeof autopilotModule.registerAutopilotTools === 'function', 'build/tools/autopilot.js exports registerAutopilotTools');
   assert(typeof observabilityModule.registerObservabilityTools === 'function', 'build/tools/observability.js exports registerObservabilityTools');
+  assert(typeof agentsModule.registerAgentTools === 'function', 'build/tools/agents.js exports registerAgentTools');
 
   const harness = createToolHarness({
     bridgeResponses: {
@@ -113,6 +119,9 @@ async function run() {
   visualSessionModule.registerVisualSessionTools(harness.server, harness.bridge, harness.queue, agentScope);
   autopilotModule.registerAutopilotTools(harness.server, harness.bridge, harness.queue, agentScope);
   observabilityModule.registerObservabilityTools(harness.server, harness.bridge, harness.queue, agentScope);
+  // Phase 242 D-01: registerAgentTools registers the 'back' MCP tool. Loaded
+  // last so the smoke test's registered-handlers assertion (line 118) sees it.
+  agentsModule.registerAgentTools(harness.server, harness.bridge, harness.queue, agentScope);
 
   console.log('\n--- registered smoke tools ---');
   for (const toolName of requiredSmokeTools) {
@@ -221,6 +230,16 @@ async function run() {
     getLogsCall && getLogsCall.message,
     { type: 'mcp:get-logs', payload: { sessionId: 'smoke-session', count: 10 } },
     'get_logs routes through mcp:get-logs with observability payload',
+  );
+
+  // Phase 242 plan 02: 'back' routes through mcp:go-back. Bridge response
+  // surfaces the canonical 5-status envelope; agentScope captures the
+  // (optional) ownershipToken via captureOwnershipToken on success.
+  const backCall = await invokeTool(harness, 'back');
+  assertDeepEqual(
+    backCall && backCall.message,
+    { type: 'mcp:go-back', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'back routes through mcp:go-back with agentId + ownershipToken (Phase 242 D-01)',
   );
 
   console.log('\n--- agent:register lazy-mint invariant (Phase 238 D-13.4) ---');
