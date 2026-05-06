@@ -128,6 +128,11 @@ export class WebSocketBridge {
       }
     }
 
+    // Phase 239 plan 03 -- IMPORTANT: do NOT change the rejection of pendingRequests
+    // on disconnect (lines below). The MCP server's run_task tool catches
+    // the resulting `Error('Bridge disconnected')` and resolves with sw_evicted: true
+    // per CONTEXT.md D-05. Removing the rejection would cause sendAndWait Promises
+    // to hang indefinitely on bridge disconnect.
     // Reject all pending requests
     for (const [id, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout);
