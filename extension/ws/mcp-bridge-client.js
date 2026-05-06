@@ -435,6 +435,9 @@ class MCPBridgeClient {
   }
 
   async _handleGetDOM(payload) {
+    const { agentId } = payload || {};
+    // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+    void agentId;
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
     const response = await this._sendToContentScript(tab.id, {
@@ -445,6 +448,9 @@ class MCPBridgeClient {
   }
 
   async _handleReadPage(payload) {
+    const { agentId } = payload || {};
+    // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+    void agentId;
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
     const response = await this._sendToContentScript(tab.id, {

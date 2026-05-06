@@ -61,7 +61,13 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-session': { routeFamily: 'observability', handler: handleGetSessionMessageRoute },
   'mcp:get-logs': { routeFamily: 'observability', handler: handleGetLogsMessageRoute },
   'mcp:search-memory': { routeFamily: 'observability', handler: handleSearchMemoryMessageRoute },
-  'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute }
+  'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute },
+  // Phase 238: agent identity routes. Resolve through globalThis.fsbAgentRegistryInstance
+  // (Phase 237 registry surface). Phase 240 will validate ownership at every dispatch
+  // boundary; Phase 238 is structural setup only.
+  'agent:register': { routeFamily: 'agent', handler: handleAgentRegisterRoute },
+  'agent:release':  { routeFamily: 'agent', handler: handleAgentReleaseRoute },
+  'agent:status':   { routeFamily: 'agent', handler: handleAgentStatusRoute }
 };
 
 function createMcpRouteError(tool, routeFamily, recoveryHint = MCP_ROUTE_RECOVERY_HINT, extra = {}) {
@@ -287,6 +293,9 @@ function hasActiveAutomationSessionForTab(tabId) {
 }
 
 async function handleNavigateRoute({ params, client }) {
+  const { agentId } = params || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   if (!params?.url || typeof params.url !== 'string') {
     return createMcpInvalidParamsError('navigate', 'navigate requires url');
   }
@@ -310,6 +319,9 @@ async function handleNavigateRoute({ params, client }) {
 }
 
 async function handleNavigationHistoryRoute({ tool, params, client }) {
+  const { agentId } = params || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   let targetTabId = Number.isFinite(params?.tabId) ? params.tabId : null;
   try {
     getChromeTabsApi();
@@ -343,6 +355,9 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
 }
 
 async function handleOpenTabRoute({ params }) {
+  const { agentId } = params || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   try {
     getChromeTabsApi();
     const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active !== false });
@@ -353,6 +368,9 @@ async function handleOpenTabRoute({ params }) {
 }
 
 async function handleSwitchTabRoute({ params }) {
+  const { agentId } = params || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   if (!Number.isFinite(params?.tabId)) {
     return createMcpInvalidParamsError('switch_tab', 'switch_tab requires numeric tabId');
   }
@@ -376,6 +394,9 @@ async function handleSwitchTabRoute({ params }) {
 }
 
 async function handleListTabsRoute({ params }) {
+  const { agentId } = params || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   try {
     getChromeTabsApi();
     const queryOptions = {};
@@ -398,7 +419,10 @@ async function handleListTabsRoute({ params }) {
   }
 }
 
-async function handleExecuteJsRoute() {
+async function handleExecuteJsRoute({ payload } = {}) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   return createMcpRouteError('execute_js', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: 'execute_js remains handled by the bridge client direct scripting path' });
 }
 
@@ -563,6 +587,9 @@ async function handleToolAliasRoute({ params, client, route }) {
 }
 
 async function handleStartVisualSessionRoute({ payload, client }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const clientLabel = _mcp_normalizeVisualClientLabel(payload?.clientLabel || payload?.client);
   if (!clientLabel) {
     return createMcpRouteError('start_visual_session', 'visual-session', 'Retry with one of the approved MCP client labels.', {
@@ -617,6 +644,9 @@ async function handleStartVisualSessionRoute({ payload, client }) {
 }
 
 async function handleEndVisualSessionRoute({ payload }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const sessionToken = boundedString(payload?.sessionToken || payload?.session_token, 200);
   if (!sessionToken) {
     return createMcpInvalidParamsError('end_visual_session', 'end_visual_session requires sessionToken', { routeFamily: 'visual-session' });
@@ -633,7 +663,63 @@ async function handleEndVisualSessionRoute({ payload }) {
   );
 }
 
+// Phase 238: agent identity routes. Resolve through the Phase 237 registry
+// surface (globalThis.fsbAgentRegistryInstance). Phase 240 will validate
+// ownership at every dispatch boundary; Phase 238 is structural setup only.
+
+async function handleAgentRegisterRoute() {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.registerAgent !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  // D-12: ignore caller-supplied agentId; registry mints fresh via crypto.randomUUID().
+  const minted = await reg.registerAgent();
+  const agentId = minted && minted.agentId;
+  const agentIdShort = (minted && minted.agentIdShort)
+    || ((globalThis.FsbAgentRegistry && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+      ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay(agentId || '')
+      : (typeof agentId === 'string' ? agentId.slice(0, 12) : ''));
+  console.log('[FSB MCP Dispatcher] agent:register minted ' + agentIdShort);
+  return { success: true, agentId, agentIdShort };
+}
+
+async function handleAgentReleaseRoute({ payload } = {}) {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.releaseAgent !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  const agentId = payload && payload.agentId;
+  if (!agentId) {
+    return createMcpInvalidParamsError('agent:release', 'agent:release requires agentId', { routeFamily: 'agent' });
+  }
+  const reason = (payload && payload.reason) || 'mcp-explicit';
+  const result = await reg.releaseAgent(agentId, reason);
+  // The Phase 237 registry returns a plain boolean today; future evolution may
+  // return { released, releasedTabIds }. Accept either shape defensively.
+  const released = (result === true) || !!(result && result.released);
+  return { success: true, released };
+}
+
+async function handleAgentStatusRoute({ payload } = {}) {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.getAgentTabs !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  const agentId = payload && payload.agentId;
+  if (!agentId) {
+    return createMcpInvalidParamsError('agent:status', 'agent:status requires agentId', { routeFamily: 'agent' });
+  }
+  const tabIds = reg.getAgentTabs(agentId) || [];
+  const fmt = (globalThis.FsbAgentRegistry && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+    ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay
+    : (id) => String(id || '').slice(0, 12);
+  return { success: true, agentId, agentIdShort: fmt(agentId), tabIds };
+}
+
 async function handleStartAutomationRoute({ payload, client }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const tab = await getActiveTabFromClient(client);
   if (!tab?.id) {
     return createMcpRouteError('run_task', 'autopilot', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
@@ -655,6 +741,9 @@ async function handleStartAutomationRoute({ payload, client }) {
 }
 
 async function handleStopAutomationRoute({ payload, client }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const tab = await getActiveTabFromClient(client).catch(() => null);
 
   // Phase 225-01 (Task 2): MCP stop_task tool ships no sessionId in its
@@ -697,7 +786,10 @@ async function handleStopAutomationRoute({ payload, client }) {
   );
 }
 
-async function handleGetStatusRoute() {
+async function handleGetStatusRoute({ payload } = {}) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const sessions = getActiveSessionsMap();
   const sessionIds = Array.from(sessions.keys());
   const firstSession = sessionIds.length > 0 ? sessions.get(sessionIds[0]) : null;
@@ -956,7 +1048,10 @@ async function handleGetMemoryMessageRoute({ payload }) {
   };
 }
 
-async function handleReportProgressRoute({ params }) {
+async function handleReportProgressRoute({ params, payload }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const message = boundedString(params?.message, 500);
   if (!message) {
     return createMcpInvalidParamsError('report_progress', 'report_progress requires message', { routeFamily: 'task-status' });
@@ -984,7 +1079,10 @@ async function handleReportProgressRoute({ params }) {
   return { success: true, tool: 'report_progress', hadEffect: false, message };
 }
 
-async function handleCompleteTaskRoute({ params }) {
+async function handleCompleteTaskRoute({ params, payload }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const summary = boundedString(params?.summary, 2000);
   if (!summary) {
     return createMcpInvalidParamsError('complete_task', 'complete_task requires summary', { routeFamily: 'task-status' });
@@ -1008,7 +1106,10 @@ async function handleCompleteTaskRoute({ params }) {
   return { success: true, tool: 'complete_task', status: 'completed', hadEffect: false, summary };
 }
 
-async function handlePartialTaskRoute({ params }) {
+async function handlePartialTaskRoute({ params, payload }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const summary = boundedString(params?.summary, 2000);
   const blocker = boundedString(params?.blocker, 1000);
   if (!summary || !blocker) {
@@ -1047,7 +1148,10 @@ async function handlePartialTaskRoute({ params }) {
   };
 }
 
-async function handleFailTaskRoute({ params }) {
+async function handleFailTaskRoute({ params, payload }) {
+  const { agentId } = payload || {};
+  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
+  void agentId;
   const reason = boundedString(params?.reason, 1000);
   if (!reason) {
     return createMcpInvalidParamsError('fail_task', 'fail_task requires reason', { routeFamily: 'task-status' });
@@ -1082,7 +1186,11 @@ const _mcp_dispatcher_exports = {
   createMcpRouteError,
   MCP_PHASE199_TOOL_ROUTES,
   MCP_PHASE199_MESSAGE_ROUTES,
-  MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS
+  MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS,
+  // Phase 238: agent identity route handlers exported for unit-test access.
+  handleAgentRegisterRoute,
+  handleAgentReleaseRoute,
+  handleAgentStatusRoute
 };
 
 if (typeof globalThis !== 'undefined') {
