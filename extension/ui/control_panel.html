@@ -429,7 +429,18 @@
                     Reset to default (8)
                   </button>
                   <div class="setting-hint">
-                    Default 8. Range 1 to 64. Lowering this value while active agents are running does not evict them; new claims past the new cap are rejected (grandfather behavior).
+                    Default 8. Range 1 to 64. Lower = predictable resource use; higher = more parallel agents. Lowering this value while active agents are running does not evict them; new claims past the new cap are rejected (grandfather behavior).
+                  </div>
+                  <!-- Phase 243 Plan 04 / UI-03: inline validation message for out-of-range input (D-06). -->
+                  <div class="setting-hint" id="fsbAgentCapValidation"
+                       style="color: #ff6b6b; display: none; margin-top: 4px;">
+                    Must be between 1 and 64
+                  </div>
+                  <!-- Phase 243 Plan 04 / UI-03: live current-active counter (D-06). -->
+                  <!-- Updated via chrome.storage.onChanged on session/fsbAgentRegistry + local/fsbAgentCap. -->
+                  <!-- Excludes legacy:* synthesized agents (Pitfall 1 per 243-RESEARCH.md). -->
+                  <div class="setting-hint" id="fsbAgentCapCurrentActive" style="margin-top: 4px;">
+                    0 of 8 active
                   </div>
                 </div>
               </div>
@@ -1498,6 +1509,8 @@
   <script src="site-guides-viewer.js"></script>
   <script src="lib/qrcode-generator.min.js"></script>
   <script src="pin-input.js"></script>
+  <!-- Phase 243 Plan 04 / UI-03: pure helpers for the cap counter + validation. Must load BEFORE options.js. -->
+  <script src="cap-counter-helpers.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
