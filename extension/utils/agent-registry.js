@@ -60,6 +60,15 @@
   var FSB_AGENT_CAP_LOWERED_CATEGORY = 'agent-cap-lowered-grandfathered';
   var FSB_AGENT_GRACE_EXPIRED_CATEGORY = 'agent-grace-expired';
 
+  // Phase 243 WR-02: module-scope guards for the chrome.storage.onChanged cap
+  // listener. _capListenerAttached ensures at most ONE listener is attached
+  // per SW classloader lifetime. _capListenerLiveSelf is the live registry
+  // instance the listener should mutate; refreshed every constructor call so
+  // re-instantiation (test harness or post-SW-wake) routes events to the
+  // latest registry without leaking stale `self` captures into the listener.
+  var _capListenerAttached = false;
+  var _capListenerLiveSelf = null;
+
   function _clampCap(v) {
     if (typeof v !== 'number' || !Number.isFinite(v)) return FSB_AGENT_CAP_DEFAULT;
     var i = Math.floor(v);
@@ -844,9 +853,22 @@
    * (options page, popup, sidepanel) writes a new value. Read-only listener
    * (does NOT write back) so no cross-context loop is possible (Pitfall 4).
    * Best-effort; never throws if chrome.storage.onChanged is absent.
+   *
+   * Phase 243 WR-02 hardening: guarded by a module-scope flag so at most ONE
+   * listener is attached per SW classloader lifetime. SW restarts construct
+   * a fresh AgentRegistry; without the guard each wake would attach a new
+   * listener on top of (potentially) any references Chrome retained, and
+   * tests that build multiple registries in a single Node process would
+   * register N listeners that all close over different `self` captures.
+   * The latest registry's `self` is mirrored onto the closure so storage
+   * events drive the live instance's cache.
    */
   AgentRegistry.prototype._subscribeToCapChanges = function() {
     var self = this;
+    // Always update the latest-instance reference so storage events route to
+    // the live registry even if a fresh registry replaces a prior one.
+    _capListenerLiveSelf = self;
+    if (_capListenerAttached) return;
     var c = _getChrome();
     if (!c || !c.storage || !c.storage.onChanged ||
         typeof c.storage.onChanged.addListener !== 'function') {
@@ -858,8 +880,10 @@
         if (!changes || !changes[FSB_AGENT_CAP_STORAGE_KEY]) return;
         var next = changes[FSB_AGENT_CAP_STORAGE_KEY].newValue;
         if (typeof next !== 'number' || !Number.isFinite(next)) return;
-        self._cachedCap = _clampCap(next);
+        var live = _capListenerLiveSelf;
+        if (live) live._cachedCap = _clampCap(next);
       });
+      _capListenerAttached = true;
     } catch (_e) { /* swallow */ }
   };
 
