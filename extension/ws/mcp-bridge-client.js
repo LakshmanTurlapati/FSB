@@ -572,22 +572,43 @@ class MCPBridgeClient {
   }
 
   async _handleExecuteAction(payload) {
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
+    // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
+    // through to active-tab via the resolver's first-line branch.
+    const agentId = (payload && payload.agentId) || null;
+    const params = payload && payload.params ? payload.params : {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      // Surface plain-object error envelope; bridge serializes to MCP shape.
+      return resolved;
+    }
 
-    // D-06: Route-aware dispatch using TOOL_REGISTRY _route field
+    // Phase 246 D-16: feed the resolved tabId into routeParams so
+    // _resolveTabIdForGate (camelCase only) finds it and the gate's tab-arm
+    // fires. EXCEPTION: legacy:* surfaces (resolved.skipGate === true) MUST
+    // NOT push tabId into routeParams -- the gate's tab-arm SKIPS for legacy
+    // surfaces (Phase 240's D-02 carve-out preserved). See Pitfall 3.
+    const tabId = resolved.tabId;
+    const tab = { id: tabId };
     const toolDef = typeof getToolByName === 'function' ? getToolByName(payload.tool) : null;
+
+    const routeParams = {
+      ...params,
+      ...(resolved.skipGate ? {} : { tabId }),
+      ...(agentId ? { agentId } : {}),
+      ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+      ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+    };
 
     // Phase 245: route the dispatch through wrapWithChangeReport when the
     // tool's _emitChangeReport flag is true and the global toggle is on.
     // The wrapper short-circuits to executeFn() when either gate is off, so
     // adding this wrap is zero-overhead for read tools / opt-out tools / when
     // fsbChangeReportsEnabled is false.
-    const tabId = tab.id;
-    const params = payload && payload.params ? payload.params : {};
     const executeFn = async () => {
       if (toolDef && toolDef._route === 'background') {
-        return this._handleExecuteBackground(tab, payload, toolDef);
+        return this._handleExecuteBackground(tab, payload, toolDef, routeParams);
       }
       // Default: send to content script (content-routed or unknown tools)
       return this._sendToContentScript(tabId, {
@@ -613,10 +634,27 @@ class MCPBridgeClient {
    * Handle background-routed tools directly in the service worker.
    * Special-cases execute_js (chrome.scripting.executeScript); others
    * dispatch via chrome.runtime.sendMessage to background.js onMessage handler.
+   *
+   * Phase 246 D-16: accepts a routeParams arg from _handleExecuteAction
+   * containing the resolver-fed tabId (camelCase) plus agentId/ownershipToken/
+   * connectionId. Falls back to rebuilding from payload for back-compat
+   * with any caller that does not pass routeParams.
    */
-  async _handleExecuteBackground(tab, payload, toolDef) {
+  async _handleExecuteBackground(tab, payload, toolDef, routeParams) {
     const toolName = payload.tool;
     const params = payload.params || {};
+
+    // Phase 246 D-16: routeParams already built by caller (skipGate-aware).
+    // Fall back to legacy reconstruction only if a caller bypassed
+    // _handleExecuteAction (defensive; preserves Phase 245 back-compat).
+    if (!routeParams) {
+      routeParams = {
+        ...params,
+        ...(payload && payload.agentId ? { agentId: payload.agentId } : {}),
+        ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+        ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+      };
+    }
 
     // Special handler for execute_js -- uses chrome.scripting.executeScript directly
     if (toolName === 'execute_js') {
@@ -624,7 +662,7 @@ class MCPBridgeClient {
     }
 
     if (typeof hasMcpToolRoute === 'function' && hasMcpToolRoute(toolName)) {
-      return dispatchMcpToolRoute({ tool: payload.tool, params: payload.params || {}, client: this, tab });
+      return dispatchMcpToolRoute({ tool: payload.tool, params: routeParams, client: this, tab, payload });
     }
 
     if (toolName === 'fill_credential' || toolName === 'fill_payment_method') {
@@ -1187,15 +1225,31 @@ class MCPBridgeClient {
     return { success: true, credentials };
   }
 
-  async _handleFillCredential() {
-    const tab = await this._getActiveTab();
-    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+  async _handleFillCredential(payload) {
+    // Phase 246 D-13 vault overturn: vault tools join the agent-scoped
+    // surface. Resolver picks the tab; URL still derived from chrome.tabs.get
+    // (we need the URL for domain derivation; resolver returns only tabId).
+    const agentId = (payload && payload.agentId) || null;
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    let tab;
+    try {
+      tab = await chrome.tabs.get(resolved.tabId);
+    } catch (_e) {
+      return { success: false, error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded' };
+    }
+    if (!tab?.url) return { success: false, error: 'No URL on resolved tab' };
 
     let domain;
     try {
       domain = new URL(tab.url).hostname;
     } catch {
-      return { success: false, error: 'Cannot determine domain from active tab URL' };
+      return { success: false, error: 'Cannot determine domain from resolved tab URL' };
     }
 
     // Lookup credential in vault (stays in extension)
@@ -1208,7 +1262,7 @@ class MCPBridgeClient {
     }
 
     // Send fill command to content script -- password travels bg->content only (MCP-02)
-    const result = await this._sendToContentScript(tab.id, {
+    const result = await this._sendToContentScript(resolved.tabId, {
       action: 'executeAction',
       tool: 'fillCredentialFields',
       params: {
@@ -1240,10 +1294,25 @@ class MCPBridgeClient {
     const { paymentMethodId } = payload;
     if (!paymentMethodId) return { success: false, error: 'paymentMethodId is required' };
 
-    const tab = await this._getActiveTab();
-    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+    // Phase 246 D-13 vault overturn: vault tools join the agent-scoped
+    // surface. Resolver picks the tab; URL still derived from chrome.tabs.get.
+    const agentId = (payload && payload.agentId) || null;
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    let tab;
+    try {
+      tab = await chrome.tabs.get(resolved.tabId);
+    } catch (_e) {
+      return { success: false, error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded' };
+    }
+    if (!tab?.url) return { success: false, error: 'No URL on resolved tab' };
 
-    // Derive merchant domain from active tab (MCP-04: not from MCP payload)
+    // Derive merchant domain from resolved tab (MCP-04: not from MCP payload)
     let merchantDomain;
     try {
       merchantDomain = new URL(tab.url).hostname;
@@ -1307,8 +1376,8 @@ class MCPBridgeClient {
       return { success: false, error: errorMsg };
     }
 
-    // Fill payment fields on the active tab -- full card data travels bg->content only
-    const result = await this._sendToContentScript(tab.id, {
+    // Fill payment fields on the resolved tab -- full card data travels bg->content only
+    const result = await this._sendToContentScript(resolved.tabId, {
       action: 'executeAction',
       tool: 'fillPaymentFields',
       params: {

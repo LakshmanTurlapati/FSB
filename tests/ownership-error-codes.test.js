@@ -60,6 +60,15 @@ function buildRegistryMock(opts) {
     hasAgent(agentId) {
       return typeof agentId === 'string' && knownAgents.has(agentId);
     },
+    // Phase 246: resolver consumes getAgentTabs to pick the target tab.
+    getAgentTabs(agentId) {
+      if (!knownAgents.has(agentId)) return null;
+      const tabs = [];
+      tabOwners.forEach((owner, tabId) => {
+        if (owner === agentId) tabs.push(tabId);
+      });
+      return tabs;
+    },
     isOwnedBy(tabId, agentId, ownershipToken) {
       if (tabOwners.get(tabId) !== agentId) return false;
       if (ownershipToken === undefined) return true;
@@ -308,8 +317,8 @@ async function test6_d16CrossAgentRejectViaResolver() {
       ownershipToken: 'tB-bogus'
     };
     const result = await dispatchMcpToolRoute({
-      tool: 'click',
-      params: routeParams
+      tool: 'navigate',
+      params: { url: 'https://example.com', ...routeParams }
     });
     check(result && result.success === false, 'dispatch returns success === false');
     check(result && result.code === 'TAB_NOT_OWNED',
@@ -355,8 +364,8 @@ async function test7_d16SameAgentPassesGate() {
     // plain object regardless of route success. We assert the result does
     // NOT carry a typed gate code.
     const result = await dispatchMcpToolRoute({
-      tool: 'click',
-      params: routeParams
+      tool: 'navigate',
+      params: { url: 'https://example.com', ...routeParams }
     });
     const gateCodes = ['TAB_NOT_OWNED', 'TAB_INCOGNITO_NOT_SUPPORTED', 'TAB_OUT_OF_SCOPE', 'AGENT_NOT_REGISTERED'];
     check(!gateCodes.includes(result && result.code),
