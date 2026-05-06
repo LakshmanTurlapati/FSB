@@ -5152,10 +5152,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
 
   switch (request.action) {
+    case 'ensureLegacyAgent': {
+      // Phase 240 D-02: legacy surfaces (popup, sidepanel, autopilot)
+      // synthesize a constant agentId via Plan 01's getOrRegisterLegacyAgent
+      // carve-out. Each surface calls this once at boot; the registry mints
+      // the agent if missing or returns the existing record. The runtime
+      // action accepts only 3 hardcoded surfaces -- the registry's ALLOWED
+      // map enforces the carve-out boundary (T-240-04 mitigation).
+      const surface = (request && typeof request.surface === 'string') ? request.surface : null;
+      if (!globalThis.fsbAgentRegistryInstance) {
+        sendResponse({ success: false, error: 'agent_registry_not_initialized' });
+        return true;
+      }
+      globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent(surface)
+        .then((result) => {
+          if (result && result.error) {
+            sendResponse({ success: false, error: result.error, surface: result.surface || surface });
+            return;
+          }
+          sendResponse({
+            success: true,
+            agentId: result.agentId,
+            ownershipToken: (result && result.ownershipToken) || null
+          });
+        })
+        .catch((err) => {
+          sendResponse({ success: false, error: (err && err.message) || String(err) });
+        });
+      return true; // async response
+    }
+
     case 'startAutomation':
       handleStartAutomation(request, sender, sendResponse);
       return true; // Will respond asynchronously
-      
+
     case 'stopAutomation':
       handleStopAutomation(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -6486,11 +6516,47 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions
 
+    // Phase 240 D-08 (4th site): bindTab before success return.
+    // Source-agnostic per Open Q3: fires on EVERY handleStartAutomation
+    // success, whether from popup (legacy:popup), sidepanel (legacy:sidepanel),
+    // MCP dispatch (real agent_<uuid>), or autopilot fallback
+    // (legacy:autopilot). agentId is sourced from request.agentId; fallback
+    // to legacy:autopilot when caller did not thread one (covers run_task
+    // pre-Phase-238 callers and the agent-loop fallback).
+    let resolvedAgentId = (request && typeof request.agentId === 'string') ? request.agentId : null;
+    if (!resolvedAgentId && globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent === 'function') {
+      try {
+        const fallback = await globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent('autopilot');
+        if (fallback && !fallback.error) {
+          resolvedAgentId = fallback.agentId || null;
+        }
+      } catch (_fallbackErr) {
+        // Fallback failure is non-fatal: dispatch gate (Plan 02) will reject
+        // tool calls, but the session itself starts so the popup/sidepanel
+        // user is not blocked.
+      }
+    }
+    let bindResult = null;
+    if (resolvedAgentId && globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function' &&
+        Number.isFinite(targetTabId)) {
+      try {
+        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(resolvedAgentId, targetTabId);
+      } catch (_bindErr) {
+        // Best-effort: bind failure does not block the success response so
+        // legacy single-agent flows remain functional during the v0.9.60
+        // multi-agent transition.
+      }
+    }
+
     sendResponse({
       success: true,
       sessionId,
       message: navigationMessage || 'Automation started',
-      navigationPerformed: navigationPerformed
+      navigationPerformed: navigationPerformed,
+      agentId: resolvedAgentId || undefined,
+      ownershipToken: (bindResult && bindResult.ownershipToken) || undefined
     });
 
     // EASY WIN #10: Start keep-alive when automation begins

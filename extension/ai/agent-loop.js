@@ -1034,6 +1034,17 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
 // runAgentLoop
 // ---------------------------------------------------------------------------
 
+// Phase 240 D-02 NOTE: agent-loop.js does NOT dispatch through
+// extension/ws/mcp-tool-dispatcher.js -- it runs inline in the SW after
+// handleStartAutomation has already created the session. The legacy:autopilot
+// agentId synthesis + bindTab happen at handleStartAutomation's D-08 4th site
+// (extension/background.js, just before the success sendResponse). Therefore
+// no synthesis call is needed in agent-loop.js itself; the autopilot fallback
+// is covered upstream. If a future plan moves autopilot dispatch through
+// dispatchMcpToolRoute, the agentId on the session record (sessionData) is
+// the authoritative source for threading agentId + ownershipToken into
+// outgoing MCP tool envelopes.
+
 /**
  * Entry point for the agent loop. Called from handleStartAutomation.
  * Initializes session state and kicks off the first iteration.

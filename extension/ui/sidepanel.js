@@ -9,6 +9,32 @@ let livenessFailCount = 0;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
 
+// Phase 240 D-02: synthesize legacy:sidepanel agentId once per side panel
+// load. The side panel is longer-lived than the popup but still gets
+// recreated by Chrome on certain events; the registry's
+// getOrRegisterLegacyAgent is idempotent on the 'sidepanel' surface so the
+// constant 'legacy:sidepanel' agentId is reused across reopens. The
+// ownershipToken is null until bindTab fires inside handleStartAutomation
+// (D-08 4th site).
+let _legacySidepanelAgent = null;
+async function ensureLegacySidepanelAgent() {
+  if (_legacySidepanelAgent && _legacySidepanelAgent.agentId) return _legacySidepanelAgent;
+  try {
+    _legacySidepanelAgent = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'ensureLegacyAgent', surface: 'sidepanel' },
+        (resp) => resolve(resp || {})
+      );
+    });
+  } catch (_e) {
+    _legacySidepanelAgent = null;
+  }
+  if (!_legacySidepanelAgent || !_legacySidepanelAgent.success) {
+    _legacySidepanelAgent = { agentId: null, ownershipToken: null };
+  }
+  return _legacySidepanelAgent;
+}
+
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
   try {
@@ -398,12 +424,20 @@ async function handleSendMessage() {
     
     // Note: Restriction checking is now handled by background script with smart navigation
     
+    // Phase 240 D-02: ensure legacy:sidepanel agentId is synthesized BEFORE
+    // dispatching startAutomation. The agentId + ownershipToken thread into
+    // the envelope so handleStartAutomation can bindTab the target tab
+    // under legacy:sidepanel (D-08 4th site).
+    const legacy = await ensureLegacySidepanelAgent();
+
     // Send start command to background
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      conversationId: conversationId
+      conversationId: conversationId,
+      agentId: legacy && legacy.agentId,
+      ownershipToken: legacy && legacy.ownershipToken
     }, (response) => {
       if (chrome.runtime.lastError) {
         addMessage(`Error communicating with background script: ${chrome.runtime.lastError.message}`, 'error');
