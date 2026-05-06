@@ -1,5 +1,30 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.60 Multi-Agent Tab Concurrency (Shipped: 2026-05-06)
+
+**Phases completed:** 8 phases, 24 plans, 28 tasks
+
+**Key accomplishments:**
+
+- 1. [Rule 1 — Test bug] Test 1 hardcoded agentIdShort prefix did not match formatAgentIdForDisplay output.
+- 1. [Rule 1 - Bug] mcp-tool-smoke.test.js invokeTool helper offset
+- Modern AI loop terminal exits and user-stop now feed the lifecycle bus, unblocking the run_task return-on-completion fix that the original Phase 236 was deferred for.
+- 1. [Rule 3 - Blocking] Subscribe-time `_sendProgress` removed; replaced with subscribe-time `writeSnapshot` only
+- Closes Phase 239 by stitching Plan 01's lifecycle bus and Plan 02's heartbeat + persistence into a strict single-resolve discipline. Both 300s ceilings raised to 600s safety nets; lifecycle event always wins the race; SW eviction now resolves the originating MCP call cleanly with a documented partial_state.
+- Inline checkOwnershipGate at dispatchMcpToolRoute (sync, same microtask) with three typed reject codes; bindTab in 3 of 4 D-08 handlers; AgentScope ownershipToken capture; 6 mcp-tool-smoke deepEqual sites strengthened with token_test_smoke.
+- Modified -- documentation comment only.
+- 1. [Rule 3 - Blocking] Pre-existing 20-concurrent mutex stress test broken by new default cap=8
+- 1. bindTab needed an opts argument to receive `forced: true`.
+- Registers a single-step ownership-gated `back` MCP tool in agents.ts that emits a structured `{status, resultingUrl, historyDepth}` reply over a new `mcp:go-back` bridge envelope, threading the canonical Phase 238/240/241 agentId/ownershipToken/connectionId triple.
+- 1. [Rule 3 - Blocking] Wired 'back' through tests/mcp-tool-smoke.test.js
+- 1. [Rule 3 - File extension] Plan referenced `tool-definitions.cjs`; actual file is `tool-definitions.js`
+- LOG-04 'agent-tab-user-navigation' diagnostic on user-initiated webNavigation commits of non-legacy agent-owned tabs, with 500ms registry-stamped suppression to filter Phase 242 back-tool transitionType auto_bookmark false-positives.
+- 1. [Rule 3 - Module reachability] Lazy formatAgentIdForDisplay resolution
+- mcp/src/tools/agents.ts (back)
+- 1. [Rule 2 - Missing critical functionality] Triple-bump version.ts alongside package.json + server.json
+
+---
+
 ## v0.9.50 Autopilot Refinement (MCP-Parity) (Shipped: 2026-05-03)
 
 **Phases completed:** 7 GSD-tracked (224-230) + 3 opportunistic (231-233 untracked); 54 commits, 91 files changed (+7607 / −362)

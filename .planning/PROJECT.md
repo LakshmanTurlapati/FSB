@@ -23,15 +23,27 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Next Milestone Goals (TBD)
+## Current Milestone: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)
 
-No active milestone. Likely candidates from v0.9.50 carry-forward and follow-up:
+**Goal:** Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with explicit ownership and a hard concurrency cap -- and ship `fsb-mcp-server@0.8.0` including the deferred Phase 236 fix.
 
-- **Phase 236 standalone milestone**: ship `fsb-mcp-server@0.7.5` so `mcp__fsb__run_task` returns when the agent completes instead of hitting the 300s ceiling
-- **Phase 234/235 cleanup milestone**: REQUIREMENTS.md backfill + retroactive GSD coverage for Phases 231/232/233 (commit 232 + 233; split unrelated `mcp/ai/tool-definitions.cjs` drift)
-- **Autopilot reliability follow-up**: action-history recording bug fix (mutation tools missing from `session.actionHistory`), PROMPT-08 fallback policy tightening
-- **GEO content pack** (carry-over): FAQ + comparison pages + per-route OG images
-- Run `/gsd-new-milestone` to formalize the next milestone
+**Milestone progress:** Phase 237 (Agent Registry Foundation) complete. Phase 238 (AgentScope + Bridge Wiring) complete 2026-05-06 -- AGENT-04 closed; per-process AgentScope mints `agent_id` on first tool call via `agent:register`, threads through every autopilot/manual/visual-session bridge payload, extension explicitly ignores until Phase 240 enforcement. 6 phases remain (239-244).
+
+**Target features:**
+- Per-session/task agent identity -- one MCP client may run multiple parallel agents, each with its own ID
+- Tab ownership: opening a tab binds its `tab_id` to the owning agent; cross-agent access rejected
+- Background-tab execution: no requirement that the owned tab be active/foregrounded
+- Hard cap: 8 concurrent agents/tabs; 9th request rejected with a clear "cap reached" error
+- Forced-new-tab pooling: if an owning agent opens another tab, both pool under that agent and stay locked together
+- Lock release on: task/session ends, MCP client disconnects, user closes the tab (no idle timeout)
+- New `back` MCP tool -- browser back-button equivalent
+- `fsb-mcp-server@0.8.0` release, including Phase 236 (`run_task` returns on completion instead of hitting the 300s ceiling)
+
+**Key context / constraints:**
+- Branch-locked to `Refinements`; no push/PR until explicit user command
+- Reuse v0.9.36 trusted MCP client allowlist for client labeling; agent identity is finer-grained (per session)
+- Must preserve existing single-agent autopilot + manual MCP visual session contracts (no regressions)
+- Excludes GEO content pack, off-page launch, zoneless migration -- separate later milestone
 
 ## Future Milestone Candidates (deferred)
 
@@ -461,4 +473,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 -- after v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up shipped*
+*Last updated: 2026-05-06 -- Phase 238 (AgentScope + Bridge Wiring) complete; AGENT-04 closed*
