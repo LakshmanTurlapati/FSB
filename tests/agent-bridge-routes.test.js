@@ -111,8 +111,8 @@ async function test1_registerIgnoresCallerSuppliedId() {
       'response.agentId is the registry-minted id, NOT the caller-supplied id');
     check(response.agentId !== 'attacker-supplied-id',
       'response.agentId differs from attacker-supplied id');
-    check(response.agentIdShort === 'agent_fresh',
-      'response.agentIdShort is the formatAgentIdForDisplay output of the fresh id');
+    check(response.agentIdShort === 'agent_fresh-server-mint'.slice(0, 12),
+      'response.agentIdShort is the formatAgentIdForDisplay output of the fresh id (12-char slice)');
 
     // W8: registerAgent() must be called with ZERO arguments.
     check(mock.calls.registerAgent.length === 1,

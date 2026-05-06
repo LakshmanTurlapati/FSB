@@ -61,7 +61,13 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-session': { routeFamily: 'observability', handler: handleGetSessionMessageRoute },
   'mcp:get-logs': { routeFamily: 'observability', handler: handleGetLogsMessageRoute },
   'mcp:search-memory': { routeFamily: 'observability', handler: handleSearchMemoryMessageRoute },
-  'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute }
+  'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute },
+  // Phase 238: agent identity routes. Resolve through globalThis.fsbAgentRegistryInstance
+  // (Phase 237 registry surface). Phase 240 will validate ownership at every dispatch
+  // boundary; Phase 238 is structural setup only.
+  'agent:register': { routeFamily: 'agent', handler: handleAgentRegisterRoute },
+  'agent:release':  { routeFamily: 'agent', handler: handleAgentReleaseRoute },
+  'agent:status':   { routeFamily: 'agent', handler: handleAgentStatusRoute }
 };
 
 function createMcpRouteError(tool, routeFamily, recoveryHint = MCP_ROUTE_RECOVERY_HINT, extra = {}) {
@@ -633,6 +639,59 @@ async function handleEndVisualSessionRoute({ payload }) {
   );
 }
 
+// Phase 238: agent identity routes. Resolve through the Phase 237 registry
+// surface (globalThis.fsbAgentRegistryInstance). Phase 240 will validate
+// ownership at every dispatch boundary; Phase 238 is structural setup only.
+
+async function handleAgentRegisterRoute() {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.registerAgent !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  // D-12: ignore caller-supplied agentId; registry mints fresh via crypto.randomUUID().
+  const minted = await reg.registerAgent();
+  const agentId = minted && minted.agentId;
+  const agentIdShort = (minted && minted.agentIdShort)
+    || ((globalThis.FsbAgentRegistry && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+      ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay(agentId || '')
+      : (typeof agentId === 'string' ? agentId.slice(0, 12) : ''));
+  console.log('[FSB MCP Dispatcher] agent:register minted ' + agentIdShort);
+  return { success: true, agentId, agentIdShort };
+}
+
+async function handleAgentReleaseRoute({ payload } = {}) {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.releaseAgent !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  const agentId = payload && payload.agentId;
+  if (!agentId) {
+    return createMcpInvalidParamsError('agent:release', 'agent:release requires agentId', { routeFamily: 'agent' });
+  }
+  const reason = (payload && payload.reason) || 'mcp-explicit';
+  const result = await reg.releaseAgent(agentId, reason);
+  // The Phase 237 registry returns a plain boolean today; future evolution may
+  // return { released, releasedTabIds }. Accept either shape defensively.
+  const released = (result === true) || !!(result && result.released);
+  return { success: true, released };
+}
+
+async function handleAgentStatusRoute({ payload } = {}) {
+  const reg = globalThis.fsbAgentRegistryInstance;
+  if (!reg || typeof reg.getAgentTabs !== 'function') {
+    return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
+  }
+  const agentId = payload && payload.agentId;
+  if (!agentId) {
+    return createMcpInvalidParamsError('agent:status', 'agent:status requires agentId', { routeFamily: 'agent' });
+  }
+  const tabIds = reg.getAgentTabs(agentId) || [];
+  const fmt = (globalThis.FsbAgentRegistry && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+    ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay
+    : (id) => String(id || '').slice(0, 12);
+  return { success: true, agentId, agentIdShort: fmt(agentId), tabIds };
+}
+
 async function handleStartAutomationRoute({ payload, client }) {
   const tab = await getActiveTabFromClient(client);
   if (!tab?.id) {
@@ -1082,7 +1141,11 @@ const _mcp_dispatcher_exports = {
   createMcpRouteError,
   MCP_PHASE199_TOOL_ROUTES,
   MCP_PHASE199_MESSAGE_ROUTES,
-  MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS
+  MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS,
+  // Phase 238: agent identity route handlers exported for unit-test access.
+  handleAgentRegisterRoute,
+  handleAgentReleaseRoute,
+  handleAgentStatusRoute
 };
 
 if (typeof globalThis !== 'undefined') {
