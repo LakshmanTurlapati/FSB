@@ -55,17 +55,10 @@ function check(cond, msg) {
 
 const RESOLVER_PATH = path.resolve(__dirname, '..', 'extension', 'utils', 'agent-tab-resolver.js');
 
-let resolverModule = null;
-try {
-  resolverModule = require(RESOLVER_PATH);
-} catch (e) {
-  if (e && e.code === 'MODULE_NOT_FOUND') {
-    console.log('SKELETON: resolver module not yet created -- expected during Wave 0');
-    process.exit(0);
-  }
-  throw e;
-}
-
+// Phase 246-01 Task 2: resolver landed; the Task 1 RED-skeleton wrapper that
+// short-circuited on MODULE_NOT_FOUND is retired here. The 8 cases below now
+// exercise the real implementation.
+const resolverModule = require(RESOLVER_PATH);
 const { resolveAgentTabOrError } = resolverModule;
 
 // ---- Mock registry helpers ------------------------------------------------

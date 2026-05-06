@@ -9,6 +9,11 @@ importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('utils/mcp-visual-session.js');
 try { importScripts('utils/agent-registry.js'); } catch (e) { console.error('[FSB] Failed to load agent-registry.js:', e.message); }
+// Phase 246 plan 01: agent-scoped tab resolver. Pure helper; consumes
+// globalThis.fsbAgentRegistryInstance via getAgentTabs(agentId). Loaded
+// AFTER the registry and BEFORE the dispatcher / bridge-client so those
+// callers see globalThis.resolveAgentTabOrError at module-eval time.
+try { importScripts('utils/agent-tab-resolver.js'); } catch (e) { console.error('[FSB] Failed to load agent-tab-resolver.js:', e.message); }
 // Phase 243 plan 02 (BG-04): user-initiated nav emission helper. Pure
 // module; no chrome.* dependency. The webNavigation.onCommitted listener
 // at this file's line ~2464 calls FsbAgentNavEmission._maybeEmitUserNavigation.
