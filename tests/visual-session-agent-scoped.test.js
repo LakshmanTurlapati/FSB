@@ -184,7 +184,7 @@ async function test1_singleTabResolves() {
       },
       client: {}
     });
-    check(captureBox.action === 'handleStartMcpVisualSession', 'callback fired with handleStartMcpVisualSession');
+    check(captureBox.action === 'startMcpVisualSession', 'callback fired with action startMcpVisualSession');
     check(captureBox.message && captureBox.message.tabId === 42, 'callback message tabId === 42 (resolver-fed)');
     check(captureBox.message && captureBox.message.agentId === 'agent_a', 'agentId threaded into message');
     check(result && result.captured === true, 'route returned the stub callback result');
@@ -289,7 +289,7 @@ async function test4_explicitTabId() {
       },
       client: {}
     });
-    check(captureBox.action === 'handleStartMcpVisualSession', 'callback fired with handleStartMcpVisualSession');
+    check(captureBox.action === 'startMcpVisualSession', 'callback fired with action startMcpVisualSession');
     check(captureBox.message && captureBox.message.tabId === 43, 'callback message tabId === 43 (explicit tab_id wins)');
     check(result && result.captured === true, 'route returned the stub callback result');
   } finally {

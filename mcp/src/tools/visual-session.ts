@@ -33,13 +33,14 @@ export function registerVisualSessionTools(
 ): void {
   server.tool(
     'start_visual_session',
-    'Start the FSB visual session BEFORE any browser work. Puts the user-visible glow/overlay on the active tab so the human can see what is being driven, and returns a session token to thread through later visual-session calls. ALWAYS call this first whenever you plan to use FSB browser tools (click, type_text, navigate, execute_js, ...) -- starting and ending a session is trivial and the visible signal is what makes FSB feel transparent to the user. Real-time progress updates via report_progress (using this token) are a bonus, not a requirement. Pair with end_visual_session. Multi-agent contract: agent_id is FSB-issued and required (the server captures it via agent:register on first tool call -- callers do not provide it). tab_id is agent-scoped: only tabs owned by the calling agent can be addressed. The concurrency cap is configurable (default 8, range 1-64); the (N+1)th agent claim is rejected with AGENT_CAP_REACHED { cap, active }. Ownership enforcement: cross-agent calls reject with TAB_NOT_OWNED; incognito tabs reject with TAB_INCOGNITO_NOT_SUPPORTED; cross-window tabs reject with TAB_OUT_OF_SCOPE.',
+    'Start the FSB visual session BEFORE any browser work. Puts the user-visible glow/overlay on the active tab so the human can see what is being driven, and returns a session token to thread through later visual-session calls. ALWAYS call this first whenever you plan to use FSB browser tools (click, type_text, navigate, execute_js, ...) -- starting and ending a session is trivial and the visible signal is what makes FSB feel transparent to the user. Real-time progress updates via report_progress (using this token) are a bonus, not a requirement. Pair with end_visual_session. Multi-agent contract: agent_id is FSB-issued and required (the server captures it via agent:register on first tool call -- callers do not provide it). tab_id is agent-scoped: only tabs owned by the calling agent can be addressed. The concurrency cap is configurable (default 8, range 1-64); the (N+1)th agent claim is rejected with AGENT_CAP_REACHED { cap, active }. Ownership enforcement: cross-agent calls reject with TAB_NOT_OWNED; incognito tabs reject with TAB_INCOGNITO_NOT_SUPPORTED; cross-window tabs reject with TAB_OUT_OF_SCOPE. Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     {
       client: z.string().describe('Trusted MCP client label, for example Codex, ChatGPT, Claude, or Gemini. Must be on the approved allowlist.'),
       task: z.string().describe('Short task title shown in the visible automation surface.'),
       detail: z.string().optional().describe('Optional initial detail line for the overlay, such as "Preparing checkout flow".'),
+      tab_id: z.number().optional().describe('Optional. Tab id the visual session attaches to. Omit when this agent owns exactly one tab; required to disambiguate when this agent owns multiple. Legacy popup/sidepanel/autopilot do not need to pass this.'),
     },
-    async ({ client, task, detail }) => {
+    async ({ client, task, detail, tab_id }) => {
       const clientLabel = normalizeMcpVisualClientLabel(client);
       if (!clientLabel) {
         return mapFSBError({
@@ -66,6 +67,9 @@ export function registerVisualSessionTools(
           ? agentScope.currentConnectionId()
           : null;
         const payload: Record<string, unknown> = { clientLabel, task, detail, agentId };
+        // Phase 246 D-10: forward optional tab_id so the extension-side
+        // resolver can disambiguate when the calling agent owns multiple tabs.
+        if (tab_id !== undefined) payload.tab_id = tab_id;
         if (ownershipToken) payload.ownershipToken = ownershipToken;
         if (connectionId) payload.connectionId = connectionId;
         const result = await bridge.sendAndWait(

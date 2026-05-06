@@ -1196,13 +1196,54 @@ async function handleStartVisualSessionRoute({ payload, client }) {
     return createMcpInvalidParamsError('start_visual_session', 'start_visual_session requires task', { routeFamily: 'visual-session' });
   }
 
-  const tab = await getActiveTabFromClient(client);
-  if (!tab?.id) {
-    return createMcpRouteError('start_visual_session', 'visual-session', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
-      errorCode: 'no_active_tab',
-      error: 'No active tab available for visual session'
-    });
+  // Phase 246 D-09: resolver replaces active-tab fetch for MCP agents.
+  // Single mental model across read/visual/action surfaces. Legacy:* and
+  // missing-agentId callers preserve the prior active-tab path so existing
+  // contract tests continue to behave byte-for-byte.
+  let tab;
+  let resolvedFromRegistry = false;
+  const isLegacyOrMissingAgent = (typeof agentId !== 'string' || !agentId || agentId.startsWith('legacy:'));
+  if (isLegacyOrMissingAgent) {
+    tab = await getActiveTabFromClient(client);
+    if (!tab?.id) {
+      return createMcpRouteError('start_visual_session', 'visual-session', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for visual session'
+      });
+    }
+  } else {
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, payload || {}, client)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return createMcpRouteError('start_visual_session', 'visual-session', MCP_ROUTE_RECOVERY_HINT, {
+        errorCode: resolved.code,
+        error: 'Tab resolution failed: ' + resolved.code,
+        agentId: resolved.agentId,
+        ...(resolved.tabIds ? { tabIds: resolved.tabIds } : {})
+      });
+    }
+    resolvedFromRegistry = true;
+    // Registry path returned tabId only; fetch tab metadata for
+    // restricted-page detection.
+    try {
+      tab = await chrome.tabs.get(resolved.tabId);
+    } catch (_e) {
+      return createMcpRouteError('start_visual_session', 'visual-session', MCP_ROUTE_RECOVERY_HINT, {
+        errorCode: 'tab_unavailable',
+        error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded'
+      });
+    }
+    if (!tab?.id) {
+      return createMcpRouteError('start_visual_session', 'visual-session', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for visual session'
+      });
+    }
   }
+  // Reference resolvedFromRegistry to silence unused-var hints. The flag
+  // is informational and may be consumed by future diagnostics.
+  void resolvedFromRegistry;
 
   if (isRestrictedMcpUrl(tab.url || '')) {
     return buildRestrictedMcpResponse({
