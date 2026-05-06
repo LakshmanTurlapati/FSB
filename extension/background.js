@@ -6407,11 +6407,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
           } catch (switchErr) {
             // Tab may have been closed between discovery and switch - fall back to navigate
             automationLogger.debug('Tab switch failed, falling back to navigate', { error: switchErr.message });
+            // Phase 243 plan 02 (BG-04): stamp lastAgentNavigationAt BEFORE
+            // the chrome.tabs.update so the webNavigation.onCommitted
+            // listener suppresses its agent-tab-user-navigation emission for
+            // the resulting auto_bookmark / link transition (Pitfall 2 / 500ms).
+            try { globalThis.fsbAgentRegistryInstance && globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId); } catch (_e) {}
             await chrome.tabs.update(targetTabId, { url: targetUrl });
             navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
           }
         } else {
           // Navigate current (restricted) tab to target
+          // Phase 243 plan 02 (BG-04): stamp before programmatic navigation
+          // so the webNavigation listener suppresses the agent-driven commit.
+          try { globalThis.fsbAgentRegistryInstance && globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId); } catch (_e) {}
           await chrome.tabs.update(targetTabId, { url: targetUrl });
           navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
         }
