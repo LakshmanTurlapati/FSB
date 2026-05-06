@@ -515,6 +515,14 @@
         if (record) {
           record.tabIds = Array.from(ownedTabs);
         }
+        // Phase 241 D-10 / POOL-04: when the pool drains to zero, release the
+        // agent record itself. Inlined (cannot call releaseAgent from inside
+        // the mutex -- would re-enter the promise chain and deadlock per
+        // RESEARCH Pattern 4 anti-pattern).
+        if (ownedTabs.size === 0) {
+          self._tabsByAgent.delete(agentId);
+          self._agents.delete(agentId);
+        }
       }
       await self._persist();
       return true;
@@ -557,6 +565,36 @@
   AgentRegistry.prototype.findAgentByTabId = function(tabId) {
     if (typeof tabId !== 'number' || !Number.isFinite(tabId)) return null;
     return this._tabOwners.get(tabId) || null;
+  };
+
+  /**
+   * Phase 241 D-08-prep: stamp a per-bridge-connect connectionId onto an
+   * existing agent record. Carrier for Plan 02's bridge wiring -- the bridge
+   * mints a UUID at onopen and threads it into agent:register; the dispatcher
+   * forwards that to here. stageReleaseByConnectionId then iterates _agents
+   * and snapshots agentIds whose record.connectionId matches.
+   *
+   * Sync write -- no mutex needed (single-property mutation on an already-
+   * existing record). Persist is fire-and-forget so the call site stays sync;
+   * the persistence is for SW-eviction recovery only (the dispatch path does
+   * NOT depend on connectionId being on disk to function).
+   *
+   * Returns true on success, false if agentId is unknown or args are not strings.
+   */
+  AgentRegistry.prototype.stampConnectionId = function(agentId, connectionId) {
+    if (typeof agentId !== 'string' || typeof connectionId !== 'string') return false;
+    var record = this._agents.get(agentId);
+    if (!record) return false;
+    record.connectionId = connectionId;
+    // Best-effort persist; never throw. The mutator is sync from the caller's
+    // perspective so the bridge does not need to await it.
+    try {
+      var p = this._persist();
+      if (p && typeof p.catch === 'function') {
+        p.catch(function() { /* best-effort */ });
+      }
+    } catch (_e) { /* swallow */ }
+    return true;
   };
 
   /**
@@ -781,6 +819,11 @@
         if (record.legacy === true) {
           rebuilt.legacy = true;
         }
+        // Phase 241 D-08: restore stamped connectionId so hydrate-time
+        // staged-release recovery can match agents on the persisted snapshot.
+        if (typeof record.connectionId === 'string') {
+          rebuilt.connectionId = record.connectionId;
+        }
         self._agents.set(agentId, rebuilt);
         self._tabsByAgent.set(agentId, new Set(tabIds));
         tabIds.forEach(function(tabId) { self._tabOwners.set(tabId, agentId); });
@@ -904,6 +947,12 @@
       if (record.legacy === true) {
         stored.legacy = true;
       }
+      // Phase 241 D-08: connectionId stamped on the agent record (for grace
+      // staging by connectionId on disconnect). Persisted so the hydrate-time
+      // recovery path can match staged releases against rehydrated agents.
+      if (typeof record.connectionId === 'string') {
+        stored.connectionId = record.connectionId;
+      }
       records[agentId] = stored;
     });
 
@@ -922,7 +971,28 @@
       };
       hasTabMetadata = true;
     });
-    var extras = hasTabMetadata ? { tabMetadata: tabMetadata } : null;
+
+    // Phase 241 Q2: stagedReleases block keyed by connectionId. timeoutId is
+    // intentionally NOT persisted (DOM timer ids do not survive SW eviction).
+    // The deadline + agentIds snapshot is enough for hydrate-time recovery
+    // (Pattern 4: fire immediately if deadline passed, else schedule fresh
+    // setTimeout for the remaining time).
+    var stagedReleases = {};
+    var hasStagedReleases = false;
+    this._stagedReleases.forEach(function(entry, connId) {
+      stagedReleases[connId] = {
+        deadline: entry.deadline,
+        agentIds: Array.isArray(entry.agentIds) ? entry.agentIds.slice() : []
+      };
+      hasStagedReleases = true;
+    });
+
+    var extras = null;
+    if (hasTabMetadata || hasStagedReleases) {
+      extras = {};
+      if (hasTabMetadata) extras.tabMetadata = tabMetadata;
+      if (hasStagedReleases) extras.stagedReleases = stagedReleases;
+    }
     await writePersistedAgentRegistry(records, extras);
   };
 
