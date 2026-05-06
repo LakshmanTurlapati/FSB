@@ -70,7 +70,7 @@
     }
   }
 
-  async function writePersistedAgentRegistry(records) {
+  async function writePersistedAgentRegistry(records, extras) {
     var c = _getChrome();
     if (!c || !c.storage || !c.storage.session) return;
     try {
@@ -81,11 +81,20 @@
         }
         return;
       }
-      var payload = {};
-      payload[FSB_AGENT_REGISTRY_STORAGE_KEY] = {
+      var envelope = {
         v: FSB_AGENT_REGISTRY_PAYLOAD_VERSION,
         records: nextRecords
       };
+      // Phase 240 D-04: additive extras (tabMetadata) carried at the
+      // envelope's top level. v: 1 unchanged because older readers ignore
+      // unknown fields.
+      if (extras && typeof extras === 'object') {
+        Object.keys(extras).forEach(function(key) {
+          envelope[key] = extras[key];
+        });
+      }
+      var payload = {};
+      payload[FSB_AGENT_REGISTRY_STORAGE_KEY] = envelope;
       if (typeof c.storage.session.set === 'function') {
         await c.storage.session.set(payload);
       }
@@ -180,6 +189,18 @@
     return FSB_AGENT_ID_PREFIX + stamp + '-' + rand;
   }
 
+  // Phase 240 D-04: per-bindTab opaque ownershipToken. Defense-in-depth so a
+  // stolen agentId alone does not pass the dispatch gate. Distinct generator
+  // from mintAgentId -- token format is a bare UUID (no agent_ prefix).
+  function mintOwnershipToken() {
+    if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    var rand = Math.random().toString(16).slice(2, 10);
+    var stamp = Date.now().toString(16);
+    return stamp + '-' + rand;
+  }
+
   // ---- AgentRegistry constructor ------------------------------------------
   //
   // Mirrors mcp-visual-session.js:85-88 -- the v0.9.36 storage-keyed manager
@@ -196,6 +217,11 @@
     this._agents = new Map();
     this._tabOwners = new Map();
     this._tabsByAgent = new Map();
+    // Phase 240 D-04: per-tab metadata cache. tabId -> {ownershipToken,
+    // incognito, windowId, boundAt}. Sibling Map (not nested in agent record)
+    // so getTabMetadata stays a single Map.get(tabId) sync read for the
+    // dispatch gate's same-microtask discipline (D-07).
+    this._tabMetadata = new Map();
     this._hydrated = false;
   }
 
@@ -245,6 +271,9 @@
         ownedTabs.forEach(function(tabId) {
           if (self._tabOwners.get(tabId) === agentId) {
             self._tabOwners.delete(tabId);
+            // Phase 240: also wipe per-tab metadata so a recycled tabId does
+            // not surface stale token bytes to a future bindTab.
+            self._tabMetadata.delete(tabId);
           }
         });
       }
@@ -256,12 +285,71 @@
   };
 
   /**
+   * Phase 240 D-02 carve-out from Phase 238 D-12 (caller-id-ignored). The
+   * three legacy surfaces (popup, sidepanel, autopilot) MUST use constant
+   * agentIds 'legacy:popup' / 'legacy:sidepanel' / 'legacy:autopilot' so
+   * cleanup-on-reload writes the same row back. This is the ONLY API that
+   * accepts a caller-supplied agentId; everything else mints fresh via
+   * registerAgent. Pitfall 4: prevents legacy:popup-{1,2,3,...} churn when
+   * popup / sidepanel views are re-opened repeatedly.
+   *
+   * Idempotent: a second call for the same surface returns the existing
+   * agentId without minting a duplicate record. Unknown surfaces return an
+   * { error: 'unknown_legacy_surface' } object so the caller can surface a
+   * typed rejection upstream.
+   *
+   * Note: ownershipToken is null at register time -- tokens are minted
+   * per-bindTab. The first bindTab for the legacy agent yields the token.
+   *
+   * @returns Promise<{agentId, ownershipToken: null} | {error, surface}>
+   */
+  AgentRegistry.prototype.getOrRegisterLegacyAgent = function(surface) {
+    var ALLOWED = {
+      popup: 'legacy:popup',
+      sidepanel: 'legacy:sidepanel',
+      autopilot: 'legacy:autopilot'
+    };
+    var agentId = ALLOWED[surface];
+    if (!agentId) {
+      return Promise.resolve({ error: 'unknown_legacy_surface', surface: surface });
+    }
+    var self = this;
+    return withRegistryLock(async function() {
+      if (self._agents.has(agentId)) {
+        return { agentId: agentId, ownershipToken: null };
+      }
+      var record = {
+        agentId: agentId,
+        createdAt: Date.now(),
+        tabIds: [],
+        legacy: true
+      };
+      self._agents.set(agentId, record);
+      self._tabsByAgent.set(agentId, new Set());
+      await self._persist();
+      return { agentId: agentId, ownershipToken: null };
+    });
+  };
+
+  /**
    * Bind a tab to an agent. Tab gets a single owner; if the tab is already
    * owned, this call returns false (Phase 240 enforces displacement vs reject
-   * semantics; Phase 237 is structural only). Returns false on unknown agent
-   * or invalid tabId, no throw.
+   * semantics at the dispatch gate; Phase 237 was structural only). Returns
+   * false on unknown agent or invalid tabId, no throw.
    *
-   * @returns Promise<boolean>
+   * Phase 240 D-04: bindTab now mints a fresh ownershipToken (UUID), reads
+   * the tab's incognito flag and windowId via chrome.tabs.get (await-able
+   * inside the registry mutex; NOT called from the dispatch gate), and
+   * caches the metadata in self._tabMetadata. The return shape changes from
+   * boolean true to { agentId, tabId, ownershipToken } on success; false on
+   * failure is preserved (truthy-check callers continue to work).
+   *
+   * Phase 240 Open Q2 (per-agent windowId pin): the agent's record stamps
+   * its first-bound tab's windowId. Subsequent binds in a different window
+   * leave the pin unchanged (set-once invariant). The dispatch gate uses
+   * getAgentWindowId to detect cross-window dispatch.
+   *
+   * @returns Promise<{agentId, tabId, ownershipToken} | false>
    */
   AgentRegistry.prototype.bindTab = function(agentId, tabId) {
     var self = this;
@@ -278,6 +366,32 @@
       if (currentOwner && currentOwner !== agentId) {
         return false;
       }
+
+      // Phase 240 D-04: read incognito + windowId once at bind time. Wrapped
+      // in try/catch (Pitfall 1): if chrome.tabs.get throws or chrome.tabs is
+      // missing, we default both fields to safe values and proceed -- the
+      // gate's incognito branch will not trip on the false-default, but the
+      // dispatch gate continues to enforce ownershipToken match.
+      var incognitoFlag = false;
+      var winId = null;
+      var c = _getChrome();
+      if (c && c.tabs && typeof c.tabs.get === 'function') {
+        try {
+          var tabInfo = await c.tabs.get(tabId);
+          incognitoFlag = !!(tabInfo && tabInfo.incognito === true);
+          if (tabInfo && Number.isFinite(tabInfo.windowId)) {
+            winId = tabInfo.windowId;
+          }
+        } catch (_e) {
+          // Tab may have closed between caller's intent and our get; bind
+          // still proceeds with safe defaults. Subsequent dispatch through
+          // Plan 02's gate handles staleness via isOwnedBy=false.
+        }
+      }
+
+      // Phase 240 D-04: mint a fresh per-bindTab ownershipToken.
+      var token = mintOwnershipToken();
+
       self._tabOwners.set(tabId, agentId);
       var ownedTabs = self._tabsByAgent.get(agentId);
       if (!ownedTabs) {
@@ -288,9 +402,27 @@
       var record = self._agents.get(agentId);
       if (record) {
         record.tabIds = Array.from(ownedTabs);
+        // Phase 240 Open Q2: per-agent window pinning. Set ONCE on first
+        // bindTab; never overwritten. Dispatch gate consumes via
+        // getAgentWindowId for cross-window detection.
+        if (!Number.isFinite(record.windowId) && Number.isFinite(winId)) {
+          record.windowId = winId;
+        }
       }
+      // Phase 240 D-04: cache per-tab metadata for the gate's sync read path.
+      self._tabMetadata.set(tabId, {
+        ownershipToken: token,
+        incognito: incognitoFlag,
+        windowId: winId,
+        boundAt: Date.now()
+      });
+
       await self._persist();
-      return true;
+      return {
+        agentId: agentId,
+        tabId: tabId,
+        ownershipToken: token
+      };
     });
   };
 
@@ -313,6 +445,11 @@
       }
       var agentId = self._tabOwners.get(tabId);
       self._tabOwners.delete(tabId);
+      // Phase 240 Pitfall 2: wipe per-tab metadata at release. A subsequent
+      // bindTab on the same tabId mints a fresh ownershipToken; queued
+      // requests carrying the OLD token fail isOwnedBy as the desired TOCTOU
+      // defense.
+      self._tabMetadata.delete(tabId);
       var ownedTabs = self._tabsByAgent.get(agentId);
       if (ownedTabs) {
         ownedTabs.delete(tabId);
@@ -329,9 +466,20 @@
   /**
    * Synchronous read: is this tab owned by this agent?
    * Read-only path; no mutex needed.
+   *
+   * Phase 240 D-04: optional 3rd argument ownershipToken. When provided, the
+   * stored token at _tabMetadata.get(tabId).ownershipToken MUST also match.
+   * When omitted (undefined), the back-compat Phase 237 contract holds: the
+   * (tabId, agentId) pair alone determines ownership. The dispatch gate
+   * ALWAYS passes a token; legacy callers that have not been audited yet
+   * keep working via the back-compat path.
    */
-  AgentRegistry.prototype.isOwnedBy = function(tabId, agentId) {
-    return this._tabOwners.get(tabId) === agentId;
+  AgentRegistry.prototype.isOwnedBy = function(tabId, agentId, ownershipToken) {
+    if (this._tabOwners.get(tabId) !== agentId) return false;
+    if (ownershipToken === undefined) return true;
+    var meta = this._tabMetadata.get(tabId);
+    if (!meta) return false;
+    return meta.ownershipToken === ownershipToken;
   };
 
   /**
@@ -340,6 +488,50 @@
   AgentRegistry.prototype.getOwner = function(tabId) {
     var owner = this._tabOwners.get(tabId);
     return owner || null;
+  };
+
+  /**
+   * Phase 240 D-04: Synchronous read of per-tab metadata. The dispatch gate
+   * (Plan 02) consumes this for the same-microtask discipline -- no
+   * chrome.tabs.get round-trip at dispatch time. Returns a SHALLOW CLONE so
+   * the caller cannot mutate live registry state. Returns null if the tab
+   * is not bound (or its metadata was wiped at releaseTab).
+   *
+   * @returns {{ownershipToken, incognito, windowId, boundAt} | null}
+   */
+  AgentRegistry.prototype.getTabMetadata = function(tabId) {
+    var meta = this._tabMetadata.get(tabId);
+    if (!meta) return null;
+    return {
+      ownershipToken: meta.ownershipToken,
+      incognito: meta.incognito,
+      windowId: meta.windowId,
+      boundAt: meta.boundAt
+    };
+  };
+
+  /**
+   * Phase 240: synchronous existence check. Used by the dispatch gate to
+   * validate that the requesting agentId is registered before consulting
+   * tab ownership. Cheaper than listAgents().some(...) and avoids the
+   * defensive-clone allocation.
+   */
+  AgentRegistry.prototype.hasAgent = function(agentId) {
+    return typeof agentId === 'string' && this._agents.has(agentId);
+  };
+
+  /**
+   * Phase 240 Open Q2: synchronous read of the agent's pinned windowId.
+   * The pin is set ONCE on the agent's first bindTab and never overwritten.
+   * The dispatch gate consumes this to detect cross-window dispatch under
+   * D-05's TAB_OUT_OF_SCOPE { reason: 'cross_window' } branch. Returns null
+   * if the agent has not yet bound any tab (or chrome.tabs.get failed at
+   * the time of first bind so windowId is unknown).
+   */
+  AgentRegistry.prototype.getAgentWindowId = function(agentId) {
+    var record = this._agents.get(agentId);
+    if (!record) return null;
+    return Number.isFinite(record.windowId) ? record.windowId : null;
   };
 
   /**
@@ -397,13 +589,47 @@
         var record = records[agentId];
         if (!record || typeof record !== 'object') return;
         var tabIds = Array.isArray(record.tabIds) ? record.tabIds.slice() : [];
-        self._agents.set(agentId, {
+        var rebuilt = {
           agentId: record.agentId || agentId,
           createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
           tabIds: tabIds.slice()
-        });
+        };
+        // Phase 240 Open Q2: restore the agent's pinned windowId (set-once)
+        // across SW eviction so cross-window detection survives wake-up.
+        if (Number.isFinite(record.windowId)) {
+          rebuilt.windowId = record.windowId;
+        }
+        // Phase 240 D-02: preserve legacy flag for synthesized legacy:* rows.
+        if (record.legacy === true) {
+          rebuilt.legacy = true;
+        }
+        self._agents.set(agentId, rebuilt);
         self._tabsByAgent.set(agentId, new Set(tabIds));
         tabIds.forEach(function(tabId) { self._tabOwners.set(tabId, agentId); });
+      });
+
+      // Phase 240 D-04: rebuild _tabMetadata from the envelope's tabMetadata
+      // block (sibling to records). Phase 240 Pitfall 6: stale Phase 237
+      // envelopes have no tabMetadata; those tabs fail isOwnedBy on next
+      // dispatch (token-aware path) and naturally rebind on the next
+      // bindTab call. Token-less back-compat callers continue to pass.
+      var persistedTabMetadata = (payload && payload.tabMetadata && typeof payload.tabMetadata === 'object')
+        ? payload.tabMetadata : {};
+      Object.keys(persistedTabMetadata).forEach(function(tabIdKey) {
+        var meta = persistedTabMetadata[tabIdKey];
+        if (!meta || typeof meta !== 'object') return;
+        var tabId = parseInt(tabIdKey, 10);
+        if (!Number.isFinite(tabId)) return;
+        // Only restore metadata for tabs whose ownership row also rebuilt;
+        // orphaned metadata (e.g., a binding dropped by a prior reap) is
+        // left out so getTabMetadata returns null consistently.
+        if (!self._tabOwners.has(tabId)) return;
+        self._tabMetadata.set(tabId, {
+          ownershipToken: meta.ownershipToken,
+          incognito: meta.incognito === true,
+          windowId: Number.isFinite(meta.windowId) ? meta.windowId : null,
+          boundAt: typeof meta.boundAt === 'number' ? meta.boundAt : Date.now()
+        });
       });
 
       // Step 2: query live tabs. If chrome.tabs.query is unavailable or throws,
@@ -434,6 +660,10 @@
         if (!liveTabIds.has(tabId)) {
           reapedThisWake.push({ agentId: agentId, tabId: tabId, reason: 'tab_not_found' });
           self._tabOwners.delete(tabId);
+          // Phase 240: ghost reap also wipes _tabMetadata so a future bindTab
+          // on a recycled tabId mints fresh state and the dispatch gate sees
+          // no stale token / window / incognito snapshot.
+          self._tabMetadata.delete(tabId);
           var setRef = self._tabsByAgent.get(agentId);
           if (setRef) {
             setRef.delete(tabId);
@@ -481,13 +711,41 @@
     var self = this;
     this._agents.forEach(function(record, agentId) {
       var tabSet = self._tabsByAgent.get(agentId);
-      records[agentId] = {
+      var stored = {
         agentId: record.agentId,
         createdAt: record.createdAt,
         tabIds: tabSet ? Array.from(tabSet) : []
       };
+      // Phase 240 Open Q2: per-agent windowId pin survives the round-trip
+      // so the dispatch gate's cross-window check holds across SW eviction.
+      if (Number.isFinite(record.windowId)) {
+        stored.windowId = record.windowId;
+      }
+      // Phase 240 D-02: legacy flag survives so listAgents callers can
+      // distinguish synthesized legacy:* records from fresh-minted ones.
+      if (record.legacy === true) {
+        stored.legacy = true;
+      }
+      records[agentId] = stored;
     });
-    await writePersistedAgentRegistry(records);
+
+    // Phase 240 D-04: per-tab metadata block. Top-level (sibling to records)
+    // because metadata is keyed by tabId not agentId. Hydrate rebuilds
+    // _tabMetadata from this block; missing block is treated as empty for
+    // graceful fall-through on stale Phase 237 envelopes (Pitfall 6).
+    var tabMetadata = {};
+    var hasTabMetadata = false;
+    this._tabMetadata.forEach(function(meta, tabId) {
+      tabMetadata[String(tabId)] = {
+        ownershipToken: meta.ownershipToken,
+        incognito: meta.incognito,
+        windowId: meta.windowId,
+        boundAt: meta.boundAt
+      };
+      hasTabMetadata = true;
+    });
+    var extras = hasTabMetadata ? { tabMetadata: tabMetadata } : null;
+    await writePersistedAgentRegistry(records, extras);
   };
 
   /**
@@ -501,6 +759,8 @@
     this._agents.clear();
     this._tabOwners.clear();
     this._tabsByAgent.clear();
+    // Phase 240: also clear the per-tab metadata cache.
+    this._tabMetadata.clear();
     this._hydrated = false;
   };
 

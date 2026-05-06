@@ -304,13 +304,15 @@ const UUID_PATTERN = /^agent_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
     const A = r.agentId;
 
     // bindTab is gated by withRegistryLock; methods may return promises.
+    // Phase 240: bindTab return shape is now {agentId, tabId, ownershipToken}
+    // on success; false on failure. Truthy-check preserves Phase 237 callers.
     const b1 = registry.bindTab(A, 100);
     const b1Result = (b1 && typeof b1.then === 'function') ? await b1 : b1;
-    assert.strictEqual(b1Result, true, 'bindTab(A, 100) returns true');
+    assert.ok(b1Result, 'bindTab(A, 100) returns truthy on success');
 
     const b2 = registry.bindTab(A, 200);
     const b2Result = (b2 && typeof b2.then === 'function') ? await b2 : b2;
-    assert.strictEqual(b2Result, true, 'bindTab(A, 200) returns true');
+    assert.ok(b2Result, 'bindTab(A, 200) returns truthy on success');
 
     assert.strictEqual(registry.isOwnedBy(100, A), true, 'isOwnedBy(100, A) === true');
     assert.strictEqual(
