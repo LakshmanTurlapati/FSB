@@ -34,7 +34,10 @@ export type MCPMessageType =
   | 'mcp:list-credentials'   // Vault: list saved credentials (domain+username only)
   | 'mcp:fill-credential'    // Vault: autofill login form (password stays in extension)
   | 'mcp:list-payments'      // Vault: list payment methods (last4+brand only)
-  | 'mcp:use-payment-method'; // Vault: fill checkout with confirmation gate
+  | 'mcp:use-payment-method' // Vault: fill checkout with confirmation gate
+  | 'agent:register'         // Phase 238: lazy-mint per-process agent_id
+  | 'agent:release'          // Phase 238: handler only; server caller in Phase 241
+  | 'agent:status';          // Phase 238: caller-self introspection
 
 // Messages FROM extension TO MCP server (responses)
 export interface MCPResponse {
