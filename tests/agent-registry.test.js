@@ -281,6 +281,12 @@ const UUID_PATTERN = /^agent_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
   console.log('--- 20-concurrent registerAgent mutex serialization stress ---');
   {
     const registry = freshRegistry();
+    // Phase 241 plan 01: this test predates the cap (default 8). The test's
+    // intent is mutex-serialization: zero ID collisions across 20 concurrent
+    // claims. Lift the cap to 64 so cap-rejection (a separate invariant
+    // covered by tests/agent-cap.test.js) does not interfere with this
+    // pre-existing serialization assertion.
+    if (typeof registry.setCap === 'function') registry.setCap(64);
     const promises = [];
     for (let i = 0; i < 20; i++) {
       promises.push(registry.registerAgent({}));

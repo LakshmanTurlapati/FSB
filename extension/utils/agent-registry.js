@@ -43,6 +43,30 @@
   var FSB_AGENT_LOG_PREFIX = 'AGT';
   var FSB_AGENT_REAP_RATE_LIMIT_CATEGORY_BASE = 'agent-reaped';
 
+  // Phase 241 plan 01: cap + grace constants ---------------------------------
+  // D-05: cap is persisted in chrome.storage.local under fsbAgentCap so it
+  // survives SW restart. NOT chrome.storage.session (which is wiped on wake).
+  // D-07: 10s grace. chrome.alarms minimum is 30s, so we MUST use setTimeout
+  // for the staged release; hydrate-time recovery covers SW eviction.
+  var FSB_AGENT_CAP_STORAGE_KEY = 'fsbAgentCap';
+  var FSB_AGENT_CAP_DEFAULT = 8;
+  var FSB_AGENT_CAP_MIN = 1;
+  var FSB_AGENT_CAP_MAX = 64;
+  var RECONNECT_GRACE_MS = 10000;
+
+  // LOG-04 category constants (D-04, D-09, Q3 resolution).
+  var FSB_AGENT_CAP_REACHED_CATEGORY = 'agent-cap-reached';
+  var FSB_AGENT_CAP_LOWERED_CATEGORY = 'agent-cap-lowered-grandfathered';
+  var FSB_AGENT_GRACE_EXPIRED_CATEGORY = 'agent-grace-expired';
+
+  function _clampCap(v) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) return FSB_AGENT_CAP_DEFAULT;
+    var i = Math.floor(v);
+    if (i < FSB_AGENT_CAP_MIN) return FSB_AGENT_CAP_MIN;
+    if (i > FSB_AGENT_CAP_MAX) return FSB_AGENT_CAP_MAX;
+    return i;
+  }
+
   // ---- Storage helpers (mirror background.js:563-591 with v: 1 envelope) --
   //
   // Both helpers reference globalThis.chrome lazily so the module loads
@@ -223,6 +247,18 @@
     // dispatch gate's same-microtask discipline (D-07).
     this._tabMetadata = new Map();
     this._hydrated = false;
+    // Phase 241 plan 01: cap + grace state.
+    // _cachedCap is the in-memory mirror of chrome.storage.local fsbAgentCap.
+    // It is read sync on every claim under withRegistryLock; cross-context
+    // updates arrive through the chrome.storage.onChanged subscriber.
+    this._cachedCap = FSB_AGENT_CAP_DEFAULT;
+    // _stagedReleases keys connectionId -> { deadline, timeoutId, agentIds }.
+    // Persisted shape (sans timeoutId) lives under the registry envelope's
+    // stagedReleases sibling block per Q2 resolution.
+    this._stagedReleases = new Map();
+    // Best-effort cross-context subscriber. Guards on chrome.storage.onChanged
+    // availability so Node test harnesses without the API still construct.
+    this._subscribeToCapChanges();
   }
 
   // ---- Public API ---------------------------------------------------------
@@ -238,6 +274,28 @@
   AgentRegistry.prototype.registerAgent = function(/* opts ignored */) {
     var self = this;
     return withRegistryLock(async function() {
+      // Phase 241 D-03: cap-check + insert atomic under withRegistryLock.
+      // Sync reads inside the lock so 20-concurrent claims serialize cleanly.
+      // Caller (mcp-tool-dispatcher.js handleAgentRegisterRoute) branches on
+      // result.code per D-03's typed-error contract.
+      var cap = self.getCap();
+      var active = self._agents.size;
+      if (active >= cap) {
+        // D-04: emit one rate-limited LOG-04 diagnostic per rejection.
+        // Wrapped in try/catch (Pitfall 5) so a missing globalThis.rateLimitedWarn
+        // never poisons the cap-check path.
+        try {
+          if (typeof globalThis !== 'undefined' && typeof globalThis.rateLimitedWarn === 'function') {
+            globalThis.rateLimitedWarn(
+              FSB_AGENT_LOG_PREFIX,
+              FSB_AGENT_CAP_REACHED_CATEGORY,
+              'agent cap reached',
+              { cap: cap, active: active }
+            );
+          }
+        } catch (_e) { /* swallow */ }
+        return { error: 'AGENT_CAP_REACHED', code: 'AGENT_CAP_REACHED', cap: cap, active: active };
+      }
       var agentId = mintAgentId();
       var record = {
         agentId: agentId,
@@ -491,6 +549,121 @@
   };
 
   /**
+   * Phase 241 D-01: Synchronous reverse lookup -- given a tabId, return its
+   * owning agentId or null. Used by background.js chrome.tabs.onCreated for
+   * forced-pool routing (Plan 02). Wraps the existing _tabOwners reverse map;
+   * no mutex needed (read-only path).
+   */
+  AgentRegistry.prototype.findAgentByTabId = function(tabId) {
+    if (typeof tabId !== 'number' || !Number.isFinite(tabId)) return null;
+    return this._tabOwners.get(tabId) || null;
+  };
+
+  /**
+   * Phase 241 D-05: Synchronous read of the cached cap value (the in-memory
+   * mirror of chrome.storage.local fsbAgentCap). Defense-in-depth: also
+   * applies _clampCap on the read path so a poisoned cache (e.g., from a
+   * malformed onChanged event) cannot leak an out-of-range cap to callers.
+   */
+  AgentRegistry.prototype.getCap = function() {
+    return _clampCap(this._cachedCap);
+  };
+
+  /**
+   * Phase 241 D-05 / D-06: Set the cap, clamping to [MIN, MAX]. Writes to
+   * chrome.storage.local under fsbAgentCap (best-effort; storage failures do
+   * not throw because the in-memory cache is still updated). When the new cap
+   * is below the current active count, emits ONE LOG-04 event with category
+   * 'agent-cap-lowered-grandfathered' carrying { previousCap, newCap,
+   * activeAtChange } per Q3 resolution.
+   *
+   * Returns the clamped cap value applied.
+   */
+  AgentRegistry.prototype.setCap = function(value) {
+    var clamped = _clampCap(value);
+    var previousCap = _clampCap(this._cachedCap);
+    var activeAtChange = this._agents.size;
+    this._cachedCap = clamped;
+    var c = _getChrome();
+    if (c && c.storage && c.storage.local && typeof c.storage.local.set === 'function') {
+      try {
+        var payload = {};
+        payload[FSB_AGENT_CAP_STORAGE_KEY] = clamped;
+        var ret = c.storage.local.set(payload);
+        if (ret && typeof ret.catch === 'function') {
+          ret.catch(function() { /* best-effort */ });
+        }
+      } catch (_e) { /* best-effort */ }
+    }
+    // Q3: diagnostic-only emission when M > newCap. No eviction.
+    if (clamped < activeAtChange) {
+      try {
+        if (typeof globalThis !== 'undefined' && typeof globalThis.rateLimitedWarn === 'function') {
+          globalThis.rateLimitedWarn(
+            FSB_AGENT_LOG_PREFIX,
+            FSB_AGENT_CAP_LOWERED_CATEGORY,
+            'agent cap lowered while agents active (grandfathered)',
+            { previousCap: previousCap, newCap: clamped, activeAtChange: activeAtChange }
+          );
+        }
+      } catch (_e) { /* swallow */ }
+    }
+    return clamped;
+  };
+
+  /**
+   * Phase 241: Synchronous test convenience. True iff the registry can accept
+   * one more agent under the current cap (active < cap). Read-only; not used
+   * by registerAgent (which performs the same check inside the mutex).
+   */
+  AgentRegistry.prototype.canAcceptNewAgent = function() {
+    return this._agents.size < this.getCap();
+  };
+
+  /**
+   * Phase 241 D-05: Best-effort hydrate of the cached cap from
+   * chrome.storage.local. Called from hydrate() before serving requests so
+   * the SW wakes with the operator-configured cap (not the static default).
+   * Errors are swallowed; the default 8 stands when storage is unavailable.
+   */
+  AgentRegistry.prototype._loadCapFromStorage = async function() {
+    var c = _getChrome();
+    if (!c || !c.storage || !c.storage.local || typeof c.storage.local.get !== 'function') return;
+    try {
+      var stored = await c.storage.local.get([FSB_AGENT_CAP_STORAGE_KEY]);
+      var raw = stored && stored[FSB_AGENT_CAP_STORAGE_KEY];
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        this._cachedCap = _clampCap(raw);
+      }
+    } catch (_e) { /* keep default */ }
+  };
+
+  /**
+   * Phase 241 D-05: Install a chrome.storage.onChanged listener so the SW's
+   * in-memory cap cache is refreshed whenever any other extension context
+   * (options page, popup, sidepanel) writes a new value. Read-only listener
+   * (does NOT write back) so no cross-context loop is possible (Pitfall 4).
+   * Best-effort; never throws if chrome.storage.onChanged is absent.
+   */
+  AgentRegistry.prototype._subscribeToCapChanges = function() {
+    var self = this;
+    var c = _getChrome();
+    if (!c || !c.storage || !c.storage.onChanged ||
+        typeof c.storage.onChanged.addListener !== 'function') {
+      return;
+    }
+    try {
+      c.storage.onChanged.addListener(function(changes, area) {
+        if (area !== 'local') return;
+        if (!changes || !changes[FSB_AGENT_CAP_STORAGE_KEY]) return;
+        var next = changes[FSB_AGENT_CAP_STORAGE_KEY].newValue;
+        if (typeof next !== 'number' || !Number.isFinite(next)) return;
+        self._cachedCap = _clampCap(next);
+      });
+    } catch (_e) { /* swallow */ }
+  };
+
+  /**
    * Phase 240 D-04: Synchronous read of per-tab metadata. The dispatch gate
    * (Plan 02) consumes this for the same-microtask discipline -- no
    * chrome.tabs.get round-trip at dispatch time. Returns a SHALLOW CLONE so
@@ -579,6 +752,11 @@
     var self = this;
     return withRegistryLock(async function() {
       if (self._hydrated) return; // double-check after lock acquisition
+
+      // Phase 241 D-05: load configurable cap from chrome.storage.local before
+      // serving any registerAgent calls so the SW wakes with the operator-set
+      // cap rather than the static default.
+      await self._loadCapFromStorage();
 
       var payload = await readPersistedAgentRegistry();
       var records = (payload && payload.records && typeof payload.records === 'object')
