@@ -477,7 +477,216 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
   }
   console.log('  PASS: Phase 237 stale envelopes hydrate without crash; token-aware fail naturally');
 
-  console.log('\nAll Phase 240 ownership-gate registry-contract assertions passed.');
+  // ==========================================================================
+  // Phase 240 plan 02 -- chokepoint and same-microtask invariant
+  //
+  // The block below extends the registry-contract assertions above with the
+  // dispatcher-level gate behavior added by Plan 02. The gate is inlined into
+  // dispatchMcpToolRoute in extension/ws/mcp-tool-dispatcher.js and is read-
+  // only on the registry. These tests use a stubbed registry so the gate's
+  // sync-discipline (D-07) is observable without chrome.tabs round-trips.
+  // ==========================================================================
+
+  const path = require('path');
+  const DISPATCHER_PATH = path.resolve(__dirname, '..', 'extension', 'ws', 'mcp-tool-dispatcher.js');
+  const dispatcher = require(DISPATCHER_PATH);
+  const { dispatchMcpToolRoute } = dispatcher;
+
+  function installGateRegistry(mock) {
+    globalThis.fsbAgentRegistryInstance = mock;
+  }
+  function uninstallGateRegistry() {
+    delete globalThis.fsbAgentRegistryInstance;
+  }
+
+  console.log('--- Phase 240 / chokepoint / Test C1: gate skip for tools without tabId ---');
+  {
+    let handlerInvoked = false;
+    // Build a registry stub that has a known agent and no tabs. list_tabs has
+    // no tabId, so the gate should pass (returning null) and the handler
+    // should be invoked. The handler itself may fail because chrome.tabs is
+    // unavailable, but the gate must not block first.
+    const mock = {
+      hasAgent: (id) => id === 'agent_known',
+      isOwnedBy: () => false,
+      getOwner: () => null,
+      getTabMetadata: () => null,
+      getAgentWindowId: () => null
+    };
+    installGateRegistry(mock);
+    try {
+      const result = await dispatchMcpToolRoute({
+        tool: 'list_tabs',
+        params: { agentId: 'agent_known' }
+      });
+      // Gate did not short-circuit with a typed code -- the handler ran (and
+      // probably hit a chrome.tabs.query error), not blocked at the gate.
+      const gateCodes = ['TAB_NOT_OWNED', 'TAB_INCOGNITO_NOT_SUPPORTED', 'TAB_OUT_OF_SCOPE'];
+      assert.ok(!gateCodes.includes(result && result.code),
+        'list_tabs not blocked at gate by tabId arm; got code=' + (result && result.code));
+    } finally {
+      uninstallGateRegistry();
+    }
+  }
+  console.log('  PASS: list_tabs (no tabId) passes the gate when agent is registered');
+
+  console.log('--- Phase 240 / chokepoint / Test C2: same-microtask invariant ---');
+  {
+    // The gate is sync; the handler dispatch is sync (the call to
+    // route.handler returns a promise). We assert that route.handler is
+    // INVOKED synchronously after the gate check by ordering markers.
+    //
+    // Strategy: the gate must complete and the handler must be CALLED before
+    // any deferred microtask scheduled BEFORE the dispatch fires. We schedule
+    // a marker via Promise.resolve().then(); call dispatchMcpToolRoute(...)
+    // (without awaiting); the handler itself is async but its FIRST line --
+    // a synchronous check -- will execute before the deferred marker because
+    // dispatchMcpToolRoute returns route.handler(...) directly (no `await`
+    // between gate and handler).
+    //
+    // We swap the navigate handler's behavior temporarily by stubbing
+    // dispatchMcpToolRoute's downstream via a registry that records when
+    // gate ran and a synchronous flag set by isOwnedBy as a probe.
+    //
+    // Simplest concrete probe: assert that the GATE's isOwnedBy lookup runs
+    // in the same microtask as the synchronous portion of the dispatch. We
+    // schedule a microtask BEFORE calling dispatchMcpToolRoute; the gate's
+    // isOwnedBy probe sets order='gate'; the deferred marker sets
+    // order='deferred' if the gate did not yet run.
+    let gateProbeFired = false;
+    let deferredMarker = false;
+    const order = [];
+    const mock = {
+      hasAgent: () => true,
+      isOwnedBy: () => {
+        gateProbeFired = true;
+        order.push('gate');
+        return true;
+      },
+      getOwner: () => null,
+      getTabMetadata: () => null,
+      getAgentWindowId: () => null
+    };
+    installGateRegistry(mock);
+    try {
+      // Schedule a microtask BEFORE the dispatch.
+      Promise.resolve().then(() => {
+        deferredMarker = true;
+        order.push('deferred');
+      });
+      // Fire the dispatch. Do NOT await yet -- we want the gate's sync work
+      // to complete inside the same microtask as our caller frame.
+      const dispatchPromise = dispatchMcpToolRoute({
+        tool: 'navigate',
+        params: { tabId: 100, agentId: 'agent_known', ownershipToken: 'tok-x', url: 'https://x.example' }
+      });
+      // At this point the gate has run sync (no await between gate check and
+      // route.handler call). The deferred marker has NOT yet fired because
+      // the queueMicrotask boundary is on the JS event loop; we're still in
+      // the same caller frame.
+      assert.strictEqual(gateProbeFired, true,
+        'gate isOwnedBy probe fired synchronously inside dispatchMcpToolRoute');
+      assert.strictEqual(deferredMarker, false,
+        'deferred microtask did NOT yet fire (gate is sync, no await before handler)');
+      // Now resolve the dispatch promise so the test can clean up.
+      await dispatchPromise.catch(() => {}); // handler may throw; we don't care
+      // After awaiting, the deferred marker has fired.
+      assert.strictEqual(deferredMarker, true,
+        'deferred marker fires after dispatch resolves');
+      // Sanity: gate ran before deferred marker.
+      assert.deepStrictEqual(order, ['gate', 'deferred'],
+        'gate runs synchronously before any pre-scheduled microtask; got ' + JSON.stringify(order));
+    } finally {
+      uninstallGateRegistry();
+    }
+  }
+  console.log('  PASS: gate runs synchronously before any pre-scheduled microtask (D-07)');
+
+  console.log('--- Phase 240 / chokepoint / Test C3: bindTab side-effect on handleNavigate happy path ---');
+  {
+    // The handler invokes bindTab BEFORE the success return. We spy on
+    // bindTab via the registry mock; we mock chrome.tabs to return success.
+    const bindCalls = [];
+    const mock = {
+      hasAgent: () => true,
+      isOwnedBy: () => true,
+      getOwner: () => 'agent_known',
+      getTabMetadata: () => ({ ownershipToken: 'tok-x', incognito: false, windowId: 10, boundAt: 1 }),
+      getAgentWindowId: () => 10,
+      async bindTab(agentId, tabId) {
+        bindCalls.push([agentId, tabId]);
+        return { agentId, tabId, ownershipToken: 'tok-newly-minted' };
+      }
+    };
+    installGateRegistry(mock);
+    // Mock chrome.tabs.update + chrome.tabs.query so handleNavigateRoute
+    // resolves successfully.
+    globalThis.chrome = {
+      tabs: {
+        async update(tabId, _props) { return { id: tabId, url: 'https://example.com' }; },
+        async query(_filter) { return [{ id: 100, url: 'about:blank' }]; }
+      }
+    };
+    try {
+      const result = await dispatchMcpToolRoute({
+        tool: 'navigate',
+        params: { tabId: 100, agentId: 'agent_known', ownershipToken: 'tok-x', url: 'https://example.com' }
+      });
+      assert.ok(result && result.success === true,
+        'navigate happy-path returns success === true; got ' + JSON.stringify(result));
+      assert.strictEqual(bindCalls.length, 1,
+        'bindTab called exactly once in handleNavigate happy path; got ' + bindCalls.length);
+      assert.strictEqual(bindCalls[0][0], 'agent_known',
+        'bindTab called with the agentId from the gate-validated payload');
+      assert.strictEqual(bindCalls[0][1], 100,
+        'bindTab called with the navigated tabId');
+    } finally {
+      uninstallGateRegistry();
+      delete globalThis.chrome;
+    }
+  }
+  console.log('  PASS: handleNavigate calls bindTab once before success return');
+
+  console.log('--- Phase 240 / chokepoint / Test C4: bindTab does NOT fire on handleNavigate error path ---');
+  {
+    const bindCalls = [];
+    const mock = {
+      hasAgent: () => true,
+      isOwnedBy: () => true,
+      getOwner: () => 'agent_known',
+      getTabMetadata: () => ({ ownershipToken: 'tok-x', incognito: false, windowId: 10, boundAt: 1 }),
+      getAgentWindowId: () => 10,
+      async bindTab(agentId, tabId) {
+        bindCalls.push([agentId, tabId]);
+        return { agentId, tabId, ownershipToken: 'tok-x2' };
+      }
+    };
+    installGateRegistry(mock);
+    // chrome.tabs.update throws -- handler should hit the catch branch and
+    // NOT call bindTab.
+    globalThis.chrome = {
+      tabs: {
+        async update(_tabId, _props) { throw new Error('boom'); },
+        async query(_filter) { return [{ id: 100, url: 'about:blank' }]; }
+      }
+    };
+    try {
+      const result = await dispatchMcpToolRoute({
+        tool: 'navigate',
+        params: { tabId: 100, agentId: 'agent_known', ownershipToken: 'tok-x', url: 'https://example.com' }
+      });
+      assert.ok(result && result.success === false,
+        'navigate error path returns success === false');
+      assert.strictEqual(bindCalls.length, 0,
+        'bindTab NOT called on error path; got ' + bindCalls.length);
+    } finally {
+      uninstallGateRegistry();
+      delete globalThis.chrome;
+    }
+  }
+  console.log('  PASS: handleNavigate error path does NOT call bindTab');
+
+  console.log('\nAll Phase 240 ownership-gate registry-contract + chokepoint assertions passed.');
 })().catch((err) => {
   console.error('TEST FAILED:', err && err.stack ? err.stack : err);
   process.exit(1);
