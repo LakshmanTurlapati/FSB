@@ -305,9 +305,8 @@ async function run() {
   await test2_readPageExplicitTabId();
   await test3_getDOMAutoResolve();
   await test4_readPageZeroOwned();
-  // Test 5 stays gated on Task 4 (handleGetPageSnapshotRoute migration).
-  // Task 4 removes this gate and runs test5_pageSnapshotAutoResolve.
-  console.log('  TODO 246-01-Task-4: test5_pageSnapshotAutoResolve (handleGetPageSnapshotRoute migration)');
+  // Phase 246-01 Task 4: handleGetPageSnapshotRoute migrated; Test 5 enabled.
+  await test5_pageSnapshotAutoResolve();
   await test6_readPageLegacyPopup();
 
   console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');

@@ -1426,11 +1426,32 @@ async function handleGetStatusRoute({ payload } = {}) {
 }
 
 async function handleGetPageSnapshotRoute({ payload, client }) {
-  const tab = await getActiveTabFromClient(client).catch(() => null);
-  if (!tab?.id) {
-    return createMcpRouteError('get_page_snapshot', 'read-only', 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.', {
-      errorCode: 'no_active_tab',
-      error: 'No active tab available for page snapshot'
+  const { agentId } = payload || {};
+  // Phase 246 D-02: get_page_snapshot routes via the agent-scoped resolver.
+  // Legacy:* agents fall through to active-tab semantics via the resolver's
+  // first-line branch. Single-tab MCP agents auto-resolve; multi-tab agents
+  // must pass tab_id to disambiguate (resolver returns AMBIGUOUS_TAB).
+  const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+    ? globalThis.resolveAgentTabOrError(agentId, payload || {}, client)
+    : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+  if (resolved.success === false) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      errorCode: resolved.code,
+      error: 'Tab resolution failed: ' + resolved.code,
+      agentId: resolved.agentId,
+      ...(resolved.tabIds ? { tabIds: resolved.tabIds } : {})
+    });
+  }
+
+  // The resolver returns tabId only; restricted-page detection still needs
+  // the URL, so fetch the tab metadata via chrome.tabs.get.
+  let tab;
+  try {
+    tab = await chrome.tabs.get(resolved.tabId);
+  } catch (_e) {
+    return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
+      errorCode: 'tab_unavailable',
+      error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded'
     });
   }
 
@@ -1464,7 +1485,7 @@ async function handleGetPageSnapshotRoute({ payload, client }) {
       });
 
   try {
-    const response = await sendToContentScript(tab.id, {
+    const response = await sendToContentScript(resolved.tabId, {
       action: 'getMarkdownSnapshot',
       options: { charBudget, maxElements }
     });
@@ -1475,7 +1496,7 @@ async function handleGetPageSnapshotRoute({ payload, client }) {
         snapshot: response.markdownSnapshot,
         elementCount: response.elementCount || 0,
         url: tab.url || '',
-        tabId: tab.id
+        tabId: resolved.tabId
       };
     }
     return createMcpRouteError('get_page_snapshot', 'read-only', MCP_ROUTE_RECOVERY_HINT, {
