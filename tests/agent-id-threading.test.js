@@ -8,6 +8,12 @@
 // This is the load-bearing check on the cached-promise race control
 // (CONTEXT.md D-03). A regression that double-mints would surface here
 // before it could ship to production.
+//
+// Phase 246 Plan 03 Task 3: 2 additional cases extend coverage to the
+// read-only.ts overturn (Phase 238 D-06 -> Phase 246 D-02). read-only.ts
+// previously void-cast agentScope; it now threads agentId into every read
+// tool bridge payload AND forwards optional tab_id when the caller
+// supplies it.
 
 const {
   createToolHarness,
@@ -28,7 +34,7 @@ function assert(cond, msg) {
   }
 }
 
-async function run() {
+async function testManualNavigateAgentIdThreading() {
   const manualModule = await loadBuildModule('tools/manual.js');
   const agentScope = await loadAgentScope();
 
@@ -87,7 +93,7 @@ async function run() {
   );
 
   console.log(
-    '\nagent-id-threading.test.js: ' +
+    '\nagent-id-threading.test.js manual.ts: ' +
       (failed === 0 ? 'PASS' : 'FAIL') +
       ' (N=' +
       N +
@@ -99,6 +105,77 @@ async function run() {
       observedIds.size +
       ' distinct agentId)',
   );
+}
+
+// Phase 246 Plan 03 Task 3 -- Case A: read-only.ts threads agentId per the
+// Phase 238 D-06 -> Phase 246 D-02 overturn. read_page with NO tab_id MUST
+// send agentId in the bridge payload.
+async function testReadOnlyAgentIdThreading() {
+  const readOnlyModule = await loadBuildModule('tools/read-only.js');
+  const agentScope = await loadAgentScope();
+
+  const harness = createToolHarness({
+    bridgeResponses: {
+      'mcp:read-page': () => ({ success: true, content: 'OK' }),
+      'mcp:get-dom': () => ({ success: true, elements: [] }),
+      'mcp:execute-action': () => ({ success: true }),
+    },
+  });
+
+  readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue, agentScope);
+
+  const readPage = harness.getHandler('read_page');
+  assert(typeof readPage === 'function', 'read_page handler is registered');
+  if (typeof readPage !== 'function') return;
+
+  await readPage({});
+
+  const readPageCalls = harness.bridgeCalls.filter(
+    (c) => c && c.message && c.message.type === 'mcp:read-page',
+  );
+  assert(readPageCalls.length === 1, 'read_page sent exactly 1 mcp:read-page bridge message');
+  if (readPageCalls.length !== 1) return;
+  const payload = readPageCalls[0].message.payload;
+  assert(typeof payload.agentId === 'string', 'mcp:read-page payload contains agentId (Phase 246 D-02 overturn)');
+  assert(payload.agentId === 'agent_test_smoke', 'agentId is the harness-minted deterministic value');
+}
+
+// Phase 246 Plan 03 Task 3 -- Case B: read_page with explicit tab_id forwards
+// it AND threads agentId. The MESSAGE_TYPE_MAP entry for read_page in
+// read-only.ts spreads p.tab_id when defined; the wrapper also adds agentId
+// at the top of the payload.
+async function testReadOnlyTabIdForwarded() {
+  const readOnlyModule = await loadBuildModule('tools/read-only.js');
+  const agentScope = await loadAgentScope();
+
+  const harness = createToolHarness({
+    bridgeResponses: {
+      'mcp:read-page': () => ({ success: true, content: 'OK' }),
+    },
+  });
+
+  readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue, agentScope);
+
+  const readPage = harness.getHandler('read_page');
+  assert(typeof readPage === 'function', 'read_page handler is registered (Case B)');
+  if (typeof readPage !== 'function') return;
+
+  await readPage({ tab_id: 42 });
+
+  const readPageCalls = harness.bridgeCalls.filter(
+    (c) => c && c.message && c.message.type === 'mcp:read-page',
+  );
+  assert(readPageCalls.length === 1, 'exactly 1 read_page call (Case B)');
+  if (readPageCalls.length !== 1) return;
+  const payload = readPageCalls[0].message.payload;
+  assert(payload.tab_id === 42, 'tab_id forwarded into bridge payload (Phase 246 D-02 messageBuilder)');
+  assert(typeof payload.agentId === 'string', 'agentId still threaded alongside tab_id');
+}
+
+async function run() {
+  await testManualNavigateAgentIdThreading();
+  await testReadOnlyAgentIdThreading();
+  await testReadOnlyTabIdForwarded();
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
 }
