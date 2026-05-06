@@ -133,6 +133,20 @@
       existingSession.detail = normalizeText(input && input.detail, existingSession.detail);
       existingSession.lastUpdateAt = now;
       existingSession.version = (existingSession.version || 1) + 1;
+      // Phase 240 D-03 (WR-02): when the prior session reached terminal
+      // lifecycle ('final' with finalClearAt + result), reset those
+      // fields so the resumed session presents a fresh running state.
+      // Without this, the overlay state machine keeps rendering the
+      // completed final card under a new task title.
+      if (existingSession.lifecycle === 'final') {
+        existingSession.lifecycle = 'running';
+        existingSession.phase = 'planning';
+        existingSession.finalClearAt = null;
+        existingSession.finalClearReason = '';
+        existingSession.result = '';
+        existingSession.reason = '';
+        existingSession.statusText = existingSession.detail || 'Ready to begin';
+      }
       // Re-store (no-op for live reference, but keeps intent explicit).
       this._sessionsByToken.set(existingToken, existingSession);
       return { session: cloneSession(existingSession), resumed: true };
