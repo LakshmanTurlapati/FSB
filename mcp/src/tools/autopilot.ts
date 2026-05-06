@@ -107,10 +107,79 @@ export function registerAutopilotTools(
         };
 
         const agentId = await agentScope.ensure(bridge);
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:start-automation', payload: { task, agentId } },
-          { timeout: 600_000, onProgress },   // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
-        );
+        let result: Record<string, unknown>;
+        try {
+          result = await bridge.sendAndWait(
+            { type: 'mcp:start-automation', payload: { task, agentId } },
+            { timeout: 600_000, onProgress },   // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
+          );
+        } catch (sendErr) {
+          const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+
+          // Phase 239 plan 03 -- D-05 sw_evicted detection. mcp/src/bridge.ts
+          // disconnect() rejects pendingRequests with new Error('Bridge
+          // disconnected') when the WebSocket disconnects (which happens on
+          // SW eviction). Catch that specific error string and resolve the
+          // tool with the documented D-05 shape rather than letting the
+          // error propagate as a tool failure.
+          if (errMsg === 'Bridge disconnected') {
+            // After the bridge reconnects (which the bridge client handles
+            // via its existing reconnect logic), ask the extension for the
+            // persisted snapshot via a new mcp:get-task-snapshot bridge
+            // message. The extension-side handler reads from
+            // globalThis.FsbMcpTaskStore. Correlation key is `agentId`
+            // (LOCKED for v0.9.60 single-task semantics; Phase 240+ may
+            // migrate to a per-task ID when concurrent tasks per agent
+            // become possible).
+            let partial_state: Record<string, unknown> | null = null;
+            let last_heartbeat_at: number | null = null;
+            try {
+              // Wait briefly for bridge to reconnect; if it does not within
+              // the configurable grace, settle with null partial_state
+              // (best effort).
+              const reconnectGraceMs = 30_000;
+              const reconnectDeadline = Date.now() + reconnectGraceMs;
+              while (!bridge.isConnected && Date.now() < reconnectDeadline) {
+                await new Promise((r) => setTimeout(r, 250));
+              }
+              if (bridge.isConnected) {
+                const snap = await bridge.sendAndWait(
+                  { type: 'mcp:get-task-snapshot', payload: { agentId } },
+                  { timeout: 5_000 },
+                );
+                const snapshot = (snap as Record<string, unknown> | undefined)?.snapshot as Record<string, unknown> | undefined;
+                if (snapshot && typeof snapshot === 'object') {
+                  partial_state = snapshot;
+                  last_heartbeat_at = (snapshot.last_heartbeat_at as number) ?? null;
+                }
+              }
+            } catch (_lookupErr) { /* best-effort */ }
+
+            // Best inference for `success`: snapshot.status === 'complete'
+            // -> true; status === 'error' -> false; everything else (the
+            // common case for sw_evicted: status was 'in_progress' at the
+            // time of eviction) -> false because the task did not complete
+            // to its intended end state.
+            let success = false;
+            if (partial_state && typeof partial_state === 'object') {
+              const status = (partial_state as { status?: unknown }).status;
+              if (status === 'complete') success = true;
+              else if (status === 'error') success = false;
+              else success = false;
+            }
+
+            const swEvictedResult = {
+              success,
+              sw_evicted: true,
+              partial_state,
+              last_heartbeat_at,
+            };
+            return { content: [{ type: 'text', text: JSON.stringify(swEvictedResult, null, 2) }] };
+          }
+
+          // Any other error -- re-throw to the existing MCP error path.
+          throw sendErr;
+        }
         return mapFSBError(result);
       });
     },

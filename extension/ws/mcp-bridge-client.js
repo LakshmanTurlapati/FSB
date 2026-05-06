@@ -99,6 +99,10 @@ class MCPBridgeClient {
       this._clearReconnectAlarm();
       this._persistState();
       this._startPing();
+      // Phase 239 plan 03 -- best-effort reconciliation of any in-flight
+      // run_task snapshots that survived an SW eviction. Authoritative
+      // settle still lives server-side in autopilot.ts via sw_evicted.
+      try { this._reconcileInFlightTasksOnConnect(); } catch (_e) { /* best-effort */ }
     };
 
     this._ws.onmessage = (event) => {
@@ -113,6 +117,8 @@ class MCPBridgeClient {
       this._lastDisconnectReason = this._intentionalClose
         ? 'intentional_close'
         : (this._lastDisconnectReason === 'socket_error' ? 'socket_error' : 'socket_close');
+      // Phase 239 plan 03 -- arm reconciler for the next connect cycle.
+      this._inFlightTasksReconciled = false;
       this._persistState();
       this._stopPing();
       if (!this._intentionalClose) {
@@ -322,6 +328,14 @@ class MCPBridgeClient {
 
       case 'mcp:start-automation':
         return this._handleStartAutomation(payload, id);
+
+      // Phase 239 plan 03 -- D-05 SW-wake snapshot lookup route.
+      // Server-side autopilot.ts run_task catches Bridge disconnected and asks
+      // the extension (after reconnect) for the persisted snapshot so the tool
+      // can resolve with sw_evicted: true + partial_state.
+      // Correlation key is `agentId` (per the <interfaces> block at top of plan).
+      case 'mcp:get-task-snapshot':
+        return this._handleGetTaskSnapshot(payload, id);
 
       case 'mcp:stop-automation':
         return this._handleStopAutomation(payload);
@@ -905,6 +919,63 @@ class MCPBridgeClient {
       client: this
     });
     return response || { stopped: true };
+  }
+
+  /**
+   * Phase 239 plan 03 -- D-05 SW-wake snapshot lookup handler.
+   *
+   * The MCP server's run_task tool catches the bridge disconnect rejection
+   * (mcp/src/bridge.ts disconnect() rejects pendingRequests with
+   * 'Bridge disconnected') and, after the bridge reconnects, sends an
+   * mcp:get-task-snapshot request with payload.agentId so the server can
+   * resolve the originating run_task call with sw_evicted: true +
+   * partial_state from the persisted heartbeat snapshot.
+   *
+   * Correlation key is `agentId` (LOCKED for v0.9.60 single-task semantics).
+   * The extension-side heartbeat snapshots written by Plan 02 are keyed by
+   * `sessionId` (which is the same string identity as `agentId` post-Phase-237
+   * wiring). Phase 240+ may migrate to a per-task ID; documented as a
+   * follow-up.
+   */
+  async _handleGetTaskSnapshot(payload, _mcpMsgId) {
+    const agentId = payload && payload.agentId;
+    let snapshot = null;
+    try {
+      var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+      if (store && typeof store.readSnapshot === 'function' && agentId) {
+        snapshot = await store.readSnapshot(agentId);
+      }
+    } catch (_e) { /* best-effort */ }
+    return { success: true, snapshot };
+  }
+
+  /**
+   * Phase 239 plan 03 -- best-effort SW-wake reconciliation.
+   *
+   * After a bridge reconnect, walk the persisted in-flight snapshots and mark
+   * each as 'partial' with sw_evicted disposition. The originating run_task
+   * tool's sw_evicted catch (server side, in mcp/src/tools/autopilot.ts) is
+   * the AUTHORITATIVE settle path -- this method only updates record-keeping
+   * for diagnostics. Do NOT attempt to RESUME automation from here (that is
+   * D-05 Option B, explicitly out of scope per CONTEXT.md).
+   */
+  async _reconcileInFlightTasksOnConnect() {
+    if (this._inFlightTasksReconciled) return;
+    this._inFlightTasksReconciled = true;
+
+    try {
+      var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+      if (!store || typeof store.listInFlightSnapshots !== 'function') return;
+
+      const inFlight = await store.listInFlightSnapshots();
+      for (const snapshot of inFlight) {
+        await store.writeSnapshot(snapshot.task_id, {
+          ...snapshot,
+          status: 'partial',
+          final_result: { sw_evicted: true, last_heartbeat_at: snapshot.last_heartbeat_at },
+        });
+      }
+    } catch (_e) { /* best-effort reconciliation */ }
   }
 
   async _handleGetStatus() {
