@@ -1,5 +1,12 @@
 // Side Panel Script for FSB v0.9.50 - Persistent UI
 
+// Phase 243 plan 03 (UI-02): the sidepanel's surface id (matches the
+// legacy:sidepanel agent synthesized by ensureLegacySidepanelAgent below).
+// When the active tab is owned by THIS surface, the "owned by ..." chip
+// stays hidden -- per CONTEXT D-05, a surface does not announce ownership
+// of its own tab.
+const MY_SURFACE = 'legacy:sidepanel';
+
 let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
@@ -212,6 +219,68 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// Phase 243 plan 03 (UI-02): refresh the read-only "owned by Agent X" chip.
+// Reads the persisted registry envelope from chrome.storage.session (Phase 237
+// D-03 write-through) and the active tab; uses FSBOwnerChip pure helpers to
+// decide visibility and label format. Bypasses background.js entirely so this
+// plan stays Wave-1 zero-overlap with Plan 02's webNavigation listener.
+//
+// Sidepanel-specific: subscribed to chrome.tabs.onActivated below, since the
+// sidepanel persists across tab switches (popup is short-lived and skips this).
+async function refreshOwnerChip() {
+  try {
+    const chipEl = document.getElementById('fsb-owner-chip');
+    if (!chipEl) return;
+    if (typeof FSBOwnerChip === 'undefined') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (!tab || typeof tab.id !== 'number') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const stored = await chrome.storage.session.get('fsbAgentRegistry');
+    const envelope = stored && stored.fsbAgentRegistry;
+    const ownerAgentId = FSBOwnerChip.findOwnerInEnvelope(envelope, tab.id);
+
+    if (!FSBOwnerChip.shouldShowOwnerChip(ownerAgentId, MY_SURFACE)) {
+      chipEl.textContent = '';
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const formatter = (typeof FsbAgentRegistry !== 'undefined'
+      && typeof FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+      ? FsbAgentRegistry.formatAgentIdForDisplay
+      : null;
+    const label = FSBOwnerChip.ownerLabelFor(ownerAgentId, formatter);
+    chipEl.textContent = FSBOwnerChip.buildChipText(label);
+    chipEl.style.display = 'inline-flex';
+  } catch (_e) {
+    // Chip is best-effort -- never poison sidepanel boot.
+  }
+}
+
+// Phase 243 plan 03 (UI-02): refresh on tab switch. The sidepanel is
+// persistent, so the active tab can change while the surface is open --
+// without this listener the chip would show stale ownership data (Threat
+// T-243-03-02). Best-effort registration; if chrome.tabs.onActivated is
+// unavailable for any reason the chip simply does not auto-refresh.
+try {
+  if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onActivated
+      && typeof chrome.tabs.onActivated.addListener === 'function') {
+    chrome.tabs.onActivated.addListener(() => {
+      refreshOwnerChip();
+    });
+  }
+} catch (_e) {
+  // swallow: chip auto-refresh is non-critical
+}
+
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('FSB v0.9.50 side panel loaded');
@@ -273,7 +342,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Set UI mode preference
   await chrome.storage.local.set({ uiMode: 'sidepanel' });
-  
+
+  // Phase 243 plan 03 (UI-02): render the read-only owner chip on load. The
+  // chrome.tabs.onActivated subscription registered above keeps the chip in
+  // sync as the user switches tabs in the persistent sidepanel.
+  refreshOwnerChip();
+
   // History list event delegation for delete buttons
   const historyListEl = document.getElementById('historyList');
   if (historyListEl) {
