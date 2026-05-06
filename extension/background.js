@@ -2558,6 +2558,33 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// Phase 241 D-01 / POOL-03 -- forced-pool routing for new tabs.
+// Standalone listener (does NOT modify the existing onCreated handlers nor the
+// onRemoved chain above). When Chrome opens a new tab whose openerTabId points
+// to an agent-owned tab, the new tab is automatically pooled under that same
+// agent via bindTab(forced:true). New tabs without an openerTabId (Ctrl+T,
+// address-bar) are intentionally left unowned -- they are not the spawn of an
+// agent action, so no agent should claim them.
+//
+// D-02: forced-pool routing reuses an existing agent record; it does NOT call
+// registerAgent and therefore does NOT consume cap budget.
+chrome.tabs.onCreated.addListener((tab) => {
+  try {
+    if (!tab || typeof tab.id !== 'number') return;
+    if (typeof tab.openerTabId !== 'number') return; // Pitfall 2: Ctrl+T / address-bar tabs unowned.
+    var reg = globalThis.fsbAgentRegistryInstance;
+    if (!reg || typeof reg.findAgentByTabId !== 'function') return;
+    var ownerAgentId = reg.findAgentByTabId(tab.openerTabId);
+    if (!ownerAgentId) return;
+    if (typeof reg.bindTab === 'function') {
+      // Fire-and-forget: bindTab is internally promise-chain-locked.
+      reg.bindTab(ownerAgentId, tab.id, { forced: true });
+    }
+  } catch (_err) {
+    // Defensive: never let registry errors stop other onCreated listeners.
+  }
+});
+
 // Send periodic heartbeats to keep port connections validated
 // PERF: Store interval ID so it can be cleared on suspension
 const _heartbeatIntervalId = setInterval(() => {

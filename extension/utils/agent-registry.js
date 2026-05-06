@@ -408,10 +408,17 @@
    * leave the pin unchanged (set-once invariant). The dispatch gate uses
    * getAgentWindowId to detect cross-window dispatch.
    *
+   * Phase 241 D-01: optional 3rd argument `opts` carries flags for the
+   * forced-pool routing path. `opts.forced === true` is stored on the per-tab
+   * metadata so observability / audit can distinguish background-fired binds
+   * (chrome.tabs.onCreated forced-pool) from explicit tool-triggered binds.
+   * Plan 02 wires the call site; the registry simply records the flag.
+   *
    * @returns Promise<{agentId, tabId, ownershipToken} | false>
    */
-  AgentRegistry.prototype.bindTab = function(agentId, tabId) {
+  AgentRegistry.prototype.bindTab = function(agentId, tabId, opts) {
     var self = this;
+    var forced = !!(opts && opts.forced === true);
     return withRegistryLock(async function() {
       if (typeof agentId !== 'string' || !self._agents.has(agentId)) {
         return false;
@@ -469,11 +476,14 @@
         }
       }
       // Phase 240 D-04: cache per-tab metadata for the gate's sync read path.
+      // Phase 241 D-01: stamp `forced` so observability can distinguish
+      // chrome.tabs.onCreated openerTabId-routed binds from explicit ones.
       self._tabMetadata.set(tabId, {
         ownershipToken: token,
         incognito: incognitoFlag,
         windowId: winId,
-        boundAt: Date.now()
+        boundAt: Date.now(),
+        forced: forced
       });
 
       await self._persist();
@@ -860,7 +870,10 @@
       ownershipToken: meta.ownershipToken,
       incognito: meta.incognito,
       windowId: meta.windowId,
-      boundAt: meta.boundAt
+      boundAt: meta.boundAt,
+      // Phase 241 D-01: forced flag surfaces to observability callers so
+      // chrome.tabs.onCreated openerTabId-routed binds are auditable.
+      forced: meta.forced === true
     };
   };
 
@@ -992,7 +1005,9 @@
           ownershipToken: meta.ownershipToken,
           incognito: meta.incognito === true,
           windowId: Number.isFinite(meta.windowId) ? meta.windowId : null,
-          boundAt: typeof meta.boundAt === 'number' ? meta.boundAt : Date.now()
+          boundAt: typeof meta.boundAt === 'number' ? meta.boundAt : Date.now(),
+          // Phase 241 D-01: restore forced audit flag from the persisted block.
+          forced: meta.forced === true
         });
       });
 
@@ -1171,7 +1186,9 @@
         ownershipToken: meta.ownershipToken,
         incognito: meta.incognito,
         windowId: meta.windowId,
-        boundAt: meta.boundAt
+        boundAt: meta.boundAt,
+        // Phase 241 D-01: persist forced so the audit flag survives SW wake.
+        forced: meta.forced === true
       };
       hasTabMetadata = true;
     });

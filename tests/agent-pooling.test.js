@@ -118,16 +118,41 @@ function teardownDiagnosticCapture() {
 function installPhase241OnCreatedListenerFromSource() {
   const fs = require('fs');
   const source = fs.readFileSync(BACKGROUND_PATH, 'utf8');
-  // Find the Phase 241 onCreated block by its sentinel comment.
-  const match = source.match(/\/\/ Phase 241[\s\S]*?chrome\.tabs\.onCreated\.addListener\([\s\S]*?\}\);\s*\n/);
-  if (!match) {
-    throw new Error('phase-241-onCreated-listener-not-found-in-background.js');
+  // Locate the Phase 241 onCreated listener by its anchor token, then walk
+  // forward balancing parentheses to find the matching closing `);` -- a
+  // greedy regex would either stop at the first `}` (cutting the body) or
+  // run past the listener into unrelated code.
+  const ANCHOR = 'chrome.tabs.onCreated.addListener(';
+  const anchorIdx = source.indexOf(ANCHOR);
+  if (anchorIdx === -1) {
+    throw new Error('phase-241-onCreated-listener-anchor-not-found-in-background.js');
   }
-  // Evaluate ONLY the matched block under the current globalThis (which has
-  // chrome + fsbAgentRegistryInstance installed). Wrapped in eval so the
-  // listener registration runs against the test chrome mock.
+  // Find a Phase 241 sentinel within the chars BEFORE the anchor so we
+  // anchor on the right listener (any future onCreated additions need their
+  // own sentinel comment to be selected here).
+  const preamble = source.slice(Math.max(0, anchorIdx - 1200), anchorIdx);
+  if (preamble.indexOf('Phase 241') === -1) {
+    throw new Error('phase-241-onCreated-sentinel-comment-missing');
+  }
+  // Walk forward balancing parens.
+  let depth = 0;
+  let i = anchorIdx + ANCHOR.length - 1; // position of the opening (
+  let end = -1;
+  for (; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '(') depth += 1;
+    else if (ch === ')') {
+      depth -= 1;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  if (end === -1) throw new Error('phase-241-onCreated-paren-mismatch');
+  // Include trailing semicolon if present.
+  let stmtEnd = end + 1;
+  if (source[stmtEnd] === ';') stmtEnd += 1;
+  const block = source.slice(anchorIdx, stmtEnd);
   // eslint-disable-next-line no-eval
-  eval(match[0]);
+  eval(block);
 }
 
 (async () => {

@@ -790,25 +790,51 @@ async function handleEndVisualSessionRoute({ payload }) {
 // surface (globalThis.fsbAgentRegistryInstance). Phase 240 will validate
 // ownership at every dispatch boundary; Phase 238 is structural setup only.
 
-async function handleAgentRegisterRoute() {
+async function handleAgentRegisterRoute({ payload } = {}) {
   const reg = globalThis.fsbAgentRegistryInstance;
   if (!reg || typeof reg.registerAgent !== 'function') {
     return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
   }
   // D-12: ignore caller-supplied agentId; registry mints fresh via crypto.randomUUID().
   const minted = await reg.registerAgent();
+  // Phase 241 D-03: cap-rejection branch -- the registry returns a typed
+  // AGENT_CAP_REACHED envelope when the active count is at the cap. Surface
+  // it upstream as { success:false, code, cap, active } so the MCP server's
+  // AgentScope can throw a typed error instead of treating the response as a
+  // successful mint.
+  if (minted && minted.code === 'AGENT_CAP_REACHED') {
+    return {
+      success: false,
+      code: 'AGENT_CAP_REACHED',
+      cap: minted.cap,
+      active: minted.active
+    };
+  }
   const agentId = minted && minted.agentId;
   const agentIdShort = (minted && minted.agentIdShort)
     || ((globalThis.FsbAgentRegistry && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function')
       ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay(agentId || '')
       : (typeof agentId === 'string' ? agentId.slice(0, 12) : ''));
+  // Phase 241 D-08: capture per-bridge connection_id from the caller's payload
+  // and stamp it on the agent record so a later bridge onclose can stage all
+  // matching agents for grace-window release. The bridge mints the UUID at
+  // onopen and threads it through every agent:register; the registry's
+  // findAgentByConnectionId path keys off this stamp.
+  const connectionId = (payload && typeof payload.connectionId === 'string' && payload.connectionId.length > 0)
+    ? payload.connectionId
+    : null;
+  if (connectionId && typeof reg.stampConnectionId === 'function') {
+    try { reg.stampConnectionId(agentId, connectionId); } catch (_e) { /* best-effort */ }
+  }
   console.log('[FSB MCP Dispatcher] agent:register minted ' + agentIdShort);
   // Phase 240 Open Q1 resolution: agent:register response carries an empty
   // ownershipTokens map at register time. Subsequent bindTab-firing handlers
   // include `ownershipToken: <new>` in their per-call response; the MCP
   // server's AgentScope (Plan 03 owns server-side AgentScope wiring)
   // accumulates them per-tab.
-  return { success: true, agentId, agentIdShort, ownershipTokens: {} };
+  // Phase 241 D-08: reflect connectionId on the response so AgentScope can
+  // capture it (server-side) -- additive field; older callers ignore it.
+  return { success: true, agentId, agentIdShort, ownershipTokens: {}, connectionId: connectionId };
 }
 
 async function handleAgentReleaseRoute({ payload } = {}) {
