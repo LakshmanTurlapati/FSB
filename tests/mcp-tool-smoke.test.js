@@ -37,6 +37,7 @@ const requiredSmokeTools = [
   'run_task',
   'stop_task',
   'get_logs',
+  'back',
 ];
 
 async function invokeTool(harness, toolName, params = {}, extra = null) {
