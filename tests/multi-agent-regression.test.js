@@ -416,6 +416,222 @@ test('test_case_6_tab_id_reuse_race_does_not_corrupt_b', async () => {
 });
 
 // =============================================================================
+// Phase 246 Plan 03 -- 4 multi-agent regression scenarios (A/B/C/D)
+//
+// These cases verify the full Phase 246 surface composes correctly:
+//   - Scenario A (case 7): two MCP agents each own one tab; resolver isolates
+//                          read tools per-agent. Cross-agent explicit tab_id
+//                          passes resolver (gate enforces ownership downstream).
+//   - Scenario B (case 8): legacy:popup binds T_user; user switches active tab
+//                          to T_other; resolver returns T_other with skipGate:true
+//                          so call site does NOT push tabId into routeParams
+//                          (D-15 preserves legacy UX byte-for-byte).
+//   - Scenario C (case 9): single MCP agent calls open_tab without `active`;
+//                          chrome.tabs.create invoked with active:false
+//                          (D-05 background default); bindTab fires;
+//                          ownershipToken returned (D-08 preserved).
+//   - Scenario D (case 10): single MCP agent owns 2 tabs; resolver returns
+//                          AMBIGUOUS_TAB error envelope; retry with explicit
+//                          tab_id resolves directly.
+// =============================================================================
+
+const path = require('path');
+
+function installChromeWithCreate(captured, opts) {
+  opts = opts || {};
+  const tabsList = (opts.tabs || []).map(function(t) { return Object.assign({}, t); });
+  const nextId = opts.nextCreatedTabId || 999;
+  globalThis.chrome = {
+    tabs: {
+      async create(params) {
+        captured.createArgs = Object.assign({}, params);
+        const newTab = { id: nextId, url: params.url, active: !!params.active, incognito: false, windowId: 1 };
+        tabsList.push(newTab);
+        return newTab;
+      },
+      async get(tabId) {
+        const found = tabsList.find(function(t) { return t.id === tabId; });
+        if (!found) throw new Error('No tab with id: ' + tabId);
+        return found;
+      },
+      async query() { return tabsList.slice(); },
+      async update(_tabId, _updates) { return tabsList[0]; }
+    }
+  };
+}
+
+function uninstallChrome(prev) {
+  if (prev === undefined) delete globalThis.chrome;
+  else globalThis.chrome = prev;
+}
+
+// Scenario A: read isolation across two agents
+test('test_case_7_phase246_two_agents_read_isolation', async () => {
+  const tabsList = [
+    { id: 1100, incognito: false, windowId: 1 },
+    { id: 1101, incognito: false, windowId: 1 }
+  ];
+  const mock = installChromeMock({ tabs: tabsList });
+  setupDiagnosticCapture();
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+    reg.setCap(8);
+    const aReg = await reg.registerAgent();
+    const bReg = await reg.registerAgent();
+    await reg.bindTab(aReg.agentId, 1100);
+    await reg.bindTab(bReg.agentId, 1101);
+    globalThis.fsbAgentRegistryInstance = reg;
+
+    // Load resolver (Plan 01 Task 2 IIFE registers it on globalThis).
+    delete require.cache[require.resolve('../extension/utils/agent-tab-resolver.js')];
+    require('../extension/utils/agent-tab-resolver.js');
+
+    // Agent A's read with NO tab_id auto-resolves to 1100 (NOT 1101).
+    const aResolved = await globalThis.resolveAgentTabOrError(aReg.agentId, {}, null);
+    assert.strictEqual(aResolved.tabId, 1100, 'agent A resolves to its own tab 1100, NOT B\'s 1101');
+    assert.strictEqual(aResolved.skipGate, false, 'agent A is NOT a legacy:* agent; skipGate is false');
+
+    // Agent B's read with NO tab_id auto-resolves to 1101.
+    const bResolved = await globalThis.resolveAgentTabOrError(bReg.agentId, {}, null);
+    assert.strictEqual(bResolved.tabId, 1101, 'agent B resolves to its own tab 1101');
+
+    // Agent A passing explicit tab_id=1101 (B's tab) -- resolver does NOT
+    // reject; the dispatch gate is the layer that rejects (D-16). Verified
+    // separately in tests/ownership-error-codes.test.js D-16 cases.
+    const aWithBId = await globalThis.resolveAgentTabOrError(aReg.agentId, { tab_id: 1101 }, null);
+    assert.strictEqual(aWithBId.tabId, 1101, 'resolver returns explicit tab_id even cross-agent (gate enforces)');
+    assert.strictEqual(aWithBId.skipGate, false, 'skipGate false for explicit tab_id; gate enforces ownership');
+  } finally {
+    delete globalThis.fsbAgentRegistryInstance;
+    delete globalThis.resolveAgentTabOrError;
+    teardownDiagnosticCapture();
+    mock.restore();
+  }
+});
+
+// Scenario B: legacy popup tab-switch composes with skipGate
+test('test_case_8_phase246_legacy_popup_skipgate_after_user_switch', async () => {
+  const tabsList = [
+    { id: 1200, incognito: false, windowId: 1 },
+    { id: 1201, incognito: false, windowId: 1 }
+  ];
+  const mock = installChromeMock({ tabs: tabsList });
+  setupDiagnosticCapture();
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+    reg.setCap(8);
+    const popupResult = await reg.getOrRegisterLegacyAgent('popup');
+    const popupAgentId = popupResult.agentId;
+    assert.strictEqual(popupAgentId, 'legacy:popup', 'legacy popup agentId is legacy:popup');
+    await reg.bindTab(popupAgentId, 1200);
+    globalThis.fsbAgentRegistryInstance = reg;
+
+    delete require.cache[require.resolve('../extension/utils/agent-tab-resolver.js')];
+    require('../extension/utils/agent-tab-resolver.js');
+
+    // User has switched active tab to 1201 (NOT bound to legacy:popup).
+    const mockClient = { _getActiveTab: async function() { return { id: 1201, url: 'https://other.com' }; } };
+    const resolved = await globalThis.resolveAgentTabOrError(popupAgentId, {}, mockClient);
+    assert.strictEqual(resolved.tabId, 1201, 'legacy:popup resolver returns user\'s NEW active tab 1201, NOT bound 1200');
+    assert.strictEqual(resolved.skipGate, true, 'skipGate is true for legacy:* surfaces -- gate skips tab-arm');
+
+    // Action dispatch composition: routeParams MUST NOT include tabId.
+    const params = { selector: '#x' };
+    const routeParams = Object.assign({}, params,
+      resolved.skipGate ? {} : { tabId: resolved.tabId },
+      { agentId: popupAgentId }
+    );
+    assert.strictEqual(routeParams.tabId, undefined, 'D-15: routeParams.tabId NOT set for legacy:* (gate tab-arm skips; preserves byte-for-byte UX)');
+  } finally {
+    delete globalThis.fsbAgentRegistryInstance;
+    delete globalThis.resolveAgentTabOrError;
+    teardownDiagnosticCapture();
+    mock.restore();
+  }
+});
+
+// Scenario C: open_tab background default + bindTab + ownershipToken preserved
+test('test_case_9_phase246_open_tab_background_default_with_bindtab', async () => {
+  setupDiagnosticCapture();
+  const captured = {};
+  const prevChrome = globalThis.chrome;
+  installChromeWithCreate(captured, { tabs: [], nextCreatedTabId: 1500 });
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+    reg.setCap(8);
+    const aReg = await reg.registerAgent();
+    globalThis.fsbAgentRegistryInstance = reg;
+
+    // Load dispatcher and dispatch open_tab WITHOUT 'active'.
+    delete require.cache[require.resolve('../extension/ws/mcp-tool-dispatcher.js')];
+    const dispatcher = require('../extension/ws/mcp-tool-dispatcher.js');
+    const result = await dispatcher.dispatchMcpToolRoute({
+      tool: 'open_tab',
+      params: { url: 'https://example.com', agentId: aReg.agentId },
+      payload: { agentId: aReg.agentId }
+    });
+
+    assert.strictEqual(captured.createArgs && captured.createArgs.active, false,
+      'open_tab without active flag created tab with active:false (D-05 background default)');
+    assert.ok(result && result.ownershipToken,
+      'response includes ownershipToken (D-08 preserved)');
+    const ownedTabs = reg.getAgentTabs(aReg.agentId);
+    assert.ok(ownedTabs.indexOf(1500) >= 0,
+      'bindTab called: agent now owns the new tab 1500');
+  } finally {
+    delete globalThis.fsbAgentRegistryInstance;
+    teardownDiagnosticCapture();
+    uninstallChrome(prevChrome);
+  }
+});
+
+// Scenario D: AMBIGUOUS_TAB error envelope shape + retry with explicit tab_id
+test('test_case_10_phase246_ambiguous_tab_error_then_explicit_recovery', async () => {
+  const tabsList = [
+    { id: 1300, incognito: false, windowId: 1 },
+    { id: 1301, incognito: false, windowId: 1 }
+  ];
+  const mock = installChromeMock({ tabs: tabsList });
+  setupDiagnosticCapture();
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+    reg.setCap(8);
+    const aReg = await reg.registerAgent();
+    await reg.bindTab(aReg.agentId, 1300);
+    await reg.bindTab(aReg.agentId, 1301);
+    globalThis.fsbAgentRegistryInstance = reg;
+
+    delete require.cache[require.resolve('../extension/utils/agent-tab-resolver.js')];
+    require('../extension/utils/agent-tab-resolver.js');
+
+    // No tab_id => AMBIGUOUS_TAB
+    const ambig = await globalThis.resolveAgentTabOrError(aReg.agentId, {}, null);
+    assert.strictEqual(ambig.success, false, 'no tab_id with multi-tab agent => error');
+    assert.strictEqual(ambig.code, 'AMBIGUOUS_TAB', 'error code is AMBIGUOUS_TAB');
+    assert.strictEqual(ambig.agentId, aReg.agentId, 'error includes agentId');
+    assert.ok(Array.isArray(ambig.tabIds), 'error includes tabIds array');
+    assert.strictEqual(ambig.tabIds.length, 2, 'tabIds includes both owned tabs');
+    assert.ok(ambig.tabIds.indexOf(1300) >= 0 && ambig.tabIds.indexOf(1301) >= 0,
+      'tabIds enumerates the actual owned tabs');
+
+    // Retry with explicit tab_id=1300 => resolves.
+    const recovered = await globalThis.resolveAgentTabOrError(aReg.agentId, { tab_id: 1300 }, null);
+    assert.strictEqual(recovered.tabId, 1300, 'explicit tab_id resolves directly');
+    assert.strictEqual(recovered.success, undefined, 'no error');
+    assert.strictEqual(recovered.skipGate, false, 'skipGate false for explicit tab_id (gate enforces)');
+  } finally {
+    delete globalThis.fsbAgentRegistryInstance;
+    delete globalThis.resolveAgentTabOrError;
+    teardownDiagnosticCapture();
+    mock.restore();
+  }
+});
+
+// =============================================================================
 // Test runner
 // =============================================================================
 (async () => {
