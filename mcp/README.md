@@ -36,6 +36,25 @@ It also supports visible client-owned visual sessions, vault autofill tools, ses
 
 Use this package when you want your AI client to drive the browser directly while still using FSB's DOM analysis, selector handling, visual overlay, action verification, session logging, memory, and vault boundaries.
 
+### What's New In v0.8.0
+
+This is the FSB v0.9.60 milestone release. The headline change is the new multi-agent tab concurrency contract; full details live in `CHANGELOG.md`.
+
+- Multi-agent tab concurrency: per-session/task `agent_id` is FSB-issued (`crypto.randomUUID()`); MCP callers do not supply it.
+- Tab-ownership enforcement on every MCP tool dispatch. Cross-agent calls reject with `TAB_NOT_OWNED`. Incognito tabs reject with `TAB_INCOGNITO_NOT_SUPPORTED`. Cross-window tabs reject with `TAB_OUT_OF_SCOPE`.
+- Configurable concurrency cap (default 8, range 1-64) persisted in `chrome.storage.local`. The (N+1)th claim rejects with `AGENT_CAP_REACHED { cap, active }`.
+- Per-bindTab `ownership_token` (fresh `crypto.randomUUID()` per binding) prevents tab-ID-reuse exploitation when Chrome recycles a closed tab's ID.
+- Forced-new-tab pooling via `chrome.tabs.onCreated + openerTabId`: opening a forced-new tab does not consume a cap slot.
+- Lock release on task or session end, MCP client disconnect (after a 10s reconnect grace keyed by `connection_id`), or user closing the tab. There is no idle timeout.
+- Service-worker eviction recovery: agent registry mirrors to `chrome.storage.session` write-through; on SW wake, `hydrate()` reconciles persisted records against `chrome.tabs.query()` and reaps ghost records.
+- New `back` MCP tool: ownership-gated, single-step browser-history back. Returns one of five typed status codes: `ok`, `no_history`, `cross_origin`, `bf_cache`, `fragment_only`.
+- `run_task` now returns when the underlying automation actually completes (Phase 236 reborn). The 300s ceiling has been raised to a 600s safety net at both the server and the bridge.
+- 30s heartbeat ticks emitted via `notifications/progress` with rich fields under `params._meta` (`alive`, `step`, `elapsed_ms`, `current_url`, `ai_cycles`, `last_action`). MCP host clients no longer hit per-tool timeouts on long automations.
+- Task lifecycle persisted in `chrome.storage.session` keyed by `task_id`. On SW eviction the server emits a `partial_outcome` with `disposition: 'sw_evicted'` if the bridge cannot recover.
+- Background-tab execution: most tools no longer steal focus. Only tools that genuinely require focus opt in via the per-tool `_forceForeground` flag in `tool-definitions.js`. Today only `switch_tab` opts in.
+- UI: page overlay badge appends a short `agent_id` suffix; sidepanel and popup show a read-only "owned by Agent X" chip on owned tabs.
+- Dependencies: `@modelcontextprotocol/sdk` `^1.27.1` -> `^1.29.0`. Zod stays on `^3.x`.
+
 ### What's New In v0.7.4
 
 - Bridge lifecycle reconnect across service worker wakes.
@@ -295,6 +314,65 @@ Longer-running tools have timeout overrides. For example, spreadsheet operations
 
 ---
 
+## Multi-Agent Contract (v0.8.0)
+
+Starting with `0.8.0`, FSB supports multiple concurrent MCP agents driving distinct tabs in the same Chrome profile. The contract is enforced inside the extension; MCP clients only need to know the rules.
+
+### Agent identity
+
+- `agent_id` is required but server-issued. The FSB extension mints it via `crypto.randomUUID()` and captures it through the `agent:register` bridge route on first tool dispatch. MCP clients do not pass `agent_id` themselves; if they try, the server ignores the supplied value and uses its own.
+- `tab_id` is agent-scoped. Once an agent claims a tab, only that agent can address it. The mapping is per-bindTab and rebinding mints a fresh `ownership_token`, so a tab ID that Chrome later recycles cannot be hijacked by another agent.
+- A `connection_id` is minted at every WebSocket `onopen` and reflected on `agent:register` responses. It is the correlation key for the 10s reconnect grace window.
+
+### Concurrency cap
+
+- The extension enforces a configurable cap on the number of concurrent agents. Default is `8`, range is `1-64`. The current value is persisted in `chrome.storage.local` under the key `fsbAgentCap` and exposed in `control_panel.html` (Advanced Settings) as the Agent Concurrency card.
+- The (N+1)th agent claim rejects with the typed error `AGENT_CAP_REACHED { cap, active }`.
+- Forced-new-tab pooling: a tab opened with `openerTabId` set to an existing agent's tab joins that agent's pool and does not consume an additional cap slot.
+
+### Ownership enforcement
+
+Every MCP tool dispatch passes through the gate in `extension/ws/mcp-tool-dispatcher.js`. Cross-boundary calls reject with typed errors:
+
+| Error code | Condition |
+|------------|-----------|
+| `TAB_NOT_OWNED` | The calling agent does not own the target tab. |
+| `TAB_INCOGNITO_NOT_SUPPORTED` | The target tab is in an incognito window. |
+| `TAB_OUT_OF_SCOPE` | The target tab is in a window the calling agent has not bound. |
+
+### Lock release
+
+An agent's tab lock releases on any of:
+
+- The driving task or visual session ends.
+- The MCP client disconnects and does not reconnect within the 10s `RECONNECT_GRACE_MS` window keyed by `connection_id`.
+- The user closes the tab (`chrome.tabs.onRemoved`).
+
+There is no idle timeout. An idle agent keeps its tab indefinitely until one of the events above occurs.
+
+### Resilience: heartbeat + persistence + sw_evicted recovery
+
+- `run_task` emits a 30s heartbeat via `notifications/progress`. Each tick carries rich fields under `params._meta`: `alive`, `step`, `elapsed_ms`, `current_url`, `ai_cycles`, `last_action`. Long automations no longer trip per-tool timeouts in MCP host clients.
+- Task lifecycle is persisted in `chrome.storage.session` keyed by `task_id`. On service-worker eviction during a long task, the bridge reconciles in-flight tasks on reconnect.
+- If the bridge cannot recover after eviction, the server resolves `run_task` with a structured `partial_outcome` whose `disposition` is `'sw_evicted'`. The hint string is the literal `lifecycle event missing -- audit cleanup paths`.
+- The agent registry mirrors to `chrome.storage.session` write-through; on SW wake, `hydrate()` reconciles persisted records against `chrome.tabs.query()` and reaps ghost records before servicing any request.
+
+### `back` tool
+
+The new ownership-gated `back` tool is the typed replacement for `execute_js("history.back()")`. It returns:
+
+```text
+{ status, resultingUrl, historyDepth }
+```
+
+where `status` is one of `ok`, `no_history`, `cross_origin`, `bf_cache`, `fragment_only`. Settle verification uses `pageshow` with a 2s timeout; cross-origin transitions reuse the v0.9.11 BF-cache resilience path to re-inject the content script. The tool is background-tab compatible and does not steal focus.
+
+### Background-tab execution
+
+Most tools execute on background tabs without stealing focus. Tools that genuinely require focus opt in via the per-tool `_forceForeground` flag in `extension/ai/tool-definitions.js`. As of `0.8.0`, only `switch_tab` opts in. The dispatcher gate lives in both `extension/ws/mcp-tool-dispatcher.js` (`handleSwitchTabRoute`) and `extension/ai/tool-executor.js` (`case 'switch_tab'`).
+
+---
+
 ## Tools (59 Total)
 
 ### Visual Sessions (2)
@@ -442,7 +520,7 @@ The build command copies `extension/ai/tool-definitions.js` into `mcp/ai/tool-de
 
 ### Versioning
 
-The MCP package has its own version (`0.7.4`) because it is published independently from the extension release (`0.9.50`). When extension bridge contracts change, update both the MCP version metadata and the compatibility notes in this README. When only website or extension UI text changes, the MCP version usually does not need to move.
+The MCP package has its own version (`0.8.0`) because it is published independently from the extension release (`0.9.60`). When extension bridge contracts change, update both the MCP version metadata and the compatibility notes in this README. When only website or extension UI text changes, the MCP version usually does not need to move.
 
 Contract-sensitive changes should be covered by tests before publishing:
 
@@ -452,6 +530,18 @@ Contract-sensitive changes should be covered by tests before publishing:
 - restricted-tab recovery messages
 - visual-session token lifecycle
 - vault redaction boundaries
+- multi-agent contract: `agent_id` capture, ownership gate, configurable cap, ownership tokens, `back` tool
+
+### Releasing 0.8.0
+
+This 0.8.0 build is tag-ready. The actual `npm publish` is a USER action via the existing tag-driven release workflow; autonomous mode does not run it.
+
+To publish:
+
+- Preferred: run the user's tag-driven release workflow (`git tag v0.8.0 && git push origin v0.8.0`); the workflow handles `npm publish` from a clean working tree.
+- Manual fallback: from the release branch, `cd mcp && npm publish` after confirming `npm whoami`, `npm --prefix mcp run build` exit 0, and `node tests/multi-agent-regression.test.js` exit 0.
+
+Do not run `npm publish` from autonomous mode.
 
 ---
 
