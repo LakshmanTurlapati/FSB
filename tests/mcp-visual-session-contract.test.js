@@ -559,10 +559,124 @@ async function runDispatcherValidationCases() {
   }
 }
 
+async function runPhase240OwnershipAwareStartSessionCases() {
+  console.log('\n--- Phase 240 ownership-aware startSession ---');
+
+  const { McpVisualSessionManager } = visualSessionUtils;
+  const REGISTRY_MODULE_PATH = require.resolve('../extension/utils/agent-registry.js');
+
+  function makeStorage() {
+    const store = {};
+    return {
+      async get(keys) {
+        if (keys == null) return Object.assign({}, store);
+        if (Array.isArray(keys)) {
+          const out = {};
+          keys.forEach((k) => {
+            if (Object.prototype.hasOwnProperty.call(store, k)) out[k] = store[k];
+          });
+          return out;
+        }
+        if (typeof keys === 'string') {
+          return Object.prototype.hasOwnProperty.call(store, keys) ? { [keys]: store[keys] } : {};
+        }
+        return Object.assign({}, store);
+      },
+      async set(values) { Object.assign(store, values); },
+      async remove(keys) {
+        const list = Array.isArray(keys) ? keys : [keys];
+        list.forEach((k) => { delete store[k]; });
+      }
+    };
+  }
+  function makeTabs() {
+    const tabs = [
+      { id: 700, incognito: false, windowId: 1 },
+      { id: 800, incognito: false, windowId: 1 }
+    ];
+    return {
+      async query() { return tabs.slice(); },
+      async get(tabId) {
+        const found = tabs.find((t) => t.id === tabId);
+        if (!found) throw new Error('No tab with id: ' + tabId);
+        return found;
+      }
+    };
+  }
+
+  const priorChrome = globalThis.chrome;
+  const priorRegistry = globalThis.fsbAgentRegistryInstance;
+  globalThis.chrome = {
+    runtime: { id: 'phase-240-vs-test', lastError: null },
+    storage: { session: makeStorage() },
+    tabs: makeTabs()
+  };
+  delete require.cache[REGISTRY_MODULE_PATH];
+  const regMod = require(REGISTRY_MODULE_PATH);
+  const registry = new regMod.AgentRegistry();
+  globalThis.fsbAgentRegistryInstance = registry;
+
+  try {
+    // ----- Same-agent resume -----
+    const a = await registry.registerAgent();
+    await registry.bindTab(a.agentId, 700);
+    const m1 = new McpVisualSessionManager();
+    const first = m1.startSession({
+      clientLabel: 'codex', tabId: 700, agentId: a.agentId, task: 'phase 240 task', now: 100
+    });
+    assert(first.session && first.session.version === 1,
+      'Phase 240: first startSession returns version 1 for owned tab');
+    const initialToken = first.session.sessionToken;
+
+    const resumed = m1.startSession({
+      clientLabel: 'codex', tabId: 700, agentId: a.agentId, task: 'phase 240 task v2', now: 200
+    });
+    assert(resumed.resumed === true,
+      'Phase 240: same-agent re-entry returns resumed: true');
+    assertEqual(resumed.session.sessionToken, initialToken,
+      'Phase 240: same-agent resume preserves sessionToken');
+    assertEqual(resumed.session.version, 2,
+      'Phase 240: same-agent resume bumps version monotonically');
+
+    // ----- Cross-agent reject -----
+    const b = await registry.registerAgent();
+    const rejected = m1.startSession({
+      clientLabel: 'claude', tabId: 700, agentId: b.agentId, task: 'invasion', now: 300
+    });
+    assertEqual(rejected.errorCode, 'tab_owned_by_other_agent',
+      'Phase 240: cross-agent re-entry returns errorCode tab_owned_by_other_agent');
+    assertEqual(rejected.ownerAgentId, a.agentId,
+      'Phase 240: reject payload echoes the owner agentId');
+
+    // ----- Unowned-tab displacement preserved (regression guard) -----
+    const m2 = new McpVisualSessionManager();
+    const ufirst = m2.startSession({
+      clientLabel: 'codex', tabId: 800, task: 'unowned a', now: 100
+    });
+    assert(ufirst.session && !ufirst.errorCode,
+      'Phase 240 regression: unowned tab first startSession succeeds');
+    const usecond = m2.startSession({
+      clientLabel: 'codex', tabId: 800, task: 'unowned b', now: 200
+    });
+    assert(usecond.session && usecond.replacedSession,
+      'Phase 240 regression: unowned tab second startSession displaces (legacy v0.9.36 contract)');
+    assertEqual(
+      usecond.replacedSession.sessionToken,
+      ufirst.session.sessionToken,
+      'Phase 240 regression: unowned tab replacedSession matches old token'
+    );
+  } finally {
+    if (priorChrome === undefined) delete globalThis.chrome; else globalThis.chrome = priorChrome;
+    if (priorRegistry === undefined) delete globalThis.fsbAgentRegistryInstance;
+    else globalThis.fsbAgentRegistryInstance = priorRegistry;
+  }
+}
+
 async function run() {
   await runAllowlistAndManagerCase();
   await runPersistenceReplayCase();
   await runDispatcherValidationCases();
+  await runPhase240OwnershipAwareStartSessionCases();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
