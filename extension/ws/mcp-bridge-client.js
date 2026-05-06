@@ -710,6 +710,14 @@ class MCPBridgeClient {
         try { this._sendProgress(mcpMsgId, payload); } catch (_e) { /* best-effort */ }
 
         // D-04 cadence: write snapshot on every tick.
+        // Phase 239 WR-02 -- re-check settled flag AFTER _sendProgress and
+        // its implicit microtask boundary; settle() may have run between the
+        // top-of-fireHeartbeat guard and this point and already written the
+        // terminal snapshot. Without this re-check, the heartbeat's
+        // 'in_progress' write can race-overwrite settle's terminal write,
+        // leaving the persisted snapshot stuck at in_progress and confusing
+        // _reconcileInFlightTasksOnConnect on the next bridge reconnect.
+        if (settled) return;
         try {
           const store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
           if (store && typeof store.writeSnapshot === 'function') {
