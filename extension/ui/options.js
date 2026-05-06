@@ -875,7 +875,16 @@ function saveSettings() {
     autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
     // Phase 241 D-05 / POOL-05: Agent Concurrency cap. Defense-in-depth
     // layer 2 (input clamp = layer 1; SW setCap on storage.onChanged = layer 3).
-    fsbAgentCap: parseInt(elements.fsbAgentCap?.value, 10) || 8
+    // Phase 241 WR-02: clamp at the write site for symmetry with the load
+    // path so DevTools-tampered values or stale settings exports cannot
+    // persist out-of-range cap values to chrome.storage.local.
+    fsbAgentCap: (function() {
+      var raw = parseInt(elements.fsbAgentCap?.value, 10);
+      if (!Number.isFinite(raw)) return 8;
+      if (raw < 1) return 1;
+      if (raw > 64) return 64;
+      return raw;
+    })()
   };
   
   chrome.storage.local.set(settings, () => {
