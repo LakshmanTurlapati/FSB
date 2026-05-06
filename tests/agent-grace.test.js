@@ -1,0 +1,366 @@
+'use strict';
+
+/**
+ * Phase 241 plan 01 task 3 -- reconnect grace stage / cancel / expire +
+ * persisted stagedReleases envelope + hydrate-time recovery + LOG-04 emission
+ * (LOCK-02 / D-07 / D-08 / D-09 / Q2).
+ *
+ * Validates:
+ *   - stageReleaseByConnectionId stores staged entry, schedules setTimeout.
+ *   - cancelStagedRelease clears the timer; agent NOT released.
+ *   - Expiry releases all snapshot agentIds + emits LOG-04 'agent-grace-expired'.
+ *   - Pitfall 3 (stale timer no-op): old timer firing post-fresh-claim does
+ *     NOT touch the new agent.
+ *   - Pitfall 1 hydrate-time recovery: deadline-passed fires immediately;
+ *     deadline-future schedules fresh setTimeout.
+ *   - Multi-agent same connection: stage releases ALL stamped agents.
+ *   - Empty match returns false; no timer scheduled.
+ *   - RECONNECT_GRACE_MS default = 10000.
+ *
+ * Run: node tests/agent-grace.test.js
+ */
+
+const assert = require('assert');
+const REGISTRY_MODULE_PATH = require.resolve('../extension/utils/agent-registry.js');
+
+function freshRequireRegistry() {
+  delete require.cache[REGISTRY_MODULE_PATH];
+  return require(REGISTRY_MODULE_PATH);
+}
+
+function createStorageArea(initial) {
+  const store = Object.assign({}, initial || {});
+  return {
+    async get(keys) {
+      if (keys == null) return Object.assign({}, store);
+      if (Array.isArray(keys)) {
+        const out = {};
+        keys.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(store, key)) out[key] = store[key];
+        });
+        return out;
+      }
+      if (typeof keys === 'string') {
+        return Object.prototype.hasOwnProperty.call(store, keys)
+          ? { [keys]: store[keys] }
+          : {};
+      }
+      return Object.assign({}, store);
+    },
+    async set(values) { Object.assign(store, values); },
+    async remove(keys) {
+      const list = Array.isArray(keys) ? keys : [keys];
+      list.forEach((key) => { delete store[key]; });
+    },
+    _dump() { return Object.assign({}, store); },
+    _set(k, v) { store[k] = v; }
+  };
+}
+
+function setupChromeMock(opts) {
+  opts = opts || {};
+  const session = createStorageArea(opts.session || {});
+  const local = createStorageArea(opts.local || {});
+  globalThis.chrome = {
+    runtime: { id: 'phase-241-test', lastError: null },
+    storage: {
+      session: session,
+      local: local,
+      onChanged: { addListener() {} }
+    },
+    tabs: {
+      async query() { return []; },
+      async get(_id) { throw new Error('no tab'); },
+      onRemoved: { addListener() {} }
+    }
+  };
+  return { session: session, local: local };
+}
+
+function teardownChromeMock() {
+  delete globalThis.chrome;
+}
+
+function setupDiagnosticCapture() {
+  const captured = [];
+  globalThis.rateLimitedWarn = function(prefix, category, message, ctx) {
+    captured.push({ prefix: prefix, category: category, message: message, ctx: ctx });
+  };
+  globalThis.redactForLog = function(v) { return { kind: typeof v }; };
+  return captured;
+}
+
+function teardownDiagnosticCapture() {
+  delete globalThis.rateLimitedWarn;
+  delete globalThis.redactForLog;
+}
+
+(async () => {
+  console.log('--- Test 1: stage + cancel + expire (D-08) ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, 'conn-X');
+      await reg.bindTab(A, 100);
+
+      // Stage with long deadline so we can verify state without expiry.
+      const staged = await reg.stageReleaseByConnectionId('conn-X', 60000);
+      assert.strictEqual(staged, true, 'stage returns true');
+      assert.ok(reg._agents.has(A), 'A still in _agents post-stage');
+      assert.ok(reg._stagedReleases.has('conn-X'), '_stagedReleases tracks conn-X');
+
+      // Cancel.
+      const cancelled = await reg.cancelStagedRelease('conn-X');
+      assert.strictEqual(cancelled, true, 'cancel returns true');
+      assert.ok(reg._agents.has(A), 'A still in _agents post-cancel');
+      assert.strictEqual(reg._stagedReleases.has('conn-X'), false, 'staged entry cleared');
+
+      // Re-stage with very short deadline.
+      const staged2 = await reg.stageReleaseByConnectionId('conn-X', 50);
+      assert.strictEqual(staged2, true, 'second stage returns true');
+      // Wait for expiry.
+      await new Promise((res) => setTimeout(res, 100));
+      assert.strictEqual(reg._agents.has(A), false, 'A released after grace expiry');
+      assert.strictEqual(reg._stagedReleases.has('conn-X'), false, 'staged entry cleared on expiry');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: stage + cancel + expire (D-08)');
+
+  console.log('--- Test 2: stale timer no-op (Pitfall 3) ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, 'conn-A');
+
+      // Stage A with short deadline.
+      await reg.stageReleaseByConnectionId('conn-A', 50);
+
+      // Mid-window: register B under fresh connection.
+      await new Promise((res) => setTimeout(res, 25));
+      const B = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(B, 'conn-B');
+
+      // Wait until A's timer fires.
+      await new Promise((res) => setTimeout(res, 60));
+
+      assert.strictEqual(reg._agents.has(A), false, 'A released by old timer');
+      assert.strictEqual(reg._agents.has(B), true, 'B preserved (different connection_id)');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: stale timer filters by connectionId; fresh agents preserved');
+
+  console.log('--- Test 3: LOG-04 agent-grace-expired emission (D-09) ---');
+  {
+    setupChromeMock();
+    const captured = setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, 'conn-Z');
+      await reg.bindTab(A, 100);
+      await reg.bindTab(A, 101);
+
+      await reg.stageReleaseByConnectionId('conn-Z', 50);
+      await new Promise((res) => setTimeout(res, 100));
+
+      const events = captured.filter(c => c.category === 'agent-grace-expired');
+      assert.ok(events.length >= 1, 'at least one agent-grace-expired event emitted');
+      const evt = events[0];
+      assert.ok(evt.ctx, 'event has context payload');
+      assert.strictEqual(evt.ctx.agentId, A, 'event payload includes agentId');
+      assert.strictEqual(evt.ctx.connectionId, 'conn-Z', 'event payload includes connectionId');
+      assert.strictEqual(typeof evt.ctx.poolSize, 'number', 'event payload includes poolSize');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: agent-grace-expired emitted with { agentId, connectionId, poolSize }');
+
+  console.log('--- Test 4: hydrate-time recovery, deadline already passed (Pitfall 1) ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const A = 'agent_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      const envelope = {
+        v: 1,
+        records: {
+          [A]: {
+            agentId: A,
+            createdAt: Date.now() - 60000,
+            tabIds: [],
+            connectionId: 'conn-Z'
+          }
+        },
+        stagedReleases: {
+          'conn-Z': {
+            deadline: Date.now() - 1000, // ALREADY PASSED
+            agentIds: [A]
+          }
+        }
+      };
+      mock.session._set('fsbAgentRegistry', envelope);
+
+      const reg = new fresh.AgentRegistry();
+      await reg.hydrate();
+      // _fireStagedRelease may run after hydrate completes; await microtask.
+      await new Promise((res) => setTimeout(res, 30));
+
+      assert.strictEqual(reg._agents.has(A), false, 'A released on hydrate (deadline passed)');
+      assert.strictEqual(reg._stagedReleases.has('conn-Z'), false, 'staged entry cleared');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate-time recovery for expired deadline');
+
+  console.log('--- Test 5: hydrate-time recovery, deadline in future ---');
+  {
+    const mock = setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const A = 'agent_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+      const envelope = {
+        v: 1,
+        records: {
+          [A]: {
+            agentId: A,
+            createdAt: Date.now() - 60000,
+            tabIds: [],
+            connectionId: 'conn-Future'
+          }
+        },
+        stagedReleases: {
+          'conn-Future': {
+            deadline: Date.now() + 50, // 50ms remaining
+            agentIds: [A]
+          }
+        }
+      };
+      mock.session._set('fsbAgentRegistry', envelope);
+
+      const reg = new fresh.AgentRegistry();
+      await reg.hydrate();
+
+      assert.strictEqual(reg._agents.has(A), true, 'A still present immediately after hydrate');
+      assert.ok(reg._stagedReleases.has('conn-Future'), 'staged release rescheduled');
+
+      // Wait for the rescheduled timer to fire.
+      await new Promise((res) => setTimeout(res, 100));
+      assert.strictEqual(reg._agents.has(A), false, 'A released by rescheduled timer');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: hydrate-time recovery for future deadline');
+
+  console.log('--- Test 6: multi-agent same connection ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const A = (await reg.registerAgent()).agentId;
+      const B = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, 'conn-Y');
+      reg.stampConnectionId(B, 'conn-Y');
+
+      await reg.stageReleaseByConnectionId('conn-Y', 50);
+      await new Promise((res) => setTimeout(res, 100));
+      assert.strictEqual(reg._agents.has(A), false, 'A released');
+      assert.strictEqual(reg._agents.has(B), false, 'B released');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: multi-agent same connection releases all on expiry');
+
+  console.log('--- Test 7: empty match returns false; no timer ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      // No agent stamped with 'unknown-conn'.
+      const r = await reg.stageReleaseByConnectionId('unknown-conn');
+      assert.strictEqual(r, false, 'unknown connection returns false');
+      assert.strictEqual(reg._stagedReleases.size, 0, '_stagedReleases empty');
+
+      // Cancel of unknown returns false.
+      const c = await reg.cancelStagedRelease('unknown-conn');
+      assert.strictEqual(c, false, 'cancel unknown returns false');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: empty / unknown connection no-ops');
+
+  console.log('--- Test 8: RECONNECT_GRACE_MS default 10000 ---');
+  {
+    setupChromeMock();
+    setupDiagnosticCapture();
+    try {
+      const fresh = freshRequireRegistry();
+      const reg = new fresh.AgentRegistry();
+      reg.setCap(8);
+
+      const A = (await reg.registerAgent()).agentId;
+      reg.stampConnectionId(A, 'conn-Q');
+
+      const before = Date.now();
+      await reg.stageReleaseByConnectionId('conn-Q'); // no graceMs arg
+      const entry = reg._stagedReleases.get('conn-Q');
+      assert.ok(entry, 'staged entry exists');
+      // Default 10000 ms with 50ms tolerance.
+      assert.ok(
+        entry.deadline >= before + 9950 && entry.deadline <= before + 10500,
+        'deadline approximately Date.now() + 10000 (got ' + (entry.deadline - before) + ')'
+      );
+      // Cancel to avoid waiting 10s.
+      await reg.cancelStagedRelease('conn-Q');
+    } finally {
+      teardownDiagnosticCapture();
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: RECONNECT_GRACE_MS default = 10000');
+
+  console.log('PASS grace');
+})().catch(err => {
+  console.error('FAIL grace:', err && err.stack || err);
+  process.exit(1);
+});
