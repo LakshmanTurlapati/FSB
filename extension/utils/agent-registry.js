@@ -927,8 +927,15 @@
    * 'agent-tab-user-navigation' emission for navigations that the agent
    * itself initiated (the Phase 242 `back` route fires Chrome
    * transitionType `auto_bookmark`, indistinguishable from a user-clicked
-   * bookmark; a tight 500ms window past the stamp is treated as
+   * bookmark; a tight suppression window past the stamp is treated as
    * agent-driven and suppressed).
+   *
+   * Single source of truth for the suppression window: the constant
+   * AGENT_NAV_SUPPRESSION_MS is exported from
+   * extension/utils/agent-nav-emission.js (currently 500ms). The boundary
+   * is INCLUSIVE there (`now - stamp <= AGENT_NAV_SUPPRESSION_MS`
+   * suppresses; strictly greater emits). Do NOT redeclare the value in
+   * this file; consult agent-nav-emission.js for the authoritative number.
    *
    * Idempotent re-stamping: a second call simply moves the timestamp
    * forward. Auto-creates a metadata bucket when the tab has no entry yet

@@ -41,6 +41,13 @@
   // falls inside USER_INITIATED_TRANSITIONS; the stamp lets us distinguish
   // the agent-driven case from a true user click without depending on the
   // unreliable Chrome transitionQualifier set.
+  //
+  // Phase 243 WR-03: this constant is the SINGLE SOURCE OF TRUTH for the
+  // suppression window. Boundary is INCLUSIVE (`elapsed <= ms` suppresses;
+  // strictly greater emits) -- see _maybeEmitUserNavigation below and the
+  // contract test in tests/agent-tab-user-navigation.test.js Test 4(e).
+  // Other modules (extension/utils/agent-registry.js stampAgentNavigation
+  // docstring) reference this value rather than redeclaring it.
   var AGENT_NAV_SUPPRESSION_MS = 500;
 
   /**
