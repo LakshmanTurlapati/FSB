@@ -656,18 +656,101 @@ class MCPBridgeClient {
     // the promise. We keep the chrome.runtime.onMessage listener for harness
     // tests (tests/mcp-bridge-client-lifecycle.test.js asserts that path) and
     // for any future cross-context broadcasters.
+    // Phase 239 plan 02 -- 30s setInterval heartbeat ticker scoped to each
+    // _handleStartAutomation Promise; paired clearInterval in settle prevents
+    // ticker leak across many invocations (RESEARCH Pitfall 2). Writes to
+    // chrome.storage.session via globalThis.FsbMcpTaskStore on every tick AND
+    // on settle (D-04 cadence). Plan 03 adds 600s ceiling raise + sw_evicted/
+    // partial_outcome resolve discipline; the heartbeat scope established
+    // here is the host of those new resolve sources.
     return new Promise((resolve) => {
       let settled = false;
+
+      // Phase 239 plan 02 -- closure-scope heartbeat state.
+      const heartbeatStartedAt = Date.now();
+      let lastHeartbeatAt = heartbeatStartedAt;
+      let heartbeatTickCount = 0;
+
+      const fireHeartbeat = async () => {
+        if (settled) return; // Pitfall 5 guard -- single-resolve invariant
+        const sessions = (typeof activeSessions !== 'undefined') ? activeSessions : null;
+        const session = (sessions && typeof sessions.get === 'function') ? sessions.get(sessionId) : null;
+        lastHeartbeatAt = Date.now();
+        heartbeatTickCount += 1;
+
+        const payload = {
+          timestamp: lastHeartbeatAt,
+          sessionId,
+          taskId: sessionId,           // taskId === sessionId in v0.9.60 single-task scope
+          alive: true,
+          step: (session && session.iterationCount) || 0,
+          elapsed_ms: lastHeartbeatAt - heartbeatStartedAt,
+          current_url: (session && session.lastKnownUrl) || null,
+          ai_cycles: (session && session.iterationCount) || 0,
+          last_action: (session && session._lastActionSummary) || null,
+        };
+
+        // D-02 wire: emit notifications/progress with rich D-01 fields. The
+        // server-side autopilot.ts onProgress callback re-shapes these into
+        // params._meta on the JSON-RPC notification.
+        try { this._sendProgress(mcpMsgId, payload); } catch (_e) { /* best-effort */ }
+
+        // D-04 cadence: write snapshot on every tick.
+        try {
+          const store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.writeSnapshot === 'function') {
+            await store.writeSnapshot(sessionId, {
+              task_id: sessionId,
+              status: 'in_progress',
+              started_at: heartbeatStartedAt,
+              last_heartbeat_at: lastHeartbeatAt,
+              originating_mcp_call_id: mcpMsgId,
+              target_tab_id: (session && session.tabId) || null,
+              current_step: (session && session.iterationCount) || 0,
+              ai_cycle_count: (session && session.iterationCount) || 0,
+              last_dom_hash: (session && session.lastDOMHash) || null,
+            });
+          }
+        } catch (_e) { /* best-effort persistence */ }
+      };
 
       const settle = (value, source) => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        clearInterval(heartbeatTimer);  // Phase 239 plan 02 -- paired teardown
         chrome.runtime.onMessage.removeListener(runtimeListener);
         if (lifecycleBus && typeof lifecycleBus.removeEventListener === 'function') {
           lifecycleBus.removeEventListener('automationComplete', busCompleteHandler);
           lifecycleBus.removeEventListener('automationError', busErrorHandler);
         }
+
+        // Phase 239 plan 02 -- D-04 terminal write (state transition to
+        // complete/error/stopped/partial). sw_evicted / partial_outcome
+        // snapshots come from Plan 03's resolve handlers and write 'partial'
+        // BEFORE calling settle; this branch is the happy path.
+        try {
+          const store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.writeSnapshot === 'function') {
+            let terminalStatus = 'complete';
+            if (value && value.status === 'error') terminalStatus = 'error';
+            else if (value && (value.status === 'stopped' || value.stopped)) terminalStatus = 'stopped';
+            else if (value && (value.status === 'partial' || value.partial)) terminalStatus = 'partial';
+            store.writeSnapshot(sessionId, {
+              task_id: sessionId,
+              status: terminalStatus,
+              started_at: heartbeatStartedAt,
+              last_heartbeat_at: Date.now(),
+              originating_mcp_call_id: mcpMsgId,
+              target_tab_id: (value && value.tabId) || null,
+              current_step: heartbeatTickCount,
+              ai_cycle_count: heartbeatTickCount,
+              last_dom_hash: null,
+              final_result: value,
+            }).catch(() => { /* best-effort */ });
+          }
+        } catch (_e) { /* never block resolve on persistence */ }
+
         try {
           const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
             ? globalThis.redactForLog
@@ -684,6 +767,30 @@ class MCPBridgeClient {
       const timeout = setTimeout(() => {
         settle({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' }, 'timeout');
       }, 300000);
+
+      // Phase 239 plan 02 -- start the 30s heartbeat ticker. First _sendProgress
+      // fires at t=30s (we deliberately do NOT fire-immediate so the legacy
+      // automationProgress payload shape stays sent[0] for back-compat tests).
+      // We DO write a subscribe-time snapshot to chrome.storage.session so
+      // D-04 "every state transition" is honored: idle -> in_progress is a
+      // state transition.
+      const heartbeatTimer = setInterval(fireHeartbeat, 30_000);
+      try {
+        const _store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+        if (_store && typeof _store.writeSnapshot === 'function') {
+          _store.writeSnapshot(sessionId, {
+            task_id: sessionId,
+            status: 'in_progress',
+            started_at: heartbeatStartedAt,
+            last_heartbeat_at: heartbeatStartedAt,
+            originating_mcp_call_id: mcpMsgId,
+            target_tab_id: null,
+            current_step: 0,
+            ai_cycle_count: 0,
+            last_dom_hash: null,
+          }).catch(() => { /* best-effort */ });
+        }
+      } catch (_e) { /* never block subscribe on persistence */ }
 
       const handleProgress = (message) => {
         const actionSummary = message.actionSummary
