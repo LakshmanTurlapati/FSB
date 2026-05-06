@@ -16,6 +16,11 @@ type BridgeMessage = { type: MCPMessageType; payload: Record<string, unknown> };
  * Read-only tools use DIFFERENT bridge message types, not the standard
  * 'mcp:execute-action'. This map converts tool name + params into the
  * correct {type, payload} for bridge.sendAndWait().
+ *
+ * Phase 246 D-02: tab_id is forwarded into the payload (top-level for the
+ * direct read routes, inside params for the execute-action variants) so the
+ * extension-side resolver can address the caller-specified tab. Unspecified
+ * tab_id falls through to the resolver's registry path.
  */
 const MESSAGE_TYPE_MAP: Record<
   string,
@@ -23,19 +28,19 @@ const MESSAGE_TYPE_MAP: Record<
 > = {
   read_page: (p) => ({
     type: 'mcp:read-page',
-    payload: { full: p.full },
+    payload: { full: p.full, ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) },
   }),
   get_text: (p) => ({
     type: 'mcp:execute-action',
-    payload: { tool: 'getText', params: { selector: p.selector } },
+    payload: { tool: 'getText', params: { selector: p.selector, ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) } },
   }),
   get_attribute: (p) => ({
     type: 'mcp:execute-action',
-    payload: { tool: 'getAttribute', params: { selector: p.selector, attribute: p.attribute } },
+    payload: { tool: 'getAttribute', params: { selector: p.selector, attribute: p.attribute, ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) } },
   }),
   get_dom_snapshot: (p) => ({
     type: 'mcp:get-dom',
-    payload: { maxElements: p.maxElements },
+    payload: { maxElements: p.maxElements, ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) },
   }),
   list_tabs: () => ({
     type: 'mcp:get-tabs',
@@ -43,11 +48,11 @@ const MESSAGE_TYPE_MAP: Record<
   }),
   read_sheet: (p) => ({
     type: 'mcp:execute-action',
-    payload: { tool: 'readsheet', params: { range: p.range } },
+    payload: { tool: 'readsheet', params: { range: p.range, ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) } },
   }),
-  get_page_snapshot: () => ({
+  get_page_snapshot: (p) => ({
     type: 'mcp:get-page-snapshot',
-    payload: {},
+    payload: { ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}) },
   }),
   get_site_guide: (p) => ({
     type: 'mcp:get-site-guides',
@@ -87,9 +92,10 @@ export function registerReadOnlyTools(
   queue: TaskQueue,
   agentScope: AgentScope,
 ): void {
-  // Phase 238 D-06: scope discipline — read-only is signature-parity only;
-  // no agent identity injection here per CONTEXT.md.
-  void agentScope;
+  // Phase 246 D-02: Phase 238 D-06's "no agent identity injection here" is
+  // OVERTURNED. Read-only tools now thread agentId + optional tab_id so the
+  // extension-side resolver can pick the right tab and the dispatch gate
+  // can enforce ownership_token on explicit-tab_id calls.
   const readOnlyTools = TOOL_REGISTRY.filter(t => t._readOnly);
 
   for (const tool of readOnlyTools) {
@@ -111,8 +117,31 @@ export function registerReadOnlyTools(
           return mapFSBError({ success: false, error: 'extension_not_connected' });
         }
         return queue.enqueue(tool.name, async () => {
-          const msg = messageBuilder(params);
+          const agentId = await agentScope.ensure(bridge);
+          const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+            ? agentScope.currentOwnershipToken()
+            : null;
+          const connectionId = (typeof agentScope.currentConnectionId === 'function')
+            ? agentScope.currentConnectionId()
+            : null;
+          const built = messageBuilder(params);
+          // Thread agentId + ownershipToken + connectionId at the TOP of the
+          // bridge payload. The resolver checks payload.agentId/params.tab_id;
+          // the gate checks payload.tabId/params.tabId (camelCase) -- the
+          // extension-side bridge_client converts as needed.
+          const payloadWithAgent: Record<string, unknown> = { ...(built.payload as Record<string, unknown>), agentId };
+          if (ownershipToken) payloadWithAgent.ownershipToken = ownershipToken;
+          if (connectionId) payloadWithAgent.connectionId = connectionId;
+          const msg: BridgeMessage = { type: built.type, payload: payloadWithAgent };
           const result = await bridge.sendAndWait(msg, { timeout });
+          if (result
+              && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+              && typeof agentScope.captureOwnershipToken === 'function') {
+            agentScope.captureOwnershipToken(
+              typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+              (result as { ownershipToken: string }).ownershipToken,
+            );
+          }
           return mapFSBError(result);
         });
       },
