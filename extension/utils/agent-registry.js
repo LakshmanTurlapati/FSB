@@ -640,6 +640,15 @@
         if (record && record.connectionId === connectionId) agentIds.push(agentId);
       });
       if (agentIds.length === 0) return false;
+      // Phase 241 WR-01: Clear any prior timer for this connectionId so we
+      // don't leak it. Without this, a duplicated onclose / replay path that
+      // re-stages without an intervening cancelStagedRelease would orphan
+      // the previous timeoutId; that orphan eventually fires and releases
+      // the replacement entry's snapshot prematurely.
+      var prior = self._stagedReleases.get(connectionId);
+      if (prior && prior.timeoutId) {
+        try { clearTimeout(prior.timeoutId); } catch (_e) { /* swallow */ }
+      }
       var deadline = Date.now() + ms;
       var timeoutId = setTimeout(function() {
         self._fireStagedRelease(connectionId).catch(function() { /* best-effort */ });
