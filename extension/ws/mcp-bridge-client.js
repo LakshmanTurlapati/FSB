@@ -565,18 +565,35 @@ class MCPBridgeClient {
     // D-06: Route-aware dispatch using TOOL_REGISTRY _route field
     const toolDef = typeof getToolByName === 'function' ? getToolByName(payload.tool) : null;
 
-    if (toolDef && toolDef._route === 'background') {
-      return this._handleExecuteBackground(tab, payload, toolDef);
-    }
+    // Phase 245: route the dispatch through wrapWithChangeReport when the
+    // tool's _emitChangeReport flag is true and the global toggle is on.
+    // The wrapper short-circuits to executeFn() when either gate is off, so
+    // adding this wrap is zero-overhead for read tools / opt-out tools / when
+    // fsbChangeReportsEnabled is false.
+    const tabId = tab.id;
+    const params = payload && payload.params ? payload.params : {};
+    const executeFn = async () => {
+      if (toolDef && toolDef._route === 'background') {
+        return this._handleExecuteBackground(tab, payload, toolDef);
+      }
+      // Default: send to content script (content-routed or unknown tools)
+      return this._sendToContentScript(tabId, {
+        action: 'executeAction',
+        tool: payload.tool,
+        params,
+        source: 'mcp-manual',
+      });
+    };
 
-    // Default: send to content script (content-routed or unknown tools)
-    const response = await this._sendToContentScript(tab.id, {
-      action: 'executeAction',
-      tool: payload.tool,
-      params: payload.params || {},
-      source: 'mcp-manual',
-    });
-    return response;
+    if (typeof wrapWithChangeReport === 'function') {
+      return wrapWithChangeReport({
+        toolName: payload.tool,
+        tabId,
+        params,
+        execute: executeFn
+      });
+    }
+    return executeFn();
   }
 
   /**

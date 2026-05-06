@@ -6,6 +6,36 @@ var _mcp_defs = (typeof TOOL_REGISTRY !== 'undefined')
   ? { TOOL_REGISTRY, getToolByName }
   : (typeof require !== 'undefined' ? require('../ai/tool-definitions.js') : {});
 var _mcp_getToolByName = _mcp_defs.getToolByName;
+
+// Phase 245 D-07: global toggle for change_report emission. Hydrated from
+// chrome.storage.local.fsbChangeReportsEnabled at module load and refreshed
+// via chrome.storage.onChanged. Default true. When false, the dispatcher
+// skips harvest instrumentation entirely (zero overhead).
+let fsbChangeReportsEnabled = true;
+try {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
+      && typeof chrome.storage.local.get === 'function') {
+    chrome.storage.local.get('fsbChangeReportsEnabled', (data) => {
+      try {
+        const v = data && data.fsbChangeReportsEnabled;
+        if (typeof v === 'boolean') fsbChangeReportsEnabled = v;
+      } catch (_e) { /* hydration best-effort */ }
+    });
+    if (chrome.storage.onChanged && typeof chrome.storage.onChanged.addListener === 'function') {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        try {
+          if (area === 'local' && changes && Object.prototype.hasOwnProperty.call(changes, 'fsbChangeReportsEnabled')) {
+            const nv = changes.fsbChangeReportsEnabled.newValue;
+            if (typeof nv === 'boolean') fsbChangeReportsEnabled = nv;
+          }
+        } catch (_e) { /* listener best-effort */ }
+      });
+    }
+  }
+} catch (_e) { /* chrome.storage unavailable in test harness; default stays true */ }
+
+function _getChangeReportsEnabled() { return fsbChangeReportsEnabled; }
+function _setChangeReportsEnabledForTest(v) { fsbChangeReportsEnabled = !!v; }
 var _mcp_visual_defs = (typeof MCPVisualSessionUtils !== 'undefined')
   ? MCPVisualSessionUtils
   : (typeof require !== 'undefined' ? require('../utils/mcp-visual-session.js') : {});
@@ -1764,6 +1794,426 @@ async function handleFailTaskRoute({ params, payload }) {
   return { success: false, tool: 'fail_task', status: 'failed', hadEffect: false, error: reason, reason };
 }
 
+// =============================================================================
+// Phase 245 -- change_report harvest wrap-around (D-01 / D-04 / D-07 / D-09)
+// =============================================================================
+//
+// wrapWithChangeReport orchestrates a MutationObserver harvest before/after
+// any dispatched action tool when:
+//   1. The tool's _emitChangeReport flag is true (D-05/D-06)
+//   2. fsbChangeReportsEnabled is true (D-07)
+// Otherwise it just runs the action with zero overhead.
+//
+// Architecture:
+// - Page-context harvest is injected via chrome.scripting.executeScript so the
+//   observer can see real DOM mutations. before/after page state are captured
+//   in the same injected calls.
+// - buildChangeReport / applyChangeReportSizeCap are pure functions that come
+//   from utils/action-verification.js (importScripted into the SW). They run
+//   in SW context with serialized mutation records.
+// - 500ms safety net (D-09) caps total wait. partial:true is set on hit.
+// - Cross-origin transition (D-08) skips DOM inspection and emits URL-only
+//   report with cross_origin:true.
+// - All harvest failures are swallowed (try/catch); the underlying action
+//   result is never blocked by report failures.
+//
+// Returns the original response with `change_report` (and optionally
+// `change_report_hint`) attached, or the unmodified response on any error.
+
+const _CHANGE_REPORT_SAFETY_NET_MS = 500;
+
+// Page-context harvest start: captures beforeState and starts a scoped
+// MutationObserver. Stores the handle on window.__fsbChangeReportHandle.
+// This function is serialized and injected via chrome.scripting.executeScript;
+// it must be self-contained (no closures over SW scope).
+function _fsbHarvestStartInPage(targetSelector) {
+  try {
+    function getClassName(el) {
+      if (!el) return '';
+      const cn = el.className;
+      if (typeof cn === 'string') return cn;
+      if (cn && typeof cn.baseVal === 'string') return cn.baseVal;
+      return '';
+    }
+    function buildSel(el) {
+      if (!el || typeof el.tagName !== 'string') return null;
+      const id = (typeof el.getAttribute === 'function') ? el.getAttribute('id') : null;
+      if (id) return '#' + id;
+      const cn = getClassName(el);
+      if (cn) {
+        const first = cn.trim().split(/\s+/)[0];
+        if (first) return el.tagName.toLowerCase() + '.' + first;
+      }
+      return el.tagName.toLowerCase();
+    }
+    function captureState() {
+      const state = {
+        url: window.location.href,
+        title: document.title,
+        elementCount: document.querySelectorAll('*').length,
+        inputValues: {},
+        activeElementSelector: null,
+        timestamp: Date.now()
+      };
+      const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+      for (let i = 0; i < inputs.length && i < 20; i++) {
+        const inp = inputs[i];
+        const key = inp.id || inp.name || ('input_' + i);
+        state.inputValues[key] = inp.value || inp.textContent || '';
+      }
+      const ae = document.activeElement;
+      if (ae && ae !== document.body) state.activeElementSelector = buildSel(ae);
+      return state;
+    }
+    function resolveScope(sel) {
+      let target = null;
+      if (sel) { try { target = document.querySelector(sel); } catch (_) { target = null; } }
+      if (!target) return document.documentElement;
+      let cur = target.parentElement, steps = 0;
+      while (cur && steps < 3) {
+        const tag = (cur.tagName || '').toLowerCase();
+        if (tag === 'form' || tag === 'dialog' || tag === 'main') return cur;
+        cur = cur.parentElement; steps++;
+      }
+      return cur || target.parentElement || document.documentElement;
+    }
+    const beforeState = captureState();
+    const root = resolveScope(targetSelector);
+    if (typeof MutationObserver === 'undefined' || !root) {
+      window.__fsbChangeReportHandle = { beforeState, mutations: [], startedAt: Date.now(), noObserver: true };
+      return { ok: true, beforeState };
+    }
+    const handle = { beforeState, mutations: [], startedAt: Date.now() };
+    const observer = new MutationObserver((records) => {
+      for (let i = 0; i < records.length; i++) handle.mutations.push(records[i]);
+    });
+    try {
+      observer.observe(root, {
+        subtree: true, childList: true,
+        attributes: true, attributeOldValue: true,
+        characterData: true, characterDataOldValue: true
+      });
+      handle.observer = observer;
+    } catch (_) { /* observation failed; handle continues with empty mutations */ }
+    window.__fsbChangeReportHandle = handle;
+    return { ok: true, beforeState };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
+// Page-context harvest stop: serializes mutation records, captures afterState,
+// disconnects the observer, returns plain-data shape buildChangeReport accepts.
+function _fsbHarvestStopInPage() {
+  try {
+    function getClassName(el) {
+      if (!el) return '';
+      const cn = el.className;
+      if (typeof cn === 'string') return cn;
+      if (cn && typeof cn.baseVal === 'string') return cn.baseVal;
+      return '';
+    }
+    function buildSel(el) {
+      if (!el || typeof el.tagName !== 'string') return null;
+      const id = (typeof el.getAttribute === 'function') ? el.getAttribute('id') : null;
+      if (id) return '#' + id;
+      const cn = getClassName(el);
+      if (cn) {
+        const first = cn.trim().split(/\s+/)[0];
+        if (first) return el.tagName.toLowerCase() + '.' + first;
+      }
+      return el.tagName.toLowerCase();
+    }
+    function captureState() {
+      const state = {
+        url: window.location.href,
+        title: document.title,
+        elementCount: document.querySelectorAll('*').length,
+        inputValues: {},
+        activeElementSelector: null,
+        timestamp: Date.now()
+      };
+      const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+      for (let i = 0; i < inputs.length && i < 20; i++) {
+        const inp = inputs[i];
+        const key = inp.id || inp.name || ('input_' + i);
+        state.inputValues[key] = inp.value || inp.textContent || '';
+      }
+      const ae = document.activeElement;
+      if (ae && ae !== document.body) state.activeElementSelector = buildSel(ae);
+      return state;
+    }
+    function serializeNode(n) {
+      if (!n) return null;
+      // Some properties (className via SVGAnimatedString) require special handling;
+      // we pre-compute selector + tag + text snippet so the SW-side builder
+      // does not need DOM access.
+      const tag = (typeof n.tagName === 'string') ? n.tagName : null;
+      if (!tag) return { tagName: null }; // text/comment node placeholder
+      const id = (typeof n.getAttribute === 'function') ? n.getAttribute('id') : null;
+      const cn = getClassName(n);
+      // Preserve buildNodeSelector heuristic results so SW-side builder logic
+      // produces identical selectors.
+      const text = (n.textContent || '').slice(0, 200);
+      const role = (typeof n.getAttribute === 'function') ? n.getAttribute('role') : null;
+      const isDialog = (tag.toLowerCase() === 'dialog')
+        || role === 'dialog' || role === 'alertdialog'
+        || (cn && /(^|\s)(modal|popup)(\s|$)/i.test(cn));
+      const offsetWidth = (typeof n.offsetWidth === 'number') ? n.offsetWidth : 0;
+      // Synthesize the fields the SW-side buildChangeReport reads:
+      // tagName (for `typeof === 'string'` check), getAttribute (for selector
+      // + role + isDialog), className (for selector), textContent (for snippet),
+      // offsetWidth (for visibility check inside isDialogNode).
+      return {
+        tagName: tag,
+        _id: id,
+        _className: cn,
+        _role: role,
+        _isDialog: isDialog && offsetWidth > 0,
+        _text: text,
+        _selector: id ? ('#' + id) : (cn ? (tag.toLowerCase() + '.' + cn.trim().split(/\s+/)[0]) : tag.toLowerCase()),
+        offsetWidth: offsetWidth,
+        // Synthesize getAttribute on the wire so SW-side filter rules
+        // (isNoiseMutation reads attributeName, oldValue) keep working when
+        // pushed through this serializer.
+        getAttribute(name) {
+          if (name === 'id') return this._id;
+          if (name === 'class') return this._className;
+          if (name === 'role') return this._role;
+          return null;
+        },
+        get className() { return this._className; }
+      };
+    }
+    const handle = window.__fsbChangeReportHandle;
+    if (!handle) return { ok: true, mutations: [], afterState: captureState(), settle_ms: 0 };
+    if (handle.observer && typeof handle.observer.disconnect === 'function') {
+      try { handle.observer.disconnect(); } catch (_) { /* idempotent */ }
+    }
+    const settle_ms = Date.now() - (handle.startedAt || Date.now());
+    const serialized = [];
+    for (let i = 0; i < handle.mutations.length; i++) {
+      const rec = handle.mutations[i];
+      const added = [];
+      if (rec.addedNodes) for (let j = 0; j < rec.addedNodes.length; j++) added.push(serializeNode(rec.addedNodes[j]));
+      const removed = [];
+      if (rec.removedNodes) for (let j = 0; j < rec.removedNodes.length; j++) removed.push(serializeNode(rec.removedNodes[j]));
+      serialized.push({
+        type: rec.type,
+        attributeName: rec.attributeName || null,
+        oldValue: rec.oldValue == null ? null : String(rec.oldValue),
+        target: serializeNode(rec.target),
+        addedNodes: added,
+        removedNodes: removed
+      });
+    }
+    const afterState = captureState();
+    delete window.__fsbChangeReportHandle;
+    return { ok: true, mutations: serialized, afterState, settle_ms };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
+// Wait for DOM-stable in the page (no mutations for 300ms). Best-effort; the
+// safety net in the SW caller caps total wait at 500ms.
+function _fsbWaitStableInPage() {
+  try {
+    return new Promise((resolve) => {
+      let lastTick = Date.now();
+      const target = document.body || document.documentElement;
+      if (!target || typeof MutationObserver === 'undefined') return resolve(true);
+      const obs = new MutationObserver(() => { lastTick = Date.now(); });
+      obs.observe(target, { subtree: true, childList: true, attributes: true });
+      const interval = setInterval(() => {
+        if (Date.now() - lastTick > 300) {
+          obs.disconnect();
+          clearInterval(interval);
+          resolve(true);
+        }
+      }, 50);
+      // Hard cap at 450ms (under 500ms safety net) so SW-side race resolves
+      // cleanly without leaking the interval.
+      setTimeout(() => { try { obs.disconnect(); clearInterval(interval); resolve(true); } catch (_) {} }, 450);
+    });
+  } catch (_) { return Promise.resolve(true); }
+}
+
+// Resolve the buildChangeReport / applyChangeReportSizeCap exports. In SW
+// context they live on globalThis (importScripts'd). In Node tests they
+// live on require().
+function _resolveChangeReportBuilders() {
+  if (typeof buildChangeReport === 'function' && typeof applyChangeReportSizeCap === 'function') {
+    return { buildChangeReport, applyChangeReportSizeCap };
+  }
+  if (typeof globalThis !== 'undefined'
+      && typeof globalThis.buildChangeReport === 'function'
+      && typeof globalThis.applyChangeReportSizeCap === 'function') {
+    return {
+      buildChangeReport: globalThis.buildChangeReport,
+      applyChangeReportSizeCap: globalThis.applyChangeReportSizeCap
+    };
+  }
+  if (typeof require !== 'undefined') {
+    try {
+      const av = require('../utils/action-verification.js');
+      if (av && typeof av.buildChangeReport === 'function' && typeof av.applyChangeReportSizeCap === 'function') {
+        return av;
+      }
+    } catch (_) { /* not available */ }
+  }
+  return null;
+}
+
+function _resolveTargetSelector(params) {
+  if (!params || typeof params !== 'object') return null;
+  if (typeof params.selector === 'string' && params.selector.length > 0) return params.selector;
+  if (typeof params.elementId === 'string' && params.elementId.length > 0) return params.elementId;
+  if (typeof params.sourceSelector === 'string' && params.sourceSelector.length > 0) return params.sourceSelector;
+  return null;
+}
+
+async function _injectFn(tabId, func, args) {
+  if (typeof chrome === 'undefined' || !chrome.scripting || typeof chrome.scripting.executeScript !== 'function') {
+    return null;
+  }
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func,
+      args: args || []
+    });
+    return results && results[0] ? results[0].result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function _safeGetTabUrl(tabId) {
+  try {
+    if (typeof chrome === 'undefined' || !chrome.tabs || typeof chrome.tabs.get !== 'function') return null;
+    const t = await chrome.tabs.get(tabId);
+    return (t && typeof t.url === 'string') ? t.url : null;
+  } catch (_) { return null; }
+}
+
+function _originOf(url) {
+  if (!url) return null;
+  try { return new URL(url).origin; } catch (_) { return null; }
+}
+
+/**
+ * Wrap an action tool dispatch with a change_report harvest.
+ *
+ * @param {Object} ctx
+ * @param {string} ctx.toolName
+ * @param {number|null} ctx.tabId
+ * @param {Object} ctx.params
+ * @param {Function} ctx.execute - async () => response  (the actual tool dispatch)
+ * @returns {Promise<Object>} response, possibly with .change_report attached
+ */
+async function wrapWithChangeReport(ctx) {
+  const toolName = ctx && ctx.toolName;
+  const tabId = ctx && Number.isFinite(ctx.tabId) ? ctx.tabId : null;
+  const params = (ctx && ctx.params) || {};
+  const execute = ctx && ctx.execute;
+  if (typeof execute !== 'function') {
+    return { success: false, error: 'wrapWithChangeReport requires execute callback' };
+  }
+
+  // Gate 1: per-tool flag
+  const toolDef = (typeof _mcp_getToolByName === 'function') ? _mcp_getToolByName(toolName) : null;
+  const flagOn = !!(toolDef && toolDef._emitChangeReport === true);
+  // Gate 2: global toggle
+  const globalOn = !!fsbChangeReportsEnabled;
+
+  if (!flagOn || !globalOn || !Number.isFinite(tabId)) {
+    return execute();
+  }
+
+  // Begin harvest. If injection fails (cross-origin start, restricted page,
+  // missing chrome.scripting), skip wrap and run action without change_report.
+  const beforeUrl = await _safeGetTabUrl(tabId);
+  const targetSelector = _resolveTargetSelector(params);
+  const startResult = await _injectFn(tabId, _fsbHarvestStartInPage, [targetSelector]);
+  const startedHarvest = !!(startResult && startResult.ok);
+
+  let response;
+  try {
+    response = await execute();
+  } catch (err) {
+    // Surface the error; harvest cleanup happens below.
+    response = { success: false, error: err && err.message ? err.message : String(err) };
+  }
+
+  if (!startedHarvest) return response;
+
+  // Race waitStable vs 500ms safety net. partial:true on safety hit.
+  let partial = false;
+  try {
+    const stableP = _injectFn(tabId, _fsbWaitStableInPage, []);
+    const safetyP = new Promise((resolve) => setTimeout(() => resolve('safety'), _CHANGE_REPORT_SAFETY_NET_MS));
+    const winner = await Promise.race([stableP, safetyP]);
+    partial = (winner === 'safety');
+  } catch (_) { partial = true; }
+
+  try {
+    const afterUrl = await _safeGetTabUrl(tabId);
+    const beforeOrigin = _originOf(beforeUrl);
+    const afterOrigin = _originOf(afterUrl);
+    const crossOrigin = !!(beforeOrigin && afterOrigin && beforeOrigin !== afterOrigin);
+
+    let stop = null;
+    if (!crossOrigin) {
+      stop = await _injectFn(tabId, _fsbHarvestStopInPage, []);
+    }
+
+    const builders = _resolveChangeReportBuilders();
+    if (!builders) {
+      // Builder unavailable; clean up the page-side handle and skip.
+      if (!crossOrigin) await _injectFn(tabId, _fsbHarvestStopInPage, []);
+      return response;
+    }
+
+    let beforeState = (startResult && startResult.beforeState) || {};
+    let afterState = (stop && stop.afterState) || { url: afterUrl };
+    let mutations = (stop && stop.mutations) || [];
+    let settleMs = (stop && typeof stop.settle_ms === 'number') ? stop.settle_ms : 0;
+
+    if (crossOrigin) {
+      beforeState = beforeState || { url: beforeUrl };
+      afterState = { url: afterUrl };
+      mutations = [];
+    }
+
+    const raw = builders.buildChangeReport(
+      beforeState,
+      afterState,
+      mutations,
+      { crossOrigin, settleMs }
+    );
+    if (partial) raw.partial = true;
+    const capped = builders.applyChangeReportSizeCap(raw);
+    const report = capped && capped.report ? capped.report : raw;
+    const truncated = !!(capped && capped.truncated);
+
+    if (response && typeof response === 'object') {
+      response.change_report = report;
+      if (truncated) response.change_report_hint = 'truncated; call read_page for full state';
+    }
+  } catch (err) {
+    // Never block tool response on report failure.
+    try {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[FSB MCP Dispatcher] change_report harvest failed:', err && err.message ? err.message : err);
+      }
+    } catch (_) { /* logging never throws */ }
+  }
+
+  return response;
+}
+
 const _mcp_dispatcher_exports = {
   dispatchMcpToolRoute,
   dispatchMcpMessageRoute,
@@ -1779,7 +2229,11 @@ const _mcp_dispatcher_exports = {
   // Phase 238: agent identity route handlers exported for unit-test access.
   handleAgentRegisterRoute,
   handleAgentReleaseRoute,
-  handleAgentStatusRoute
+  handleAgentStatusRoute,
+  // Phase 245: change_report harvest wrap-around + toggle accessors (test-only).
+  wrapWithChangeReport,
+  _getChangeReportsEnabled,
+  _setChangeReportsEnabledForTest
 };
 
 if (typeof globalThis !== 'undefined') {
@@ -1792,6 +2246,10 @@ if (typeof globalThis !== 'undefined') {
   globalThis.buildRestrictedMcpResponse = buildRestrictedMcpResponse;
   globalThis.MCP_NAVIGATION_RECOVERY_TOOLS = MCP_NAVIGATION_RECOVERY_TOOLS;
   globalThis.createMcpRouteError = createMcpRouteError;
+  // Phase 245: expose harvest wrapper to mcp-bridge-client.js (which runs in
+  // the same SW global scope) so action-tool dispatch can opt into the
+  // change_report wrap-around without a circular import.
+  globalThis.wrapWithChangeReport = wrapWithChangeReport;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

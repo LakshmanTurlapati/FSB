@@ -14,6 +14,12 @@ try { importScripts('utils/agent-registry.js'); } catch (e) { console.error('[FS
 // at this file's line ~2464 calls FsbAgentNavEmission._maybeEmitUserNavigation.
 try { importScripts('utils/agent-nav-emission.js'); } catch (e) { console.error('[FSB] Failed to load agent-nav-emission.js:', e.message); }
 try { importScripts('utils/mcp-task-store.js'); } catch (e) { console.error('[FSB] Failed to load mcp-task-store.js:', e.message); }
+// Phase 245 (v0.9.60): action-verification.js exports buildChangeReport /
+// applyChangeReportSizeCap which the dispatcher calls from SW context after
+// harvesting mutations from the page. capturePageState / startMutationHarvest
+// remain DOM-bound but are not invoked here -- SW reaches them via
+// chrome.scripting.executeScript injection inside wrapWithChangeReport.
+try { importScripts('utils/action-verification.js'); } catch (e) { console.error('[FSB] Failed to load action-verification.js:', e.message); }
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
