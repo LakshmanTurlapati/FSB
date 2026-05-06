@@ -29,7 +29,11 @@ const defaultSettings = {
   captchaApiKey: '',
   autoRefineSiteMaps: true,
   // Phase 241 D-05 / POOL-05: max simultaneous agents (range 1-64, default 8).
-  fsbAgentCap: 8
+  fsbAgentCap: 8,
+  // Phase 245 D-07: global toggle for action change_report emission. When
+  // false, the dispatcher skips harvest instrumentation entirely (zero
+  // overhead) and action tool responses revert to pre-Phase-245 shape.
+  fsbChangeReportsEnabled: true
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -156,6 +160,8 @@ function cacheElements() {
   // Phase 243 Plan 04 / UI-03: validation hint + live current-active counter.
   elements.fsbAgentCapValidation = document.getElementById('fsbAgentCapValidation');
   elements.fsbAgentCapCurrentActive = document.getElementById('fsbAgentCapCurrentActive');
+  // Phase 245 D-07: Action Change Reports global toggle.
+  elements.fsbChangeReportsEnabled = document.getElementById('fsbChangeReportsEnabled');
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
   elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
@@ -336,6 +342,15 @@ function setupEventListeners() {
       if (typeof refreshActiveAgentCount === 'function') {
         refreshActiveAgentCount();
       }
+      markUnsavedChanges();
+    });
+  }
+
+  // Phase 245 D-07: Action Change Reports toggle. Mirror the cap-toggle
+  // pattern: change handler marks unsaved; saveSettings/loadSettings handle
+  // persistence below.
+  if (elements.fsbChangeReportsEnabled) {
+    elements.fsbChangeReportsEnabled.addEventListener('change', () => {
       markUnsavedChanges();
     });
   }
@@ -875,6 +890,12 @@ function loadSettings() {
       elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
     }
 
+    // Phase 245 D-07: Action Change Reports toggle. Default true when key
+    // absent (handles older builds whose storage doesn't have the key yet).
+    if (elements.fsbChangeReportsEnabled) {
+      elements.fsbChangeReportsEnabled.checked = settings.fsbChangeReportsEnabled ?? true;
+    }
+
     // Credential Manager
     if (elements.enableLogin) {
       elements.enableLogin.checked = settings.enableLogin ?? false;
@@ -989,7 +1010,10 @@ function saveSettings() {
       if (raw < 1) return 1;
       if (raw > 64) return 64;
       return raw;
-    })()
+    })(),
+    // Phase 245 D-07: persist Action Change Reports toggle. Default true so
+    // builds where the user has never visited the toggle still emit reports.
+    fsbChangeReportsEnabled: elements.fsbChangeReportsEnabled?.checked ?? true
   };
   
   chrome.storage.local.set(settings, () => {
