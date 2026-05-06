@@ -261,14 +261,29 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
         if (!targetTabId) {
           return makeResult({ success: false, error: 'switch_tab requires tabId parameter' });
         }
-        await chrome.tabs.update(targetTabId, { active: true });
-        // Focus the window containing the tab
-        try {
-          const tabWindow = await chrome.tabs.get(targetTabId);
-          if (tabWindow.windowId) {
-            await chrome.windows.update(tabWindow.windowId, { focused: true });
-          }
-        } catch (_) { /* window focus is best-effort */ }
+        // Phase 243 BG-02: gate the foreground transition behind the per-tool
+        // _forceForeground flag from tool-definitions.js. switch_tab is the
+        // only tool with the flag set to true (D-01); every other tool runs
+        // background-only. The autopilot dispatch path mirrors the MCP route
+        // gate in mcp-tool-dispatcher.js handleSwitchTabRoute.
+        const switchTabDef = (typeof _te_getToolByName === 'function')
+          ? _te_getToolByName('switch_tab')
+          : null;
+        const forceForeground = !!(switchTabDef && switchTabDef._forceForeground === true);
+        if (forceForeground) {
+          await chrome.tabs.update(targetTabId, { active: true });
+          // Focus the window containing the tab
+          try {
+            const tabWindow = await chrome.tabs.get(targetTabId);
+            if (tabWindow.windowId) {
+              await chrome.windows.update(tabWindow.windowId, { focused: true });
+            }
+          } catch (_) { /* window focus is best-effort */ }
+        } else {
+          // Background-safe path: still resolve the target tab to confirm it
+          // exists, but do not steal focus.
+          try { await chrome.tabs.get(targetTabId); } catch (_) { /* best-effort */ }
+        }
         return makeResult({
           success: true,
           hadEffect: true,

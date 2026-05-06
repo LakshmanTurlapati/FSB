@@ -53,7 +53,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -73,7 +74,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -89,7 +91,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'siteSearch',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -103,7 +106,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -117,7 +121,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -131,7 +136,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -152,7 +158,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'click',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -169,7 +176,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'type',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -185,7 +193,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'pressEnter',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -204,7 +213,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'keyPress',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -221,7 +231,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'selectOption',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -237,7 +248,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'toggleCheckbox',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -253,7 +265,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'hover',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -269,7 +282,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'rightClick',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -285,7 +299,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'doubleClick',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -303,7 +318,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'selectTextRange',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -323,7 +339,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'dragdrop',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -342,7 +359,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'dropfile',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -358,7 +376,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'focus',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -374,7 +393,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'clearInput',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -395,7 +415,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'scroll',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -409,7 +430,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'scrollToTop',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -423,7 +445,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'scrollToBottom',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -439,7 +462,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'scrollToElement',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -459,7 +483,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'waitForElement',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -473,7 +498,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'waitForDOMStable',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -493,7 +519,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -509,7 +536,9 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    // Phase 243 BG-02: switch_tab's semantic intent IS focus transfer (D-01).
+    _forceForeground: true
   },
 
   // =========================================================================
@@ -531,7 +560,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'fillsheet',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -547,7 +577,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: 'readsheet',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -571,7 +602,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpClickAt'
+    _cdpVerb: 'cdpClickAt',
+    _forceForeground: false
   },
 
   {
@@ -589,7 +621,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpClickAndHold'
+    _cdpVerb: 'cdpClickAndHold',
+    _forceForeground: false
   },
 
   {
@@ -613,7 +646,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpDrag'
+    _cdpVerb: 'cdpDrag',
+    _forceForeground: false
   },
 
   {
@@ -635,7 +669,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpDragVariableSpeed'
+    _cdpVerb: 'cdpDragVariableSpeed',
+    _forceForeground: false
   },
 
   {
@@ -654,7 +689,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpScrollAt'
+    _cdpVerb: 'cdpScrollAt',
+    _forceForeground: false
   },
 
   {
@@ -670,7 +706,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpInsertText'
+    _cdpVerb: 'cdpInsertText',
+    _forceForeground: false
   },
 
   {
@@ -690,7 +727,8 @@ const TOOL_REGISTRY = [
     _route: 'cdp',
     _readOnly: false,
     _contentVerb: null,
-    _cdpVerb: 'cdpDoubleClickAt'
+    _cdpVerb: 'cdpDoubleClickAt',
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -710,7 +748,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: 'readPage',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -726,7 +765,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: 'getText',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -743,7 +783,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: 'getAttribute',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -761,7 +802,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: false,
     _contentVerb: 'setAttribute',
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -777,7 +819,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -791,7 +834,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -809,7 +853,8 @@ const TOOL_REGISTRY = [
     _route: 'content',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -828,7 +873,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -847,7 +893,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -870,7 +917,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================
@@ -894,7 +942,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -921,7 +970,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   {
@@ -941,7 +991,8 @@ const TOOL_REGISTRY = [
     _route: 'background',
     _readOnly: true,
     _contentVerb: null,
-    _cdpVerb: null
+    _cdpVerb: null,
+    _forceForeground: false
   },
 
   // =========================================================================

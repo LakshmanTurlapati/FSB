@@ -887,12 +887,25 @@ async function handleSwitchTabRoute({ params }) {
     getChromeTabsApi();
     const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const previousTabId = currentTab ? currentTab.id : null;
-    let tab = await chrome.tabs.update(params.tabId, { active: true });
-    if (chrome.tabs.get) {
-      tab = await chrome.tabs.get(params.tabId);
-    }
-    if (typeof chrome !== 'undefined' && chrome.windows?.update && tab?.windowId) {
-      await chrome.windows.update(tab.windowId, { focused: true });
+
+    // Phase 243 BG-02: read the per-tool flag from the registry. switch_tab
+    // is the only tool with _forceForeground:true (D-01); every other tool
+    // routes through this dispatcher with the flag false and must NOT steal
+    // focus from another agent's tab or from the user.
+    const toolDef = (typeof _mcp_getToolByName === 'function')
+      ? _mcp_getToolByName('switch_tab')
+      : null;
+    const forceForeground = !!(toolDef && toolDef._forceForeground === true);
+
+    let tab = await chrome.tabs.get(params.tabId);
+    if (forceForeground) {
+      tab = await chrome.tabs.update(params.tabId, { active: true });
+      if (chrome.tabs.get) {
+        tab = await chrome.tabs.get(params.tabId);
+      }
+      if (typeof chrome !== 'undefined' && chrome.windows?.update && tab?.windowId) {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
     }
 
     return sanitizeSingleTab('switch_tab', tab, { tabId: params.tabId, previousTabId });
