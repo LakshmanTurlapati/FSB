@@ -383,6 +383,17 @@ async function handleNavigateRoute({ params, client }) {
     }
 
     const targetTabId = Number.isFinite(params.tabId) ? params.tabId : activeTab.id;
+    // Phase 243 plan 02 (BG-04): stamp lastAgentNavigationAt BEFORE the
+    // chrome.tabs.update so the webNavigation.onCommitted listener suppresses
+    // its agent-tab-user-navigation emission within the 500ms window for
+    // user-initiated transitionTypes (link / typed) the commit produces.
+    try {
+      if (typeof globalThis !== 'undefined'
+          && globalThis.fsbAgentRegistryInstance
+          && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+        globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId);
+      }
+    } catch (_e) { /* best-effort */ }
     const updatedTab = await chrome.tabs.update(targetTabId, { url: params.url });
 
     // Phase 240 D-08: bindTab on the navigated tab BEFORE returning success
@@ -425,6 +436,18 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
     }
 
     targetTabId = targetTabId === null ? activeTab.id : targetTabId;
+    // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.goBack/goForward/
+    // reload so the webNavigation.onCommitted listener suppresses its
+    // agent-tab-user-navigation emission within the 500ms window. The
+    // auto_bookmark / reload transitionTypes both fall in
+    // USER_INITIATED_TRANSITIONS and would otherwise trip a false positive.
+    try {
+      if (typeof globalThis !== 'undefined'
+          && globalThis.fsbAgentRegistryInstance
+          && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+        globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId);
+      }
+    } catch (_e) { /* best-effort */ }
     if (tool === 'go_back') {
       await chrome.tabs.goBack(targetTabId);
     } else if (tool === 'go_forward') {
@@ -780,6 +803,18 @@ async function handleBackRoute({ payload = {}, client = null }) {
   // 5. Fire goBack. NEVER call the focus-stealing tabs update API here
   //    (D-08 background-tab posture; verification gate excludes the literal
   //    method call from this handler body).
+  // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.goBack so the
+  // webNavigation.onCommitted listener suppresses its
+  // agent-tab-user-navigation emission within the 500ms window. Phase 242
+  // back transitionType auto_bookmark falls in USER_INITIATED_TRANSITIONS;
+  // this is the canonical false-positive vector the suppression guards.
+  try {
+    if (typeof globalThis !== 'undefined'
+        && globalThis.fsbAgentRegistryInstance
+        && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+      globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId);
+    }
+  } catch (_e) { /* best-effort */ }
   try {
     await chrome.tabs.goBack(targetTabId);
   } catch (error) {
