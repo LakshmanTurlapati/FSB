@@ -600,11 +600,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'read_sheet',
-    description: 'Read cell values from a spreadsheet range. Returns cell values as array. When to use: to extract tabular data from a spreadsheet. Related: fill_sheet (write data), navigate (go to the spreadsheet first). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Read cell values from a spreadsheet range. Returns cell values as array. When to use: to extract tabular data from a spreadsheet. Related: fill_sheet (write data), navigate (go to the spreadsheet first). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
       properties: {
-        range: { type: 'string', description: 'Cell range to read (e.g., \'A1:C5\')' }
+        range: { type: 'string', description: 'Cell range to read (e.g., \'A1:C5\')' },
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
       },
       required: ['range']
     },
@@ -779,11 +783,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'read_page',
-    description: 'Read the text content of the current page. When to use: as the FIRST step after navigating to understand what is on the page. Automatically waits for DOM stability on JS-heavy sites. Returns main content prioritized over sidebars/nav/footer, capped at ~8K chars. Related: get_dom_snapshot (get structured element data with selectors for interaction), navigate (go to a page first), scroll (scroll to load more content before reading). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Read the text content of the current page. When to use: as the FIRST step after navigating to understand what is on the page. Automatically waits for DOM stability on JS-heavy sites. Returns main content prioritized over sidebars/nav/footer, capped at ~8K chars. Related: get_dom_snapshot (get structured element data with selectors for interaction), navigate (go to a page first), scroll (scroll to load more content before reading). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
       properties: {
-        full: { type: 'boolean', description: 'If true, read entire page; if false (default), read visible viewport only' }
+        full: { type: 'boolean', description: 'If true, read entire page; if false (default), read visible viewport only' },
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
       },
       required: []
     },
@@ -797,11 +805,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_text',
-    description: 'Get the text content of a specific element. Returns the element\'s text. When to use: to read a specific element\'s text without reading the whole page. Related: read_page (read full page), get_attribute (read element attributes like href, src). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Get the text content of a specific element. Returns the element\'s text. When to use: to read a specific element\'s text without reading the whole page. Related: read_page (read full page), get_attribute (read element attributes like href, src). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
       properties: {
-        selector: { type: 'string', description: 'CSS selector or element ref (e.g., "#price", ".title", or "e3" from get_dom_snapshot)' }
+        selector: { type: 'string', description: 'CSS selector or element ref (e.g., "#price", ".title", or "e3" from get_dom_snapshot)' },
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
       },
       required: ['selector']
     },
@@ -815,12 +827,16 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_attribute',
-    description: 'Get an HTML attribute value from an element. Returns the attribute value. When to use: to read href, src, value, data attributes, or ARIA properties from an element. Related: get_text (read element text content), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Get an HTML attribute value from an element. Returns the attribute value. When to use: to read href, src, value, data attributes, or ARIA properties from an element. Related: get_text (read element text content), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
       properties: {
         selector: { type: 'string', description: 'CSS selector or element ref (e.g., "#link", "a.nav-item", or "e7" from get_dom_snapshot)' },
-        attribute: { type: 'string', description: 'HTML attribute name (e.g., \'href\', \'src\', \'value\')' }
+        attribute: { type: 'string', description: 'HTML attribute name (e.g., \'href\', \'src\', \'value\')' },
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
       },
       required: ['selector', 'attribute']
     },
@@ -854,11 +870,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_dom_snapshot',
-    description: 'Get a structured DOM snapshot with element references (e.g., e1, e2, e3). When to use: BEFORE any interaction tool (click, type_text, etc.) to find the right selector or element ref. Returns elements with tag, text, attributes, and position data. Element refs like \'e5\' can be passed directly to click, type_text, hover, and other tools. Related: read_page (quick text content), click/type_text/hover (use refs from this snapshot). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Get a structured DOM snapshot with element references (e.g., e1, e2, e3). When to use: BEFORE any interaction tool (click, type_text, etc.) to find the right selector or element ref. Returns elements with tag, text, attributes, and position data. Element refs like \'e5\' can be passed directly to click, type_text, hover, and other tools. Related: read_page (quick text content), click/type_text/hover (use refs from this snapshot). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
       properties: {
-        maxElements: { type: 'number', description: 'Maximum elements to include (default: 2000)' }
+        maxElements: { type: 'number', description: 'Maximum elements to include (default: 2000)' },
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
       },
       required: []
     },
@@ -892,10 +912,15 @@ const TOOL_REGISTRY = [
 
   {
     name: 'get_page_snapshot',
-    description: 'Get a markdown snapshot of the current page DOM. Returns interactive elements with ref IDs for targeting. When to use: BEFORE any click/type/interaction to see current page state. Call this at the start of each new page or when you need to find elements. Related: read_page (plain text content), get_text (single element text). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Get a markdown snapshot of the current page DOM. Returns interactive elements with ref IDs for targeting. When to use: BEFORE any click/type/interaction to see current page state. Call this at the start of each new page or when you need to find elements. Related: read_page (plain text content), get_text (single element text). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id this read targets. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple. Single-tab agents and legacy popup/sidepanel/autopilot do not need to pass this.'
+        }
+      },
       required: []
     },
     _route: 'content',
