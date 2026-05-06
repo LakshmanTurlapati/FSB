@@ -15,6 +15,15 @@ const MCP_RECONNECT_ALARM = 'fsb-mcp-bridge-reconnect';
 const MCP_RECONNECT_BASE_MS = 2000;
 const MCP_RECONNECT_MAX_MS = 30000;
 const MCP_PING_INTERVAL_MS = 25000;
+// Phase 241 D-07 / D-08 -- mirror of agent-registry.js RECONNECT_GRACE_MS.
+// On bridge _ws.onclose the bridge asks the registry to stage release for
+// every agent stamped with the current connection_id; that staged release
+// fires after this many ms unless the bridge reconnects under the prior
+// connection_id and cancels it. setTimeout (not the Chrome alarms API) is
+// authoritative because the alarms API minimum delay is 30s, well above the
+// 10s default grace. Hydrate-time recovery in agent-registry.js covers the
+// SW-eviction-during-grace case via the persisted stagedReleases envelope.
+const RECONNECT_GRACE_MS = 10000;
 
 class MCPBridgeClient {
   constructor() {
@@ -33,6 +42,14 @@ class MCPBridgeClient {
     this._lastDisconnectReason = null;
     this._nextReconnectAt = null;
     this._reconnectAttemptCount = 0;
+    // Phase 241 D-08 -- per-bridge-connect connection_id state.
+    // _connectionId is minted at every _ws.onopen via crypto.randomUUID() and
+    // threaded through agent:register so the registry can stamp it on each
+    // freshly minted agent. _lastKnownConnectionId carries the prior id from
+    // _ws.onclose -> next _ws.onopen so the staged release for the prior id
+    // can be cancelled on a fast reconnect (within RECONNECT_GRACE_MS).
+    this._connectionId = null;
+    this._lastKnownConnectionId = null;
   }
 
   getState() {
@@ -99,6 +116,28 @@ class MCPBridgeClient {
       this._clearReconnectAlarm();
       this._persistState();
       this._startPing();
+      // Phase 241 D-08 -- mint a fresh connection_id at onopen.
+      // crypto.randomUUID is available in MV3 service workers and Node 18+.
+      // The defensive fallback ensures the bridge never throws even if the
+      // global is absent (Pitfall: should never trigger in practice).
+      this._connectionId = (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : (Date.now().toString(16) + '-' + Math.random().toString(16).slice(2, 10));
+      // Phase 241 D-08 -- cancel any staged release left over from the prior
+      // connection_id. _lastKnownConnectionId holds the id that was active
+      // when onclose fired so we can find the staging entry the registry
+      // recorded for it. Best-effort: a missing registry / missing helper is
+      // never fatal; the staged release will simply expire normally.
+      try {
+        const reg = globalThis.fsbAgentRegistryInstance;
+        if (reg && typeof reg.cancelStagedRelease === 'function' && this._lastKnownConnectionId) {
+          const cancelP = reg.cancelStagedRelease(this._lastKnownConnectionId);
+          if (cancelP && typeof cancelP.catch === 'function') {
+            cancelP.catch(() => { /* best-effort */ });
+          }
+        }
+      } catch (_e) { /* best-effort */ }
+      this._lastKnownConnectionId = this._connectionId;
       // Phase 239 plan 03 -- best-effort reconciliation of any in-flight
       // run_task snapshots that survived an SW eviction. Authoritative
       // settle still lives server-side in autopilot.ts via sw_evicted.
@@ -117,6 +156,21 @@ class MCPBridgeClient {
       this._lastDisconnectReason = this._intentionalClose
         ? 'intentional_close'
         : (this._lastDisconnectReason === 'socket_error' ? 'socket_error' : 'socket_close');
+      // Phase 241 D-08 -- stage release for ALL agents stamped with the
+      // current connection_id. The registry resolves the agentIds snapshot
+      // at stage time (Q2 resolution) so a fresh agent claimed under a
+      // different bridge connect after this point is NOT swept up by the
+      // expiring grace timer. Best-effort: never let registry errors block
+      // the existing reconnect schedule below.
+      try {
+        const reg = globalThis.fsbAgentRegistryInstance;
+        if (reg && typeof reg.stageReleaseByConnectionId === 'function' && this._connectionId) {
+          const stageP = reg.stageReleaseByConnectionId(this._connectionId, RECONNECT_GRACE_MS);
+          if (stageP && typeof stageP.catch === 'function') {
+            stageP.catch(() => { /* best-effort */ });
+          }
+        }
+      } catch (_e) { /* best-effort */ }
       // Phase 239 plan 03 -- arm reconciler for the next connect cycle.
       this._inFlightTasksReconciled = false;
       this._persistState();
@@ -157,6 +211,18 @@ class MCPBridgeClient {
 
   get isConnected() {
     return this._connected;
+  }
+
+  /**
+   * Phase 241 D-08 -- expose the current per-bridge-connect connection_id
+   * so any code path that wants to thread it into outbound payloads can read
+   * it sync without depending on the private field. Returns null pre-connect
+   * or after disconnect-then-reset (reset only happens on intentional close;
+   * during reconnect the prior id is preserved on _lastKnownConnectionId so
+   * the cancel-on-reopen flow can find it).
+   */
+  getConnectionId() {
+    return this._connectionId || null;
   }
 
   // --------------------------------------------------------------------------

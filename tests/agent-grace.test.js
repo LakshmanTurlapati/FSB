@@ -443,21 +443,34 @@ this.__phase241bridge = {
     return { exports: ctx.__phase241bridge, FakeWebSocket };
   }
 
+  // Helper: clear pending timers on a bridge client so the test process exits.
+  // The bridge schedules a setTimeout-based reconnect on every onclose; without
+  // cancelling it the Node event loop stays alive for the full reconnect delay.
+  function teardownBridgeClient(client) {
+    if (!client) return;
+    try {
+      client._intentionalClose = true;
+      if (client._reconnectTimer) { clearTimeout(client._reconnectTimer); client._reconnectTimer = null; }
+      if (client._pingTimer) { clearInterval(client._pingTimer); client._pingTimer = null; }
+    } catch (_e) { /* best-effort */ }
+  }
+
   console.log('--- Test 9 (bridge): onopen mints connection_id ---');
   {
     setupChromeMock();
     setupDiagnosticCapture();
+    let harness = null;
     try {
       const fresh = freshRequireRegistry();
       const reg = new fresh.AgentRegistry();
       reg.setCap(8);
 
-      const harness = buildBridgeWithRegistry(reg);
+      harness = buildBridgeWithRegistry(reg);
       const client = harness.exports.mcpBridgeClient;
       assert.strictEqual(harness.exports.RECONNECT_GRACE_MS, 10000,
         'bridge module exposes RECONNECT_GRACE_MS = 10000');
 
-      assert.strictEqual(typeof client._connectionId, 'undefined', 'no connectionId pre-connect');
+      assert.strictEqual(client._connectionId, null, 'no connectionId pre-connect');
       client.connect();
       // Trigger onopen via the fake socket.
       client._ws.open();
@@ -470,6 +483,7 @@ this.__phase241bridge = {
       assert.strictEqual(client.getConnectionId(), client._connectionId,
         'getConnectionId() reflects the current id');
     } finally {
+      teardownBridgeClient(harness && harness.exports && harness.exports.mcpBridgeClient);
       teardownDiagnosticCapture();
       teardownChromeMock();
     }
@@ -480,12 +494,13 @@ this.__phase241bridge = {
   {
     setupChromeMock();
     setupDiagnosticCapture();
+    let harness = null;
     try {
       const fresh = freshRequireRegistry();
       const reg = new fresh.AgentRegistry();
       reg.setCap(8);
 
-      const harness = buildBridgeWithRegistry(reg);
+      harness = buildBridgeWithRegistry(reg);
       const client = harness.exports.mcpBridgeClient;
       client.connect();
       client._ws.open();
@@ -506,6 +521,7 @@ this.__phase241bridge = {
       assert.ok(entry.agentIds.indexOf(A) !== -1, 'staged entry includes agent A');
       assert.ok(reg._agents.has(A), 'A still in _agents during grace window');
     } finally {
+      teardownBridgeClient(harness && harness.exports && harness.exports.mcpBridgeClient);
       teardownDiagnosticCapture();
       teardownChromeMock();
     }
@@ -516,12 +532,13 @@ this.__phase241bridge = {
   {
     setupChromeMock();
     setupDiagnosticCapture();
+    let harness = null;
     try {
       const fresh = freshRequireRegistry();
       const reg = new fresh.AgentRegistry();
       reg.setCap(8);
 
-      const harness = buildBridgeWithRegistry(reg);
+      harness = buildBridgeWithRegistry(reg);
       const client = harness.exports.mcpBridgeClient;
 
       client.connect();
@@ -547,6 +564,7 @@ this.__phase241bridge = {
         'prior staged release cancelled on reopen');
       assert.ok(reg._agents.has(A), 'A preserved through the grace window');
     } finally {
+      teardownBridgeClient(harness && harness.exports && harness.exports.mcpBridgeClient);
       teardownDiagnosticCapture();
       teardownChromeMock();
     }
@@ -557,12 +575,13 @@ this.__phase241bridge = {
   {
     setupChromeMock();
     setupDiagnosticCapture();
+    let harness = null;
     try {
       const fresh = freshRequireRegistry();
       const reg = new fresh.AgentRegistry();
       reg.setCap(8);
 
-      const harness = buildBridgeWithRegistry(reg);
+      harness = buildBridgeWithRegistry(reg);
       const client = harness.exports.mcpBridgeClient;
 
       client.connect();
@@ -574,6 +593,7 @@ this.__phase241bridge = {
       assert.strictEqual(reg._stagedReleases.size, 0,
         '_stagedReleases stays empty when no agents match');
     } finally {
+      teardownBridgeClient(harness && harness.exports && harness.exports.mcpBridgeClient);
       teardownDiagnosticCapture();
       teardownChromeMock();
     }
@@ -584,12 +604,13 @@ this.__phase241bridge = {
   {
     setupChromeMock();
     setupDiagnosticCapture();
+    let harness = null;
     try {
       const fresh = freshRequireRegistry();
       const reg = new fresh.AgentRegistry();
       reg.setCap(8);
 
-      const harness = buildBridgeWithRegistry(reg);
+      harness = buildBridgeWithRegistry(reg);
       const client = harness.exports.mcpBridgeClient;
 
       client.connect();
@@ -611,6 +632,7 @@ this.__phase241bridge = {
       // Cancel so the test process does not have to wait 10s.
       await reg.cancelStagedRelease(conn);
     } finally {
+      teardownBridgeClient(harness && harness.exports && harness.exports.mcpBridgeClient);
       teardownDiagnosticCapture();
       teardownChromeMock();
     }
