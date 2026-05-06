@@ -266,52 +266,39 @@ function ensureLegacyAgentAdapter(registry, surface) {
   // legacy popup/sidepanel/autopilot UX byte-for-byte: the gate's tab-arm
   // skips when tabId is null in routeParams.
 
+  // Plan 01 Task 2 created the resolver; require it explicitly so this test
+  // is hermetic regardless of which earlier suite loaded the module.
+  require('../extension/utils/agent-tab-resolver.js');
+
   console.log('--- Phase 246 / legacy-agent-synthesis / Test legacy:popup tab-resolution: resolveAgentTabOrError returns skipGate:true with active tab ---');
   {
-    // Source-detection gate: only run once Plan 02 Task 7 verifies the
-    // composition. Plan 01 Task 2 created the resolver; we always have it.
-    if (typeof globalThis.resolveAgentTabOrError !== 'function') {
-      // Try to require the resolver.
-      try {
-        require('../extension/utils/agent-tab-resolver.js');
-      } catch (_e) {
-        // Resolver not present yet -- skip this test.
-        console.log('  PASS: skipped (resolver not yet present)');
-      }
-    }
-    if (typeof globalThis.resolveAgentTabOrError === 'function') {
-      const mockClient = { _getActiveTab: async () => ({ id: 99, url: 'https://example.com' }) };
-      const result = await globalThis.resolveAgentTabOrError('legacy:popup', {}, mockClient);
-      assert.strictEqual(result.tabId, 99, 'resolver returns active tab id 99 for legacy:popup');
-      assert.strictEqual(result.skipGate, true, 'skipGate is true for legacy:* agents');
-      assert.strictEqual(result.success, undefined, 'success is undefined (not error)');
-      console.log('  PASS: legacy:popup resolves to skipGate:true with active tab id');
-    }
+    const mockClient = { _getActiveTab: async () => ({ id: 99, url: 'https://example.com' }) };
+    const result = await globalThis.resolveAgentTabOrError('legacy:popup', {}, mockClient);
+    assert.strictEqual(result.tabId, 99, 'resolver returns active tab id 99 for legacy:popup');
+    assert.strictEqual(result.skipGate, true, 'skipGate is true for legacy:* agents');
+    assert.strictEqual(result.success, undefined, 'success is undefined (not error)');
+    console.log('  PASS: legacy:popup resolves to skipGate:true with active tab id');
   }
 
   console.log('--- Phase 246 / legacy-agent-synthesis / Test legacy synthesis composes with skipGate: action dispatch path does NOT push tabId for legacy:* ---');
   {
-    if (typeof globalThis.resolveAgentTabOrError !== 'function') {
-      console.log('  PASS: skipped (resolver not yet present)');
-    } else {
-      // Mirror Plan 02 Task 3 _handleExecuteAction routeParams composition
-      // pattern in isolation. Verifies that legacy:* surfaces composed with
-      // the resolver produce a routeParams object WITHOUT tabId, preserving
-      // the gate's tab-arm-skip path (Phase 240 D-02 carve-out).
-      const client = { _getActiveTab: async () => ({ id: 7, url: 'https://example.com' }) };
-      const resolved = await globalThis.resolveAgentTabOrError('legacy:popup', {}, client);
-      const params = { selector: '#x' };
-      const routeParams = {
-        ...params,
-        ...(resolved.skipGate ? {} : { tabId: resolved.tabId }),
-        agentId: 'legacy:popup'
-      };
-      assert.strictEqual(routeParams.tabId, undefined,
-        'routeParams.tabId is NOT set for legacy:* agents (skipGate honored; D-15)');
-      assert.strictEqual(resolved.tabId, 7,
-        'resolver still returns the active tab for the helper-side call');
-      console.log('  PASS: routeParams composition skips tabId for legacy:* agents');
-    }
+    // Mirror Plan 02 Task 3 _handleExecuteAction routeParams composition
+    // pattern in isolation. Verifies that legacy:* surfaces composed with
+    // the resolver produce a routeParams object WITHOUT tabId, preserving
+    // the gate's tab-arm-skip path (Phase 240 D-02 carve-out).
+    const client = { _getActiveTab: async () => ({ id: 7, url: 'https://example.com' }) };
+    const resolved = await globalThis.resolveAgentTabOrError('legacy:popup', {}, client);
+    const params = { selector: '#x' };
+    const routeParams = {
+      ...params,
+      ...(resolved.skipGate ? {} : { tabId: resolved.tabId }),
+      agentId: 'legacy:popup'
+    };
+    assert.strictEqual(routeParams.tabId, undefined,
+      'routeParams.tabId is NOT set for legacy:* agents (skipGate honored; D-15)');
+    assert.strictEqual(resolved.tabId, 7,
+      'resolver still returns the active tab for the helper-side call');
+    console.log('  PASS: routeParams composition skips tabId for legacy:* agents');
   }
 
   console.log('\nAll Phase 240 legacy-agent-synthesis assertions passed.');
