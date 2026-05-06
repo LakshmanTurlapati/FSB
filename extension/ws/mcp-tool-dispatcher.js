@@ -62,6 +62,11 @@ const MCP_PHASE199_MESSAGE_ROUTES = {
   'mcp:get-logs': { routeFamily: 'observability', handler: handleGetLogsMessageRoute },
   'mcp:search-memory': { routeFamily: 'observability', handler: handleSearchMemoryMessageRoute },
   'mcp:get-memory': { routeFamily: 'observability', handler: handleGetMemoryMessageRoute },
+  // Phase 242: single-step ownership-gated history back. handleBackRoute
+  // performs history.length precheck, chrome.tabs.goBack, settle race,
+  // 5-status classification, and bindTab parity (D-08). Background-tab
+  // compatible: NEVER calls chrome.tabs.update inside the handler body.
+  'mcp:go-back':    { routeFamily: 'browser', handler: handleBackRoute },
   // Phase 238: agent identity routes. Resolve through globalThis.fsbAgentRegistryInstance
   // (Phase 237 registry surface). Phase 240 will validate ownership at every dispatch
   // boundary; Phase 238 is structural setup only.
@@ -455,6 +460,361 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
       error: error.message || String(error)
     };
   }
+}
+
+// ---- Phase 242 'back' MCP tool helpers ---------------------------------
+// Single-step ownership-gated history-back. Order in declaration:
+//   waitForBackSettle  -- helper used by handleBackRoute settle race.
+//   classifyBackOutcome -- helper used by handleBackRoute status mapping.
+//   handleBackRoute     -- the route entry exposed via MCP_PHASE199_MESSAGE_ROUTES.
+// Hard invariants (BACK-02..BACK-05, D-08):
+//   * No chrome.tabs.update reference anywhere in this section
+//     (background-tab compatibility).
+//   * The 5-code status discriminator is canonical:
+//       'ok' | 'no_history' | 'cross_origin' | 'bf_cache' | 'fragment_only'.
+//   * Phase 240 ownership gate is invoked at the TOP of handleBackRoute
+//     because dispatchMcpMessageRoute does NOT inline-gate message routes
+//     today (only dispatchMcpToolRoute does, line 194).
+
+/**
+ * Race three legs to detect when chrome.tabs.goBack has settled:
+ *   1. chrome.tabs.onUpdated 'complete' for the target tab.
+ *   2. window 'pageshow' event observed inside the post-back document via
+ *      chrome.scripting.executeScript injection. Captures event.persisted
+ *      so the caller can distinguish BF-cache restoration.
+ *   3. Hard 2s timeout (caller passes timeoutMs).
+ * Self-cleans the onUpdated listener and the timeout regardless of which
+ * leg wins. Resolves at most once via the `finished` guard.
+ *
+ * @param {number} tabId  Target tab id (must be finite).
+ * @param {number} timeoutMs  Outer hard cap (ms). RESEARCH lines 333-371.
+ * @returns {Promise<{method:'pageshow'|'onUpdated'|'timeout', persisted: boolean|null}>}
+ */
+function waitForBackSettle(tabId, timeoutMs) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (result) => {
+      if (finished) return;
+      finished = true;
+      try { cleanup(); } catch (_e) { /* swallow */ }
+      resolve(result);
+    };
+
+    let onUpdatedListener = null;
+    let timeoutHandle = null;
+
+    const cleanup = () => {
+      if (onUpdatedListener && typeof chrome !== 'undefined'
+          && chrome.tabs && chrome.tabs.onUpdated
+          && typeof chrome.tabs.onUpdated.removeListener === 'function') {
+        try { chrome.tabs.onUpdated.removeListener(onUpdatedListener); } catch (_e) {}
+      }
+      onUpdatedListener = null;
+      if (timeoutHandle !== null) {
+        try { clearTimeout(timeoutHandle); } catch (_e) {}
+        timeoutHandle = null;
+      }
+    };
+
+    // Leg 1: chrome.tabs.onUpdated 'complete'.
+    if (typeof chrome !== 'undefined'
+        && chrome.tabs && chrome.tabs.onUpdated
+        && typeof chrome.tabs.onUpdated.addListener === 'function') {
+      onUpdatedListener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo && changeInfo.status === 'complete') {
+          finish({ method: 'onUpdated', persisted: null });
+        }
+      };
+      try { chrome.tabs.onUpdated.addListener(onUpdatedListener); } catch (_e) { onUpdatedListener = null; }
+    }
+
+    // Leg 2: pageshow via injected one-shot listener.
+    if (typeof chrome !== 'undefined' && chrome.scripting
+        && typeof chrome.scripting.executeScript === 'function') {
+      // Inner timeout deliberately above the outer budget so the outer
+      // Promise.race's timeout leg always resolves first when no pageshow.
+      const innerTimeoutMs = Math.max(timeoutMs + 500, 2500);
+      const inject = async () => {
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: (innerTimeout) => new Promise((res) => {
+              const handler = (event) => {
+                window.removeEventListener('pageshow', handler);
+                res({ method: 'pageshow', persisted: !!event.persisted });
+              };
+              window.addEventListener('pageshow', handler, { once: true });
+              setTimeout(() => {
+                try { window.removeEventListener('pageshow', handler); } catch (_e) {}
+                res({ method: 'pageshow', persisted: null, timeout: true });
+              }, innerTimeout);
+            }),
+            args: [innerTimeoutMs]
+          });
+          if (Array.isArray(results) && results.length > 0) {
+            const inner = results[0] && results[0].result;
+            if (inner && inner.method === 'pageshow' && inner.timeout !== true) {
+              finish({ method: 'pageshow', persisted: !!inner.persisted });
+            }
+          }
+        } catch (_e) {
+          // Intentional swallow per RESEARCH line 350-356: chrome:// pages
+          // and other restricted contexts cannot host injection. Let the
+          // other legs decide the outcome.
+        }
+      };
+      inject();
+    }
+
+    // Leg 3: hard timeout.
+    timeoutHandle = setTimeout(() => {
+      finish({ method: 'timeout', persisted: null });
+    }, Math.max(0, timeoutMs));
+  });
+}
+
+/**
+ * Map pre/post URL components + settle outcome to the canonical 5-status
+ * discriminator. Mirrors RESEARCH lines 376-396 with the Pitfall-1 SPA
+ * carve-out (timeout + URL changed + same origin -> 'ok', not 'bf_cache').
+ *
+ * Resolution order (first match wins):
+ *   1. preUrl === postUrl                        -> 'ok' (defensive; SPA replaceState).
+ *   2. same origin + same pathname + same search + different hash -> 'fragment_only'.
+ *   3. preOrigin && postOrigin && preOrigin !== postOrigin -> 'cross_origin'.
+ *   4. settled.method === 'pageshow' && settled.persisted === true -> 'bf_cache'.
+ *   5. settled.method === 'timeout' && postUrl === preUrl -> 'bf_cache'.
+ *   6. default                                            -> 'ok'.
+ *
+ * Note: case (1) returns 'ok' rather than a no-op marker because callers
+ * upstream (Phase 240 gate + handleBackRoute) treat 'ok' as the success
+ * baseline; SPA replaceState scenarios where the URL is identical are
+ * indistinguishable from idempotent back without observable state change,
+ * so 'ok' is the truthful classification.
+ *
+ * @param {object} args
+ * @param {string} args.preUrl    URL from chrome.tabs.get BEFORE goBack.
+ * @param {string} args.postUrl   URL from chrome.tabs.get AFTER settle.
+ * @param {string} args.preOrigin URL.origin parsed from preUrl, or '' on parse failure.
+ * @param {string} args.postOrigin URL.origin parsed from postUrl, or '' on parse failure.
+ * @param {{method:string,persisted:boolean|null}} args.settled  waitForBackSettle output.
+ * @returns {'ok'|'cross_origin'|'bf_cache'|'fragment_only'}
+ */
+function classifyBackOutcome({ preUrl, postUrl, preOrigin, postOrigin, settled }) {
+  if (preUrl === postUrl) {
+    // Defensive: SPA replaceState back may not change observable URL.
+    return 'ok';
+  }
+
+  // Fragment-only: same origin + same pathname + same search, different hash.
+  let prePath = '', preSearch = '', preHash = '';
+  let postPath = '', postSearch = '', postHash = '';
+  try { const u = new URL(preUrl); prePath = u.pathname; preSearch = u.search; preHash = u.hash; } catch (_e) {}
+  try { const u = new URL(postUrl); postPath = u.pathname; postSearch = u.search; postHash = u.hash; } catch (_e) {}
+  if (preOrigin && postOrigin && preOrigin === postOrigin
+      && prePath === postPath && preSearch === postSearch && preHash !== postHash) {
+    return 'fragment_only';
+  }
+
+  if (preOrigin && postOrigin && preOrigin !== postOrigin) {
+    return 'cross_origin';
+  }
+
+  if (settled && settled.method === 'pageshow' && settled.persisted === true) {
+    return 'bf_cache';
+  }
+
+  // Pitfall-1: timeout with URL change is the SPA case -- classify as 'ok'.
+  // Only timeout WITHOUT URL change is treated as bf_cache.
+  if (settled && settled.method === 'timeout' && postUrl === preUrl) {
+    return 'bf_cache';
+  }
+
+  return 'ok';
+}
+
+/**
+ * Phase 242 BACK-02..BACK-05: handle the 'mcp:go-back' bridge message.
+ *
+ * Flow (synchronous up to first await; D-07 gate discipline):
+ *   1. Defensive ownership gate (since dispatchMcpMessageRoute does NOT
+ *      inline-gate message routes today; the inline gate lives only in
+ *      dispatchMcpToolRoute at line 194). Cross-agent calls reject here
+ *      with TAB_NOT_OWNED + ownerAgentId before any chrome API touches.
+ *   2. Resolve targetTabId (payload.tabId or active tab).
+ *   3. Capture pre-back URL via chrome.tabs.get.
+ *   4. history.length precheck via chrome.scripting.executeScript. On
+ *      depth <= 1 OR injection failure (chrome:// etc.), return
+ *      { status: 'no_history', resultingUrl: preUrl, historyDepth }
+ *      WITHOUT calling chrome.tabs.goBack.
+ *   5. chrome.tabs.goBack -- background-tab safe (no chrome.tabs.update).
+ *   6. waitForBackSettle race (pageshow / onUpdated complete / 2s timeout).
+ *   7. chrome.tabs.get post-back. If tab closed mid-flight, return
+ *      { errorCode: 'tab_closed_during_back' } (Pitfall 5).
+ *   8. classifyBackOutcome -> 5-code status.
+ *   9. bindTab parity (D-08 mirrors handleNavigationHistoryRoute lines
+ *      431-443 exactly) so cross-origin back refreshes the
+ *      (agentId, tabId, ownershipToken) triple.
+ *
+ * @param {object} args
+ * @param {string} args.type     'mcp:go-back'.
+ * @param {object} args.payload  Bridge envelope payload (agentId, ownershipToken, tabId?).
+ * @param {object} [args.client] Optional bridge client (active-tab resolver).
+ * @returns {Promise<object>}    Either { success:true, status, resultingUrl, historyDepth, tabId, ownershipToken? }
+ *                               or a Phase 240 reject {success:false, code:'TAB_NOT_OWNED', ...}
+ *                               or createMcpRouteError-shaped error.
+ */
+async function handleBackRoute({ payload = {}, client = null }) {
+  // 1. Defensive ownership gate (mirror dispatchMcpToolRoute line 194).
+  // dispatchMcpMessageRoute does not inline-gate today; this defensive call
+  // ensures cross-agent calls reject before any side effect.
+  const gateResult = checkOwnershipGate({ tool: 'back', params: {}, payload });
+  if (gateResult) return gateResult;
+
+  const agentId = (payload && payload.agentId) || null;
+
+  // 2. Resolve targetTabId.
+  let targetTabId = (payload && Number.isFinite(payload.tabId)) ? payload.tabId : null;
+  try {
+    getChromeTabsApi();
+  } catch (error) {
+    return createMcpRouteError('back', 'browser', MCP_ROUTE_RECOVERY_HINT, {
+      errorCode: 'navigation_unavailable',
+      error: error.message || String(error)
+    });
+  }
+
+  if (targetTabId === null) {
+    let activeTab = null;
+    try {
+      activeTab = await getActiveTabFromClient(client);
+    } catch (_e) {
+      activeTab = null;
+    }
+    if (!activeTab || !Number.isFinite(activeTab.id)) {
+      return createMcpRouteError('back', 'browser', 'Use list_tabs or open_tab to find a navigable tab before retrying.', {
+        errorCode: 'no_active_tab',
+        error: 'No active tab available for back navigation'
+      });
+    }
+    targetTabId = activeTab.id;
+  }
+
+  // 3. Capture pre-back state.
+  let preTab = null;
+  try {
+    preTab = await chrome.tabs.get(targetTabId);
+  } catch (error) {
+    return createMcpRouteError('back', 'browser', MCP_ROUTE_RECOVERY_HINT, {
+      errorCode: 'tab_unavailable',
+      tabId: targetTabId,
+      error: error.message || String(error)
+    });
+  }
+  const preUrl = (preTab && typeof preTab.url === 'string') ? preTab.url : '';
+  let preOrigin = '';
+  try { preOrigin = new URL(preUrl).origin; } catch (_e) { preOrigin = ''; }
+
+  // 4. history.length precheck (BACK-02). Failure modes (chrome://, no
+  // permission, tab in restricted context) all collapse to 'no_history'
+  // fail-closed: never call goBack on an unverifiable history length.
+  let historyDepth = 0;
+  let prechecked = false;
+  try {
+    if (chrome && chrome.scripting && typeof chrome.scripting.executeScript === 'function') {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: targetTabId },
+        func: () => window.history.length
+      });
+      if (Array.isArray(results) && results.length > 0) {
+        const raw = results[0] && results[0].result;
+        if (Number.isFinite(raw)) {
+          historyDepth = raw;
+          prechecked = true;
+        }
+      }
+    }
+  } catch (_e) {
+    // Restricted contexts (chrome://, devtools, etc.) -- fall through to
+    // the no_history fail-closed branch below.
+    prechecked = false;
+  }
+  if (!prechecked || historyDepth <= 1) {
+    return {
+      success: true,
+      status: 'no_history',
+      resultingUrl: preUrl,
+      historyDepth: prechecked ? historyDepth : 1,
+      tabId: targetTabId,
+      tool: 'back'
+    };
+  }
+
+  // 5. Fire goBack. NEVER call the focus-stealing tabs update API here
+  //    (D-08 background-tab posture; verification gate excludes the literal
+  //    method call from this handler body).
+  try {
+    await chrome.tabs.goBack(targetTabId);
+  } catch (error) {
+    return {
+      success: false,
+      errorCode: 'navigation_unavailable',
+      tool: 'back',
+      tabId: targetTabId,
+      error: error.message || String(error)
+    };
+  }
+
+  // 6. Settle race (BACK-04).
+  const settled = await waitForBackSettle(targetTabId, 2000);
+
+  // 7. Read post-back state.
+  let postTab = null;
+  try {
+    postTab = await chrome.tabs.get(targetTabId);
+  } catch (error) {
+    return {
+      success: false,
+      errorCode: 'tab_closed_during_back',
+      tool: 'back',
+      tabId: targetTabId,
+      error: error.message || String(error)
+    };
+  }
+  const postUrl = (postTab && typeof postTab.url === 'string') ? postTab.url : '';
+  let postOrigin = '';
+  try { postOrigin = new URL(postUrl).origin; } catch (_e) { postOrigin = ''; }
+
+  // 8. Classify (BACK-03).
+  const status = classifyBackOutcome({ preUrl, postUrl, preOrigin, postOrigin, settled });
+
+  // 9. bindTab parity (D-08): mirror handleNavigationHistoryRoute exactly so
+  // cross-origin back refreshes the (agentId, tabId, ownershipToken) triple.
+  let bindResult = null;
+  if (agentId
+      && typeof globalThis !== 'undefined'
+      && globalThis.fsbAgentRegistryInstance
+      && typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function'
+      && Number.isFinite(targetTabId)) {
+    try {
+      bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, targetTabId);
+    } catch (_e) {
+      bindResult = null;
+    }
+  }
+
+  const response = {
+    success: true,
+    status,
+    resultingUrl: postUrl,
+    historyDepth,
+    tabId: targetTabId,
+    tool: 'back'
+  };
+  if (bindResult && bindResult.ownershipToken) {
+    response.ownershipToken = bindResult.ownershipToken;
+  }
+  return response;
 }
 
 async function handleOpenTabRoute({ params }) {
