@@ -1398,7 +1398,14 @@ async function runAgentIteration(sessionId, options) {
   if (!session) {
     console.warn('[agent-loop] runAgentIteration: session not found for sessionId=' + sessionId + '. Sending blind automationComplete.');
     try {
-      chrome.runtime.sendMessage({
+      // Phase 239 WR-01 -- route guard terminal events through the lifecycle
+      // bus helper so the in-SW MCP bridge client (mcp-bridge-client.js) sees
+      // them. Raw chrome.runtime.sendMessage does NOT loop back to listeners
+      // in the same SW context, so the bridge client would only resolve via
+      // the 600s safety net. The helper handles BOTH cross-context
+      // sendMessage AND in-SW bus dispatch (background.js:2061).
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      var msg = {
         action: 'automationComplete',
         sessionId: sessionId,
         conversationId: null,
@@ -1421,14 +1428,26 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: null
-      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_found)', { sessionId: sessionId, error: err && err.message }); });
+      };
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        var p = fsbBroadcastAutomationLifecycle(msg);
+        if (p && typeof p.catch === 'function') {
+          p.catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_found)', { sessionId: sessionId, error: err && err.message }); });
+        }
+      } else {
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- guard terminal exit not broadcast (session_not_found)', { sessionId: sessionId });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
   if (session.status !== 'running') {
     console.warn('[agent-loop] runAgentIteration: session status is "' + session.status + '" (not running) for sessionId=' + sessionId + '. Sending blind automationComplete.');
     try {
-      chrome.runtime.sendMessage({
+      // Phase 239 WR-01 -- route guard terminal events through the lifecycle
+      // bus helper so the in-SW MCP bridge client receives them. See
+      // session_not_found branch above for rationale.
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      var msg = {
         action: 'automationComplete',
         sessionId: sessionId,
         conversationId: session.conversationId || null,
@@ -1451,7 +1470,15 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: session.task || null
-      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_running)', { sessionId: sessionId, error: err && err.message }); });
+      };
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        var p = fsbBroadcastAutomationLifecycle(msg);
+        if (p && typeof p.catch === 'function') {
+          p.catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_running)', { sessionId: sessionId, error: err && err.message }); });
+        }
+      } else {
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- guard terminal exit not broadcast (session_not_running)', { sessionId: sessionId });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
