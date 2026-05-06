@@ -592,6 +592,20 @@ function waitForBackSettle(tabId, timeoutMs) {
  * indistinguishable from idempotent back without observable state change,
  * so 'ok' is the truthful classification.
  *
+ * WR-02 best-effort caveat: the 'bf_cache' discriminator is only as
+ * accurate as the pageshow leg of waitForBackSettle. That leg injects
+ * its listener via chrome.scripting.executeScript AFTER chrome.tabs.goBack
+ * has already fired (handleBackRoute step 5 -> step 6), so a same-origin
+ * BF-cache restoration whose pageshow event fires before the listener
+ * lands will fall through to the 'ok' default branch instead of being
+ * classified as 'bf_cache'. Callers relying on 'bf_cache' for snapshot
+ * invalidation should treat 'ok' as best-effort and may occasionally
+ * shadow a missed BF-cache event.
+ *
+ * Note: 'no_history' is decided upstream by handleBackRoute's
+ * history.length precheck (step 4); this helper only classifies the
+ * post-goBack settle outcome.
+ *
  * @param {object} args
  * @param {string} args.preUrl    URL from chrome.tabs.get BEFORE goBack.
  * @param {string} args.postUrl   URL from chrome.tabs.get AFTER settle.
