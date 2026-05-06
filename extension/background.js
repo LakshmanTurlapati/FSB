@@ -6834,6 +6834,26 @@ async function handleStopAutomation(request, sender, sendResponse) {
     await cleanupSession(sessionId); // Await to ensure full cleanup before responding
 
     automationLogger.info('Session stopped and removed', { sessionId });
+
+    // Phase 239 plan 01 -- emit lifecycle event so any in-flight run_task MCP
+    // call resolves immediately on user stop (CONTEXT.md D-08 cleanup path 5;
+    // RESEARCH.md Open Question 4: dispatch BEFORE sendResponse so the bridge
+    // client subscription receives the bus event before stop_task's response
+    // travels back to the MCP server).
+    try {
+      fsbBroadcastAutomationLifecycle({
+        action: 'automationComplete',
+        sessionId: sessionId,
+        outcome: 'stopped',
+        reason: 'user_stopped',
+        stopped: true,
+        timestamp: Date.now()
+      });
+    } catch (busErr) {
+      console.warn('[FSB] handleStopAutomation lifecycle dispatch failed', busErr && busErr.message);
+      // never block sendResponse on bus failure
+    }
+
     sendResponse({
       success: true,
       message: 'Automation stopped'
