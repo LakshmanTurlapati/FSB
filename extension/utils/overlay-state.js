@@ -328,6 +328,41 @@
     };
   }
 
+  // Phase 243 plan 03 (UI-01): canonical short-prefix display for agent_<uuid>.
+  // Lazily resolves to the agent-registry SSOT. The Node test harness requires
+  // agent-registry.js directly; in the SW (importScripts), agent-registry.js is
+  // loaded BEFORE overlay-state.js (background.js:11 vs :21) so the global is
+  // available. Falling back to null preserves the "agentIdShort absent" shape
+  // promised by the field contract -- callers MUST NOT slice IDs locally.
+  function _resolveFormatAgentIdForDisplay() {
+    if (typeof globalThis !== 'undefined' && globalThis.FsbAgentRegistry
+        && typeof globalThis.FsbAgentRegistry.formatAgentIdForDisplay === 'function') {
+      return globalThis.FsbAgentRegistry.formatAgentIdForDisplay;
+    }
+    if (typeof require === 'function') {
+      try {
+        var mod = require('./agent-registry.js');
+        if (mod && typeof mod.formatAgentIdForDisplay === 'function') {
+          return mod.formatAgentIdForDisplay;
+        }
+      } catch (_e) {
+        // node test harness without the module path -- fall through
+      }
+    }
+    return null;
+  }
+
+  function _agentIdShort(statusData, session) {
+    var agentId = (statusData && typeof statusData.agentId === 'string' && statusData.agentId)
+      || (session && typeof session.agentId === 'string' && session.agentId)
+      || null;
+    if (!agentId) return null;
+    var formatter = _resolveFormatAgentIdForDisplay();
+    if (typeof formatter !== 'function') return null;
+    var short = formatter(agentId);
+    return short || null;
+  }
+
   function buildOverlayState(statusData, session) {
     var normalizedPhase = normalizeOverlayPhase(statusData && statusData.phase);
     var lifecycle = getOverlayLifecycle(statusData || {}, normalizedPhase);
@@ -335,11 +370,17 @@
     var sessionToken = statusData && statusData.sessionToken ? String(statusData.sessionToken) : null;
     var version = Number.isFinite(statusData && statusData.version) ? Number(statusData.version) : null;
     var clientLabel = statusData && statusData.clientLabel ? String(statusData.clientLabel) : null;
+    // Phase 243 plan 03 (UI-01): thread short agent id alongside clientLabel.
+    // Sourced via formatAgentIdForDisplay (agent-registry.js:184) -- never sliced
+    // locally. agentIdShort is a SEPARATE field (not concatenated upstream) so
+    // the dashboard mirror (D-04) keeps composition flexibility.
+    var agentIdShort = _agentIdShort(statusData, session);
 
     return {
       ...(sessionToken ? { sessionToken: sessionToken } : {}),
       ...(version !== null ? { version: version } : {}),
       ...(clientLabel ? { clientLabel: clientLabel } : {}),
+      ...(agentIdShort ? { agentIdShort: agentIdShort } : {}),
       lifecycle: lifecycle,
       result: result,
       phase: lifecycle === 'cleared' ? 'cleared' : normalizedPhase,

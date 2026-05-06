@@ -694,12 +694,22 @@
         : (overlayState.phase || 'Working');
       var display = overlayState.display || {};
       var progress = overlayState.progress || { mode: 'indeterminate', label: phaseLabel };
+      // Phase 243 plan 03 (UI-01): badge displays "<clientLabel> / <agentIdShort>"
+      // when both are present (just clientLabel if only that; just agentIdShort if
+      // only that; hidden if neither). agentIdShort is produced upstream in
+      // overlay-state.js via formatAgentIdForDisplay (agent-registry.js:184) --
+      // never sliced locally. The combine logic is extracted into the pure
+      // FSBBadgeCombine helper so the rule is unit-testable without a DOM.
       var clientLabel = overlayState.clientLabel ? String(overlayState.clientLabel).trim() : '';
+      var agentIdShort = overlayState.agentIdShort ? String(overlayState.agentIdShort).trim() : '';
+      var combined = (window.FSBBadgeCombine && typeof window.FSBBadgeCombine.combineBadgeText === 'function')
+        ? window.FSBBadgeCombine.combineBadgeText(clientLabel, agentIdShort)
+        : (clientLabel && agentIdShort ? clientLabel + ' / ' + agentIdShort : (clientLabel || agentIdShort));
       var clientBadgeEl = this.container.querySelector('.fsb-client-badge');
 
       if (clientBadgeEl) {
-        clientBadgeEl.textContent = clientLabel;
-        clientBadgeEl.style.display = clientLabel ? 'inline-flex' : 'none';
+        clientBadgeEl.textContent = combined;
+        clientBadgeEl.style.display = combined ? 'inline-flex' : 'none';
       }
 
       // Phase 229-02 (OVERLAY-05): suppress generic 'thinking-class' phase

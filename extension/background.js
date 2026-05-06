@@ -9,6 +9,10 @@ importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('utils/mcp-visual-session.js');
 try { importScripts('utils/agent-registry.js'); } catch (e) { console.error('[FSB] Failed to load agent-registry.js:', e.message); }
+// Phase 243 plan 02 (BG-04): user-initiated nav emission helper. Pure
+// module; no chrome.* dependency. The webNavigation.onCommitted listener
+// at this file's line ~2464 calls FsbAgentNavEmission._maybeEmitUserNavigation.
+try { importScripts('utils/agent-nav-emission.js'); } catch (e) { console.error('[FSB] Failed to load agent-nav-emission.js:', e.message); }
 try { importScripts('utils/mcp-task-store.js'); } catch (e) { console.error('[FSB] Failed to load mcp-task-store.js:', e.message); }
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
 importScripts('utils/automation-logger.js');
@@ -217,6 +221,7 @@ const CONTENT_SCRIPT_FILES = [
   'content/utils.js',
   'content/dom-state.js',
   'content/selectors.js',
+  'content/badge-combine.js',
   'content/visual-feedback.js',
   'content/accessibility.js',
   'content/actions.js',
@@ -2478,6 +2483,25 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     try { portInfo.port.disconnect(); } catch (e) {}
     contentScriptPorts.delete(tabId);
   }
+
+  // Phase 243 plan 02 (BG-04 / D-03): emit a LOG-04
+  // 'agent-tab-user-navigation' diagnostic when the user (typed,
+  // auto_bookmark, reload, link) navigates an agent-owned tab. The
+  // helper applies frameId / transitionType / legacy:* / 500ms-stamp
+  // suppression filters internally and is a no-op when any precondition
+  // fails. EMISSION-only: no session.status mutation, no pause/resume
+  // primitive (CONTEXT specifics line 67-68).
+  try {
+    if (typeof FsbAgentNavEmission !== 'undefined'
+        && FsbAgentNavEmission
+        && typeof FsbAgentNavEmission._maybeEmitUserNavigation === 'function') {
+      FsbAgentNavEmission._maybeEmitUserNavigation(
+        details,
+        globalThis.fsbAgentRegistryInstance,
+        Date.now()
+      );
+    }
+  } catch (_e) { /* swallow -- diagnostic is best-effort */ }
 
   automationLogger.logComm(null, 'nav', 'state_cleared', true, {
     tabId,
