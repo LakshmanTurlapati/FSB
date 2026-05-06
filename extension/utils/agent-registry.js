@@ -46,8 +46,9 @@
   // Phase 241 plan 01: cap + grace constants ---------------------------------
   // D-05: cap is persisted in chrome.storage.local under fsbAgentCap so it
   // survives SW restart. NOT chrome.storage.session (which is wiped on wake).
-  // D-07: 10s grace. chrome.alarms minimum is 30s, so we MUST use setTimeout
-  // for the staged release; hydrate-time recovery covers SW eviction.
+  // D-07: 10s grace. The Chrome alarms API minimum delay is 30s (Chrome 120+),
+  // so we MUST use setTimeout for the staged release; hydrate-time recovery
+  // covers SW eviction.
   var FSB_AGENT_CAP_STORAGE_KEY = 'fsbAgentCap';
   var FSB_AGENT_CAP_DEFAULT = 8;
   var FSB_AGENT_CAP_MIN = 1;
@@ -598,6 +599,148 @@
   };
 
   /**
+   * Phase 241 D-08: Stage a deferred release for ALL agents currently stamped
+   * with the given connectionId. Uses setTimeout (the Chrome alarms API
+   * minimum is 30s, below the 10s default grace window). Persists the deadline +
+   * agentIds snapshot to chrome.storage.session under the registry envelope's
+   * stagedReleases sibling block, so SW eviction during the grace window does
+   * not strand agents -- hydrate-time recovery (Pitfall 1) re-fires or
+   * reschedules based on the persisted deadline.
+   *
+   * The agentIds snapshot is captured AT STAGE TIME (Q2 resolution): a fresh
+   * agent claimed under a different connection_id between stage and expiry is
+   * NOT swept up by an older grace timer.
+   *
+   * Returns true if at least one matching agent was found and a timer
+   * scheduled; false on unknown / empty match.
+   *
+   * @param {string} connectionId
+   * @param {number} [graceMs] -- defaults to RECONNECT_GRACE_MS (10s)
+   * @returns Promise<boolean>
+   */
+  AgentRegistry.prototype.stageReleaseByConnectionId = function(connectionId, graceMs) {
+    var self = this;
+    return withRegistryLock(async function() {
+      if (typeof connectionId !== 'string' || !connectionId) return false;
+      var ms = (typeof graceMs === 'number' && Number.isFinite(graceMs) && graceMs > 0)
+        ? graceMs
+        : RECONNECT_GRACE_MS;
+      var agentIds = [];
+      self._agents.forEach(function(record, agentId) {
+        if (record && record.connectionId === connectionId) agentIds.push(agentId);
+      });
+      if (agentIds.length === 0) return false;
+      var deadline = Date.now() + ms;
+      var timeoutId = setTimeout(function() {
+        self._fireStagedRelease(connectionId).catch(function() { /* best-effort */ });
+      }, ms);
+      // setTimeout returns a Timer object in Node (with unref) and a number in
+      // browsers. unref keeps long-grace test harnesses from hanging the
+      // process when the test cancels but Node still sees a pending timer.
+      if (timeoutId && typeof timeoutId.unref === 'function') {
+        try { timeoutId.unref(); } catch (_e) { /* swallow */ }
+      }
+      self._stagedReleases.set(connectionId, {
+        deadline: deadline,
+        timeoutId: timeoutId,
+        agentIds: agentIds.slice()
+      });
+      await self._persist();
+      return true;
+    });
+  };
+
+  /**
+   * Phase 241 D-08: Cancel a staged release. Called from the bridge's onopen
+   * when the same connectionId reconnects within the grace window. Clears
+   * the in-memory timer and persisted entry. Idempotent: returns false if no
+   * staged entry exists for this connectionId.
+   *
+   * @param {string} connectionId
+   * @returns Promise<boolean>
+   */
+  AgentRegistry.prototype.cancelStagedRelease = function(connectionId) {
+    var self = this;
+    return withRegistryLock(async function() {
+      if (typeof connectionId !== 'string') return false;
+      var staged = self._stagedReleases.get(connectionId);
+      if (!staged) return false;
+      if (staged.timeoutId) {
+        try { clearTimeout(staged.timeoutId); } catch (_e) { /* swallow */ }
+      }
+      self._stagedReleases.delete(connectionId);
+      await self._persist();
+      return true;
+    });
+  };
+
+  /**
+   * Phase 241 D-09: Fire a staged release. Called by setTimeout at expiry AND
+   * by hydrate-time recovery when a persisted deadline has already passed.
+   *
+   * CRITICAL: Inlines the releaseAgent steps (clears _tabOwners, _tabMetadata,
+   * _tabsByAgent, _agents). Does NOT call releaseAgent -- that would re-enter
+   * withRegistryLock and deadlock the promise chain (RESEARCH Pattern 4 anti-
+   * pattern).
+   *
+   * Pitfall 3: snapshot agentIds may include records that are no longer
+   * present (e.g., explicitly released between stage and expiry, or never
+   * rehydrated after SW eviction); skip those silently. Also defensive
+   * against an agent whose connectionId was re-stamped under a fresh bridge
+   * connection -- only releases agents whose CURRENT connectionId still
+   * matches.
+   *
+   * Emits one rate-limited LOG-04 'agent-grace-expired' per released agent.
+   *
+   * @param {string} connectionId
+   * @returns Promise<boolean>
+   */
+  AgentRegistry.prototype._fireStagedRelease = function(connectionId) {
+    var self = this;
+    return withRegistryLock(async function() {
+      var staged = self._stagedReleases.get(connectionId);
+      if (!staged) return false;
+      var agentIds = Array.isArray(staged.agentIds) ? staged.agentIds : [];
+      var releasedAny = false;
+      agentIds.forEach(function(agentId) {
+        var record = self._agents.get(agentId);
+        // Pitfall 3: skip agents already gone, or agents whose connectionId
+        // has been re-stamped (a fresh bridge took over before the timer
+        // fired). The current-connection-id filter is the safety net.
+        if (!record) return;
+        if (record.connectionId !== connectionId) return;
+        var ownedTabs = self._tabsByAgent.get(agentId);
+        var poolSize = ownedTabs ? ownedTabs.size : 0;
+        if (ownedTabs) {
+          ownedTabs.forEach(function(tabId) {
+            if (self._tabOwners.get(tabId) === agentId) {
+              self._tabOwners.delete(tabId);
+              self._tabMetadata.delete(tabId);
+            }
+          });
+        }
+        self._tabsByAgent.delete(agentId);
+        self._agents.delete(agentId);
+        releasedAny = true;
+        // D-09: one LOG-04 event per released agent in the connection.
+        try {
+          if (typeof globalThis !== 'undefined' && typeof globalThis.rateLimitedWarn === 'function') {
+            globalThis.rateLimitedWarn(
+              FSB_AGENT_LOG_PREFIX,
+              FSB_AGENT_GRACE_EXPIRED_CATEGORY,
+              'agent grace expired',
+              { agentId: agentId, connectionId: connectionId, poolSize: poolSize }
+            );
+          }
+        } catch (_e) { /* swallow */ }
+      });
+      self._stagedReleases.delete(connectionId);
+      await self._persist();
+      return releasedAny;
+    });
+  };
+
+  /**
    * Phase 241 D-05: Synchronous read of the cached cap value (the in-memory
    * mirror of chrome.storage.local fsbAgentCap). Defense-in-depth: also
    * applies _clampCap on the read path so a poisoned cache (e.g., from a
@@ -853,6 +996,11 @@
         });
       });
 
+      // Phase 241 Pitfall 1 -- recover staged releases before any early return
+      // from the chrome.tabs unavailability paths below. Recovery does not
+      // require chrome.tabs.query.
+      self._recoverStagedReleasesFromPayload(payload);
+
       // Step 2: query live tabs. If chrome.tabs.query is unavailable or throws,
       // be conservative: keep everything (do not reap).
       var c = _getChrome();
@@ -914,6 +1062,62 @@
       }
 
       self._hydrated = true;
+    });
+  };
+
+  /**
+   * Phase 241 Pitfall 1: hydrate-time recovery for staged releases.
+   *
+   * setTimeout dies on SW eviction; the Chrome alarms API cannot fill the
+   * gap (30s floor vs 10s default grace). The persisted stagedReleases envelope is
+   * the recovery mechanism: at hydrate time, scan the block and either fire
+   * immediately (deadline passed during eviction) or schedule a fresh
+   * setTimeout for the remaining time. The persisted timeoutId is
+   * intentionally NOT carried across (Q2); a fresh DOM timer is always
+   * allocated post-wake.
+   *
+   * Called from inside hydrate's withRegistryLock turn. Cannot call
+   * _fireStagedRelease synchronously here -- it re-enters the same lock and
+   * deadlocks the promise chain. The "deadline passed" branch defers the
+   * fire to a 0ms setTimeout so it runs AFTER the hydrate lock releases.
+   */
+  AgentRegistry.prototype._recoverStagedReleasesFromPayload = function(payload) {
+    var self = this;
+    var persistedStaged = (payload && payload.stagedReleases && typeof payload.stagedReleases === 'object')
+      ? payload.stagedReleases : {};
+    var nowMs = Date.now();
+    Object.keys(persistedStaged).forEach(function(connId) {
+      var entry = persistedStaged[connId];
+      if (!entry || typeof entry.deadline !== 'number') return;
+      var snapshot = Array.isArray(entry.agentIds) ? entry.agentIds.slice() : [];
+      if (entry.deadline <= nowMs) {
+        // Re-stored on the in-memory map so the deferred fire can locate it
+        // (the fire path reads deadline + agentIds via this map's entry).
+        self._stagedReleases.set(connId, {
+          deadline: entry.deadline,
+          timeoutId: null,
+          agentIds: snapshot
+        });
+        var t = setTimeout(function() {
+          self._fireStagedRelease(connId).catch(function() { /* best-effort */ });
+        }, 0);
+        if (t && typeof t.unref === 'function') {
+          try { t.unref(); } catch (_e) { /* swallow */ }
+        }
+      } else {
+        var remaining = entry.deadline - nowMs;
+        var timeoutId = setTimeout(function() {
+          self._fireStagedRelease(connId).catch(function() { /* best-effort */ });
+        }, remaining);
+        if (timeoutId && typeof timeoutId.unref === 'function') {
+          try { timeoutId.unref(); } catch (_e) { /* swallow */ }
+        }
+        self._stagedReleases.set(connId, {
+          deadline: entry.deadline,
+          timeoutId: timeoutId,
+          agentIds: snapshot
+        });
+      }
     });
   };
 
@@ -1009,6 +1213,15 @@
     this._tabsByAgent.clear();
     // Phase 240: also clear the per-tab metadata cache.
     this._tabMetadata.clear();
+    // Phase 241: clear staged releases and any pending grace timers.
+    if (this._stagedReleases) {
+      this._stagedReleases.forEach(function(entry) {
+        if (entry && entry.timeoutId) {
+          try { clearTimeout(entry.timeoutId); } catch (_e) { /* swallow */ }
+        }
+      });
+      this._stagedReleases.clear();
+    }
     this._hydrated = false;
   };
 
