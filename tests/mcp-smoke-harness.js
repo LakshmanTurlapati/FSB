@@ -333,6 +333,12 @@ function createToolHarness(options = {}) {
     isConnected: options.connected !== false,
     async sendAndWait(message, sendOptions) {
       bridgeCalls.push({ message, options: sendOptions });
+      // Phase 238 D-13.4: harness mints a deterministic agent_id for the
+      // lazy AgentScope.ensure() round-trip. Every other type continues
+      // through the existing response logic below.
+      if (message && message.type === 'agent:register') {
+        return { success: true, agentId: 'agent_test_smoke', agentIdShort: 'agent_test' };
+      }
       if (typeof options.onSendAndWait === 'function') {
         return options.onSendAndWait(message, sendOptions, bridgeCalls.length - 1);
       }
@@ -385,6 +391,17 @@ function createToolHarness(options = {}) {
   };
 }
 
+/**
+ * Phase 238 helper: construct a fresh AgentScope from the build artefact.
+ * Tests pass this as the 4th arg to register*Tools (D-11) so the harness
+ * mirrors createRuntime's wiring. Each call returns a NEW AgentScope so
+ * test isolation is preserved.
+ */
+async function loadAgentScope() {
+  const module = await loadBuildModule('agent-scope.js');
+  return new module.AgentScope();
+}
+
 async function cleanupResources(resources = {}) {
   const clientHarnesses = resources.clientHarnesses || resources.clients || [];
   for (const harness of clientHarnesses) {
@@ -414,6 +431,7 @@ module.exports = {
   createStorageArea,
   createToolHarness,
   getFreePort,
+  loadAgentScope,
   loadBridgeClass,
   loadBuildModule,
   sleep,
