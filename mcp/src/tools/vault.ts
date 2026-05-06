@@ -23,7 +23,7 @@ export function registerVaultTools(
   agentScope: AgentScope,
 ): void {
   // Phase 238 D-06: scope discipline — vault is signature-parity only;
-  // no agentScope.ensure() injection here per CONTEXT.md.
+  // no agent identity injection here per CONTEXT.md.
   void agentScope;
   // list_credentials -- returns domain + username pairs only (MCP-01)
   // Password field is NEVER present in the response.

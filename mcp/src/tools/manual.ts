@@ -37,8 +37,9 @@ async function execAction(
 
   return queue.enqueue(toolName, async () => {
     try {
+      const agentId = await agentScope.ensure(bridge);
       const result = await bridge.sendAndWait(
-        { type: 'mcp:execute-action', payload: { tool: fsbVerb, params } },
+        { type: 'mcp:execute-action', payload: { tool: fsbVerb, params, agentId } },
         { timeout },
       );
       if (!result?.success) {

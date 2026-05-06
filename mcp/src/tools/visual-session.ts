@@ -55,10 +55,11 @@ export function registerVisualSessionTools(
       }
 
       return queue.enqueue('start_visual_session', async () => {
+        const agentId = await agentScope.ensure(bridge);
         const result = await bridge.sendAndWait(
           {
             type: 'mcp:start-visual-session',
-            payload: { clientLabel, task, detail },
+            payload: { clientLabel, task, detail, agentId },
           },
           { timeout: 10_000 },
         );
@@ -80,10 +81,11 @@ export function registerVisualSessionTools(
       }
 
       return queue.enqueue('end_visual_session', async () => {
+        const agentId = await agentScope.ensure(bridge);
         const result = await bridge.sendAndWait(
           {
             type: 'mcp:end-visual-session',
-            payload: { sessionToken: session_token, reason },
+            payload: { sessionToken: session_token, reason, agentId },
           },
           { timeout: 10_000 },
         );

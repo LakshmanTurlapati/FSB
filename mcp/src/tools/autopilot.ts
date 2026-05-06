@@ -55,8 +55,9 @@ export function registerAutopilotTools(
           });
         };
 
+        const agentId = await agentScope.ensure(bridge);
         const result = await bridge.sendAndWait(
-          { type: 'mcp:start-automation', payload: { task } },
+          { type: 'mcp:start-automation', payload: { task, agentId } },
           { timeout: 300_000, onProgress },
         );
         return mapFSBError(result);
@@ -73,8 +74,9 @@ export function registerAutopilotTools(
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
+      const agentId = await agentScope.ensure(bridge);
       const result = await bridge.sendAndWait(
-        { type: 'mcp:stop-automation', payload: {} },
+        { type: 'mcp:stop-automation', payload: { agentId } },
         { timeout: 10_000 },
       );
       return mapFSBError(result);
@@ -91,8 +93,9 @@ export function registerAutopilotTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('get_task_status', async () => {
+        const agentId = await agentScope.ensure(bridge);
         const result = await bridge.sendAndWait(
-          { type: 'mcp:get-status', payload: {} },
+          { type: 'mcp:get-status', payload: { agentId } },
           { timeout: 5_000 },
         );
         return mapFSBError(result);

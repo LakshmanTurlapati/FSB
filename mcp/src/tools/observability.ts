@@ -19,7 +19,7 @@ export function registerObservabilityTools(
   agentScope: AgentScope,
 ): void {
   // Phase 238 D-06: scope discipline — observability is signature-parity only;
-  // no agentScope.ensure() injection here per CONTEXT.md.
+  // no agent identity injection here per CONTEXT.md.
   void agentScope;
   server.tool(
     'list_sessions',
