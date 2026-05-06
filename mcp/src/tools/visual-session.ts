@@ -61,8 +61,13 @@ export function registerVisualSessionTools(
         const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
           ? agentScope.currentOwnershipToken()
           : null;
+        // Phase 241 D-08: thread connection_id (additive; defensive probe).
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
         const payload: Record<string, unknown> = { clientLabel, task, detail, agentId };
         if (ownershipToken) payload.ownershipToken = ownershipToken;
+        if (connectionId) payload.connectionId = connectionId;
         const result = await bridge.sendAndWait(
           { type: 'mcp:start-visual-session', payload },
           { timeout: 10_000 },
@@ -97,8 +102,13 @@ export function registerVisualSessionTools(
         const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
           ? agentScope.currentOwnershipToken()
           : null;
+        // Phase 241 D-08: thread connection_id (additive; defensive probe).
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
         const payload: Record<string, unknown> = { sessionToken: session_token, reason, agentId };
         if (ownershipToken) payload.ownershipToken = ownershipToken;
+        if (connectionId) payload.connectionId = connectionId;
         const result = await bridge.sendAndWait(
           { type: 'mcp:end-visual-session', payload },
           { timeout: 10_000 },

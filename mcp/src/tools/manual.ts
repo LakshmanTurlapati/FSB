@@ -47,8 +47,16 @@ async function execAction(
       const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
         ? agentScope.currentOwnershipToken()
         : null;
+      // Phase 241 D-08: thread connection_id alongside ownershipToken so the
+      // extension's registry can match agents to the current bridge connect
+      // when staging release on _ws.onclose. Defensive function-presence
+      // probe keeps older AgentScope builds working (additive).
+      const connectionId = (typeof agentScope.currentConnectionId === 'function')
+        ? agentScope.currentConnectionId()
+        : null;
       const payload: Record<string, unknown> = { tool: fsbVerb, params, agentId };
       if (ownershipToken) payload.ownershipToken = ownershipToken;
+      if (connectionId) payload.connectionId = connectionId;
       const result = await bridge.sendAndWait(
         { type: 'mcp:execute-action', payload },
         { timeout },

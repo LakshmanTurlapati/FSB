@@ -112,8 +112,13 @@ export function registerAutopilotTools(
         const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
           ? agentScope.currentOwnershipToken()
           : null;
+        // Phase 241 D-08: thread connection_id (additive; defensive probe).
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
         const startPayload: Record<string, unknown> = { task, agentId };
         if (ownershipToken) startPayload.ownershipToken = ownershipToken;
+        if (connectionId) startPayload.connectionId = connectionId;
         let result: Record<string, unknown>;
         try {
           result = await bridge.sendAndWait(
@@ -205,8 +210,13 @@ export function registerAutopilotTools(
       const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
         ? agentScope.currentOwnershipToken()
         : null;
+      // Phase 241 D-08: thread connection_id (additive; defensive probe).
+      const connectionId = (typeof agentScope.currentConnectionId === 'function')
+        ? agentScope.currentConnectionId()
+        : null;
       const stopPayload: Record<string, unknown> = { agentId };
       if (ownershipToken) stopPayload.ownershipToken = ownershipToken;
+      if (connectionId) stopPayload.connectionId = connectionId;
       const result = await bridge.sendAndWait(
         { type: 'mcp:stop-automation', payload: stopPayload },
         { timeout: 10_000 },

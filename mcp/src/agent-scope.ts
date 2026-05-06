@@ -31,6 +31,15 @@ export class AgentScope {
   // an ownershipToken in the bridge payload without needing an explicit
   // tabId (Plan 03 owns full per-tab routing).
   private lastOwnershipToken: string | null = null;
+  // Phase 241 D-08: per-bridge-connect connection_id captured from the
+  // agent:register response. The extension mints a fresh UUID at every
+  // _ws.onopen, threads it via the dispatcher's handleAgentRegisterRoute
+  // response, and the registry stamps it on the new agent record. Outbound
+  // tool payloads thread this back to the extension so the registry knows
+  // which agents to stage for grace-window release on _ws.onclose.
+  // Single-slot model (one bridge per process for v0.9.60) -- mirrors the
+  // lastOwnershipToken pattern.
+  private connectionId: string | null = null;
 
   /**
    * Returns the per-process agent_id, lazy-minting on first call via the
@@ -80,6 +89,14 @@ export class AgentScope {
         const seedToken = (result as { ownershipToken?: unknown }).ownershipToken;
         if (typeof seedToken === 'string' && seedToken.length > 0) {
           this.lastOwnershipToken = seedToken;
+        }
+        // Phase 241 D-08: capture connection_id from the agent:register
+        // response. Older Phase 240 dispatchers do not include this field
+        // (additive contract); the captureConnectionId helper safely
+        // tolerates null/undefined input.
+        const seedConnectionId = (result as { connectionId?: unknown }).connectionId;
+        if (typeof seedConnectionId === 'string' && seedConnectionId.length > 0) {
+          this.captureConnectionId(seedConnectionId);
         }
         console.error(SCOPE_LOG_PREFIX + ' minted ' + shortLabel);
         return minted;
@@ -137,6 +154,27 @@ export class AgentScope {
   }
 
   /**
+   * Phase 241 D-08: capture the per-bridge-connect connection_id surfaced by
+   * the extension's handleAgentRegisterRoute response. Idempotent on the
+   * same value; null/empty input is silently ignored so callers do not need
+   * to type-narrow at the call site.
+   */
+  captureConnectionId(connectionId: string | null | undefined): void {
+    if (typeof connectionId !== 'string' || connectionId.length === 0) return;
+    this.connectionId = connectionId;
+  }
+
+  /**
+   * Phase 241 D-08: returns the most recently captured connection_id, or
+   * null if no agent:register response has yet supplied one. Tool sites
+   * thread this into their bridge payloads alongside agentId / ownershipToken
+   * so the extension's registry can stage release on bridge onclose.
+   */
+  currentConnectionId(): string | null {
+    return this.connectionId;
+  }
+
+  /**
    * Test-only escape hatch; do NOT call from production code.
    * Clears both the cached id and any in-flight pending mint so a fresh
    * ensure() will round-trip a new agent:register.
@@ -146,5 +184,8 @@ export class AgentScope {
     this.pending = null;
     this.ownershipTokens.clear();
     this.lastOwnershipToken = null;
+    // Phase 241 D-08: connection_id is per-bridge-connect; reset clears it
+    // alongside the rest so a follow-up ensure() captures a fresh one.
+    this.connectionId = null;
   }
 }
