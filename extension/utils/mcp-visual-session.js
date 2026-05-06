@@ -104,6 +104,40 @@
     var existingToken = this._tokenByTabId.get(tabId) || null;
     var replacedSession = existingToken ? (this._sessionsByToken.get(existingToken) || null) : null;
 
+    // Phase 240 D-09 + D-03 + Open Q4 dual-layer rejection.
+    // The dispatcher gate (Plan 02) catches cross-agent on the
+    // start_visual_session tool path; this layer catches the same-tab-
+    // different-agent re-entry case specific to visual sessions, AND the
+    // same-agent resume case (D-03). The legacy displacement code path
+    // below still fires for tabs with NO registry owner, preserving the
+    // v0.9.36 idempotent-startSession contract for unowned tabs.
+    var existingSession = existingToken ? (this._sessionsByToken.get(existingToken) || null) : null;
+    var registryOwner = (typeof globalThis !== 'undefined' &&
+                         globalThis.fsbAgentRegistryInstance &&
+                         typeof globalThis.fsbAgentRegistryInstance.getOwner === 'function')
+      ? globalThis.fsbAgentRegistryInstance.getOwner(tabId) : null;
+
+    if (existingSession && input && typeof input.agentId === 'string' && registryOwner) {
+      if (registryOwner !== input.agentId) {
+        // D-09: cross-agent reject. The existing session is left untouched
+        // (no version bump, no token rotation) so the legitimate owner can
+        // continue operating.
+        return { errorCode: 'tab_owned_by_other_agent', ownerAgentId: registryOwner };
+      }
+      // D-03: same-agent re-entry RESUMES the prior session (NOT
+      // endSession-then-start). Mutate the existing session in place;
+      // preserve sessionToken so getTokenForTab returns the SAME token
+      // (idempotent contract). Caller-supplied task/detail update the
+      // session; lastUpdateAt + version bump happen here.
+      existingSession.task = normalizeText(input && input.task, existingSession.task);
+      existingSession.detail = normalizeText(input && input.detail, existingSession.detail);
+      existingSession.lastUpdateAt = now;
+      existingSession.version = (existingSession.version || 1) + 1;
+      // Re-store (no-op for live reference, but keeps intent explicit).
+      this._sessionsByToken.set(existingToken, existingSession);
+      return { session: cloneSession(existingSession), resumed: true };
+    }
+
     if (existingToken) {
       this._sessionsByToken.delete(existingToken);
     }
