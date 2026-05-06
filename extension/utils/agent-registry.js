@@ -938,10 +938,18 @@
    * this file; consult agent-nav-emission.js for the authoritative number.
    *
    * Idempotent re-stamping: a second call simply moves the timestamp
-   * forward. Auto-creates a metadata bucket when the tab has no entry yet
-   * (the BG-04 false-positive guard cares ONLY about the timestamp; the
-   * full Phase 240 metadata block is populated lazily by bindTab when the
-   * agent claims the tab).
+   * forward.
+   *
+   * Phase 243 WR-04: bound-tab guard. If the tab has no metadata entry yet
+   * (i.e. it has never been bound to an agent), the stamp is SILENTLY
+   * SKIPPED rather than auto-creating a partial metadata bucket. An unbound
+   * tab cannot be the target of an agent-driven navigation in normal flow,
+   * and an auto-created bucket would surface partial metadata
+   * (ownershipToken / incognito / windowId / boundAt all undefined) that
+   * downstream consumers of getTabMetadata could mis-interpret. The
+   * suppression contract is preserved: a tab without a metadata bucket
+   * also has no `lastAgentNavigationAt`, so the BG-04 helper's elapsed
+   * check (now - 0 > 500) cleanly emits as user-initiated.
    *
    * Sync write (no mutex). The persisted envelope is refreshed best-effort
    * via _persist() so SW eviction during the suppression window does not
@@ -969,11 +977,11 @@
   AgentRegistry.prototype.stampAgentNavigation = function(tabId) {
     var id = (typeof tabId === 'number') ? tabId : Number(tabId);
     if (!Number.isFinite(id)) return;
+    // Phase 243 WR-04: bound-tab guard. Stamp only when a metadata bucket
+    // already exists (created by bindTab); silently skip otherwise so we
+    // never surface partial metadata.
     var meta = this._tabMetadata.get(id);
-    if (!meta) {
-      meta = {};
-      this._tabMetadata.set(id, meta);
-    }
+    if (!meta) return;
     meta.lastAgentNavigationAt = Date.now();
     // Best-effort persist; fire-and-forget so the caller stays sync.
     try {

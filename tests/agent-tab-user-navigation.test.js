@@ -36,18 +36,28 @@ const path = require('path');
 const REGISTRY_MODULE_PATH = require.resolve('../extension/utils/agent-registry.js');
 
 // ---------------------------------------------------------------------------
-// Test 1 -- stampAgentNavigation writes lastAgentNavigationAt
+// Test 1 -- stampAgentNavigation writes lastAgentNavigationAt on a BOUND tab
+//
+// Phase 243 WR-04: stampAgentNavigation silently skips unbound tabs (no
+// metadata bucket auto-creation). The test seeds _tabMetadata directly to
+// simulate a prior bindTab without depending on chrome.tabs.get.
 // ---------------------------------------------------------------------------
-console.log('--- Test 1: stampAgentNavigation writes lastAgentNavigationAt ---');
+console.log('--- Test 1: stampAgentNavigation writes lastAgentNavigationAt on a bound tab ---');
 {
   // Fresh require so a clean module cache is used.
   delete require.cache[REGISTRY_MODULE_PATH];
   const { AgentRegistry } = require(REGISTRY_MODULE_PATH);
   const registry = new AgentRegistry();
 
-  // Use bindTab? No -- bindTab requires chrome.tabs.get. Stamp directly on
-  // a tabId; the helper must auto-create the metadata bucket if missing.
+  // Seed metadata bucket directly (mimics bindTab's _tabMetadata.set).
   const tabId = 4242;
+  registry._tabMetadata.set(tabId, {
+    ownershipToken: 'tok_test',
+    incognito: false,
+    windowId: 1,
+    boundAt: Date.now(),
+    forced: false
+  });
   const before = Date.now();
   registry.stampAgentNavigation(tabId);
   const after = Date.now();
@@ -62,6 +72,22 @@ console.log('--- Test 1: stampAgentNavigation writes lastAgentNavigationAt ---')
 console.log('  PASS');
 
 // ---------------------------------------------------------------------------
+// Test 1b -- stampAgentNavigation is a no-op on an UNBOUND tab (WR-04)
+// ---------------------------------------------------------------------------
+console.log('--- Test 1b: stampAgentNavigation skips silently on unbound tab (WR-04) ---');
+{
+  delete require.cache[REGISTRY_MODULE_PATH];
+  const { AgentRegistry } = require(REGISTRY_MODULE_PATH);
+  const registry = new AgentRegistry();
+  const tabId = 9999;
+  registry.stampAgentNavigation(tabId);
+  const meta = registry.getTabMetadata(tabId);
+  assert.strictEqual(meta, null,
+    'unbound tab: no metadata bucket created (WR-04 partial-metadata guard)');
+}
+console.log('  PASS');
+
+// ---------------------------------------------------------------------------
 // Test 2 -- stampAgentNavigation is idempotent across repeated calls
 // ---------------------------------------------------------------------------
 console.log('--- Test 2: stampAgentNavigation is idempotent (re-stamps successfully) ---');
@@ -70,6 +96,14 @@ console.log('--- Test 2: stampAgentNavigation is idempotent (re-stamps successfu
   const { AgentRegistry } = require(REGISTRY_MODULE_PATH);
   const registry = new AgentRegistry();
   const tabId = 7;
+  // WR-04: seed bucket so stamp is not skipped.
+  registry._tabMetadata.set(tabId, {
+    ownershipToken: 'tok_test',
+    incognito: false,
+    windowId: 1,
+    boundAt: Date.now(),
+    forced: false
+  });
   registry.stampAgentNavigation(tabId);
   const first = registry.getTabMetadata(tabId).lastAgentNavigationAt;
   // Spin briefly so Date.now() increments.
