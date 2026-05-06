@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPMessageType } from '../types.js';
+import { AgentScope } from '../agent-scope.js';
 import { mapFSBError } from '../errors.js';
 import { TOOL_REGISTRY, jsonSchemaToZod } from './schema-bridge.js';
 
@@ -84,7 +85,11 @@ export function registerReadOnlyTools(
   server: McpServer,
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
 ): void {
+  // Phase 238 D-06: scope discipline — read-only is signature-parity only;
+  // no agentScope.ensure() injection here per CONTEXT.md.
+  void agentScope;
   const readOnlyTools = TOOL_REGISTRY.filter(t => t._readOnly);
 
   for (const tool of readOnlyTools) {

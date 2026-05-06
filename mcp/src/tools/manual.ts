@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
+import { AgentScope } from '../agent-scope.js';
 import { mapFSBError } from '../errors.js';
 import {
   TOOL_REGISTRY,
@@ -19,6 +20,7 @@ type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?
 async function execAction(
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
   toolName: string,
   fsbVerb: string,
   params: Record<string, unknown>,
@@ -61,6 +63,7 @@ export function registerManualTools(
   server: McpServer,
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
 ): void {
   // Filter to non-read-only tools from canonical registry
   const manualTools = TOOL_REGISTRY.filter((t: ToolDefinition) => !t._readOnly);
@@ -76,7 +79,7 @@ export function registerManualTools(
       zodShape,
       async (params: Record<string, unknown>) => {
         const finalParams = transform ? transform(params) : params;
-        return execAction(bridge, queue, tool.name, fsbVerb, finalParams);
+        return execAction(bridge, queue, agentScope, tool.name, fsbVerb, finalParams);
       },
     );
   }

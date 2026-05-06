@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPResponse } from '../types.js';
+import { AgentScope } from '../agent-scope.js';
 import { mapFSBError } from '../errors.js';
 
 /**
@@ -14,6 +15,7 @@ export function registerAutopilotTools(
   server: McpServer,
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
 ): void {
   // run_task -- execute a natural language automation task
   server.tool(

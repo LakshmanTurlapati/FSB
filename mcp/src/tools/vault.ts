@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
+import { AgentScope } from '../agent-scope.js';
 import { mapFSBError } from '../errors.js';
 
 // Must exceed the extension-side 120_000ms payment confirmation gate.
@@ -19,7 +20,11 @@ export function registerVaultTools(
   server: McpServer,
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
 ): void {
+  // Phase 238 D-06: scope discipline — vault is signature-parity only;
+  // no agentScope.ensure() injection here per CONTEXT.md.
+  void agentScope;
   // list_credentials -- returns domain + username pairs only (MCP-01)
   // Password field is NEVER present in the response.
   server.tool(

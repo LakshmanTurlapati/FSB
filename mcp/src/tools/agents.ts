@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPResponse } from '../types.js';
+import { AgentScope } from '../agent-scope.js';
 import { mapFSBError } from '../errors.js';
 
 /**
@@ -14,7 +15,12 @@ export function registerAgentTools(
   server: McpServer,
   bridge: WebSocketBridge,
   queue: TaskQueue,
+  agentScope: AgentScope,
 ): void {
+  // TODO Phase 242: thread agentScope into the back tool when it lands.
+  // AgentScope is imported and accepted here for runtime DI parity (D-11);
+  // P238 is structurally a no-op for this file per CONTEXT.md D-08.
+  void agentScope;
   // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
   //   // create_agent -- create a new background agent (mutation)
 //   server.tool(

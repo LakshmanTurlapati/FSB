@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createServer } from './server.js';
 import { WebSocketBridge } from './bridge.js';
 import { TaskQueue } from './queue.js';
+import { AgentScope } from './agent-scope.js';
 import { registerAutopilotTools } from './tools/autopilot.js';
 import { registerVisualSessionTools } from './tools/visual-session.js';
 import { registerManualTools } from './tools/manual.js';
@@ -16,27 +17,30 @@ export type FSBRuntime = {
   server: McpServer;
   bridge: WebSocketBridge;
   queue: TaskQueue;
+  agentScope: AgentScope;
 };
 
 type RuntimeOptions = {
   bridge?: WebSocketBridge;
   queue?: TaskQueue;
+  agentScope?: AgentScope;
 };
 
 export function createRuntime(options: RuntimeOptions = {}): FSBRuntime {
   const bridge = options.bridge ?? new WebSocketBridge();
   const queue = options.queue ?? new TaskQueue();
+  const agentScope = options.agentScope ?? new AgentScope();
   const server = createServer();
 
-  registerVisualSessionTools(server, bridge, queue);
-  registerManualTools(server, bridge, queue);
-  registerReadOnlyTools(server, bridge, queue);
-  registerObservabilityTools(server, bridge, queue);
-  registerAgentTools(server, bridge, queue);
-  registerVaultTools(server, bridge, queue);
-  registerAutopilotTools(server, bridge, queue);
+  registerVisualSessionTools(server, bridge, queue, agentScope);
+  registerManualTools(server, bridge, queue, agentScope);
+  registerReadOnlyTools(server, bridge, queue, agentScope);
+  registerObservabilityTools(server, bridge, queue, agentScope);
+  registerAgentTools(server, bridge, queue, agentScope);
+  registerVaultTools(server, bridge, queue, agentScope);
+  registerAutopilotTools(server, bridge, queue, agentScope);
   registerResources(server, bridge);
   registerPrompts(server);
 
-  return { server, bridge, queue };
+  return { server, bridge, queue, agentScope };
 }
