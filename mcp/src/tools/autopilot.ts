@@ -107,10 +107,17 @@ export function registerAutopilotTools(
         };
 
         const agentId = await agentScope.ensure(bridge);
+        // Phase 240: thread ownershipToken alongside agentId so the dispatch
+        // gate (extension-side) can verify the 3-tuple (D-04, D-06, D-07).
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        const startPayload: Record<string, unknown> = { task, agentId };
+        if (ownershipToken) startPayload.ownershipToken = ownershipToken;
         let result: Record<string, unknown>;
         try {
           result = await bridge.sendAndWait(
-            { type: 'mcp:start-automation', payload: { task, agentId } },
+            { type: 'mcp:start-automation', payload: startPayload },
             { timeout: 600_000, onProgress },   // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
           );
         } catch (sendErr) {
@@ -195,8 +202,13 @@ export function registerAutopilotTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       const agentId = await agentScope.ensure(bridge);
+      const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+        ? agentScope.currentOwnershipToken()
+        : null;
+      const stopPayload: Record<string, unknown> = { agentId };
+      if (ownershipToken) stopPayload.ownershipToken = ownershipToken;
       const result = await bridge.sendAndWait(
-        { type: 'mcp:stop-automation', payload: { agentId } },
+        { type: 'mcp:stop-automation', payload: stopPayload },
         { timeout: 10_000 },
       );
       return mapFSBError(result);

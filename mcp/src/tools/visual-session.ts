@@ -56,13 +56,25 @@ export function registerVisualSessionTools(
 
       return queue.enqueue('start_visual_session', async () => {
         const agentId = await agentScope.ensure(bridge);
+        // Phase 240: thread ownershipToken alongside agentId so the dispatch
+        // gate (extension-side) can verify the 3-tuple (D-04, D-06, D-07).
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        const payload: Record<string, unknown> = { clientLabel, task, detail, agentId };
+        if (ownershipToken) payload.ownershipToken = ownershipToken;
         const result = await bridge.sendAndWait(
-          {
-            type: 'mcp:start-visual-session',
-            payload: { clientLabel, task, detail, agentId },
-          },
+          { type: 'mcp:start-visual-session', payload },
           { timeout: 10_000 },
         );
+        if (result
+            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+            && typeof agentScope.captureOwnershipToken === 'function') {
+          agentScope.captureOwnershipToken(
+            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+            (result as { ownershipToken: string }).ownershipToken,
+          );
+        }
         return mapFSBError(result);
       });
     },
@@ -82,11 +94,13 @@ export function registerVisualSessionTools(
 
       return queue.enqueue('end_visual_session', async () => {
         const agentId = await agentScope.ensure(bridge);
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        const payload: Record<string, unknown> = { sessionToken: session_token, reason, agentId };
+        if (ownershipToken) payload.ownershipToken = ownershipToken;
         const result = await bridge.sendAndWait(
-          {
-            type: 'mcp:end-visual-session',
-            payload: { sessionToken: session_token, reason, agentId },
-          },
+          { type: 'mcp:end-visual-session', payload },
           { timeout: 10_000 },
         );
         return mapFSBError(result);

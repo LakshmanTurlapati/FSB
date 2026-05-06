@@ -38,10 +38,31 @@ async function execAction(
   return queue.enqueue(toolName, async () => {
     try {
       const agentId = await agentScope.ensure(bridge);
+      // Phase 240 Open Q1: thread the most recently captured ownershipToken
+      // alongside agentId so the extension's dispatch gate can verify the
+      // 3-tuple (agentId, tabId, ownershipToken). Token is null on the very
+      // first call (no bindTab has resolved yet); the gate accepts null token
+      // for tools without a tabId and for legacy back-compat where the
+      // registry's isOwnedBy(token === undefined) returns true.
+      const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+        ? agentScope.currentOwnershipToken()
+        : null;
+      const payload: Record<string, unknown> = { tool: fsbVerb, params, agentId };
+      if (ownershipToken) payload.ownershipToken = ownershipToken;
       const result = await bridge.sendAndWait(
-        { type: 'mcp:execute-action', payload: { tool: fsbVerb, params, agentId } },
+        { type: 'mcp:execute-action', payload },
         { timeout },
       );
+      // Phase 240 D-08: capture any ownershipToken returned by the handler so
+      // subsequent calls (read-only or otherwise) thread the latest token.
+      if (result
+          && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+          && typeof agentScope.captureOwnershipToken === 'function') {
+        agentScope.captureOwnershipToken(
+          typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+          (result as { ownershipToken: string }).ownershipToken,
+        );
+      }
       if (!result?.success) {
         console.error(`[FSB Manual] ${toolName}: FAILED - ${result?.error || 'unknown error'}`);
       }

@@ -17,6 +17,20 @@ const SCOPE_LOG_PREFIX = '[FSB AgentScope]';
 export class AgentScope {
   private agentId: string | null = null;
   private pending: Promise<string> | null = null;
+  // Phase 240 Open Q1 resolution: ownership tokens are minted per-bindTab on
+  // the extension side. Each bindTab-firing handler returns the freshly
+  // minted token in its response under `ownershipToken`. AgentScope captures
+  // them keyed by tabId via captureOwnershipToken() so subsequent dispatches
+  // for that tab can thread the matching token. The map is also seeded from
+  // agent:register's response.ownershipTokens (empty at register time but
+  // shape-preserved for forward compatibility).
+  private ownershipTokens: Map<number, string> = new Map();
+  // Most recently minted token, regardless of tabId. Phase 240 plan 02 only
+  // wires the smoke-test path which carries a deterministic token; this
+  // single-slot fallback lets manual / visual-session / autopilot include
+  // an ownershipToken in the bridge payload without needing an explicit
+  // tabId (Plan 03 owns full per-tab routing).
+  private lastOwnershipToken: string | null = null;
 
   /**
    * Returns the per-process agent_id, lazy-minting on first call via the
@@ -46,6 +60,27 @@ export class AgentScope {
             ? result.agentIdShort
             : minted.slice(0, 12);
         this.agentId = minted;
+        // Phase 240: agent:register response now carries an `ownershipTokens`
+        // map (empty at register time but shape-preserved). Seed the local
+        // cache so a stale phase-238 server still works (the field is
+        // optional on the response).
+        const tokens = (result as { ownershipTokens?: Record<string, unknown> }).ownershipTokens;
+        if (tokens && typeof tokens === 'object') {
+          for (const [tabKey, tokenValue] of Object.entries(tokens)) {
+            const tabId = Number(tabKey);
+            if (Number.isFinite(tabId) && typeof tokenValue === 'string' && tokenValue.length > 0) {
+              this.ownershipTokens.set(tabId, tokenValue);
+              this.lastOwnershipToken = tokenValue;
+            }
+          }
+        }
+        // Phase 240 smoke harness convention: the mock agent:register may
+        // return a single deterministic ownershipToken alongside the
+        // ownershipTokens map. Capture it for the lastOwnershipToken slot.
+        const seedToken = (result as { ownershipToken?: unknown }).ownershipToken;
+        if (typeof seedToken === 'string' && seedToken.length > 0) {
+          this.lastOwnershipToken = seedToken;
+        }
         console.error(SCOPE_LOG_PREFIX + ' minted ' + shortLabel);
         return minted;
       } catch (err) {
@@ -69,6 +104,39 @@ export class AgentScope {
   }
 
   /**
+   * Phase 240: returns the most recently captured ownership token, or null
+   * if no bindTab-firing handler has resolved yet. Plan 02 wires this slot
+   * from agent:register and bindTab response shapes; Plan 03 will replace
+   * the single-slot model with per-tabId routing.
+   */
+  currentOwnershipToken(): string | null {
+    return this.lastOwnershipToken;
+  }
+
+  /**
+   * Phase 240: capture an ownershipToken for a tab. Called by tool sites
+   * after a bindTab-firing handler returns `ownershipToken` in its success
+   * response. Idempotent on the same (tabId, token) pair.
+   */
+  captureOwnershipToken(tabId: number | null, token: string | null | undefined): void {
+    if (!token || typeof token !== 'string') return;
+    if (Number.isFinite(tabId) && tabId !== null) {
+      this.ownershipTokens.set(tabId as number, token);
+    }
+    this.lastOwnershipToken = token;
+  }
+
+  /**
+   * Phase 240: read the ownership token for a specific tab (null if absent).
+   * Plan 03 will use this to thread tab-specific tokens; Plan 02 falls back
+   * to currentOwnershipToken() in tool sites that do not yet know the tabId.
+   */
+  ownershipTokenFor(tabId: number | null | undefined): string | null {
+    if (!Number.isFinite(tabId as number) || tabId === null || tabId === undefined) return null;
+    return this.ownershipTokens.get(tabId as number) || null;
+  }
+
+  /**
    * Test-only escape hatch; do NOT call from production code.
    * Clears both the cached id and any in-flight pending mint so a fresh
    * ensure() will round-trip a new agent:register.
@@ -76,5 +144,7 @@ export class AgentScope {
   reset(): void {
     this.agentId = null;
     this.pending = null;
+    this.ownershipTokens.clear();
+    this.lastOwnershipToken = null;
   }
 }

@@ -129,8 +129,8 @@ async function run() {
   const navigateCall = await invokeTool(harness, 'navigate', { url: 'https://example.com' });
   assertDeepEqual(
     navigateCall && navigateCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' }, agentId: 'agent_test_smoke' } },
-    'navigate routes through mcp:execute-action with navigate payload (Phase 238 includes agentId)',
+    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'navigate routes through mcp:execute-action with navigate payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const readPageCall = await invokeTool(harness, 'read_page', { full: true });
@@ -164,8 +164,8 @@ async function run() {
   const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });
   assertDeepEqual(
     clickCall && clickCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' }, agentId: 'agent_test_smoke' } },
-    'click routes through mcp:execute-action with click payload (Phase 238 includes agentId)',
+    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'click routes through mcp:execute-action with click payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const startVisualSessionCall = await invokeTool(harness, 'start_visual_session', {
@@ -182,9 +182,10 @@ async function run() {
         task: 'Smoke test the visual lifecycle',
         detail: 'Preparing overlay',
         agentId: 'agent_test_smoke',
+        ownershipToken: 'token_test_smoke',
       },
     },
-    'start_visual_session routes through mcp:start-visual-session with canonical client label (Phase 238 includes agentId)',
+    'start_visual_session routes through mcp:start-visual-session with canonical client label (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const endVisualSessionCall = await invokeTool(harness, 'end_visual_session', {
@@ -195,23 +196,23 @@ async function run() {
     endVisualSessionCall && endVisualSessionCall.message,
     {
       type: 'mcp:end-visual-session',
-      payload: { sessionToken: 'visual_token_123', reason: 'ended', agentId: 'agent_test_smoke' },
+      payload: { sessionToken: 'visual_token_123', reason: 'ended', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' },
     },
-    'end_visual_session routes through mcp:end-visual-session with token payload (Phase 238 includes agentId)',
+    'end_visual_session routes through mcp:end-visual-session with token payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const runTaskCall = await invokeTool(harness, 'run_task', { task: 'Smoke test the browser bridge' }, harness.createExtra({ progressToken: 'smoke-progress' }));
   assertDeepEqual(
     runTaskCall && runTaskCall.message,
-    { type: 'mcp:start-automation', payload: { task: 'Smoke test the browser bridge', agentId: 'agent_test_smoke' } },
-    'run_task routes through mcp:start-automation with task payload (Phase 238 includes agentId)',
+    { type: 'mcp:start-automation', payload: { task: 'Smoke test the browser bridge', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'run_task routes through mcp:start-automation with task payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const stopTaskCall = await invokeTool(harness, 'stop_task');
   assertDeepEqual(
     stopTaskCall && stopTaskCall.message,
-    { type: 'mcp:stop-automation', payload: { agentId: 'agent_test_smoke' } },
-    'stop_task routes through mcp:stop-automation with agentId payload (Phase 238 includes agentId)',
+    { type: 'mcp:stop-automation', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'stop_task routes through mcp:stop-automation with agentId payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const getLogsCall = await invokeTool(harness, 'get_logs', { sessionId: 'smoke-session', count: 10 });

@@ -116,6 +116,69 @@ function getMcpRouteContracts() {
   };
 }
 
+// ---- Phase 240 ownership gate ------------------------------------------
+// D-06: single chokepoint at dispatchMcpToolRoute. D-07: synchronous; no
+// await between gate check and route.handler invocation. The cached
+// metadata on the registry record (Phase 240 plan 01) eliminates the need
+// for any chrome.tabs.get round-trip at dispatch time. Plain-object error
+// pattern matches Phase 238 createMcpRouteError shape.
+
+function _resolveTabIdForGate(tool, params, payload) {
+  const tabIdParam = params && Number.isFinite(params.tabId) ? params.tabId : null;
+  const tabIdPayload = payload && Number.isFinite(payload.tabId) ? payload.tabId : null;
+  if (tabIdParam !== null) return tabIdParam;
+  if (tabIdPayload !== null) return tabIdPayload;
+  // Tools that create a tab or do not target one: gate skips the tabId arm.
+  // (open_tab creates; list_tabs enumerates; navigate without explicit tabId
+  // resolves via getActiveTabFromClient inside the handler -- gate cannot
+  // resolve sync, so the handler's own bindTab call (D-08) is the backstop.)
+  return null;
+}
+
+// Sync reads the gate consumes via the `reg` alias (= globalThis.fsbAgentRegistryInstance):
+//   reg.hasAgent, reg.isOwnedBy, reg.getOwner,
+//   globalThis.fsbAgentRegistryInstance.getTabMetadata,
+//   reg.getAgentWindowId
+// All Map.get-shaped lookups; D-07 same-microtask discipline preserved.
+function checkOwnershipGate({ tool, params, payload }) {
+  const reg = (typeof globalThis !== 'undefined') ? globalThis.fsbAgentRegistryInstance : null;
+  if (!reg) return null; // pre-Phase-237 boot or test harness without registry; graceful pass
+
+  const src = (payload && Object.keys(payload).length) ? payload : (params || {});
+  const agentId = src.agentId || null;
+  const ownershipToken = src.ownershipToken || null;
+
+  if (!agentId || (typeof reg.hasAgent === 'function' && !reg.hasAgent(agentId))) {
+    return { success: false, code: 'AGENT_NOT_REGISTERED', requestingAgentId: agentId };
+  }
+
+  const tabId = _resolveTabIdForGate(tool, params, payload);
+  if (tabId === null) return null; // tab-creating tool or active-tab-resolved-later; agent-only check passed
+
+  // 1. Token-aware ownership (D-04).
+  if (typeof reg.isOwnedBy === 'function' && !reg.isOwnedBy(tabId, agentId, ownershipToken)) {
+    const ownerAgentId = (typeof reg.getOwner === 'function') ? (reg.getOwner(tabId) || null) : null;
+    return { success: false, code: 'TAB_NOT_OWNED', ownerAgentId, requestedTabId: tabId, requestingAgentId: agentId };
+  }
+
+  // 2. Incognito reject (D-10 / OWN-05).
+  const meta = (typeof reg.getTabMetadata === 'function') ? reg.getTabMetadata(tabId) : null;
+  if (meta && meta.incognito === true) {
+    return { success: false, code: 'TAB_INCOGNITO_NOT_SUPPORTED', tabId };
+  }
+
+  // 3. Cross-window reject (Open Q2: per-agent windowId pinning). Set-once on
+  // first bindTab; null pin means "not yet pinned" -- skip this arm.
+  if (meta && Number.isFinite(meta.windowId) && typeof reg.getAgentWindowId === 'function') {
+    const pinnedWindowId = reg.getAgentWindowId(agentId);
+    if (Number.isFinite(pinnedWindowId) && pinnedWindowId !== meta.windowId) {
+      return { success: false, code: 'TAB_OUT_OF_SCOPE', tabId, reason: 'cross_window' };
+    }
+  }
+
+  return null; // pass
+}
+
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
   const route = MCP_PHASE199_TOOL_ROUTES[tool];
   if (!route) {
@@ -125,6 +188,11 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
   if (typeof route.handler !== 'function') {
     return createMcpRouteError(tool, route.routeFamily, MCP_ROUTE_RECOVERY_HINT);
   }
+
+  // Phase 240 D-06 / D-07: inline ownership gate. Sync; no await between gate
+  // check and route.handler invocation. Same microtask discipline.
+  const gateResult = checkOwnershipGate({ tool, params, payload });
+  if (gateResult) return gateResult;
 
   return route.handler({ tool, params: params || {}, client, tab, payload, route });
 }
@@ -294,8 +362,7 @@ function hasActiveAutomationSessionForTab(tabId) {
 
 async function handleNavigateRoute({ params, client }) {
   const { agentId } = params || {};
-  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-  void agentId;
+  // Phase 240: agentId now load-bearing for the bindTab D-08 site below.
   if (!params?.url || typeof params.url !== 'string') {
     return createMcpInvalidParamsError('navigate', 'navigate requires url');
   }
@@ -312,7 +379,27 @@ async function handleNavigateRoute({ params, client }) {
 
     const targetTabId = Number.isFinite(params.tabId) ? params.tabId : activeTab.id;
     const updatedTab = await chrome.tabs.update(targetTabId, { url: params.url });
-    return sanitizeSingleTab('navigate', { ...activeTab, ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url });
+
+    // Phase 240 D-08: bindTab on the navigated tab BEFORE returning success
+    // so the originating agent owns the tab; the freshly minted ownershipToken
+    // threads back through sanitizeSingleTab so AgentScope can capture it.
+    let bindResult = null;
+    if (agentId
+        && typeof globalThis !== 'undefined'
+        && globalThis.fsbAgentRegistryInstance
+        && typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function'
+        && Number.isFinite(targetTabId)) {
+      try {
+        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, targetTabId);
+      } catch (_e) {
+        // Tab may have closed mid-flight; success return continues with null bindResult.
+        bindResult = null;
+      }
+    }
+    const extra = (bindResult && bindResult.ownershipToken)
+      ? { ownershipToken: bindResult.ownershipToken }
+      : {};
+    return sanitizeSingleTab('navigate', { ...activeTab, ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url }, extra);
   } catch (error) {
     return createMcpRouteError('navigate', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
@@ -320,8 +407,7 @@ async function handleNavigateRoute({ params, client }) {
 
 async function handleNavigationHistoryRoute({ tool, params, client }) {
   const { agentId } = params || {};
-  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-  void agentId;
+  // Phase 240: agentId now load-bearing for the bindTab D-08 site below.
   let targetTabId = Number.isFinite(params?.tabId) ? params.tabId : null;
   try {
     getChromeTabsApi();
@@ -342,7 +428,24 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
       await chrome.tabs.reload(targetTabId);
     }
 
-    return { success: true, tool, tabId: targetTabId };
+    // Phase 240 D-08: bindTab on the navigated tab BEFORE returning success.
+    let bindResult = null;
+    if (agentId
+        && typeof globalThis !== 'undefined'
+        && globalThis.fsbAgentRegistryInstance
+        && typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function'
+        && Number.isFinite(targetTabId)) {
+      try {
+        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, targetTabId);
+      } catch (_e) {
+        bindResult = null;
+      }
+    }
+    const response = { success: true, tool, tabId: targetTabId };
+    if (bindResult && bindResult.ownershipToken) {
+      response.ownershipToken = bindResult.ownershipToken;
+    }
+    return response;
   } catch (error) {
     return {
       success: false,
@@ -356,12 +459,30 @@ async function handleNavigationHistoryRoute({ tool, params, client }) {
 
 async function handleOpenTabRoute({ params }) {
   const { agentId } = params || {};
-  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-  void agentId;
+  // Phase 240: agentId now load-bearing for the bindTab D-08 site below.
   try {
     getChromeTabsApi();
     const tab = await chrome.tabs.create({ url: params.url || 'about:blank', active: params.active !== false });
-    return sanitizeSingleTab('open_tab', tab);
+
+    // Phase 240 D-08: bindTab on the freshly created tab BEFORE returning
+    // success. open_tab claims a tab no other agent has touched, so the
+    // bind is unconditional once the create succeeds.
+    let bindResult = null;
+    if (agentId
+        && typeof globalThis !== 'undefined'
+        && globalThis.fsbAgentRegistryInstance
+        && typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function'
+        && tab && Number.isFinite(tab.id)) {
+      try {
+        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, tab.id);
+      } catch (_e) {
+        bindResult = null;
+      }
+    }
+    const extra = (bindResult && bindResult.ownershipToken)
+      ? { ownershipToken: bindResult.ownershipToken }
+      : {};
+    return sanitizeSingleTab('open_tab', tab, extra);
   } catch (error) {
     return createMcpRouteError('open_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
@@ -680,7 +801,12 @@ async function handleAgentRegisterRoute() {
       ? globalThis.FsbAgentRegistry.formatAgentIdForDisplay(agentId || '')
       : (typeof agentId === 'string' ? agentId.slice(0, 12) : ''));
   console.log('[FSB MCP Dispatcher] agent:register minted ' + agentIdShort);
-  return { success: true, agentId, agentIdShort };
+  // Phase 240 Open Q1 resolution: agent:register response carries an empty
+  // ownershipTokens map at register time. Subsequent bindTab-firing handlers
+  // include `ownershipToken: <new>` in their per-call response; the MCP
+  // server's AgentScope (Plan 03 owns server-side AgentScope wiring)
+  // accumulates them per-tab.
+  return { success: true, agentId, agentIdShort, ownershipTokens: {} };
 }
 
 async function handleAgentReleaseRoute({ payload } = {}) {

@@ -336,8 +336,19 @@ function createToolHarness(options = {}) {
       // Phase 238 D-13.4: harness mints a deterministic agent_id for the
       // lazy AgentScope.ensure() round-trip. Every other type continues
       // through the existing response logic below.
+      // Phase 240: also mint a deterministic ownershipToken so AgentScope
+      // captures it via captureOwnershipToken() and tools thread it through
+      // their bridge payloads alongside agentId. The token is seeded via the
+      // single-slot `ownershipToken` field on the response (Plan 02 single-
+      // slot model; Plan 03 will switch to per-tabId routing).
       if (message && message.type === 'agent:register') {
-        return { success: true, agentId: 'agent_test_smoke', agentIdShort: 'agent_test' };
+        return {
+          success: true,
+          agentId: 'agent_test_smoke',
+          agentIdShort: 'agent_test',
+          ownershipTokens: {},
+          ownershipToken: 'token_test_smoke'
+        };
       }
       if (typeof options.onSendAndWait === 'function') {
         return options.onSendAndWait(message, sendOptions, bridgeCalls.length - 1);
