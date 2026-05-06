@@ -48,6 +48,12 @@ export interface ToolDefinition {
   _readOnly: boolean;
   _contentVerb: string | null;
   _cdpVerb: string | null;
+  // Phase 243 BG-02: marks tools whose semantic intent is foreground focus
+  // transfer (currently only switch_tab). Optional / additive.
+  _forceForeground?: boolean;
+  // Phase 245 D-05 / D-06: marks action tools that should produce a
+  // change_report on response. Optional; absent === false.
+  _emitChangeReport?: boolean;
 }
 
 // ---------------------------------------------------------------------------

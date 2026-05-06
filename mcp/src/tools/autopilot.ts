@@ -10,6 +10,16 @@ import { mapFSBError } from '../errors.js';
  * Register autopilot tools: run_task, stop_task, get_task_status.
  * These let an AI agent delegate to FSB's built-in AI loop for
  * natural-language browser automation.
+ *
+ * Phase 245 D-04 / D-05: autopilot tools registered here are task-lifecycle
+ * tools (run_task, stop_task, get_task_status) and intentionally do NOT
+ * include the `change_report` field on their response. Per-step diffs are
+ * surfaced inside the autopilot's own action log (each individual action
+ * tool the loop dispatches still emits change_report when the global toggle
+ * is on). Read run_task's completion summary or call get_task_status for
+ * autopilot-level state; the action-tool change_report contract documented
+ * on the manual tools (manual.ts) and on `back` (agents.ts) is the right
+ * place to consume per-action consequences.
  */
 export function registerAutopilotTools(
   server: McpServer,

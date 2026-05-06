@@ -10,6 +10,15 @@ import { mapFSBError } from '../errors.js';
  * Register agent management tools: create, list, run, stop, delete, toggle,
  * stats, and history. These let MCP clients manage FSB background agents
  * without the extension UI.
+ *
+ * Phase 245 D-04 / D-05: action tools registered here (currently `back`)
+ * return a `change_report` field describing what the action mutated -- URL
+ * changes, dialogs opened, nodes added/removed, attribute changes, focus
+ * shift -- so the agent learns the consequence without a follow-up
+ * read_page. Read-only tools registered here (none today) would not include
+ * this field. The contract is gated by the Action Change Reports toggle in
+ * the extension control panel (default on); when off, action tools revert
+ * to pre-Phase-245 response shape with zero observer overhead.
  */
 export function registerAgentTools(
   server: McpServer,
@@ -21,7 +30,7 @@ export function registerAgentTools(
   // Routes through extension dispatcher via the new 'mcp:go-back' bridge message.
   server.tool(
     'back',
-    'Navigate one step back in browser history on the agent\'s active tab. Single-step only (no back(n)); no companion forward tool in v0.9.60. Agent-scoped: targets the agent\'s active tab unless tabId is supplied. Ownership-enforced via the Phase 240 dispatch gate -- cross-agent calls reject with TAB_NOT_OWNED. Returns a structured result of shape { status, resultingUrl, historyDepth } where status is one of: ok (back navigation settled cleanly), no_history (history depth <= 1, nothing to go back to), cross_origin (target page is on a different origin from the source), bf_cache (back was served from the back/forward cache and the pageshow listener observed event.persisted=true), fragment_only (only the URL fragment changed via history navigation). Background-tab compatible: does not steal focus or call chrome.tabs.update({active: true}). Multi-agent contract: agent_id is FSB-issued and required (the server captures it via agent:register on first tool call -- callers do not provide it). tab_id is agent-scoped: only tabs owned by the calling agent can be addressed. The concurrency cap is configurable (default 8, range 1-64); the (N+1)th agent claim is rejected with AGENT_CAP_REACHED { cap, active }. Ownership enforcement: cross-agent calls reject with TAB_NOT_OWNED; incognito tabs reject with TAB_INCOGNITO_NOT_SUPPORTED; cross-window tabs reject with TAB_OUT_OF_SCOPE. Tool-specific typed error codes returnable by this tool: NO_BACK_HISTORY, CROSS_ORIGIN, BF_CACHE, FRAGMENT_ONLY.',
+    'Navigate one step back in browser history on the agent\'s active tab. Single-step only (no back(n)); no companion forward tool in v0.9.60. Agent-scoped: targets the agent\'s active tab unless tabId is supplied. Ownership-enforced via the Phase 240 dispatch gate -- cross-agent calls reject with TAB_NOT_OWNED. Returns a structured result of shape { status, resultingUrl, historyDepth } where status is one of: ok (back navigation settled cleanly), no_history (history depth <= 1, nothing to go back to), cross_origin (target page is on a different origin from the source), bf_cache (back was served from the back/forward cache and the pageshow listener observed event.persisted=true), fragment_only (only the URL fragment changed via history navigation). Background-tab compatible: does not steal focus or call chrome.tabs.update({active: true}). Multi-agent contract: agent_id is FSB-issued and required (the server captures it via agent:register on first tool call -- callers do not provide it). tab_id is agent-scoped: only tabs owned by the calling agent can be addressed. The concurrency cap is configurable (default 8, range 1-64); the (N+1)th agent claim is rejected with AGENT_CAP_REACHED { cap, active }. Ownership enforcement: cross-agent calls reject with TAB_NOT_OWNED; incognito tabs reject with TAB_INCOGNITO_NOT_SUPPORTED; cross-window tabs reject with TAB_OUT_OF_SCOPE. Tool-specific typed error codes returnable by this tool: NO_BACK_HISTORY, CROSS_ORIGIN, BF_CACHE, FRAGMENT_ONLY. RETURNS change_report: the response includes a `change_report` field with a compact diff of what the back navigation mutated (URL, dialogs_opened, nodes_added, nodes_removed, attrs_changed, inputs_changed, focus_shift). Cross-origin transitions emit a URL-only report with `cross_origin:true`. Use this to learn the consequence without calling read_page next; if `change_report.truncated:true` is set, call read_page for the full state.',
     { tabId: z.number().int().positive().optional().describe('Target tab in agent pool. If omitted, defaults to the agent\'s active tab.') },
     async ({ tabId }) => {
       if (!bridge.isConnected) {
