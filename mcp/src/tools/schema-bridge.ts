@@ -130,6 +130,12 @@ export function jsonSchemaToZod(
  * drag_drop: MCP {sourceSelector, targetSelector} -> FSB {sourceRef, targetRef}
  * click_at: MCP {shift, ctrl, alt} -> FSB {shiftKey, ctrlKey, altKey}
  * drag: MCP {shift, ctrl, alt} -> FSB {shiftKey, ctrlKey, altKey}
+ * fill_sheet: MCP {csvData} -> FSB {data}
+ *
+ * Phase 246 D-14: every transform forwards tab_id verbatim when the caller
+ * provides it. Without this, the rebuild-from-scratch path silently drops
+ * tab_id and multi-tab agents hit AMBIGUOUS_TAB even when they pass it
+ * (RESEARCH.md Pitfall 1).
  */
 export const PARAM_TRANSFORMS: Record<
   string,
@@ -141,6 +147,7 @@ export const PARAM_TRANSFORMS: Record<
     shiftKey: p.shift ?? false,
     altKey: p.alt ?? false,
     useDebuggerAPI: true,
+    ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}),
   }),
   drag_drop: (p) => ({
     sourceRef: p.sourceSelector,
@@ -148,6 +155,7 @@ export const PARAM_TRANSFORMS: Record<
     steps: p.steps,
     holdMs: p.holdMs,
     stepDelayMs: p.stepDelayMs,
+    ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}),
   }),
   click_at: (p) => ({
     x: p.x,
@@ -155,6 +163,7 @@ export const PARAM_TRANSFORMS: Record<
     shiftKey: p.shift ?? false,
     ctrlKey: p.ctrl ?? false,
     altKey: p.alt ?? false,
+    ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}),
   }),
   drag: (p) => ({
     startX: p.startX,
@@ -166,10 +175,12 @@ export const PARAM_TRANSFORMS: Record<
     shiftKey: p.shift ?? false,
     ctrlKey: p.ctrl ?? false,
     altKey: p.alt ?? false,
+    ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}),
   }),
   fill_sheet: (p) => ({
     startCell: p.startCell,
     data: p.csvData,
     sheetName: p.sheetName,
+    ...(p.tab_id !== undefined ? { tab_id: p.tab_id } : {}),
   }),
 };
