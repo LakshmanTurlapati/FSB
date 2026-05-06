@@ -326,6 +326,67 @@ function freshRequireVisualSession() {
   }
   console.log('  PASS: version monotonically increments across multiple resumes');
 
+  // ===================================================================
+  // Phase 246 plan 02 -- D-11 same-agent resume with explicit tab_id
+  // ===================================================================
+  // When a multi-tab agent is required to disambiguate (AMBIGUOUS_TAB),
+  // the caller passes explicit tab_id. The resolver returns that tab id;
+  // mcp-visual-session.js startSession sees the same agentId on the same
+  // tabId and fires the resume path (D-03 preserved across the resolver
+  // hop). Version increments, sessionToken unchanged.
+  console.log('--- Phase 246 / visual-session-reentry / Test D-11 same-agent resume with explicit tab_id ---');
+  {
+    setupChromeMock();
+    try {
+      const regMod = freshRequireRegistry();
+      const registry = new regMod.AgentRegistry();
+      globalThis.fsbAgentRegistryInstance = registry;
+
+      const agentA = await registry.registerAgent();
+      await registry.bindTab(agentA.agentId, 100);
+
+      const vs = freshRequireVisualSession();
+      const manager = new vs.McpVisualSessionManager();
+
+      // First start_visual_session: resolver returns tabId 100; manager
+      // creates a fresh session at version 1.
+      const first = manager.startSession({
+        clientLabel: 'codex',
+        tabId: 100,
+        agentId: agentA.agentId,
+        task: 'first task',
+        now: 1000
+      });
+      assert.ok(first && first.session, 'first startSession returns a session');
+      assert.strictEqual(first.session.version, 1, 'first version is 1');
+      const firstToken = first.session.sessionToken;
+
+      // Second start_visual_session with explicit tab_id matching the existing
+      // session. mcp-visual-session.js sees the same agentId on the same
+      // tabId and fires the resume path (sessionToken preserved, version
+      // incremented). This is what the dispatcher route delivers AFTER the
+      // resolver fed in the explicit tab_id (Plan 02 Task 2).
+      const resumed = manager.startSession({
+        clientLabel: 'codex',
+        tabId: 100,
+        agentId: agentA.agentId,
+        task: 'resume task',
+        now: 2000
+      });
+      assert.strictEqual(resumed.resumed, true,
+        'resume path fires when caller provides explicit tab_id matching existing session');
+      assert.strictEqual(resumed.session.sessionToken, firstToken,
+        'sessionToken preserved across explicit-tab_id resume (D-11)');
+      assert.strictEqual(resumed.session.version, 2,
+        'version incremented from 1 to 2');
+      assert.strictEqual(resumed.session.task, 'resume task',
+        'task updated to new value on resume');
+    } finally {
+      teardownChromeMock();
+    }
+  }
+  console.log('  PASS: D-11 same-agent resume preserved with explicit tab_id');
+
   console.log('\nAll Phase 240 visual-session-reentry assertions passed.');
 })().catch((err) => {
   console.error('TEST FAILED:', err && err.stack ? err.stack : err);
