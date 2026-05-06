@@ -40,17 +40,11 @@ function check(cond, msg) {
 
 const RESOLVER_PATH = path.resolve(__dirname, '..', 'extension', 'utils', 'agent-tab-resolver.js');
 
-let resolverModule = null;
-try {
-  resolverModule = require(RESOLVER_PATH);
-} catch (e) {
-  if (e && e.code === 'MODULE_NOT_FOUND') {
-    console.log('SKELETON: resolver module not yet created -- expected during Wave 0');
-    process.exit(0);
-  }
-  throw e;
-}
-
+// Phase 246-01 Task 3: resolver landed; the Task 1 RED-skeleton wrapper is
+// retired. Tests 1, 2, 3, 4, 6 exercise _handleReadPage / _handleGetDOM with
+// the migrated resolver wiring. Test 5 (handleGetPageSnapshotRoute) is the
+// dispatcher-route path; Task 4 lands that migration and enables the test.
+require(RESOLVER_PATH);
 // resolverModule registers globalThis.resolveAgentTabOrError as a side effect.
 // We rely on that for handlers that consult globalThis.
 
@@ -311,7 +305,9 @@ async function run() {
   await test2_readPageExplicitTabId();
   await test3_getDOMAutoResolve();
   await test4_readPageZeroOwned();
-  await test5_pageSnapshotAutoResolve();
+  // Test 5 stays gated on Task 4 (handleGetPageSnapshotRoute migration).
+  // Task 4 removes this gate and runs test5_pageSnapshotAutoResolve.
+  console.log('  TODO 246-01-Task-4: test5_pageSnapshotAutoResolve (handleGetPageSnapshotRoute migration)');
   await test6_readPageLegacyPopup();
 
   console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');

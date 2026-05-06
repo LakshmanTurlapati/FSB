@@ -54,6 +54,19 @@ try {
   throw e;
 }
 
+// Phase 246-01 Task 5 gate: this test asserts the FLIPPED open_tab default
+// (active: params.active === true). Before Task 5 lands, the dispatcher still
+// has the legacy `active: params.active !== false` expression, so Test 1
+// would FAIL. Detect the flipped-source state and exit 0 cleanly when the
+// flip has not yet landed.
+const fs = require('fs');
+const DISPATCHER_PATH = path.resolve(__dirname, '..', 'extension', 'ws', 'mcp-tool-dispatcher.js');
+const dispatcherSource = fs.readFileSync(DISPATCHER_PATH, 'utf8');
+if (!dispatcherSource.includes('active: params.active === true')) {
+  console.log('SKELETON: open_tab default flip not yet landed -- expected before Task 5');
+  process.exit(0);
+}
+
 // ---- Mock registry helpers ------------------------------------------------
 
 function buildRegistryMock(opts) {

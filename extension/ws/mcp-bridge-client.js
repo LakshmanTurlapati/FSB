@@ -516,11 +516,20 @@ class MCPBridgeClient {
 
   async _handleGetDOM(payload) {
     const { agentId } = payload || {};
-    // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-    void agentId;
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToContentScript(tab.id, {
+    // Phase 246 D-02: read tools resolve via the agent-scoped registry
+    // (single-tab agent or explicit tab_id). Legacy:* agents fall through to
+    // active-tab semantics via the resolver's first-line branch. The resolver
+    // returns either {tabId, ownershipToken, skipGate} or a plain-object
+    // error envelope (NO_OWNED_TAB / AMBIGUOUS_TAB / NO_ACTIVE_TAB /
+    // AGENT_REGISTRY_UNAVAILABLE) that surfaces directly as the response.
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    const response = await this._sendToContentScript(resolved.tabId, {
       action: 'getDOM',
       maxElements: payload.maxElements || 50,
     });
@@ -529,11 +538,15 @@ class MCPBridgeClient {
 
   async _handleReadPage(payload) {
     const { agentId } = payload || {};
-    // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-    void agentId;
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToContentScript(tab.id, {
+    // Phase 246 D-02: see _handleGetDOM rationale.
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    const response = await this._sendToContentScript(resolved.tabId, {
       action: 'readPage',
       full: payload.full || false,
     });
