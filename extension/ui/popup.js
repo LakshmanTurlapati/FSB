@@ -5,6 +5,32 @@ let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
 
+// Phase 240 D-02: synthesize legacy:popup agentId once per popup load.
+// The popup is short-lived (recreated each time the user clicks the icon),
+// so we cache the agentId in module scope for the lifetime of THIS popup
+// view. Plan 01's getOrRegisterLegacyAgent is idempotent on the 'popup'
+// surface (returns the SAME 'legacy:popup' agentId every time), so the
+// registry never grows. ownershipToken is null until bindTab fires inside
+// handleStartAutomation (D-08 4th site).
+let _legacyPopupAgent = null;
+async function ensureLegacyPopupAgent() {
+  if (_legacyPopupAgent && _legacyPopupAgent.agentId) return _legacyPopupAgent;
+  try {
+    _legacyPopupAgent = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'ensureLegacyAgent', surface: 'popup' },
+        (resp) => resolve(resp || {})
+      );
+    });
+  } catch (_e) {
+    _legacyPopupAgent = null;
+  }
+  if (!_legacyPopupAgent || !_legacyPopupAgent.success) {
+    _legacyPopupAgent = { agentId: null, ownershipToken: null };
+  }
+  return _legacyPopupAgent;
+}
+
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
   try {
@@ -223,12 +249,22 @@ async function handleSendMessage() {
     
     // Note: Restriction checking is now handled by background script with smart navigation
     
+    // Phase 240 D-02: ensure legacy:popup agentId is synthesized BEFORE
+    // dispatching startAutomation. The agentId + ownershipToken are
+    // threaded into the envelope so handleStartAutomation can bindTab the
+    // target tab under legacy:popup (D-08 4th site). On error we still
+    // dispatch with null fields; handleStartAutomation will fall back to
+    // legacy:autopilot synthesis.
+    const legacy = await ensureLegacyPopupAgent();
+
     // Send start command to background
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      conversationId: conversationId
+      conversationId: conversationId,
+      agentId: legacy && legacy.agentId,
+      ownershipToken: legacy && legacy.ownershipToken
     }, (response) => {
       if (response.success) {
         currentSessionId = response.sessionId;
