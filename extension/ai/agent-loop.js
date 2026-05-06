@@ -1273,14 +1273,22 @@ async function runAgentIteration(sessionId, options) {
     sess.error = terminal.outcome === 'error' ? (terminal.error || terminal.resultText || 'Task failed') : null;
   }
 
-  // Helper: notify sidepanel that automation is done (sidepanel listens for 'automationComplete')
+  /**
+   * Phase 239 plan 01 -- notifySidepanel now feeds fsbAutomationLifecycleBus
+   * (in-SW EventTarget) in addition to the cross-context sendMessage broadcast.
+   * The lifecycle bus is what mcp-bridge-client.js:_handleStartAutomation
+   * subscribes to in order to resolve a run_task call on actual completion.
+   * Without this dispatch, the modern AI loop's 13 terminal exit sites never
+   * resolve the originating MCP call until the 600s safety net fires.
+   * Per CONTEXT.md D-08 + RESEARCH.md Cleanup-Path Audit Path 1/2/3/8.
+   */
   function notifySidepanel(sid, sess, terminal) {
     terminal = terminal || createTerminalOutcome('success', {
       summary: sess.completionMessage || sess.result || 'Task completed.'
     });
     try {
-      chrome.runtime.sendMessage({
-        action: 'automationComplete',
+      var message = {
+        action: terminal && terminal.outcome === 'error' ? 'automationError' : 'automationComplete',
         sessionId: sid,
         conversationId: sess.conversationId || null,
         historySessionId: sess.historySessionId || sid,
@@ -1302,7 +1310,21 @@ async function runAgentIteration(sessionId, options) {
           error: terminal.error || null
         },
         task: sess.task
-      }).catch(function(err) { console.warn('[agent-loop] notifySidepanel delivery failed', { sessionId: sid, error: err && err.message }); });
+      };
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        // fsbBroadcastAutomationLifecycle handles BOTH cross-context sendMessage AND in-SW bus dispatch
+        var result = fsbBroadcastAutomationLifecycle(message);
+        if (result && typeof result.catch === 'function') {
+          result.catch(function(err) { console.warn('[agent-loop] notifySidepanel delivery failed', { sessionId: sid, error: err && err.message }); });
+        }
+      } else {
+        // No-op fallback: helper is exported on globalThis at SW boot
+        // (background.js:2061) before agent-loop.js loads via importScripts,
+        // so this branch is unreachable in production. Logged-only for forensics.
+        // Per RESEARCH.md Pitfall 1.
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- terminal exit not broadcast', { sessionId: sid });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
   }
 
