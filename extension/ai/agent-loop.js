@@ -1044,6 +1044,20 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
 // dispatchMcpToolRoute, the agentId on the session record (sessionData) is
 // the authoritative source for threading agentId + ownershipToken into
 // outgoing MCP tool envelopes.
+//
+// Phase 240 WR-03 CARVE-OUT (documented gap, deferred to Phase 244):
+// Inline tool actions issued by the autopilot loop (click, type, navigate,
+// etc.) execute via direct content-script messaging and CDP, NOT via
+// dispatchMcpToolRoute. Consequently they bypass checkOwnershipGate. The
+// "single chokepoint" claim in CONTEXT.md D-06 holds only for MCP-bridge-
+// originated tools. This is mitigated at session start (handleStartAutomation
+// binds the tab to legacy:autopilot or the caller-supplied agentId), but if
+// an external client force-rebinds the tab mid-session (e.g., via an MCP
+// open_tab from another agent), the autopilot loop will keep acting on a
+// tab it no longer owns -- there is no per-iteration enforcement point.
+// Phase 244 hardening should add a sync isOwnedBy check at iteration setup
+// using sessionData.agentId + sessionData.ownershipToken, and abort with a
+// typed tab_owned_by_other_agent error when the gate would have blocked.
 
 /**
  * Entry point for the agent loop. Called from handleStartAutomation.
