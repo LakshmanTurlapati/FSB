@@ -22,9 +22,12 @@ export function registerVaultTools(
   queue: TaskQueue,
   agentScope: AgentScope,
 ): void {
-  // Phase 238 D-06: scope discipline — vault is signature-parity only;
-  // no agent identity injection here per CONTEXT.md.
-  void agentScope;
+  // Phase 246 D-13 vault overturn: Phase 238 D-06's "no agent identity
+  // injection here" is OVERTURNED for fill_credential and use_payment_method.
+  // The vault tools now thread agentId + optional tab_id so the extension-side
+  // resolver picks the right tab and the dispatch gate enforces ownership.
+  // list_credentials and list_payment_methods stay tab-agnostic (vault read-
+  // only) so they remain signature-only.
   // list_credentials -- returns domain + username pairs only (MCP-01)
   // Password field is NEVER present in the response.
   server.tool(
@@ -45,21 +48,44 @@ export function registerVaultTools(
 
   // fill_credential -- triggers autofill on the active tab (MCP-02)
   // Password travels background.js -> content script only, never over WebSocket.
+  // Phase 246 D-13: vault overturn. agentId + optional tab_id + ownershipToken
+  // + connectionId now thread through the bridge payload so the extension-side
+  // resolver picks the right tab and the dispatch gate enforces ownership.
   server.tool(
     'fill_credential',
-    'Auto-fill login form on the active tab with a saved credential. The password is resolved inside the extension and injected directly into the page -- it never crosses the WebSocket bridge. The domain parameter is accepted for backward compatibility but the actual lookup domain is derived from the active tab URL for security. Requires the credential vault to be unlocked.',
+    'Auto-fill login form on the active tab with a saved credential. The password is resolved inside the extension and injected directly into the page -- it never crosses the WebSocket bridge. The domain parameter is accepted for backward compatibility but the actual lookup domain is derived from the tab URL for security. Requires the credential vault to be unlocked. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED. Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     {
-      domain: z.string().optional().describe('Hint for which credential to fill. Ignored for security -- the actual domain is derived from the active tab URL. Kept for backward compatibility.'),
+      domain: z.string().optional().describe('Hint for which credential to fill. Ignored for security -- the actual domain is derived from the resolved tab URL. Kept for backward compatibility.'),
+      tab_id: z.number().optional().describe('Optional. Tab id this action targets. Omit when the calling agent owns exactly one tab; pass to disambiguate when the agent owns multiple.'),
     },
-    async ({ domain }) => {
+    async ({ domain, tab_id }) => {
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('fill_credential', async () => {
+        const agentId = await agentScope.ensure(bridge);
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
+        const payload: Record<string, unknown> = { domain, agentId };
+        if (tab_id !== undefined) payload.tab_id = tab_id;
+        if (ownershipToken) payload.ownershipToken = ownershipToken;
+        if (connectionId) payload.connectionId = connectionId;
         const result = await bridge.sendAndWait(
-          { type: 'mcp:fill-credential', payload: { domain } },
+          { type: 'mcp:fill-credential', payload },
           { timeout: 15_000 },
         );
+        if (result
+            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+            && typeof agentScope.captureOwnershipToken === 'function') {
+          agentScope.captureOwnershipToken(
+            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+            (result as { ownershipToken: string }).ownershipToken,
+          );
+        }
         return mapFSBError(result);
       });
     },
@@ -86,21 +112,43 @@ export function registerVaultTools(
   // use_payment_method -- terminal confirmation before fill (MCP-04)
   // Fill domain is derived from chrome.tabs.get inside the extension,
   // NOT from this MCP request payload.
+  // Phase 246 D-13: vault overturn. agentId + optional tab_id + ownershipToken
+  // + connectionId now thread through the bridge payload (mirrors fill_credential).
   server.tool(
     'use_payment_method',
-    'Fill checkout form on the active tab with a saved payment method. Shows a confirmation prompt with card brand, last 4 digits, and merchant domain before any fill occurs. The fill domain is derived from the active tab URL inside the extension, not from this request. Requires both credential vault and payment access to be unlocked.',
+    'Fill checkout form on the active tab with a saved payment method. Shows a confirmation prompt with card brand, last 4 digits, and merchant domain before any fill occurs. The fill domain is derived from the resolved tab URL inside the extension, not from this request. Requires both credential vault and payment access to be unlocked. Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED. Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     {
       payment_method_id: z.string().describe('ID of the payment method to use (from list_payment_methods)'),
+      tab_id: z.number().optional().describe('Optional. Tab id this action targets. Omit when the calling agent owns exactly one tab; pass to disambiguate when the agent owns multiple.'),
     },
-    async ({ payment_method_id }) => {
+    async ({ payment_method_id, tab_id }) => {
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('use_payment_method', async () => {
+        const agentId = await agentScope.ensure(bridge);
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
+        const payload: Record<string, unknown> = { paymentMethodId: payment_method_id, agentId };
+        if (tab_id !== undefined) payload.tab_id = tab_id;
+        if (ownershipToken) payload.ownershipToken = ownershipToken;
+        if (connectionId) payload.connectionId = connectionId;
         const result = await bridge.sendAndWait(
-          { type: 'mcp:use-payment-method', payload: { paymentMethodId: payment_method_id } },
+          { type: 'mcp:use-payment-method', payload },
           { timeout: PAYMENT_CONFIRMATION_TIMEOUT_MS },
         );
+        if (result
+            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+            && typeof agentScope.captureOwnershipToken === 'function') {
+          agentScope.captureOwnershipToken(
+            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+            (result as { ownershipToken: string }).ownershipToken,
+          );
+        }
         return mapFSBError(result);
       });
     },
