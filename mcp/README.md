@@ -17,7 +17,7 @@
 
 *Manual browser tools, visual sessions, autopilot, vault, and observability for the FSB Chrome Extension.*
 
-[Quick Start](#quick-start) · [Tools](#tools-59-total) · [Diagnostics](#diagnostics) · [Architecture](#architecture)
+[Quick Start](#quick-start) · [Tools](#tools-60-total) · [Diagnostics](#diagnostics) · [Architecture](#architecture)
 
 </div>
 
@@ -373,7 +373,7 @@ Most tools execute on background tabs without stealing focus. Tools that genuine
 
 ---
 
-## Tools (59 Total)
+## Tools (60 Total)
 
 ### Visual Sessions (2)
 
@@ -382,13 +382,14 @@ Most tools execute on background tabs without stealing focus. Tools that genuine
 | `start_visual_session` | Show the trusted glow/overlay and return a session token. |
 | `end_visual_session` | Clear a client-owned visual session. |
 
-### Autopilot (3)
+### Autopilot (4)
 
 | Tool | Purpose |
 |------|---------|
 | `run_task` | Let FSB's AI perform a natural language browser task end to end. |
 | `stop_task` | Cancel the active automation task. |
 | `get_task_status` | Check task progress, phase, and ETA. |
+| `back` | Single-step browser-history back, ownership-gated. Returns `{ status, resultingUrl, historyDepth }`. |
 
 ### Manual Browser Control (37)
 
