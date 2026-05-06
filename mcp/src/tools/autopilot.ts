@@ -27,31 +27,82 @@ export function registerAutopilotTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('run_task', async () => {
+        // Phase 239 plan 02 -- onProgress now re-shapes Phase 239 heartbeat
+        // ticks (D-01 9-field payload arriving from mcp-bridge-client.js's
+        // 30s setInterval) into the MCP `notifications/progress` envelope
+        // with rich fields under `params._meta` (D-02 wire shape; the MCP
+        // spec 2025-03-26 _meta vendor-extension slot). Non-heartbeat
+        // progress (existing dashboard progress from automationProgress
+        // events) keeps the legacy shape -- params._meta is only present
+        // when the extension sent at least one D-01 field. See
+        // .planning/phases/239-mcp-run-task-return-on-completion-phase-236-reborn/239-CONTEXT.md
+        // (D-01, D-02) for the locked payload + wire shapes.
         const onProgress = (p: MCPResponse) => {
+          // Existing fields (preserve every existing field -- D-07 additive-only)
           const { progress, phase, eta, action, taskId } = p.payload as {
             taskId?: string; progress?: number; phase?: string; eta?: string; action?: string;
           };
+
+          // Phase 239 plan 02 -- D-01 rich heartbeat fields (when extension sends a heartbeat tick)
+          const { alive, step, elapsed_ms, current_url, ai_cycles, last_action } = p.payload as {
+            alive?: boolean; step?: number; elapsed_ms?: number;
+            current_url?: string | null; ai_cycles?: number; last_action?: string | null;
+          };
+
           const message = [phase && `[${phase}]`, action, eta && `(ETA: ${eta})`]
             .filter(Boolean).join(' ');
 
           // Send MCP progress notification if client provided a progressToken
           if (extra._meta?.progressToken !== undefined) {
-            extra.sendNotification({
-              method: 'notifications/progress',
-              params: {
-                progressToken: extra._meta.progressToken,
-                progress: progress ?? 0,
-                total: 100,
-                message,
-              },
-            }).catch(() => {});
+            // Build params._meta only when at least one heartbeat field is
+            // present; non-heartbeat progress messages (existing dashboard
+            // progress) keep the current shape unchanged so D-07 holds.
+            const hasHeartbeatFields = alive !== undefined || step !== undefined ||
+                                        elapsed_ms !== undefined || current_url !== undefined ||
+                                        ai_cycles !== undefined || last_action !== undefined;
+
+            // Build params with required progressToken/progress/total/message
+            // and conditionally attach the D-02 _meta block when the extension
+            // sent at least one heartbeat field. ProgressToken type is
+            // string | number (MCP spec); narrow via the extra._meta shape.
+            const baseParams = {
+              progressToken: extra._meta.progressToken as string | number,
+              progress: progress ?? 0,
+              total: 100,
+              message,
+            };
+
+            if (hasHeartbeatFields) {
+              // D-02 wire shape: rich fields under params._meta vendor-extension slot
+              extra.sendNotification({
+                method: 'notifications/progress',
+                params: {
+                  ...baseParams,
+                  _meta: {
+                    alive: alive ?? false,
+                    step,
+                    elapsed_ms,
+                    current_url,
+                    ai_cycles,
+                    last_action,
+                  },
+                },
+              }).catch(() => {});
+            } else {
+              extra.sendNotification({
+                method: 'notifications/progress',
+                params: baseParams,
+              }).catch(() => {});
+            }
           }
 
-          // Always send logging message as universal fallback
+          // Always send logging message as universal fallback. Logging now
+          // includes the D-01 fields too so server logs carry the same
+          // observability surface as the MCP host.
           server.sendLoggingMessage({
             level: 'info',
             logger: 'fsb-autopilot',
-            data: { taskId, progress, phase, eta, action },
+            data: { taskId, progress, phase, eta, action, alive, step, elapsed_ms, current_url, ai_cycles, last_action },
           });
         };
 
