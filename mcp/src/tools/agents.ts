@@ -17,10 +17,49 @@ export function registerAgentTools(
   queue: TaskQueue,
   agentScope: AgentScope,
 ): void {
-  // TODO Phase 242: thread agentScope into the back tool when it lands.
-  // AgentScope is imported and accepted here for runtime DI parity (D-11);
-  // P238 is structurally a no-op for this file per CONTEXT.md D-08.
-  void agentScope;
+  // Phase 242 D-01: 'back' MCP tool -- single-step ownership-gated history back.
+  // Routes through extension dispatcher via the new 'mcp:go-back' bridge message.
+  server.tool(
+    'back',
+    'Navigate one step back in browser history on the agent\'s active tab. Single-step only (no back(n)); no companion forward tool in v0.9.60. Agent-scoped: targets the agent\'s active tab unless tabId is supplied. Ownership-enforced via the Phase 240 dispatch gate -- cross-agent calls reject with TAB_NOT_OWNED. Returns a structured result of shape { status, resultingUrl, historyDepth } where status is one of: ok (back navigation settled cleanly), no_history (history depth <= 1, nothing to go back to), cross_origin (target page is on a different origin from the source), bf_cache (back was served from the back/forward cache and the pageshow listener observed event.persisted=true), fragment_only (only the URL fragment changed via history navigation). Background-tab compatible: does not steal focus or call chrome.tabs.update({active: true}).',
+    { tabId: z.number().int().positive().optional().describe('Target tab in agent pool. If omitted, defaults to the agent\'s active tab.') },
+    async ({ tabId }) => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('back', async () => {
+        const agentId = await agentScope.ensure(bridge);
+        // Phase 240: thread the most recently captured ownershipToken alongside
+        // agentId so the extension's dispatch gate can verify the 3-tuple.
+        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
+          ? agentScope.currentOwnershipToken()
+          : null;
+        // Phase 241 D-08: thread connection_id (additive; defensive probe).
+        const connectionId = (typeof agentScope.currentConnectionId === 'function')
+          ? agentScope.currentConnectionId()
+          : null;
+        const payload: Record<string, unknown> = { agentId };
+        if (ownershipToken) payload.ownershipToken = ownershipToken;
+        if (connectionId) payload.connectionId = connectionId;
+        if (typeof tabId === 'number') payload.tabId = tabId;
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:go-back', payload },
+          { timeout: 5_000 },  // 2s settle + 3s headroom (RESEARCH Pattern 1)
+        );
+        // Phase 240 D-08 parity: capture any ownershipToken returned by the
+        // handler so subsequent calls thread the latest token.
+        if (result
+            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
+            && typeof agentScope.captureOwnershipToken === 'function') {
+          agentScope.captureOwnershipToken(
+            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
+            (result as { ownershipToken: string }).ownershipToken,
+          );
+        }
+        return mapFSBError(result);
+      });
+    },
+  );
   // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
   //   // create_agent -- create a new background agent (mutation)
 //   server.tool(

@@ -13,6 +13,7 @@ export type MCPMessageType =
   | 'mcp:start-visual-session' // MCP-owned visible lifecycle start
   | 'mcp:end-visual-session'   // MCP-owned visible lifecycle end
   | 'mcp:execute-action'      // Manual: execute a single browser action
+  | 'mcp:go-back'             // Phase 242 D-01: ownership-gated single-step browser-history back
   | 'mcp:get-dom'             // Read DOM snapshot
   | 'mcp:get-tabs'            // List open tabs
   | 'mcp:get-site-guides'     // Read site guide data
