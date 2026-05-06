@@ -698,6 +698,19 @@ async function handleBackRoute({ payload = {}, client = null }) {
       });
     }
     targetTabId = activeTab.id;
+
+    // WR-01: The gate above (step 1) ran with payload.tabId omitted, which
+    // causes _resolveTabIdForGate to skip the tab-ownership arm entirely.
+    // Now that we have a concrete tabId, re-run the gate so a registered-
+    // but-non-owning agent cannot drive history-back on a tab it does not
+    // own. The gate is sync and cheap; thread the resolved tabId through a
+    // fresh payload object to preserve the existing contract.
+    const recheck = checkOwnershipGate({
+      tool: 'back',
+      params: {},
+      payload: { ...payload, tabId: targetTabId }
+    });
+    if (recheck) return recheck;
   }
 
   // 3. Capture pre-back state.
