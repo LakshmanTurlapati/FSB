@@ -205,10 +205,78 @@ test('test_case_3_all_release_cleanly_on_disconnect', async () => {
 });
 
 // =============================================================================
-// Case 4: SW eviction + wake reconciliation drops ghost records (stub -- task 3)
+// Case 4: SW eviction + wake reconciliation drops ghost records
 // =============================================================================
 test('test_case_4_sw_eviction_wake_reconciliation_drops_ghost_records', async () => {
-  throw new Error('TBD task 3');
+  // Pre-build the persisted envelope: 5 agent records (3 valid + 2 ghosts).
+  const a1 = 'agent_11111111-1111-1111-1111-111111111111';
+  const a2 = 'agent_22222222-2222-2222-2222-222222222222';
+  const a3 = 'agent_33333333-3333-3333-3333-333333333333';
+  const g1 = 'agent_99999999-9999-9999-9999-999999999991';
+  const g2 = 'agent_99999999-9999-9999-9999-999999999992';
+
+  const envelope = {
+    v: 1,
+    records: {
+      [a1]: { agentId: a1, createdAt: 1000, tabIds: [101] },
+      [a2]: { agentId: a2, createdAt: 2000, tabIds: [102] },
+      [a3]: { agentId: a3, createdAt: 3000, tabIds: [103] },
+      [g1]: { agentId: g1, createdAt: 4000, tabIds: [901] },
+      [g2]: { agentId: g2, createdAt: 5000, tabIds: [902] }
+    }
+  };
+
+  // Tab 101/102/103 resolve in chrome.tabs.query; 901/902 do not -- those two
+  // are the ghosts that Phase 237 D-09 reconciliation should reap.
+  const mock = installChromeMock({
+    tabs: [{ id: 101 }, { id: 102 }, { id: 103 }],
+    storage: { session: { fsbAgentRegistry: envelope } }
+  });
+  setupDiagnosticCapture();
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+
+    // Phase 244 D-01: simulate SW eviction. The persisted envelope above is
+    // already on disk (chrome.storage.session); the fresh registry instance
+    // has empty Maps. simulateSwEviction is a no-op in this case (the Maps
+    // are already empty), but we exercise the helper to lock its contract.
+    simulateSwEviction(reg);
+    assert.strictEqual(reg.listAgents().length, 0, 'in-memory Maps empty post-eviction');
+
+    // Wake reconciliation: hydrate() rebuilds from disk and reaps ghosts.
+    await reg.hydrate();
+
+    // The 3 valid agents survive.
+    assert.strictEqual(reg._agents.has(a1), true, 'a1 valid agent rehydrated');
+    assert.strictEqual(reg._agents.has(a2), true, 'a2 valid agent rehydrated');
+    assert.strictEqual(reg._agents.has(a3), true, 'a3 valid agent rehydrated');
+
+    // The 2 ghost agents reaped.
+    assert.strictEqual(reg._agents.has(g1), false, 'g1 ghost reaped');
+    assert.strictEqual(reg._agents.has(g2), false, 'g2 ghost reaped');
+    assert.strictEqual(reg.listAgents().length, 3, 'exactly 3 agents post-reconciliation');
+
+    // Tab ownership reflects only live tabs.
+    assert.strictEqual(reg.getOwner(101), a1, 'tab 101 owned by a1');
+    assert.strictEqual(reg.getOwner(102), a2, 'tab 102 owned by a2');
+    assert.strictEqual(reg.getOwner(103), a3, 'tab 103 owned by a3');
+    assert.strictEqual(reg.getOwner(901), null, 'ghost tab 901 has no owner');
+    assert.strictEqual(reg.getOwner(902), null, 'ghost tab 902 has no owner');
+
+    // T-244-03: persisted envelope itself was pruned (durable reconciliation,
+    // not just an in-memory drop). A subsequent SW wake stays clean.
+    const persistedAfter = mock.chrome.storage.session._dump()[fresh.FSB_AGENT_REGISTRY_STORAGE_KEY];
+    assert.ok(persistedAfter && persistedAfter.records, 'envelope still present');
+    assert.ok(!(g1 in persistedAfter.records), 'g1 pruned from storage');
+    assert.ok(!(g2 in persistedAfter.records), 'g2 pruned from storage');
+    assert.ok(a1 in persistedAfter.records, 'a1 retained in storage');
+    assert.ok(a2 in persistedAfter.records, 'a2 retained in storage');
+    assert.ok(a3 in persistedAfter.records, 'a3 retained in storage');
+  } finally {
+    teardownDiagnosticCapture();
+    mock.restore();
+  }
 });
 
 // =============================================================================
@@ -255,10 +323,96 @@ test('test_case_5_twenty_concurrent_claim_stress', async () => {
 });
 
 // =============================================================================
-// Case 6: Tab-ID reuse race -- agent A's stale token cannot corrupt agent B (stub -- task 3)
+// Case 6: Tab-ID reuse race -- agent A's stale token cannot corrupt agent B
 // =============================================================================
 test('test_case_6_tab_id_reuse_race_does_not_corrupt_b', async () => {
-  throw new Error('TBD task 3');
+  // chrome.tabs.get must resolve for both bindTab calls -- tab 1001 exists
+  // before A binds, gets closed (Chrome OS-assigned id is freed), and is
+  // re-created with the same integer id when B opens a new tab. The mock's
+  // tabs list stays { id: 1001 } across both binds; the registry treats the
+  // close+reopen as a fresh ownership stamp via per-bindTab tokens.
+  const tabFixtures = [{ id: 1001, incognito: false, windowId: 1 }];
+  const mock = installChromeMock({ tabs: tabFixtures });
+  setupDiagnosticCapture();
+  try {
+    const fresh = freshRequireRegistry();
+    const reg = new fresh.AgentRegistry();
+    reg.setCap(8);
+
+    // Register two agents under the cap.
+    const regA = await reg.registerAgent();
+    const regB = await reg.registerAgent();
+    assert.ok(regA && regA.agentId, 'agent A registered');
+    assert.ok(regB && regB.agentId, 'agent B registered');
+    const agentA = regA.agentId;
+    const agentB = regB.agentId;
+
+    // bindTab(A, 1001) -> tokA. Phase 240 D-04 requires ownershipToken on the
+    // bind result; if absent, this assertion fails LOUDLY and we do NOT
+    // mutate the registry to make it pass (out of scope for Phase 244).
+    const bindA = await reg.bindTab(agentA, 1001);
+    assert.ok(bindA && typeof bindA === 'object',
+      'bindTab(A, 1001) returns an object (not boolean false)');
+    assert.ok(bindA.ownershipToken,
+      'bindTab(A, 1001) returns a non-empty ownershipToken (Phase 240 D-04 contract)');
+    const tokA = bindA.ownershipToken;
+
+    // Recycle: Chrome closed tab 1001. The recycleTabId helper releases the
+    // binding (idempotent) and returns a thunk for the second bind plus the
+    // prior token for cross-check.
+    const recycle = await recycleTabId(reg, 1001);
+    assert.strictEqual(recycle.priorToken, tokA,
+      'recycle helper observed the prior ownershipToken');
+
+    // releaseTab wipes per-tab metadata (Phase 240 Pitfall 2) AND the agent
+    // record itself if its pool drained to zero (Phase 241 D-10). agentA
+    // had only this one tab, so it should be gone now -- verify so the
+    // race scenario is faithfully modeled.
+    assert.strictEqual(reg._agents.has(agentA), false,
+      'agentA released after its only tab closed (Phase 241 D-10 pool-drain)');
+
+    // Re-register A so we can test the stale-token-from-A path. (In the real
+    // race scenario A's queued action carries tokA even though A is gone;
+    // we model this by keeping tokA referenced in the test scope.)
+    // We do NOT need to re-register A for the assertion to be meaningful --
+    // isOwnedBy returns false on unknown agents, and the (B, tokA) cross-token
+    // case is the load-bearing assertion.
+
+    // bindTab(B, 1001) -> tokB. Per Phase 240 D-04, bindTab mints a fresh
+    // ownership_token unconditionally so tokA cannot match the new metadata.
+    const bindB = await recycle.rebind(agentB);
+    assert.ok(bindB && typeof bindB === 'object',
+      'rebind(B, 1001) returns an object');
+    assert.ok(bindB.ownershipToken,
+      'rebind(B, 1001) returns a fresh ownershipToken');
+    const tokB = bindB.ownershipToken;
+
+    assert.notStrictEqual(tokA, tokB,
+      'tokA !== tokB -- per-bindTab fresh ownership_token (Phase 240 D-04)');
+
+    // Four isOwnedBy permutations exercise the per-bindTab token gate.
+    // The (agentB, tokA) cross-token case is the load-bearing assertion: even
+    // though B legitimately owns 1001 now, A's queued action carrying tokA
+    // CANNOT pass the dispatch gate.
+    assert.strictEqual(reg.isOwnedBy(1001, agentA, tokA), false,
+      'A + tokA: stale -- the tab no longer belongs to A');
+    assert.strictEqual(reg.isOwnedBy(1001, agentA, tokB), false,
+      'A + tokB: agentA does not own the tab regardless of token');
+    assert.strictEqual(reg.isOwnedBy(1001, agentB, tokA), false,
+      'B + tokA: B owns the tab but tokA is not the live token (the corruption gate)');
+    assert.strictEqual(reg.isOwnedBy(1001, agentB, tokB), true,
+      'B + tokB: the only authorized pair');
+
+    // Phase 237 token-less back-compat path (omit ownershipToken arg): pair-only
+    // ownership says B owns it, A does not.
+    assert.strictEqual(reg.isOwnedBy(1001, agentB), true,
+      'B owns 1001 in the token-less back-compat path');
+    assert.strictEqual(reg.isOwnedBy(1001, agentA), false,
+      'A does not own 1001 in the token-less back-compat path');
+  } finally {
+    teardownDiagnosticCapture();
+    mock.restore();
+  }
 });
 
 // =============================================================================
