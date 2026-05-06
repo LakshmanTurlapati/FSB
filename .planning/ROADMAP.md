@@ -33,6 +33,7 @@ Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with
 - [x] **Phase 242: `back` MCP Tool** -- Thin ownership-gated wrapper over existing `go_back` route with structured result codes (`ok` / `no_history` / `cross_origin` / `bf_cache` / `fragment_only`) (completed 2026-05-06)
 - [x] **Phase 243: Background-Tab Audit + UI/Badge Integration** -- Audit 25+ tools for `tabs.update({active:true})`; per-tool `force_foreground` flag; long `setTimeout` -> `chrome.alarms`; v0.9.36 badge extended with agent_id; sidepanel/popup read-only "owned by Agent X" badge; `options.html` Concurrency Cap control (completed 2026-05-06)
 - [x] **Phase 244: Hardening, Regression, MCP 0.8.0 Release** -- All v0.9.36 + dashboard + bridge contract tests pass unchanged; new multi-agent regression suite; SW-eviction reconciliation tests; SDK bump `^1.27.1` -> `^1.29.x`; `fsb-mcp-server@0.8.0` published with CHANGELOG + README (completed 2026-05-06)
+- [x] **Phase 245: Post-Action Change Report (Inline Diff Return)** -- Every action tool (non-read) returns a compact `change_report` field describing what changed (URL delta, added/removed/attr-changed nodes scoped to action vicinity, dialogs opened, focus shift) so the agent does not need a follow-up `read_page` to learn the consequence; size-capped with `truncated` hint, opt-out per-tool, opt-out global setting
 
 ## Phase Details
 
@@ -165,6 +166,21 @@ Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with
   - [x] 244-02-PLAN.md -- MCP tool descriptions updated across agents.ts/autopilot.ts/visual-session.ts + extension/ai/tool-definitions.js (MCP-07; D-02)
   - [x] 244-03-PLAN.md -- Version bump 0.7.4 -> 0.8.0 + SDK ^1.29.x + lockfile + CHANGELOG + README; npm publish flagged for user (MCP-01, MCP-02, MCP-08; D-03, D-04, D-05, D-06)
 
+### Phase 245: Post-Action Change Report (Inline Diff Return)
+
+**Goal**: Every action tool (non-read) returns a compact `change_report` describing what the action mutated, so the calling agent learns the consequence without a follow-up `read_page` / `get_dom_snapshot`. Reduces round-trips, halves average tokens-per-task on action-heavy flows.
+**Depends on**: Phase 244 (lands at the tail of v0.9.60; reuses existing `action-verification.js` `capturePageState` / `comparePageStates` and the v0.9.36 `dom-stream` MutationObserver infrastructure)
+**Requirements**: CHANGE-01, CHANGE-02, CHANGE-03, CHANGE-04, CHANGE-05
+**Success Criteria** (what must be TRUE):
+  1. Every MCP action tool (`click`, `type_text`, `clear_input`, `select_option`, `check_box`, `press_key`, `press_enter`, `hover`, `focus`, `scroll*`, `drag*`, `drop_file`, `fill_credential`, `fill_sheet`, `set_attribute`, `navigate`, `go_back`, `go_forward`, `refresh`, `open_tab`, `switch_tab`, `back`, `execute_js`) returns a `change_report` field on success; read-only tools (`get_text`, `get_attribute`, `read_page`, `get_dom_snapshot`, `read_sheet`, `list_*`, `wait_for_*`, `get_logs`) do NOT include the field.
+  2. The `change_report` shape is `{ url: { before, after, changed }, title_changed, dialogs_opened: [], nodes_added: [{tag, text, selector}], nodes_removed: [{tag, text, selector}], attrs_changed: [{selector, attr, before, after}], inputs_changed: {key: {before, after}}, focus_shift: {from, to} | null, mutation_count, settle_ms, truncated }` -- a size-capped JSON object never exceeding ~600 tokens (~2400 bytes); when capped, `truncated: true` and a human-readable hint string `"call read_page for full state"` are set.
+  3. Diff capture wraps each action with a `MutationObserver` started just before the action invokes, harvested after `waitForDOMStable` settles (or 500ms safety net), filtered to drop style-only / animation-class-only / scroll-position mutations; ancestor-of-target scoping when target element is known, document-wide otherwise.
+  4. Per-tool opt-out via `_skipChangeReport: true` flag in `tool-definitions.js` (default false) for hot-path tools where the diff would be noise (e.g., `scroll`); global opt-out via new `options.html` Advanced Settings toggle "Return action change reports" (default on, persists to `chrome.storage.local`).
+  5. Existing tests pass unchanged; new test suite covers: (a) action returns change_report with expected shape, (b) read tools do NOT include the field, (c) size-cap triggers `truncated: true` on noisy SPAs, (d) `_skipChangeReport` flag suppresses, (e) global toggle off suppresses everywhere, (f) cross-origin navigation still produces a meaningful report (URL delta only when DOM not accessible).
+**Plans**: 2 plans (planned via `/gsd-plan-phase 245`)
+  - [x] 245-01-PLAN.md -- Enrich `action-verification.js` with MutationObserver-based diff harvest + `buildChangeReport(before, after, mutations, options)` serializer with size cap + filter rules; unit tests for shape, cap, filtering (CHANGE-02, CHANGE-04)
+  - [x] 245-02-PLAN.md -- Wire `change_report` into `mcp-tool-dispatcher.js` response envelope for action tools using `_emitChangeReport` flag + read-tool exclusion list; settings toggle UI + persistence; tool description updates in `agents.ts`/`manual.ts`/`autopilot.ts`; integration tests (CHANGE-01, CHANGE-03, CHANGE-05)
+
 ## Dependency Graph
 
 ```
@@ -210,6 +226,12 @@ Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with
            +--------+--------+
            | 244 Hardening + |
            | MCP 0.8.0 ship  |
+           +--------+--------+
+                    |
+                    v
+           +--------+--------+
+           | 245 Post-Action |
+           | Change Report   |
            +-----------------+
 ```
 
@@ -236,9 +258,10 @@ Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with
 | MCP-01, 02, 07, 08 | 244 | SDK bump, tool descriptions, npm publish |
 | UI-01..03 | 243 | Badge with agent_id, owned-by badge, cap setting |
 | TEST-01..05 | 244 | Regression suite + SW eviction + stress + tab-ID reuse |
+| CHANGE-01..05 | 245 | Inline change_report on every action tool |
 
-**Total v1 requirements:** 37
-**Mapped:** 37 / 37
+**Total v1 requirements:** 42
+**Mapped:** 42 / 42
 **Orphaned:** 0
 
 ## Progress
@@ -253,6 +276,7 @@ Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with
 | 242 -- back MCP Tool | 2/2 | Complete    | 2026-05-06 |
 | 243 -- Background-Tab Audit + UI/Badge | 4/4 | Complete    | 2026-05-06 |
 | 244 -- Hardening + MCP 0.8.0 Release | 3/3 | Complete    | 2026-05-06 |
+| 245 -- Post-Action Change Report | 2/2 | Complete    | 2026-05-06 |
 
 ---
 
