@@ -870,7 +870,12 @@
    * the caller cannot mutate live registry state. Returns null if the tab
    * is not bound (or its metadata was wiped at releaseTab).
    *
-   * @returns {{ownershipToken, incognito, windowId, boundAt} | null}
+   * Phase 243 D-03 (BG-04): also surfaces lastAgentNavigationAt so the
+   * webNavigation.onCommitted listener can suppress agent-driven nav
+   * (Phase 242 back transitionType auto_bookmark false-positive) within
+   * 500ms of the stamp.
+   *
+   * @returns {{ownershipToken, incognito, windowId, boundAt, forced, lastAgentNavigationAt} | null}
    */
   AgentRegistry.prototype.getTabMetadata = function(tabId) {
     var meta = this._tabMetadata.get(tabId);
@@ -882,8 +887,70 @@
       boundAt: meta.boundAt,
       // Phase 241 D-01: forced flag surfaces to observability callers so
       // chrome.tabs.onCreated openerTabId-routed binds are auditable.
-      forced: meta.forced === true
+      forced: meta.forced === true,
+      // Phase 243 D-03 (BG-04): per-tab agent-initiated nav timestamp used by
+      // the webNavigation.onCommitted listener to suppress emissions within
+      // a 500ms window after a programmatic chrome.tabs.update / goBack.
+      lastAgentNavigationAt: typeof meta.lastAgentNavigationAt === 'number'
+        ? meta.lastAgentNavigationAt
+        : 0
     };
+  };
+
+  /**
+   * Phase 243 D-03 (BG-04): Stamp Date.now() onto the per-tab metadata so
+   * the webNavigation.onCommitted listener can suppress its
+   * 'agent-tab-user-navigation' emission for navigations that the agent
+   * itself initiated (the Phase 242 `back` route fires Chrome
+   * transitionType `auto_bookmark`, indistinguishable from a user-clicked
+   * bookmark; a tight 500ms window past the stamp is treated as
+   * agent-driven and suppressed).
+   *
+   * Idempotent re-stamping: a second call simply moves the timestamp
+   * forward. Auto-creates a metadata bucket when the tab has no entry yet
+   * (the BG-04 false-positive guard cares ONLY about the timestamp; the
+   * full Phase 240 metadata block is populated lazily by bindTab when the
+   * agent claims the tab).
+   *
+   * Sync write (no mutex). The persisted envelope is refreshed best-effort
+   * via _persist() so SW eviction during the suppression window does not
+   * lose the stamp; the registry mutex serializes the storage write
+   * naturally because _persist is itself fire-and-forget here.
+   *
+   * Callers: any code path that invokes chrome.tabs.update({url}) or
+   * chrome.tabs.goBack on an agent-owned tab MUST call this helper BEFORE
+   * the chrome API call. Concrete sites:
+   *   - extension/background.js handleStartAutomation smart-tab navigation
+   *     (chrome.tabs.update({url})). Phase 243 plan 02 wires this.
+   *   - extension/ws/mcp-tool-dispatcher.js handleNavigateRoute
+   *     (chrome.tabs.update({url})). Owned by Phase 243 plan 01; verified
+   *     during integration.
+   *   - extension/ws/mcp-tool-dispatcher.js handleNavigationHistoryRoute
+   *     (chrome.tabs.goBack / goForward / reload). Phase 243 plan 02 wires
+   *     this.
+   *   - extension/ws/mcp-tool-dispatcher.js handleBackRoute (Phase 242 back
+   *     route, chrome.tabs.goBack). Phase 243 plan 02 wires this.
+   *   - extension/ai/tool-executor.js navigate / go_back autopilot path.
+   *     Phase 243 plan 02 wires this.
+   * Note: switch_tab does NOT navigate (it only changes active state); no
+   * stamp needed.
+   */
+  AgentRegistry.prototype.stampAgentNavigation = function(tabId) {
+    var id = (typeof tabId === 'number') ? tabId : Number(tabId);
+    if (!Number.isFinite(id)) return;
+    var meta = this._tabMetadata.get(id);
+    if (!meta) {
+      meta = {};
+      this._tabMetadata.set(id, meta);
+    }
+    meta.lastAgentNavigationAt = Date.now();
+    // Best-effort persist; fire-and-forget so the caller stays sync.
+    try {
+      var p = this._persist();
+      if (p && typeof p.catch === 'function') {
+        p.catch(function() { /* best-effort */ });
+      }
+    } catch (_e) { /* swallow */ }
   };
 
   /**
