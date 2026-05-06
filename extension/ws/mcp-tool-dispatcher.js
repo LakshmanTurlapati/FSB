@@ -709,8 +709,9 @@ async function handleToolAliasRoute({ params, client, route }) {
 
 async function handleStartVisualSessionRoute({ payload, client }) {
   const { agentId } = payload || {};
-  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-  void agentId;
+  // Phase 240 D-09: agentId is threaded into handleStartMcpVisualSession so
+  // the same-agent resume / cross-agent reject branch in
+  // McpVisualSessionManager.startSession can fire on production dispatch.
   const clientLabel = _mcp_normalizeVisualClientLabel(payload?.clientLabel || payload?.client);
   if (!clientLabel) {
     return createMcpRouteError('start_visual_session', 'visual-session', 'Retry with one of the approved MCP client labels.', {
@@ -758,7 +759,8 @@ async function handleStartVisualSessionRoute({ payload, client }) {
       tabId: tab.id,
       clientLabel,
       task,
-      detail: boundedString(payload?.detail, 1000)
+      detail: boundedString(payload?.detail, 1000),
+      agentId: typeof agentId === 'string' && agentId ? agentId : null
     },
     { tab: { id: tab.id } }
   );

@@ -1178,6 +1178,10 @@ async function handleStartMcpVisualSession(request, sender, sendResponse) {
       tabId,
       task,
       detail: request?.detail,
+      // Phase 240 D-09: thread agentId so the cross-agent reject /
+      // same-agent resume branch in McpVisualSessionManager.startSession
+      // fires on production dispatch (not just direct unit-test calls).
+      agentId: typeof request?.agentId === 'string' && request.agentId ? request.agentId : null,
     });
     if (!started?.session) {
       sendResponse({
