@@ -56,7 +56,11 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
   3. `skills/FSB Skill/` exists at the repo top level (sibling to `extension/`, `mcp/`, `showcase/`) with `SKILL.md`, `USAGE.md`, `references/`, and `scripts/` as empty placeholders; `git status` shows the new tree; nothing in the existing CI chain breaks.
   4. Phase 248 is closed with an explicit "schema pinned" sign-off so Phases 249+ can start; no SKILL.md frontmatter has been authored yet.
 
-**Plans**: TBD
+**Plans**: 2 plans (parallel, both autonomous)
+
+Plans:
+- [ ] 248-01-PLAN.md -- Refine and pin the OpenClaw spec verification findings doc (.planning/v0.9.61-OPENCLAW-SPEC.md); add schema-pinned sign-off; record ClawHub name decision (covers SCAFFOLD-01..04)
+- [ ] 248-02-PLAN.md -- Stand up empty skills/FSB Skill/ skeleton (SKILL.md, USAGE.md, references/README.md, scripts/README.md placeholders); no frontmatter, no scripts (covers SCAFFOLD-05)
 
 ---
 
@@ -156,7 +160,7 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 0/0 | Not started | - |
+| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 0/2 | Not started | - |
 | 249. SKILL.md + Scripts | 0/0 | Not started (gated on 248) | - |
 | 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |

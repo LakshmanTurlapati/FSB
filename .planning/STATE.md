@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.9.61
-milestone_name: FSB Skill (OpenClaw)
-status: roadmap_complete
-last_updated: "2026-05-08T13:00:00.000Z"
-last_activity: 2026-05-08
+milestone_name: milestone
+status: executing
+last_updated: "2026-05-08T15:16:20.829Z"
+last_activity: 2026-05-08 -- Phase 248 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -28,8 +28,8 @@ See: .planning/ROADMAP.md (Phases 248-253)
 
 Phase: 248 -- OpenClaw Spec Verification Gate + Repo Scaffolding (next; not started)
 Plan: --
-Status: Roadmap complete; awaiting `/gsd-plan-phase 248`
-Last activity: 2026-05-08 -- Roadmap created on branch `Claw`; 6 phases (248-253), 29/29 requirements traced.
+Status: Ready to execute
+Last activity: 2026-05-08 -- Phase 248 planning complete
 Progress: 0/6 phases complete (0%)
 
 ```
