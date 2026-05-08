@@ -10,9 +10,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- 2026-05-08. Phases 237-247 delivered MCP agent identity, tab ownership, concurrency caps, reconnect grace, background-tab execution, the `back` tool, `run_task` return-on-completion, post-action `change_report`, and restricted-active-tab recovery. Audit status `passed` with documented caveats: npm publish remains user-gated, one live `switch_tab` branch is accepted by automated evidence, and the long `run_task` soak is deferred.
+**Last shipped:** v0.9.61 FSB Skill (OpenClaw) -- 2026-05-08. Phases 248-253 delivered an OpenClaw skill at `skills/FSB Skill/` with verified frontmatter, SKILL.md body with progressive-disclosure pointers, three Node `.mjs` scripts (six-layer doctor dispatcher, canonical stdio printer, consent-gated multi-host installer), seven reference files, a static-content test wired into `npm test` / `ci / all-green`, repo-wide discoverability edits (root README + mcp README + install.ts CLI + showcase llms.txt), and a reproducible `npm run package:skill` build artifact. Audit status `passed` (29/29 requirements). Live OpenClaw runtime validation and `clawhub publish` remain user-gated.
 
 **Recent shipping cadence:**
+- v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
 - v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- shipped 2026-05-08
 - v0.9.50 Autopilot Refinement (MCP-Parity) — shipped 2026-05-03
 - v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up — shipped 2026-05-02
@@ -24,7 +25,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone: v0.9.61 FSB Skill (OpenClaw)
+## Current Milestone
+
+No active milestone -- v0.9.61 FSB Skill (OpenClaw) shipped 2026-05-08; next milestone TBD. Run `/gsd-new-milestone` to scope the next cycle.
+
+## Previous Milestone: v0.9.61 FSB Skill (OpenClaw) (shipped 2026-05-08)
 
 **Goal:** Ship an OpenClaw skill that installs `fsb-mcp-server`, walks the user through FSB Chrome extension install, and defaults web-automation requests to FSB.
 

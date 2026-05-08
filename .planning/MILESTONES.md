@@ -1,5 +1,28 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.61 FSB Skill (OpenClaw) (Shipped: 2026-05-08)
+
+**Phases completed:** 6 phases (248-253), 14 plans
+
+**Archive:** `.planning/milestones/v0.9.61-ROADMAP.md` and `.planning/milestones/v0.9.61-REQUIREMENTS.md`
+
+**Audit status:** `passed` -- `.planning/v0.9.61-MILESTONE-AUDIT.md` (29/29 requirements satisfied; 47/47 must-haves verified across phases)
+
+**Key accomplishments:**
+
+- Shipped a complete OpenClaw skill at `skills/FSB Skill/`: SKILL.md frontmatter (`name: FSB`, `version: 0.9.61`, single-line `metadata.openclaw` JSON, `requires.bins: [node, npx]`, `requires.env: []`); ~600-token body with progressive-disclosure pointers; three Node `.mjs` scripts (six-layer doctor dispatcher, canonical stdio printer, consent-gated multi-host installer); seven reference files (tool decision tree, multi-agent contract, restricted-tab recovery, default-to-FSB rule, vault boundary, visual-session lifecycle, README index).
+- Recorded the OpenClaw spec verification gate (Phase 248) and ClawHub publish QA pass (Phase 253) under `.planning/`. ClawHub `clawhub inspect fsb` returned "Skill not found"; `name: FSB` is locked with `fsb-browser` + `displayName: FSB` documented as fallback.
+- Wired `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the existing `ci / all-green` PR gate covers SKILL.md frontmatter, stdio block parity with `mcp/src/install.ts`, references completeness + multi-agent typed errors, USAGE.md links, and ASCII-only enforcement across all skill artifacts (48/48 PASS at audit time).
+- Made the skill discoverable from every existing entry point: root `README.md` Quick Start TL;DR + Repository Layout row, `mcp/README.md` `### OpenClaw` paragraph, the `OpenClaw` block in `mcp/src/install.ts:412-425` `getSetupSections()`, and the showcase `llms.txt` + `llms-full.txt` files.
+- Shipped the reproducible build script `scripts/package-skill.mjs` + `npm run package:skill` wiring (writes `dist/skill/FSB-Skill-<version>.zip`, version stamped from SKILL.md frontmatter). Documented the user-gated publish sequence (`clawhub login` -> `clawhub publish "skills/FSB Skill"`) in `mcp/README.md` and the QA doc.
+- Zero new MCP tools, zero extension diffs, zero `mcp/src/server.ts` or `mcp/src/tools/*.ts` edits. Single test file added; no new dev dependencies.
+
+**Accepted closeout caveats:**
+
+- Live OpenClaw runtime validation is user-gated: 4 items recorded in `249-HUMAN-UAT.md` (load skill into fresh OpenClaw, exercise the six-layer doctor matrix end-to-end, paste canonical stdio JSON into a real OpenClaw MCP config, install-host happy path against real Claude Desktop / Cursor / etc.).
+- ClawHub `clawhub publish "skills/FSB Skill"` is user-gated (mirrors v0.9.60 `npm publish fsb-mcp-server@0.8.0` posture). Server-side VirusTotal + ClawScan + GitHub-account-age (>= 7 days) checks fire on the user's command.
+- Carry-forward from v0.9.60: `npm publish fsb-mcp-server@0.8.0` remains user-gated; live unowned-`switch_tab` UAT and 5-run long `run_task` soak still deferred (automated coverage green).
+
 ## v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) (Shipped: 2026-05-08)
 
 **Phases completed:** 11 phases, 30 plans
