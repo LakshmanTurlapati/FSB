@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v0.9.61
 milestone_name: FSB Skill (OpenClaw)
-status: defining_requirements
-last_updated: "2026-05-08T12:00:00.000Z"
+status: roadmap_complete
+last_updated: "2026-05-08T13:00:00.000Z"
 last_activity: 2026-05-08
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,32 +18,44 @@ progress:
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-08)
+See: .planning/REQUIREMENTS.md (29 v1 requirements traced to 6 phases)
+See: .planning/ROADMAP.md (Phases 248-253)
 
-**Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.61 FSB Skill (OpenClaw) -- defining requirements on branch `Claw`
+**Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
+**Current focus:** v0.9.61 FSB Skill (OpenClaw) -- roadmap created, ready for plan-phase on Phase 248.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 248 -- OpenClaw Spec Verification Gate + Repo Scaffolding (next; not started)
 Plan: --
-Status: Defining requirements
-Last activity: 2026-05-08 -- Milestone v0.9.61 started on branch Claw
+Status: Roadmap complete; awaiting `/gsd-plan-phase 248`
+Last activity: 2026-05-08 -- Roadmap created on branch `Claw`; 6 phases (248-253), 29/29 requirements traced.
+Progress: 0/6 phases complete (0%)
+
+```
+[                                                  ] 0%
+248 -> 249 -> 250 -> 251 -> 252 -> 253
+^^^ hard gate
+```
 
 ## Performance Metrics
 
-- Last milestone: v0.9.60 (11 phases, 30 plans, 42/42 requirements traced, audit passed)
-- Tag created: v0.9.60 (push to remote: user-gated)
+- Last milestone: v0.9.60 (11 phases, 30 plans, 42/42 requirements traced, audit passed).
+- Tag created: v0.9.60 (push to remote: user-gated).
+- This milestone (v0.9.61): 6 planned phases, 29 v1 requirements, granularity `fine`.
 
 ## Accumulated Context
 
 ### Pending Todos
 
-- User-gated release action remains: publish/tag `fsb-mcp-server@0.8.0` when ready (`npm publish` not yet run).
-- Optional future: split live UAT coverage for unowned `switch_tab` into a controlled browser profile where normal tabs are not auto-owned by `legacy:sidepanel`.
+- Phase 248 must land before any SKILL.md frontmatter is authored (hard gate). Findings document under `.planning/` is the deliverable, not code.
+- User-gated release action remains: publish/tag `fsb-mcp-server@0.8.0` when ready (`npm publish` not yet run; carried from v0.9.60).
+- User-gated release action for this milestone: Phase 253 leaves the actual `clawhub publish` as a single user-run command after the QA pass is recorded clean.
+- Optional future: split live UAT coverage for unowned `switch_tab` into a controlled browser profile where normal tabs are not auto-owned by `legacy:sidepanel` (carried from v0.9.60).
 
 ### Blockers/Concerns
 
-- None blocking v0.9.61.
+- None blocking start of Phase 248. Three open spec questions (`metadata.openclaw.install[]` schema, `requires.bins` enum, `command-arg-mode` semantics) are the explicit Phase 248 deliverable, not blockers.
 
 ### Carry-Forward Caveats from v0.9.60
 
@@ -51,15 +63,19 @@ Last activity: 2026-05-08 -- Milestone v0.9.61 started on branch Claw
 - Live unowned-target `switch_tab` recovery covered only by automated dispatcher tests; live reproduction blocked by `legacy:sidepanel` auto-ownership in this browser profile.
 - Five long real `run_task` soak runs deferred; automated lifecycle coverage is green.
 
-### v0.9.61 Pre-Research Notes
+### v0.9.61 Decisions Locked at Roadmap
 
-- OpenClaw MCP install is officially "manual / unsupported" (`mcp/src/install.ts:413-420`); skill must print stdio config rather than rely on `--openclaw` flag.
-- Chrome Web Store URL: `https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk` (canonical, from `README.md:66`, `showcase/angular/src/app/pages/home/home-page.component.ts:26`).
-- Local skill directory name is `FSB Skill` (with space); SKILL.md `name:` field is `FSB`.
-- Spec uncertainty owed to research: exact schema of `metadata.openclaw.install[]`, `requires.bins` accepted values, `command-arg-mode` parsing.
+- Repo path is `skills/FSB Skill/` (literal space).
+- SKILL.md `name:` is `FSB`; namespaced fallback `fsb-browser` + `displayName: FSB` is the documented escape if Phase 248's ClawHub check finds collision.
+- All scripts are Node `.mjs` (cross-platform; no `.sh`/`.cmd` siblings).
+- `metadata.openclaw.requires.env: []` is mandatory.
+- `npx -y fsb-mcp-server` invocations stay unpinned.
+- ASCII status markers only (`[OK]` / `[FAIL]` / `[WARN]`); zero emojis.
+- Zero new MCP tools, zero extension changes, zero `mcp/src/server.ts` or `mcp/src/tools/*.ts` diffs.
+- ClawHub publish is in scope for the milestone (Phase 253) but the actual publish command is user-gated, mirroring v0.9.60 `npm publish` posture.
 
 ## Session Continuity
 
-Last session ended with: v0.9.60 milestone archived, PROJECT.md evolved, RETROSPECTIVE.md updated, git tag created.
+Last session ended with: Roadmap created -- 6 phases (248-253), 29/29 requirements traced, REQUIREMENTS.md traceability table filled.
 
-Next session should: run requirements scoping for v0.9.61 FSB Skill, then create roadmap and proceed to phase planning.
+Next session should: run `/gsd-plan-phase 248` to decompose the OpenClaw Spec Verification Gate + Repo Scaffolding phase into plans (the hard gate; everything else waits on its findings).
