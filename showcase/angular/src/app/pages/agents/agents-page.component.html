@@ -12,7 +12,7 @@
       FSB ships a polished OpenClaw skill plus a 50+ tool MCP surface that any agent runtime can drive. Click, type, orchestrate across tabs, fill vault credentials, read live page state, all from one prompt, in the user&#39;s actual Chrome.
     </p>
     <div class="agents-hero-actions reveal delay-3">
-      <a href="https://clawhub.ai/" target="_blank" rel="noopener" class="btn btn-primary">
+      <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary">
         Install on ClawHub
       </a>
       <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-secondary">
@@ -61,28 +61,28 @@
         <div class="power-card-stat">50+</div>
         <div class="power-card-body">
           <h3>MCP tools, one surface</h3>
-          <p>Read only first (<code>read_page</code>, <code>get_dom_snapshot</code>, <code>get_page_snapshot</code>, <code>get_site_guide</code>), interaction (<code>click</code>, <code>type_text</code>, <code>press_enter</code>), navigation, vault, and observability tools. All typed. All scoped to the calling agent.</p>
+          <p>Read, click, type, navigate, vault, observe. All typed. All agent-scoped. One surface, no glue code.</p>
         </div>
       </article>
       <article class="power-card reveal delay-2">
         <div class="power-card-stat">N agents</div>
         <div class="power-card-body">
           <h3>Multi agent identity and tab ownership</h3>
-          <p>Each MCP session gets a server minted <code>agent_id</code>. Tabs are owned per agent. Cross agent access rejects with typed <code>TAB_NOT_OWNED</code>. The concurrency cap is configurable from 1 to 64 (default 8) with a fail loud <code>AGENT_CAP_REACHED</code> error. Background tabs never steal user focus.</p>
+          <p>Server-minted <code>agent_id</code> per session. Tabs owned per agent. Cross-agent calls fail loud with <code>TAB_NOT_OWNED</code>. Cap 1-64 (default 8), <code>AGENT_CAP_REACHED</code> when full. No focus stealing.</p>
         </div>
       </article>
       <article class="power-card reveal delay-3">
         <div class="power-card-stat">0 leaks</div>
         <div class="power-card-body">
           <h3>Vault boundary, by design</h3>
-          <p>Passwords and payment details resolve inside the FSB Chrome extension&#39;s encrypted storage via <code>fill_credential</code> and <code>use_payment_method</code>. Never in chat. Never in tool args. <code>requires.env</code> is mandatory empty.</p>
+          <p>Passwords and cards resolve inside the extension&#39;s encrypted store via <code>fill_credential</code> and <code>use_payment_method</code>. Never in chat. Never in args. <code>requires.env</code> is mandatory empty.</p>
         </div>
       </article>
       <article class="power-card reveal delay-4">
         <div class="power-card-stat">Live</div>
         <div class="power-card-body">
           <h3>Real Chrome, real session</h3>
-          <p>The user&#39;s logged in cookies, extensions, and saved state are the runtime. Visual feedback shows what is being targeted. <code>change_report</code> on every action keeps the agent aware of mutations without an extra <code>read_page</code> round trip.</p>
+          <p>Your cookies. Your extensions. Your saved state. <code>change_report</code> streams mutations on every action — no extra <code>read_page</code> round-trip.</p>
         </div>
       </article>
     </div>
@@ -131,45 +131,55 @@
   </div>
 </section>
 
-<!-- Try it -->
+<!-- What people actually automate -->
 <section class="section agents-try">
   <div class="container">
     <div class="section-header reveal">
-      <h2>Try It</h2>
-      <p>Once the doctor is green, paste any of these into your OpenClaw chat to confirm the loop works.</p>
+      <h2>Where FSB <span class="text-orange">earns its keep</span></h2>
+      <p>The recurring browser work. The boring, repetitive stuff that vision-based agents struggle with on logged-in sites. FSB runs in the user&#39;s real Chrome, so cookies, sessions, MFA state, and saved logins are already there.</p>
     </div>
 
-    <div class="try-mode reveal delay-1">
-      <h3>Manual mode (default)</h3>
-      <p>Each prompt calls a single FSB tool so you can see the round trip plainly.</p>
-      <ul class="try-list">
-        <li>
-          <span class="try-tool"><code>read_page</code></span>
-          <span class="try-prompt">&quot;Open https://example.com and read the page. Summarize the visible text in two sentences.&quot;</span>
-        </li>
-        <li>
-          <span class="try-tool"><code>click</code></span>
-          <span class="try-prompt">&quot;On https://example.com, click the &#39;More information...&#39; link and tell me what page loads.&quot;</span>
-        </li>
-        <li>
-          <span class="try-tool"><code>type_text</code></span>
-          <span class="try-prompt">&quot;Open https://duckduckgo.com, type <code>fsb-mcp-server</code> into the search box, and press Enter. Then list the first three result titles.&quot;</span>
-        </li>
-      </ul>
+    <div class="prompt-grid">
+      <article class="prompt-card reveal delay-1">
+        <header class="prompt-card-head">
+          <span class="prompt-card-icon"><i class="ph ph-tray"></i></span>
+          <span class="prompt-card-label">Inbox triage</span>
+        </header>
+        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Open Gmail, label everything from billing as <code>finance</code>, draft replies to support threads using yesterday&#39;s tone, and flag anything urgent.</p>
+      </article>
+      <article class="prompt-card reveal delay-2">
+        <header class="prompt-card-head">
+          <span class="prompt-card-icon"><i class="ph ph-headset"></i></span>
+          <span class="prompt-card-label">Support replies</span>
+        </header>
+        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>In Zendesk, draft answers to open tickets about pricing, order status, and shipping using the help center as ground truth.</p>
+      </article>
+      <article class="prompt-card reveal delay-3">
+        <header class="prompt-card-head">
+          <span class="prompt-card-icon"><i class="ph ph-chart-line-up"></i></span>
+          <span class="prompt-card-label">Logged-in dashboards</span>
+        </header>
+        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Pull yesterday&#39;s revenue, signups, and refund count from the analytics dashboard and post a one paragraph summary.</p>
+      </article>
+      <article class="prompt-card reveal delay-4">
+        <header class="prompt-card-head">
+          <span class="prompt-card-icon"><i class="ph ph-target"></i></span>
+          <span class="prompt-card-label">Lead monitoring</span>
+        </header>
+        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Score new LinkedIn connection requests against the ICP, draft outreach for the top three, and skip the rest.</p>
+      </article>
+      <article class="prompt-card reveal delay-5">
+        <header class="prompt-card-head">
+          <span class="prompt-card-icon"><i class="ph ph-storefront"></i></span>
+          <span class="prompt-card-label">Small-business ops</span>
+        </header>
+        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Categorize today&#39;s invoices in the POS as supplies vs. retail, extract shipping line items, and flag any vendor over last month&#39;s average.</p>
+      </article>
     </div>
 
-    <div class="try-mode reveal delay-2">
-      <h3>Autopilot (explicit delegation only)</h3>
-      <p class="autopilot-rule">
-        <strong>NEVER</strong> call <code>run_task</code> unless the user has explicitly said something like &quot;use FSB autopilot&quot;, &quot;delegate this to FSB&quot;, &quot;run the whole task autonomously&quot;, or named <code>run_task</code> directly. Manual mode tools are the default for everything else, including tasks with many steps.
-      </p>
-      <ul class="try-list">
-        <li>
-          <span class="try-tool"><code>run_task</code></span>
-          <span class="try-prompt">&quot;Use FSB autopilot to find the first GitHub repo for <code>fsb-mcp-server</code> and report a one paragraph summary of its README.&quot;</span>
-        </li>
-      </ul>
-    </div>
+    <p class="autopilot-rule reveal">
+      These run as manual-mode tool calls. Autopilot (<code>run_task</code>) only fires when the user explicitly delegates the whole task -- <strong>&quot;use FSB autopilot&quot;</strong>, <strong>&quot;delegate this&quot;</strong>, or names <code>run_task</code> directly. Manual mode is the default for everything else.
+    </p>
   </div>
 </section>
 
@@ -180,7 +190,7 @@
       <h2>Ship a real browser to your agent <span class="text-orange">today</span>.</h2>
       <p>Free, open source, BYO model keys. Works with OpenClaw, Claude, Codex, Cursor, Windsurf, and any MCP host that speaks the OpenAI tool protocol.</p>
       <div class="agents-cta-actions">
-        <a href="https://clawhub.ai/" target="_blank" rel="noopener" class="btn btn-primary">
+        <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary">
           Install on ClawHub
         </a>
         <a href="https://github.com/lakshmanturlapati/FSB/tree/main/skills/FSB%20Skill" target="_blank" rel="noopener" class="btn btn-secondary">
