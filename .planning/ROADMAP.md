@@ -174,7 +174,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
 | 249. SKILL.md + Scripts | 4/4 | Complete    | 2026-05-08 |
-| 250. USAGE.md + References + Policy | 4/4 | Complete   | 2026-05-08 |
+| 250. USAGE.md + References + Policy | 4/4 | Complete    | 2026-05-08 |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
 | 253. ClawHub Pre-Publish QA + User-Gated Publish | 0/0 | Not started (gated on 252) | - |
