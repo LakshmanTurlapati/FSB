@@ -1,0 +1,200 @@
+<!-- Hero -->
+<section class="agents-hero">
+  <div class="container">
+    <div class="agents-hero-badge reveal">
+      <img src="assets/providers/openclaw.svg" alt="OpenClaw" class="agents-hero-mark">
+      <span>OpenClaw Ready</span>
+    </div>
+    <h1 class="reveal delay-1">
+      Give your agent a real <span class="text-orange">browser</span>.
+    </h1>
+    <p class="reveal delay-2">
+      FSB ships a first-class OpenClaw skill plus a 50+ tool MCP surface that any agent
+      runtime can drive. Click, type, multi-tab, vault credentials, and live page state --
+      from one prompt, in the user's actual Chrome.
+    </p>
+    <div class="agents-hero-actions reveal delay-3">
+      <a href="https://clawhub.ai/" target="_blank" rel="noopener" class="btn btn-primary">
+        Install on ClawHub
+      </a>
+      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-secondary">
+        <i class="fa-brands fa-github"></i> View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Meet the FSB Skill -->
+<section class="section agents-skill">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Meet the FSB Skill</h2>
+      <p>The canonical OpenClaw onboarding path for FSB. Loads cleanly into a fresh OpenClaw, runs the full diagnostic flow, and installs the bridge for any other MCP host on your machine.</p>
+    </div>
+    <div class="skill-feature-grid">
+      <article class="skill-feature-card reveal delay-1">
+        <div class="skill-feature-icon"><i class="ph ph-stethoscope"></i></div>
+        <h3>Doctor-first protocol</h3>
+        <p>Runs <code>npx -y fsb-mcp-server doctor</code>, parses the failing layer (package, bridge, extension, active-tab, content-script, config), and prints the next-step recommendation. Exit code surfaces failure to the host.</p>
+      </article>
+      <article class="skill-feature-card reveal delay-2">
+        <div class="skill-feature-icon"><i class="ph ph-clipboard-text"></i></div>
+        <h3>Stdio config printer</h3>
+        <p>Emits the canonical OpenClaw stdio block to paste into your MCP config. The block is parity-locked with <code>mcp/src/install.ts</code> so the printer never drifts from the rest of the installer.</p>
+      </article>
+      <article class="skill-feature-card reveal delay-3">
+        <div class="skill-feature-icon"><i class="ph ph-list-checks"></i></div>
+        <h3>Consent-gated host install</h3>
+        <p>Detects other MCP hosts (Claude Desktop, Cursor, Codex, etc.) and asks <code>y/n</code> per host before installing. Never <code>--all</code> without consent. Never auto-writes the OpenClaw config.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- Why FSB MCP is powerful -->
+<section class="section agents-power">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Why FSB MCP is <span class="text-orange">powerful</span></h2>
+      <p>Browser automation usually means a headless instance you cannot see. FSB drives the user's actual Chrome session, and the MCP surface is built around four hard requirements: precision, observability, safety, and concurrency.</p>
+    </div>
+    <div class="power-grid">
+      <article class="power-card reveal delay-1">
+        <div class="power-card-stat">50+</div>
+        <div class="power-card-body">
+          <h3>MCP tools, one surface</h3>
+          <p>Read-only first (<code>read_page</code>, <code>get_dom_snapshot</code>, <code>get_page_snapshot</code>, <code>get_site_guide</code>), interaction (<code>click</code>, <code>type_text</code>, <code>press_enter</code>), navigation, vault, and observability tools. All typed; all agent-scoped.</p>
+        </div>
+      </article>
+      <article class="power-card reveal delay-2">
+        <div class="power-card-stat">N agents</div>
+        <div class="power-card-body">
+          <h3>Multi-agent identity + tab ownership</h3>
+          <p>Each MCP session gets a server-minted <code>agent_id</code>. Tabs are owned per agent; cross-agent access rejects with typed <code>TAB_NOT_OWNED</code>. Configurable concurrency cap (1-64, default 8) with fail-loud <code>AGENT_CAP_REACHED</code>. No focus-stealing on background tabs.</p>
+        </div>
+      </article>
+      <article class="power-card reveal delay-3">
+        <div class="power-card-stat">0 leaks</div>
+        <div class="power-card-body">
+          <h3>Vault boundary, by design</h3>
+          <p>Passwords and payment details resolve inside the FSB Chrome extension's encrypted storage via <code>fill_credential</code> and <code>use_payment_method</code>. Never in chat. Never in tool args. <code>requires.env</code> is mandatory empty.</p>
+        </div>
+      </article>
+      <article class="power-card reveal delay-4">
+        <div class="power-card-stat">Live</div>
+        <div class="power-card-body">
+          <h3>Real Chrome, real session</h3>
+          <p>The user's logged-in cookies, extensions, and saved state are the runtime. Visual feedback shows what is being targeted; <code>change_report</code> on every action keeps the agent aware of mutations without an extra <code>read_page</code> round-trip.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- Install in 3 steps -->
+<section class="section agents-install">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Install in 3 Steps</h2>
+      <p>Get from a clean machine to a green doctor in under five minutes.</p>
+    </div>
+    <ol class="install-steps">
+      <li class="install-step reveal delay-1">
+        <div class="install-step-num">1</div>
+        <div class="install-step-body">
+          <h3>Install the FSB Chrome extension</h3>
+          <p>Primary path -- Chrome Web Store. Paste this URL into Chrome's address bar:</p>
+          <pre class="install-step-code"><code>https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk</code></pre>
+          <p>Fallback path -- <a href="https://github.com/lakshmanturlapati/FSB/releases" target="_blank" rel="noopener">GitHub Releases</a>. Download the latest <code>.zip</code> and load unpacked at <code>chrome://extensions</code> with Developer mode on.</p>
+        </div>
+      </li>
+      <li class="install-step reveal delay-2">
+        <div class="install-step-num">2</div>
+        <div class="install-step-body">
+          <h3>Install the FSB MCP server config</h3>
+          <p>Print the canonical OpenClaw stdio block and paste it into your MCP host config:</p>
+          <pre class="install-step-code"><code>node scripts/print-stdio.mjs</code></pre>
+          <p>Or use the FSB CLI directly. Discover supported hosts on your machine:</p>
+          <pre class="install-step-code"><code>npx -y fsb-mcp-server install --list</code></pre>
+          <p>Then run the host-specific installer, e.g.:</p>
+          <pre class="install-step-code"><code>npx -y fsb-mcp-server install --claude-desktop</code></pre>
+        </div>
+      </li>
+      <li class="install-step reveal delay-3">
+        <div class="install-step-num">3</div>
+        <div class="install-step-body">
+          <h3>Verify with the doctor</h3>
+          <p>Run the six-layer diagnostic. Expect <code>[OK]</code> on every layer.</p>
+          <pre class="install-step-code"><code>node scripts/doctor.mjs</code></pre>
+          <p>If any layer fails, the doctor prints a one-line next-step. The full recovery table lives in <code>USAGE.md</code> inside the skill.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- Try it -->
+<section class="section agents-try">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Try It</h2>
+      <p>Once the doctor is green, paste any of these into your OpenClaw chat to confirm the loop works.</p>
+    </div>
+
+    <div class="try-mode reveal delay-1">
+      <h3>Manual mode (default)</h3>
+      <p>Each prompt calls a single FSB tool so you can see the round-trip plainly.</p>
+      <ul class="try-list">
+        <li>
+          <span class="try-tool"><code>read_page</code></span>
+          <span class="try-prompt">"Open https://example.com and read the page. Summarize the visible text in two sentences."</span>
+        </li>
+        <li>
+          <span class="try-tool"><code>click</code></span>
+          <span class="try-prompt">"On https://example.com, click the 'More information...' link and tell me what page loads."</span>
+        </li>
+        <li>
+          <span class="try-tool"><code>type_text</code></span>
+          <span class="try-prompt">"Open https://duckduckgo.com, type <code>fsb-mcp-server</code> into the search box, and press Enter. Then list the first three result titles."</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="try-mode reveal delay-2">
+      <h3>Autopilot (explicit delegation only)</h3>
+      <p class="autopilot-rule">
+        <strong>NEVER</strong> call <code>run_task</code> unless the user has explicitly said
+        "use FSB autopilot", "delegate this to FSB", "run the whole task autonomously",
+        or named <code>run_task</code> directly. Manual-mode tools are the default for
+        everything else, including multi-step tasks.
+      </p>
+      <ul class="try-list">
+        <li>
+          <span class="try-tool"><code>run_task</code></span>
+          <span class="try-prompt">"Use FSB autopilot to find the first GitHub repo for <code>fsb-mcp-server</code> and report a one-paragraph summary of its README."</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section agents-cta">
+  <div class="container">
+    <div class="agents-cta-band reveal">
+      <h2>Ship a real browser to your agent <span class="text-orange">today</span>.</h2>
+      <p>Free, open source, BYO model keys. Works with OpenClaw, Claude, Codex, Cursor, Windsurf, and any OpenAI-compatible MCP host.</p>
+      <div class="agents-cta-actions">
+        <a href="https://clawhub.ai/" target="_blank" rel="noopener" class="btn btn-primary">
+          Install on ClawHub
+        </a>
+        <a href="https://github.com/lakshmanturlapati/FSB/tree/main/skills/FSB%20Skill" target="_blank" rel="noopener" class="btn btn-secondary">
+          Read the skill source
+        </a>
+        <a href="/about" class="btn btn-ghost">
+          Watch the demos
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

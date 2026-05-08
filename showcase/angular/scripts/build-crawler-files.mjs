@@ -17,7 +17,7 @@ const PUBLIC_DIR = join(ANGULAR_ROOT, 'public');
 const SCRIPTS_DIR = __dirname;
 
 const HOST = 'https://full-selfbrowsing.com';
-const ROUTES = ['/', '/about', '/privacy', '/support']; // PRE-03 locked, /dashboard excluded
+const ROUTES = ['/', '/about', '/agents', '/privacy', '/support']; // PRE-03 locked, /dashboard excluded
 const MAX_LLMS_FULL_BYTES = 256000;
 
 function todayIsoDate() {

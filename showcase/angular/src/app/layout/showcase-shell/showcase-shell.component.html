@@ -8,6 +8,10 @@
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a>
       <a routerLink="/about" routerLinkActive="active">About</a>
       <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/agents" routerLinkActive="active" class="nav-with-icon">
+        <img src="assets/providers/openclaw.svg" alt="" class="nav-icon" aria-hidden="true">
+        <span>Agents</span>
+      </a>
       <a routerLink="/privacy" routerLinkActive="active">Privacy</a>
       <a routerLink="/support" routerLinkActive="active">Support</a>
     </div>
@@ -27,6 +31,10 @@
   <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" (click)="closeMobileMenu()">Home</a>
   <a routerLink="/about" routerLinkActive="active" (click)="closeMobileMenu()">About</a>
   <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
+  <a routerLink="/agents" routerLinkActive="active" class="nav-with-icon" (click)="closeMobileMenu()">
+    <img src="assets/providers/openclaw.svg" alt="" class="nav-icon" aria-hidden="true">
+    <span>Agents</span>
+  </a>
   <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()">Privacy</a>
   <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()">Support</a>
   <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()"><i class="fa-brands fa-github"></i> GitHub</a>
@@ -49,6 +57,7 @@
           <a routerLink="/">Home</a>
           <a routerLink="/about">About</a>
           <a routerLink="/dashboard">Dashboard</a>
+          <a routerLink="/agents">Agents</a>
           <a routerLink="/privacy">Privacy</a>
           <a routerLink="/support">Support</a>
         </div>
