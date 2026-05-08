@@ -7,8 +7,8 @@
     <div class="nav-links">
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a>
       <a routerLink="/about" routerLinkActive="active">About</a>
-      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
       <a routerLink="/agents" routerLinkActive="active">Agents</a>
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
       <a routerLink="/privacy" routerLinkActive="active">Privacy</a>
       <a routerLink="/support" routerLinkActive="active">Support</a>
     </div>
@@ -27,8 +27,8 @@
 <div class="nav-mobile" [class.active]="mobileMenuOpen">
   <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" (click)="closeMobileMenu()">Home</a>
   <a routerLink="/about" routerLinkActive="active" (click)="closeMobileMenu()">About</a>
-  <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
   <a routerLink="/agents" routerLinkActive="active" (click)="closeMobileMenu()">Agents</a>
+  <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
   <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()">Privacy</a>
   <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()">Support</a>
   <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()"><i class="fa-brands fa-github"></i> GitHub</a>
