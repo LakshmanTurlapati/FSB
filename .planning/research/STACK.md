@@ -1,313 +1,205 @@
-# Stack Research -- v0.9.60 Multi-Agent Tab Concurrency
+# Stack Research -- v0.9.61 FSB Skill (OpenClaw)
 
-**Domain:** Chrome MV3 extension + npm-published TypeScript MCP server (`fsb-mcp-server@0.7.4` -> `0.8.0`)
-**Researched:** 2026-05-05
-**Scope:** Stack ADDITIONS for multi-agent tab ownership, hard concurrency cap (8), forced-new-tab pooling, lock release on disconnect/close, new `back` MCP tool, and `run_task` return-on-completion (Phase 236)
-**Confidence:** HIGH on existing-stack assessment and Chrome MV3 / MCP SDK patterns; MEDIUM on specific minor versions (web-verified, not Context7-verified)
+**Domain:** OpenClaw skill package (text-based agent skill, not new code/tooling)
+**Researched:** 2026-05-08
+**Confidence:** HIGH for spec fields verified against official OpenClaw docs and ClawHub repo; MEDIUM for cross-platform script behavior (single-source ratification from `docs.openclaw.ai/tools/exec`); LOW for "is there a skill test harness" (multiple sources confirm absence -- treat as a negative-finding-with-evidence rather than a knowledge gap).
 
-> NOTE: This file SUPERSEDES the previous v0.9.46 STACK.md content for the v0.9.60 milestone. The earlier site-discoverability research is preserved in the milestone archive.
+## Scope Discipline
 
----
+**Already shipped, do NOT touch in this milestone:**
+- `fsb-mcp-server@0.8.0` (npm package, stdio + Streamable HTTP, 60 MCP tools, 21-platform installer registry, doctor/status/wait-for-extension diagnostics, multi-agent contract).
+- FSB Chrome extension (DOM analysis, vault, visual sessions, agent loop).
+- Existing OpenClaw entry in `mcp/src/install.ts:413-420` (manual / unsupported -- intentionally preserved).
 
-## TL;DR
+**This milestone adds ONE new artifact:** a directory `skills/FSB Skill/` containing `SKILL.md` (YAML frontmatter + Markdown body), `USAGE.md`, `references/`, and `scripts/`. No new MCP tools. No extension changes. No installer-registry changes (the skill calls the existing installer through `npx`, it does not become a new installer target).
 
-For v0.9.60 the FSB stack does NOT need a new build system, transpiler, or heavy concurrency framework. Every NEW capability can be implemented with:
+## Recommended Stack
 
-1. Already-installed dependencies (`@modelcontextprotocol/sdk`, `ws`, `zod`, `chrome.*` APIs).
-2. Node built-ins on the MCP-server side (`crypto.randomUUID`, `AbortController`, `Promise`-based primitives).
-3. Hand-rolled in-memory data structures in the extension service worker (Maps + storage rehydrate), mirroring the existing `activeSessions` / `MCP_VISUAL_SESSION_STORAGE_KEY` pattern.
+### Core Technologies
 
-The only real choice is the agent-id format. Recommendation: **`crypto.randomUUID()` everywhere**, prefixed with a short type tag (`agent_<uuidv4>`, `task_<uuidv4>`).
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| OpenClaw skill format | current (May 2026) | Container format for the skill | The only format OpenClaw loads; spec is YAML frontmatter + Markdown body in a folder. ([Skills - OpenClaw](https://docs.openclaw.ai/tools/skills)) |
+| YAML frontmatter (single-line JSON for `metadata`) | n/a | Declares skill identity + runtime requirements | OpenClaw's embedded-agent parser supports single-line frontmatter keys only; `metadata` MUST be expressed as single-line JSON inside the YAML block. ([Skills - OpenClaw](https://docs.openclaw.ai/tools/skills), corroborated by [LumaDock guide](https://lumadock.com/tutorials/openclaw-skills-guide)) |
+| Markdown body | CommonMark | Skill instructions for the agent | Agent loads the body AFTER the description triggers; use progressive disclosure -- reference `references/` and `scripts/` from the body rather than inlining. ([skill-creator SKILL.md](https://github.com/openclaw/openclaw/blob/main/skills/skill-creator/SKILL.md)) |
+| Node.js (`node`, `npx`) for `scripts/` | Node 18+ | One-shot diagnostic + install scripts | `node` is already mandatory because `fsb-mcp-server@0.8.0` requires Node 18+. Cross-platform without per-shell branching. Justified vs bash/PowerShell pair below. |
+| `npx -y fsb-mcp-server` invocation | `fsb-mcp-server@^0.8.0` | The skill's runtime dependency, called from scripts and inline in SKILL.md | Reuses the existing installer/doctor/status surface verbatim -- no new code path needed. The skill is a thin orchestration layer above the package. |
 
-Phase 236 ("`run_task` returns on completion, no 300s ceiling") is a **bridge-level change**, not a tool-schema change -- we keep using MCP `notifications/progress` over the existing stdio transport. The MCP TypeScript SDK already supports unbounded long-running tools; the 300s ceiling in `mcp/src/tools/autopilot.ts:58` (`{ timeout: 300_000 }`) is purely an FSB-internal bridge timeout, not a protocol constraint.
+### SKILL.md Frontmatter -- Verified Field Inventory
 
----
+Required (per [skill-format.md](https://github.com/openclaw/clawhub/blob/main/docs/skill-format.md)):
 
-## Current Stack (Validated, DO NOT Re-Research)
+| Field | Value for FSB skill | Why |
+|-------|---------------------|-----|
+| `name` | `FSB` | Per milestone scope. Skill identifier; must match `name:` in frontmatter. |
+| `description` | One sentence summarizing what the skill does + WHEN to invoke. Example: *"Drive the user's Chrome browser via the FSB extension and `fsb-mcp-server`. Use when the user asks to click, type, navigate, fill forms, read pages, autofill credentials, or run multi-step web tasks."* | This is THE trigger for activation -- the body only loads after `description` matches. Keep it specific to web automation triggers so the agent picks FSB tools by default. |
+| `version` | `0.9.61` (align to FSB milestone) -- semver | ClawHub publishing supports versioned skills with `latest` tag. Aligning to the milestone version (NOT `fsb-mcp-server@0.8.0`) makes provenance obvious. ([clawhub README](https://github.com/openclaw/clawhub/blob/main/README.md)) |
 
-### MCP server (`mcp/package.json`)
+Optional top-level keys (verified against [openclaw-ai.com skills doc](https://openclaw-ai.com/en/docs/tools/skills)):
 
-| Dep | Current version | Status |
-|-----|-----------------|--------|
-| `@modelcontextprotocol/sdk` | `^1.27.1` | Bump to `^1.29.x` (latest 1.29.0, ~Apr 2026). Compatible upgrade -- progress-notification API unchanged. |
-| `ws` | `^8.19.0` | Keep. |
-| `zod` | `^3.24.0` | Keep on Zod 3 (see "What NOT to Use" below). |
-| `strip-json-comments` | `^5.0.3` | Keep (installer flow). |
-| `smol-toml` | `^1.6.1` | Keep (Codex/Claude TOML configs). |
-| `yaml` | `^2.8.3` | Keep (Continue config). |
-| `typescript` | `^5.9.3` (dev) | Keep. |
-| `tsx` | `^4.19.0` (dev) | Keep. |
-| `@types/node` | `^22.0.0` (dev) | Keep. |
-| `@types/ws` | `^8.18.1` (dev) | Keep. |
+| Field | Value for FSB skill | Why |
+|-------|---------------------|-----|
+| `homepage` | `https://github.com/LakshmanTurlapati/FSB` | Surfaces in the macOS Skills UI and ClawHub detail page. |
+| `user-invocable` | `true` (default) | Allow `/fsb` slash command. |
+| `disable-model-invocation` | omit (default `false`) | We WANT the model to discover FSB tools via description; do not disable. |
+| `command-dispatch` | omit | We are NOT bypassing the model -- the skill teaches the model to choose FSB tools, it doesn't dispatch directly to a single tool. Setting `"tool"` would short-circuit decision logic. |
+| `command-arg-mode` | omit (default `"raw"`) | Default `raw` forwards `{ command, commandName, skillName }` unparsed -- exactly what we want when the user types `/fsb open amazon and find a wireless mouse`. ([Skills - OpenClaw](https://docs.openclaw.ai/tools/skills)) Only one documented value as of May 2026; treat as a one-element enum. |
 
-### Extension (`extension/manifest.json`)
+`metadata.openclaw` block (single-line JSON inside YAML, per parser constraint):
 
-| Permission | Already granted? | Used for v0.9.60? |
-|------------|------------------|-------------------|
-| `tabs` | YES | Required for `chrome.tabs.create`, `onRemoved`, `onUpdated`. |
-| `windows` | YES | Required for `chrome.windows.onRemoved` (last-tab-of-window edge case). |
-| `storage` | YES | Required for agent-registry rehydrate after SW idle eviction. |
-| `alarms` | YES | Useful for periodic stale-agent reaper. |
-| `webNavigation` | YES | Already used for nav lifecycle observation. |
-| `debugger` | YES | Already used for CDP click/scroll. |
-| `sidePanel`, `scripting`, `activeTab`, `host_permissions: <all_urls>`, `unlimitedStorage`, `clipboardWrite`, `offscreen` | YES | Unchanged. |
-
-**No new manifest permissions required for v0.9.60.** This is a significant constraint check -- adding new permissions would force a Web Store re-review and break the "load unpacked" dev loop the team relies on.
-
----
-
-## NEW Capabilities -- What Each Requires
-
-### 1. Per-session/task agent identity
-
-**What:** One MCP client (e.g. Claude) may spawn multiple parallel agents simultaneously. Each gets its own `agent_id` distinct from the trusted client label.
-
-**Recommendation:**
-
-| Choice | Recommendation | Rationale |
-|--------|---------------|-----------|
-| ID format | `crypto.randomUUID()` with prefix: `agent_<uuid>`, `task_<uuid>` | Built into Node 18+ AND Chrome MV3 service workers (no polyfill). ~3-12x faster than the `uuid` npm package. Zero new dependencies. Sufficient entropy for an 8-cap registry. |
-| Length | 36 chars (UUID v4) + 6 prefix = 42 chars | Fine for logs/badges; we are not putting these in URLs. |
-| Sortability | NOT required | We have at most 8 entries; lookup is by exact key. |
-
-**Reject:** `ulid`, `nanoid`, `uuid` packages -- pure new deps for a problem `crypto.randomUUID` already solves. ULID's lex-sortability is irrelevant at N=8.
-
-**Reject:** Reusing the MCP client label as the agent id. Multiple agents per client is exactly what this milestone enables.
-
-### 2. Tab ownership table (`tab_id -> agent_id`) + hard cap of 8
-
-**What:** Any tab that an agent opens gets a single owner. Cross-agent access to that tab is rejected. Total live agents capped at 8.
-
-**Recommendation -- in-memory Map mirroring `activeSessions`:**
-
-```js
-// extension/background.js (vanilla JS, no build step)
-const tabOwnership = new Map();   // tabId (number) -> agentId (string)
-const agentRegistry = new Map();  // agentId -> { mcpClientLabel, taskId, tabIds:Set, createdAt, ... }
-
-const AGENT_CAP = 8;
-const AGENT_REGISTRY_STORAGE_KEY = 'fsbAgentRegistry'; // chrome.storage.session
+```yaml
+metadata: { "openclaw": { "requires": { "bins": ["node", "npx"] }, "install": [ { "id": "fsb-mcp-server", "kind": "node", "package": "fsb-mcp-server", "bins": ["fsb-mcp-server"], "label": "Install FSB MCP server (npm)" } ], "homepage": "https://github.com/LakshmanTurlapati/FSB", "os": ["darwin", "linux", "win32"] } }
 ```
 
-**Persistence pattern:** Use `chrome.storage.session` (in-memory, cleared on browser restart) for rehydrate-after-SW-idle, exactly like `MCP_VISUAL_SESSION_STORAGE_KEY` already does (background.js:2053). Do NOT use `chrome.storage.local` -- agent state should not survive a browser restart; the MCP client will be gone anyway.
+| Sub-field | Value | Why |
+|-----------|-------|-----|
+| `requires.bins: ["node", "npx"]` | All must exist on PATH | `requires.bins` semantics: every entry MUST resolve on PATH at skill load. ([Skills - OpenClaw](https://docs.openclaw.ai/tools/skills)) `npx` is what runs `fsb-mcp-server` and `node` is its prerequisite. Do NOT list `chrome` -- Chrome is detected at runtime by `doctor`, not at skill load (a missing browser must surface a friendly error, not block skill activation). Do NOT list `fsb-mcp-server` here -- that's resolved via `npx -y` which downloads on demand. |
+| `requires.anyBins` | omit | We don't have an "either-or" binary requirement. |
+| `requires.env` | omit | FSB has no required env vars; AI provider keys are stored inside the extension, not in the host shell. |
+| `requires.config` | omit | No `openclaw.json` config keys are read by FSB. |
+| `primaryEnv` | omit | No primary credential env. |
+| `install[]` | one entry, `kind: "node"`, `package: "fsb-mcp-server"`, `bins: ["fsb-mcp-server"]` | Surfaces a one-click "Install FSB MCP server" button in the macOS Skills UI. The `node` installer kind shells out to the user's configured Node manager (npm/pnpm/yarn/bun). The `bins` array tells OpenClaw which executables to expect on PATH after install. Schema verified at [Skills - OpenClaw](https://docs.openclaw.ai/tools/skills) and [LumaDock guide](https://lumadock.com/tutorials/openclaw-skills-guide). |
+| `install[].os` | omit (works on all three) | `fsb-mcp-server` is pure Node; no platform filter needed. |
+| `os: ["darwin", "linux", "win32"]` | All three | Chrome runs everywhere; npm runs everywhere. |
+| `always` | omit (default `false`) | We do NOT want FSB always-active in every conversation; description-triggered activation is correct. |
+| `emoji` | omit | Global user rule (CLAUDE.md): no emojis in markdowns or terminal logs unless explicitly requested. |
 
-**Why in-memory Map is sufficient (no Mutex/Semaphore needed):**
+**Critical confirmation on `version:`** — The OpenClaw spec does NOT strictly require `version:` for the skill to load locally. It IS expected by ClawHub for publishing (the registry uses semver for ordering and `latest` tagging). [skill-format.md](https://github.com/openclaw/clawhub/blob/main/docs/skill-format.md) lists `version` as required; [openclaw-ai.com](https://openclaw-ai.com/en/docs/tools/skills) lists only `name` + `description` as the absolute minimum. **Conclusion:** include `version: 0.9.61` to be ClawHub-publish-ready. **MEDIUM confidence** on whether ClawHub strictly enforces semver vs accepts arbitrary strings; safe path is semver.
 
-The "concurrency" in MV3 service workers is event-handler-level cooperative scheduling, not real OS-level threading. Multiple `chrome.runtime.onMessage` callbacks can be in-flight concurrently in async code, but JavaScript single-threaded execution between awaits means a check-then-set against a `Map` is atomic if you do it within a single synchronous slice. The dangerous case is:
+### Supporting Files
 
-```js
-// BUGGY -- await between read and write
-if (tabOwnership.size >= AGENT_CAP) return error; // read
-await someAsyncCall();                              // YIELD POINT
-tabOwnership.set(tabId, agentId);                   // write -- another handler may have set already
+| File | Purpose | When to Use |
+|------|---------|-------------|
+| `USAGE.md` | User-facing one-pager: 3-step install, "try it" prompts, doctor recovery | Per milestone scope; referenced from SKILL.md body via `See USAGE.md`. Not parsed by OpenClaw -- it's documentation for humans browsing the skill folder. |
+| `references/decision-tree.md` | "FSB tool selection" decision tree (`read_page` -> `get_dom_snapshot` -> typed events; `run_task` only on autopilot delegation) | Loaded on demand by the agent when it needs to choose between read-only and mutating tools. Progressive-disclosure pattern recommended by skill-creator. |
+| `references/multi-agent-contract.md` | Documents `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`, the `back` tool, and the "do not pass `agent_id`" rule | Agent reads this when a typed error fires; keeps the SKILL.md body short. |
+| `references/restricted-tab-recovery.md` | `list_tabs`/`navigate`/`open_tab`/`switch_tab`/`go_back`/`go_forward`/`refresh` recovery playbook | Loaded when `chrome://*` or restricted-tab errors appear. |
+| `references/visual-session.md` | `start_visual_session(client="OpenClaw")` / `end_visual_session` lifecycle | Wraps any external-AI-driven sequence per milestone scope. The label `"OpenClaw"` is on the existing trusted allowlist (verified in `mcp/README.md` line 279). |
+| `scripts/doctor.mjs` | Runs `npx -y fsb-mcp-server doctor` and parses the layered output | First-invocation flow per milestone goal #1. |
+| `scripts/install-other-hosts.mjs` | Detects which other MCP hosts are on the machine and runs `npx -y fsb-mcp-server install --<host>` for each (with user confirmation) | Milestone goal #3. Wraps the existing installer; does NOT reimplement detection. |
+| `scripts/print-openclaw-stdio.mjs` | Prints the canonical stdio config block (`command: npx`, `args: [-y, fsb-mcp-server]`) ready to paste | Milestone goal #2. Pure stdout, no side effects. |
+
+### Development Tools
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `clawhub` CLI | Publish, sync, login, search | Separate from `openclaw` CLI. Auth is GitHub OAuth (Convex Auth); GitHub account must be **at least one week old** to publish. ([clawhub README](https://github.com/openclaw/clawhub/blob/main/README.md)) |
+| `clawhub skill publish <path>` | One-shot publish | Runs ClawHub's automated security checks (VirusTotal, ClawScan, static analysis) against the bundle. ([clawhub-skill-registry blog](https://www.openclawplaybook.ai/blog/clawhub-skill-registry-openclaw-agents/)) |
+| `clawhub sync` | Update telemetry / install counts | Scans current workdir first; falls back to `~/openclaw/skills` and `~/.openclaw/skills`. Telemetry only fires when authenticated. |
+| Local validation | Manual invocation only | **No first-party skill test harness exists** as of May 2026. ClawHub validates at publish time (metadata vs code consistency, dangerous-code scan); local pre-publish testing is "load it in OpenClaw and run `/fsb`". This is a **negative finding with evidence** -- multiple sources searched, none documented a harness. |
+
+## Installation
+
+```bash
+# Local skill (no install -- it's a directory):
+mkdir -p "skills/FSB Skill"
+# Author SKILL.md, USAGE.md, references/*.md, scripts/*.mjs
+
+# Publish to ClawHub (when ready):
+npx -y clawhub login
+npx -y clawhub skill publish "skills/FSB Skill"
+
+# End user installs FSB skill from ClawHub:
+npx -y clawhub install <slug>
+# Skill lands in ./skills/<slug>/ which OpenClaw picks up at <workspace>/skills next session
+
+# What the skill itself does on first invocation (per milestone scope):
+npx -y fsb-mcp-server doctor               # branch on failing layer
+npx -y fsb-mcp-server install --<host>     # for each detected non-OpenClaw host
+# Print OpenClaw stdio config block to user
+# Walk user to: https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk
 ```
 
-**Mitigation:** Do all cap-check + insert in one synchronous slice before any `await`. This is a pattern, not a library. If we ever need a real lock, the existing `extension/ws/ws-client.js` already uses Promise-chain serialization; we can reuse that idiom (a single `pendingTransition` Promise) without adding a library.
+## Cross-Platform Script Strategy
 
-### 3. Lock release on tab close / window close / MCP disconnect
+Three viable approaches, ranked:
 
-**What:** Tab ownership must release when (a) user closes the tab, (b) user closes the last window containing the tab, (c) MCP client disconnects, (d) task ends, (e) session ends.
+**Option A: POSIX shell + PowerShell pair.** Ship `scripts/doctor.sh` (POSIX bash, works on macOS + Linux) AND `scripts/doctor.ps1` (Windows pwsh 7). The skill body chooses based on platform. PROS: tiny, native to OpenClaw's exec tool. CONS: two files per script; duplicate parsing logic; OpenClaw's exec tool selects shells per OS ([Exec tool - OpenClaw](https://docs.openclaw.ai/tools/exec) -- bash/sh on non-Windows avoiding fish, pwsh on Windows) but each script must be re-implemented.
 
-**Chrome MV3 APIs (already available, no new permissions):**
+**Option B (recommended): Node-only scripts.** Ship `scripts/doctor.mjs` and invoke via `node scripts/doctor.mjs`. PROS: one file per task, fully portable, can use the same JSON-parsing logic everywhere, contributors are already in Node mindset because `fsb-mcp-server` is TypeScript/Node. CONS: ~50-100ms cold-start vs bash, but `node` is already mandatory via `requires.bins` so the dep is "free."
 
-| Event | Use For | Caveat |
-|-------|---------|--------|
-| `chrome.tabs.onRemoved(tabId, removeInfo)` | Primary release on user close | Already wired at background.js:2455 -- extend it to clean `tabOwnership` AND notify `agentRegistry`. `removeInfo.isWindowClosing === true` indicates the whole window is going away. |
-| `chrome.windows.onRemoved(windowId)` | Belt-and-suspenders for last-tab-of-window | Fires AFTER `tabs.onRemoved` for each contained tab. Useful for sweeping orphan agent state if a race happens. |
-| `chrome.tabs.onUpdated(tabId, changeInfo)` | NOT for ownership release | `changeInfo.discarded` and `status === 'unloaded'` do NOT mean user closed the tab; do not release ownership on these. |
-| `chrome.tabs.onCreated` | Forced-new-tab pooling | When an owning agent does an action that opens a tab (target=_blank, `window.open`, `noopener` link), the new tab's `openerTabId` resolves to a tab the agent owns -- pool the new tab under the same agent. |
+**Option C: Inline everything in SKILL.md, no scripts/.** Tell the agent to literally run `npx -y fsb-mcp-server doctor` and parse the output via the model. PROS: zero scripts, zero portability concerns. CONS: agent has to re-derive parsing each time; brittle; unnecessarily expensive token-wise.
 
-**MCP-disconnect release:** The MCP TypeScript SDK exposes connection lifecycle via the transport. For stdio (`StdioServerTransport`), a parent-process death closes stdin and the SDK emits a transport-close event. Hook `runtime.server.transport.onclose` (or equivalent in 1.29) and broadcast a `mcp:client-disconnected` message to the extension over the WebSocket bridge, which then sweeps every agent owned by that MCP connection.
+**Recommendation: Option B (Node-only).** Justification: (a) `node` is already mandatory via `requires.bins`, (b) one source of truth, (c) the existing `fsb-mcp-server` codebase is TypeScript/Node so contributors are already in Node mindset, (d) the milestone scope explicitly asked "Bash vs Node" and Node wins on portability. Use `.mjs` extension, shebang-less (invoked as `node scripts/doctor.mjs`).
 
-**For the WebSocket bridge layer (`mcp/src/bridge.ts`):** the existing `WebSocketBridge` already tracks heartbeat / disconnect (background.js heartbeat handling at line ~570). Extend the disconnect handler to send a `bridge:disconnect` payload that triggers agent sweep on the extension side.
+## Alternatives Considered
 
-### 4. Forced-new-tab pooling
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| Single skill (`FSB`) doing all six responsibilities | Split into multiple skills (`fsb-install`, `fsb-doctor`, `fsb-tools`) | Use multi-skill split if any single responsibility grows past ~300 lines of body content. For v0.9.61 a single skill is correct -- the responsibilities are tightly coupled (every flow starts from doctor branching). |
+| Node `.mjs` scripts | POSIX `.sh` + PowerShell `.ps1` pair | Use the pair if Node startup latency becomes noticeable in interactive flows or if a contributor strongly prefers shell. Not for v0.9.61. |
+| Reuse existing `npx -y fsb-mcp-server install --<host>` | Re-implement host detection inside the skill | Never -- the existing installer already enumerates 21 platforms with proper config-format handling (JSON/JSONC/TOML/YAML). Re-implementing is duplicate code and a future-debt magnet. |
+| `command-arg-mode: raw` (default) | `command-arg-mode` set explicitly + `command-dispatch: tool` | Use the explicit dispatch ONLY if you want `/fsb <task>` to literally call ONE tool with `<task>` as the arg. We do NOT want that -- we want the model to read the body and decide which FSB tools to call. Default behavior is correct. |
+| `version: 0.9.61` aligned to FSB milestone | `version: 0.8.0` aligned to `fsb-mcp-server` | Aligning to the milestone is clearer because the skill ships *with* the milestone, not with the npm package. The skill's MCP-server dep is constraint-pinned via `^0.8.0`-compatible behavior, not version-locked. |
+| `kind: "node"` install spec | `kind: "brew"` | brew is macOS-only; we need cross-platform. Listed for completeness; not used. |
 
-**What:** If an agent's owned tab opens another tab (via JS `window.open`, target=_blank link, etc.), the new tab is automatically pooled under the same agent.
-
-**Recommendation:** `chrome.tabs.onCreated` listener that checks `tab.openerTabId`:
-
-```js
-chrome.tabs.onCreated.addListener((tab) => {
-  const openerOwner = tab.openerTabId ? tabOwnership.get(tab.openerTabId) : null;
-  if (!openerOwner) return; // human-opened or not under an agent
-  // Pool the new tab under the same agent (does NOT count against the 8-agent cap; cap is on agents, not tabs)
-  tabOwnership.set(tab.id, openerOwner);
-  agentRegistry.get(openerOwner)?.tabIds.add(tab.id);
-});
-```
-
-**Caveat:** `openerTabId` is missing for some auto-opens (PDFs, devtools, some service-worker-initiated tabs). Document this in PITFALLS.md as an accepted gap rather than wiring an exotic detection layer.
-
-### 5. New `back` MCP tool
-
-**What:** Browser back-button equivalent.
-
-**Recommendation:** New MCP tool in `mcp/src/tools/manual.ts` (existing manual-tool registration), implemented on the extension side via `chrome.tabs.goBack(tabId)`. Zero new dependencies.
-
-```ts
-server.tool(
-  'back',
-  'Navigate the active (or specified) tab back one entry in its history.',
-  { tab_id: z.number().int().optional() },
-  async ({ tab_id }) => { /* bridge.sendAndWait('mcp:tab-back', { tabId: tab_id }) */ },
-);
-```
-
-`chrome.tabs.goBack` is already available under the existing `tabs` permission.
-
-### 6. Phase 236: `run_task` returns on completion, no 300s ceiling
-
-**What:** Currently `mcp/src/tools/autopilot.ts:58` hard-codes `{ timeout: 300_000 }` on the bridge call. Long tasks (e.g. multi-step automation, 5+ minute flows) hit this ceiling and the tool returns prematurely while the extension keeps running.
-
-**Recommendation:** **No new library.** The fix is a 2-line change.
-
-```ts
-// Before
-const result = await bridge.sendAndWait(
-  { type: 'mcp:start-automation', payload: { task } },
-  { timeout: 300_000, onProgress },
-);
-
-// After
-const result = await bridge.sendAndWait(
-  { type: 'mcp:start-automation', payload: { task } },
-  { timeout: null, onProgress }, // or Number.POSITIVE_INFINITY -- whichever bridge.ts already accepts
-);
-```
-
-The MCP protocol already supports unbounded long-running tools as long as the server keeps the connection alive and (optionally) sends `notifications/progress`. The existing `onProgress -> extra.sendNotification({ method: 'notifications/progress', ... })` plumbing in `autopilot.ts:36-46` already does exactly that, so MCP clients see continuous progress and don't time out at the protocol layer. The 300s ceiling was an internal safety net that's no longer wanted.
-
-**Bridge-side prerequisite:** Audit `mcp/src/bridge.ts` `sendAndWait` to ensure `timeout: null` (or `0`, or omitted) means "wait forever" rather than "use a default". If it currently coerces null to a default, that's the fix. (LOW confidence on the current behavior without reading bridge.ts in full.)
-
-**Cancellation safety:** The `stop_task` tool already exists; combined with MCP `$/cancelRequest`, an unbounded `run_task` is cancelable from the client side. No new cancellation library needed.
-
-### 7. Background-tab execution (no foregrounding required)
-
-**What:** An owning agent's tab does NOT need to be `active: true` (foregrounded) to receive actions.
-
-**Existing capability:** FSB already does this. `chrome.scripting.executeScript` and CDP attach work on any tab the extension has access to under `<all_urls>`. No code change needed beyond making sure FSB never calls `chrome.tabs.update(tabId, { active: true })` as a precondition for action execution. **Audit, don't add.**
-
----
-
-## Library Choices Summary
-
-### Add (npm)
-
-| Library | Version | Where | Purpose | Why this and not alternatives |
-|---------|---------|-------|---------|-------------------------------|
-| (none) | -- | -- | -- | -- |
-
-**That's intentional.** Every NEW v0.9.60 capability is satisfied by existing dependencies + Chrome/Node built-ins.
-
-### Bump (npm)
-
-| Library | From | To | Where | Reason |
-|---------|------|------|-------|--------|
-| `@modelcontextprotocol/sdk` | `^1.27.1` | `^1.29.x` (latest 1.29.0) | `mcp/package.json` | Active upstream, no breaking changes for our usage (progress notifications, `server.tool`, stdio transport unchanged). Catches bug fixes since Feb 2026. |
-| `fsb-mcp-server` (self) | `0.7.4` | `0.8.0` | `mcp/package.json:version`, `mcp/server.json` | Milestone deliverable. Minor bump because `back` is a NEW tool (additive) and Phase 236 changes return semantics for `run_task` (still backward compatible -- clients that didn't get a value before now do). |
-
-### Keep as-is (npm)
-
-`ws@^8.19.0`, `zod@^3.24.0`, `strip-json-comments@^5.0.3`, `smol-toml@^1.6.1`, `yaml@^2.8.3`, all dev deps.
-
-### Chrome / Web Platform APIs (no install)
-
-| API | MV3 status | Use |
-|-----|-----------|-----|
-| `chrome.tabs.{create, goBack, onCreated, onRemoved, onUpdated, query}` | Stable | Tab lifecycle + new `back` tool. |
-| `chrome.windows.onRemoved` | Stable | Window-close sweep. |
-| `chrome.storage.session` | Stable since Chrome 102 | Agent-registry rehydrate (in-memory, browser-lifetime). |
-| `chrome.alarms` | Stable | Optional stale-agent reaper. |
-| `crypto.randomUUID()` | Available in MV3 service workers since Chrome 92 | Agent IDs, task IDs. |
-| `AbortController` | Available everywhere | Cancel in-flight bridge calls on disconnect. |
-
-### Node built-ins (mcp server, no install)
-
-| API | Use |
-|-----|-----|
-| `crypto.randomUUID()` | Same id format as extension side -- consistency. |
-| `AbortController` / `AbortSignal` | If we want to cancel `bridge.sendAndWait` from disconnect handlers. |
-| `process.on('SIGTERM' | 'SIGINT')` | Already wired in `index.ts:262-263` -- extend to broadcast disconnect to extension. |
-
----
-
-## Integration Points With Existing v0.9.36 / v0.9.50 Surface
-
-| Existing surface | What v0.9.60 changes |
-|------------------|----------------------|
-| `extension/background.js` `activeSessions` Map | Add parallel `tabOwnership` and `agentRegistry` Maps. Reuse the `chrome.storage.session` rehydrate pattern from `MCP_VISUAL_SESSION_STORAGE_KEY`. Existing `chrome.tabs.onRemoved` listener at line 2455 gains agent-cleanup branch. |
-| `extension/background.js` visual-session ownership | Visual session is per-tab; agent ownership is also per-tab. **One owner per tab** invariant is preserved -- the agent-id and the visual-session client label become two views of the same ownership. Stick to: visual session is the user-facing label; agent-id is the routing key. |
-| `mcp/src/bridge.ts` `sendAndWait({ timeout })` | Allow `timeout: null` for unbounded waits (Phase 236). Add disconnect-listener hooks. |
-| `mcp/src/tools/autopilot.ts` `run_task` | Drop the 300_000 ceiling; keep `onProgress` notifications wiring as-is. |
-| `mcp/src/tools/manual.ts` | Add `back` tool registration. |
-| `mcp/src/runtime.ts` | No structural change. The `createRuntime` factory stays a one-server-instance-per-process model (stdio = one client per server). For HTTP mode (`startHttpServer`), the per-session pattern in `mcp/src/http.ts` already isolates state. |
-| `mcp/server.json` + `mcp/package.json` `version` | Bump to `0.8.0`. |
-| Trusted-client allowlist (`mcp/src/tools/visual-session.ts:8-11`) | Unchanged. Agent identity is finer-grained but does NOT replace client labeling. Each agent record stores `mcpClientLabel` so badges still show "Claude" / "Codex" / etc. |
-
----
-
-## What NOT to Add (Explicit Non-Additions)
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `async-mutex`, `p-queue`, `p-limit`, `semaphore-async-await` | Real OS-level threading concerns don't apply to MV3 service workers. The TaskQueue in `mcp/src/queue.ts` already serializes mutation tools; the extension's single-threaded JS event loop handles intra-handler atomicity if we structure check-then-set correctly. | Existing `queue.ts` + a documented "no-await-inside-cap-check" rule. |
-| `uuid` npm package | `crypto.randomUUID()` is built-in, faster, zero-deps. | `crypto.randomUUID()` everywhere. |
-| `ulid`, `nanoid` | Time-sortable / shorter IDs solve a problem we don't have at N=8. | `crypto.randomUUID()`. |
-| `lru-cache`, `node-cache` | At 8 entries we don't need eviction; we need explicit lifecycle. | Plain `Map`. |
-| Zod 4 (`zod@^4`) | MCP SDK 1.27-1.29 is built against Zod 3 schemas (`zod/v3`). Zod 4 has breaking changes in error customization, function schemas, and object methods. Upgrading would force MCP-SDK-internal compatibility shims. | Stay on `zod@^3.24.0`. |
-| TypeScript build pipeline for the extension | FSB extension is intentionally vanilla ES2021+. No `tsc`, no `esbuild`, no `vite`. The MCP server's `tsc` is the ONLY build step in the repo and that's where it stays. | Vanilla JS in `extension/`. |
-| MCP "session"-level state via `Streamable HTTP` for stdio clients | Stdio is intentionally one-server-per-client. Adding session multiplexing on stdio would invent a second protocol. | Per-process server instance for stdio (current pattern); existing HTTP-mode session map in `mcp/src/http.ts` for multi-session HTTP. |
-| Persistent agent registry in `chrome.storage.local` or IndexedDB | Agent state is browser-runtime-scoped. Surviving a Chrome restart is a feature only if the MCP client also restarts identically -- which is not guaranteed. | `chrome.storage.session` (cleared on browser restart). |
-| Distributed locks across instances (Redis, etc.) | One Chrome instance + one extension service worker. There IS no distributed surface. | In-process Map. |
-| Cancellation-token library (`abort-controller`, etc. as separate npm) | `AbortController` is global in Node 16+ and Chrome MV3. | Built-in `AbortController`. |
-| Idle-timeout for agent ownership | Milestone explicitly says "no idle timeout". Locks release on task end / disconnect / tab close ONLY. | Don't write the timer. |
-
----
+| `metadata.openclaw.install[].kind: "brew"` | macOS-only; FSB users are cross-platform. The package is on npm, not Homebrew. | `kind: "node"` with `package: "fsb-mcp-server"` -- works everywhere Node runs. |
+| `requires.bins: ["chrome"]` or `["google-chrome"]` | Chrome binary name varies wildly across OS, and the extension itself is the requirement (not Chrome on PATH). Hard-failing skill load on missing Chrome would block users who have Chrome installed normally. | Detect Chrome + extension at runtime via `npx -y fsb-mcp-server doctor`, surface a recovery message. |
+| Multi-line YAML for the `metadata` block | OpenClaw's parser supports single-line frontmatter keys only; multi-line `metadata` will silently fail to parse. ([LumaDock](https://lumadock.com/tutorials/openclaw-skills-guide)) | Single-line JSON inside YAML for `metadata: { ... }`. |
+| `disable-model-invocation: true` | Would prevent the model from discovering FSB tools via natural-language matching against `description`. | Default `false` -- description-triggered activation is the intended path. |
+| Emojis anywhere in SKILL.md / USAGE.md / scripts / logs | Global user rule (CLAUDE.md): never use emojis in markdowns or terminal logs unless explicitly requested. | Plain text headings, ASCII status markers like `[OK]`, `[FAIL]`, `[WARN]`. |
+| A `package.json` in the skill folder | Adds confusion -- the skill is a directory of text files, not an npm package. The npm dep is `fsb-mcp-server`, invoked via `npx`, NOT a local install. | No `package.json`. Just `SKILL.md` + supporting files. |
+| `plugin.json` / `openclaw.plugin.json` | That file is for OpenClaw *plugins* that ship multiple skills. We are shipping ONE skill. ([Skills - OpenClaw](https://docs.openclaw.ai/tools/skills)) | Not needed. |
+| Adding a new `--openclaw` install flag to `fsb-mcp-server` | OpenClaw's MCP config shape is still unstable across builds (per existing comment at `mcp/src/install.ts:413-420`). The skill SOLVES this by printing the canonical stdio block at runtime. | Keep `mcp/src/install.ts` OpenClaw entry as-is (manual / unsupported). Skill prints the block. Re-evaluate after OpenClaw's MCP format stabilizes. |
+| New MCP tools or extension changes | Out of scope for v0.9.61. | The skill orchestrates the existing 60-tool surface. Zero server-side or extension diffs. |
+| Bundling `fsb-mcp-server` source into the skill | Skill bundles must be small and text-only; npm distribution is the canonical channel. | `npx -y fsb-mcp-server` invocation; npm handles caching. |
 
 ## Stack Patterns by Variant
 
-**If MCP client is `Claude Code` / `Codex` / `Cursor` (stdio):**
-- One MCP server process per client; the agent registry lives in that one extension service worker; multiple agents from the same client share the registry but have distinct `agent_id`s.
+**If user is on macOS Skills UI (clicks "Install" button on the skill detail page):**
+- The `metadata.openclaw.install[0]` entry (kind `node`) drives the click -- OpenClaw shells out to the configured Node manager, runs `npm i -g fsb-mcp-server` (or `pnpm`/`yarn`/`bun` per user prefs), and verifies `bins: ["fsb-mcp-server"]` resolves on PATH.
+- Skill body then runs `doctor` automatically.
 
-**If MCP client is over Streamable HTTP (`fsb-mcp-server serve`):**
-- The HTTP server multiplexes many MCP sessions; each session can spawn many agents. The agent registry is still **single-instance** in the extension SW (one Chrome = one registry). Cap of 8 is global, not per-MCP-session. Document this in PITFALLS.
+**If user is on Linux/Windows running OpenClaw CLI:**
+- macOS Skills UI is irrelevant; `install[]` is informational metadata only.
+- Skill body runs `npx -y fsb-mcp-server doctor` -- `npx` handles per-invocation download.
 
-**If extension service worker is evicted mid-task:**
-- Same pattern as `MCP_VISUAL_SESSION_STORAGE_KEY` rehydrate at background.js:565-584. On wakeup, read `chrome.storage.session.fsbAgentRegistry`, rebuild Maps, validate each agent's `tabId`s still exist via `chrome.tabs.get` (drop entries for closed tabs), continue.
+**If user already has FSB MCP server installed for another host (e.g. Claude Desktop):**
+- `doctor` returns green at the package layer.
+- Skill skips install, prints OpenClaw stdio block, prompts to add it to OpenClaw's MCP config (since `--openclaw` install flag is "manual / unsupported"), and walks Chrome extension install if not detected.
 
----
+**If user has FSB MCP server but extension is not connected:**
+- `doctor` returns failing layer = `extension` or `bridge`.
+- Skill walks Chrome Web Store install, then waits for `wait-for-extension` to flip green.
 
 ## Version Compatibility
 
-| Package | Compatible with | Notes |
-|---------|-----------------|-------|
-| `@modelcontextprotocol/sdk@^1.29.x` | `zod@^3.24.0` (Zod 3) | The SDK uses `zod` peerDependency `^3.x`. Do NOT bump to Zod 4. |
-| `@modelcontextprotocol/sdk@^1.29.x` | Node `>=18.0.0` | Already pinned in `package.json:engines`. |
-| `crypto.randomUUID()` | Node 14.17+, Chrome 92+ | Both well below MV3 minimum and our `engines.node`. |
-| `chrome.storage.session` | Chrome 102+ | Already in use elsewhere in the extension. |
+| Package A | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `fsb-mcp-server@^0.8.0` | OpenClaw skill format current (May 2026) | Multi-agent contract requires `>=0.8.0`. Earlier versions ship `agent_id` differently and lack `back`/`change_report`. |
+| OpenClaw current build | Skills with single-line `metadata` JSON only | Parser limitation is upstream; do not multi-line `metadata`. |
+| Node 18+ | `fsb-mcp-server@0.8.0` | Verified in `mcp/package.json` engines (existing). |
+| Chrome 88+ | FSB extension (Manifest V3) | Existing extension constraint. |
+| ClawHub publish | GitHub account >= 7 days old | Auth requirement. ([clawhub README](https://github.com/openclaw/clawhub/blob/main/README.md)) |
 
----
+## Negative Findings (Verified Absences)
+
+These are things searched for and confirmed NOT to exist as of May 2026:
+
+1. **No first-party skill test harness.** OpenClaw provides no `clawhub validate` or `openclaw test-skill` command. Validation runs server-side at publish. Local pre-publish testing is manual: install the skill into a workspace, invoke it. (Searched [docs.openclaw.ai](https://docs.openclaw.ai/tools/skills), [clawhub README](https://github.com/openclaw/clawhub), and ecosystem guides.)
+2. **No skill-level `package.json` convention.** Skills are text directories, not npm packages.
+3. **No `plugin.json` needed for single-skill bundles.** `openclaw.plugin.json` is only for plugins that ship multiple skills under one umbrella.
+4. **No formal version-field validation rule** beyond "ClawHub expects semver-shaped strings for ordering and `latest` tagging." Local OpenClaw installs tolerate skills without `version:`.
+5. **No documented `command-arg-mode` value other than `"raw"`.** The default is the only documented option as of May 2026 -- treat as a one-element enum.
 
 ## Sources
 
-- [npm: @modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk) -- HIGH (latest 1.29.0 as of ~Apr 2026)
-- [GitHub: typescript-sdk releases](https://github.com/modelcontextprotocol/typescript-sdk/releases) -- HIGH
-- [GitHub: typescript-sdk server.md](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/server.md) -- HIGH (progress notification pattern, `ctx.mcpReq.notify()`)
-- [MCP spec: Progress (2025-03-26)](https://modelcontextprotocol.io/specification/2025-03-26/basic/utilities/progress) -- HIGH (`progressToken` semantics, no protocol timeout)
-- [Chrome for Developers: chrome.tabs](https://developer.chrome.com/docs/extensions/reference/api/tabs) -- HIGH (`onCreated`, `onRemoved`, `goBack`, `openerTabId`)
-- [Chrome for Developers: service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- HIGH (event listeners extend SW lifetime by 30s)
-- [MDN: windows.onRemoved](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/windows/onRemoved) -- HIGH
-- [dev.to: crypto.randomUUID is 3x faster than uuid.v4](https://dev.to/galkin/crypto-randomuuid-vs-uuid-v4-47i5) -- MEDIUM (perf claim, multi-source-confirmed)
-- [Zod v4 release notes](https://zod.dev/v4) and [Zod v4 migration](https://zod.dev/v4/changelog) -- HIGH (breaking changes; reason to stay on Zod 3 with MCP SDK)
-- [GitHub issue: Latest Zod3 now includes Zod4 ... breaking changes](https://github.com/colinhacks/zod/issues/4923) -- MEDIUM (compatibility nuance)
-- Local file: `extension/manifest.json` -- HIGH (permissions audit, no new permissions required)
-- Local file: `mcp/package.json` -- HIGH (current dependency baseline)
-- Local file: `mcp/src/tools/autopilot.ts` -- HIGH (300s ceiling located at line 58, on-progress wiring at lines 36-46)
-- Local file: `mcp/src/runtime.ts` + `mcp/src/queue.ts` -- HIGH (existing serialization model)
-- Local file: `extension/background.js` -- HIGH (existing `activeSessions`, `chrome.tabs.onRemoved`, `MCP_VISUAL_SESSION_STORAGE_KEY` rehydrate at lines 565-584, 2053, 2455)
+- [Skills - OpenClaw](https://docs.openclaw.ai/tools/skills) -- canonical spec for SKILL.md frontmatter, `metadata.openclaw`, `install[]` schema, `command-arg-mode`, `command-dispatch`, `requires.bins`/`anyBins`/`env`/`config` -- HIGH confidence
+- [Skills | OpenClaw Docs](https://openclaw-ai.com/en/docs/tools/skills) -- mirror with installer-kind enumeration, `os` filtering, install-array example -- HIGH confidence
+- [clawhub/docs/skill-format.md](https://github.com/openclaw/clawhub/blob/main/docs/skill-format.md) -- registry-side requirements, `version` as required-for-publish, full optional field table -- HIGH confidence
+- [clawhub/README.md](https://github.com/openclaw/clawhub/blob/main/README.md) -- CLI commands (login, publish, sync, search, install), GitHub-OAuth + 7-day-old account requirement, security scans -- HIGH confidence
+- [Exec tool - OpenClaw](https://docs.openclaw.ai/tools/exec) -- shell selection across macOS/Linux/Windows, bash-vs-fish-vs-pwsh logic -- MEDIUM confidence (single source)
+- [skill-creator SKILL.md](https://github.com/openclaw/openclaw/blob/main/skills/skill-creator/SKILL.md) -- real-world reference: minimal frontmatter (`name` + `description` only), progressive-disclosure body pattern -- HIGH confidence
+- [LumaDock OpenClaw skills guide](https://lumadock.com/tutorials/openclaw-skills-guide) -- corroborates single-line-JSON `metadata` parser constraint, install-array example -- MEDIUM confidence (third-party)
+- [ClawHub skill registry blog](https://www.openclawplaybook.ai/blog/clawhub-skill-registry-openclaw-agents/) -- security scanning model, registry size (~13k skills as of early 2026) -- MEDIUM confidence
+- `/Users/lakshmanturlapati/Desktop/FSB/mcp/README.md` -- existing FSB MCP surface, trusted allowlist (`OpenClaw` is on it at line 279), 21-platform installer -- HIGH confidence
+- `/Users/lakshmanturlapati/Desktop/FSB/mcp/src/install.ts` lines 413-420 -- existing OpenClaw "manual / unsupported" entry rationale -- HIGH confidence
+- `/Users/lakshmanturlapati/Desktop/FSB/mcp/package.json` -- confirms `fsb-mcp-server@0.8.0`, ESM, Node 18+ engine -- HIGH confidence
 
 ---
-
-*Stack research for: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)*
-*Researched: 2026-05-05*
+*Stack research for: OpenClaw FSB skill package (milestone v0.9.61)*
+*Researched: 2026-05-08*
