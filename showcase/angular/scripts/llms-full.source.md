@@ -81,6 +81,9 @@ FSB exposes its tooling through a Model Context Protocol (MCP) server. External 
 
 The MCP surface is the best way to use FSB with coding agents and external autonomy layers. FSB handles precise single-attempt browser execution, visual feedback, observability, and verification. Long-running scheduling and personality/identity decisions belong in the calling agent layer, such as OpenClaw or Claude Routines.
 
+### OpenClaw skill
+FSB ships a dedicated OpenClaw skill at `skills/FSB Skill/` in the repo root. The skill is the canonical OpenClaw onboarding path: it runs the doctor flow against `fsb-mcp-server`, prints the OpenClaw stdio config block for the user to paste into OpenClaw's MCP config, and offers consent-gated install for any other MCP hosts detected on the same machine. The bare `--openclaw` flag in the FSB MCP installer stays manual / unsupported because OpenClaw's MCP config schema is still unstable across builds; the skill prints, the user pastes, no auto-write. Frontmatter ships with `name: FSB`, `version: 0.9.61`, `requires.bins: [node, npx]`, and `requires.env: []` so vault credentials never leave the FSB Chrome extension.
+
 ### Site guides and memory
 FSB ships 142+ hand-curated site-specific guides (Notion, Google Sheets, Workday, Airtable, Trello, Greenhouse, Lever, and more) that prepend domain-specific strategy hints to the planning prompt when the user is on a known site. The extension also accumulates per-site memory across sessions: successful action sequences become procedural memory, page-structure observations become semantic memory, and consolidated reports become episodic memory. Memory and guides together let FSB get faster and more reliable on sites it has seen before without ever sending data outside the user's machine.
 

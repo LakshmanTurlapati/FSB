@@ -97,6 +97,10 @@ Common file or CLI targets:
 
 Instruction-only or UI-driven targets include JetBrains, ChatGPT, Claude.ai, and Warp. Run `install --list` to see the current registry, config paths, and detection status on your machine.
 
+### OpenClaw
+
+The canonical OpenClaw onboarding path is the FSB skill at `skills/FSB Skill/` in the repo root. Loading the skill into a fresh OpenClaw runs the doctor flow, prints the canonical OpenClaw stdio config block for the user to paste into OpenClaw's MCP config, and offers consent-gated install for any other MCP hosts detected on the same machine. The bare `--openclaw` install flag in this CLI stays manual / unsupported because OpenClaw's MCP config schema is still unstable across builds; the skill prints and the user pastes, never auto-writes the OpenClaw config.
+
 ### Installer Behavior
 
 The installer writes the smallest config entry needed for the selected platform:
