@@ -97,14 +97,15 @@ const { session_token } = await start_visual_session({
 try {
   // FSB tool calls go here. The orange glow is live for the user.
 } finally {
-  await end_visual_session({ session_token, reason: "complete" });
+  await end_visual_session({ session_token, reason: "ended" });
 }
 ```
 
 Cleanup rules (must hold on every termination path, not just success):
 
 - Always close the session in a `finally` block (or equivalent error path handling). The orange glow stays on the user's tab until `end_visual_session` is called. If the agent crashes or returns without closing, the user sees a stuck overlay.
-- `reason` is one of `complete` (normal success), `error` (tool error or exception), `aborted` (agent decided to stop), `user_cancelled` (user interrupted). Pick the one that matches the actual termination state.
+- `reason` is `ended` (normal completion) or `cancelled` (any non-normal termination: error, abort, user cancel, bridge disconnect). The MCP schema accepts only those two values.
+- If `start_visual_session` fails with `NO_OWNED_TAB`, the agent does not own a tab yet. Call `open_tab({ url, active: false })` first, then retry `start_visual_session`.
 - Close exactly once per session. Do NOT call `end_visual_session` twice with the same `session_token`.
 - If `run_task` (autopilot) is being used, autopilot manages its own visual session lifecycle. Do NOT wrap a `run_task` call in your own `start_visual_session` / `end_visual_session`.
 

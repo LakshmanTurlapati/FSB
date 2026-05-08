@@ -1,10 +1,20 @@
 # Restricted-tab recovery
 
-When FSB's active tab is at a restricted URL (`chrome://*`, `edge://*`, `https://chrome.google.com/webstore/*`, `https://chromewebstore.google.com/*`), the FSB content script cannot attach. DOM tools (`read_page`, `get_dom_snapshot`, `click`, `type_text`, etc.) will fail. This file lists the recovery toolset that works even on restricted tabs and shows the standard bootstrap recovery sequence.
+When FSB's active tab is at a restricted URL, the FSB content script cannot attach. DOM tools (`read_page`, `get_dom_snapshot`, `click`, `type_text`, etc.) will fail. The full non-injectable list:
 
-## Why DOM tools fail on chrome:// / edge:// / Web Store
+- `chrome://*`, `edge://*`, `about:*`, `view-source:*`
+- `https://chrome.google.com/webstore/*`, `https://chromewebstore.google.com/*`
+- `data:` URLs (no origin -- the extension cannot register a host match)
+- `file:` URLs (unless the user has manually granted file-URL access to the extension)
+- `blob:` URLs spawned in restricted contexts
 
-Browsers explicitly forbid content scripts from attaching to internal pages and the Chrome Web Store as a security boundary. The Manifest V3 `host_permissions` list cannot match these origins; Chrome rejects them at the policy layer. There is no extension-side workaround -- the boundary is enforced by the browser itself, before any of FSB's code runs.
+This file lists the recovery toolset that works even on these tabs and shows the standard bootstrap recovery sequence.
+
+## Why DOM tools fail on these URLs
+
+Browsers forbid content scripts from attaching to internal pages, the Chrome Web Store, and origin-less schemes (`data:`, `file:`, certain `blob:`) as a security boundary. The Manifest V3 `host_permissions` list cannot match them; Chrome rejects the injection at the policy layer. There is no extension-side workaround -- the boundary is enforced by the browser itself, before any of FSB's code runs.
+
+For local testing, serve the page over `http://localhost` instead of opening a `data:` or `file:` URL.
 
 Without a content script, the FSB extension cannot read the DOM, dispatch typed events, or observe mutations. Any attempt by FSB tools that route through the content script (`read_page`, `click`, `type_text`, `get_dom_snapshot`, etc.) fails fast with an attach error. The recovery path is to leave the restricted tab using a tool that does NOT require content-script attachability.
 
