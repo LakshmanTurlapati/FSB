@@ -21,6 +21,7 @@
     "clean": "rm -f config/dev-settings.json",
     "package": "zip -r fsb-v0.9.60.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'",
     "package:extension": "node scripts/package-extension.mjs",
+    "package:skill": "node scripts/package-skill.mjs",
     "showcase:install": "npm --prefix showcase/angular install",
     "showcase:build": "npm --prefix showcase/angular run build",
     "showcase:serve": "npm --prefix showcase/angular run start",
