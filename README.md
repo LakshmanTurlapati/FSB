@@ -18,7 +18,7 @@
 ![Issues](https://img.shields.io/github/issues/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Issues)
 ![Last Commit](https://img.shields.io/github/last-commit/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Last%20Commit)
 
-**AI powered browser automation through natural language. Tell it what to do, and watch it browse for you.**
+**AI-powered browser automation through natural language. Tell it what to do, and watch it browse for you.**
 
 *Pure structural intelligence. Zero vision. Zero guessing.*
 
