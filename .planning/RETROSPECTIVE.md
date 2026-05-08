@@ -161,6 +161,59 @@
 
 ---
 
+## Milestone: v0.9.60 -- Multi-Agent Tab Concurrency (MCP 0.8.0)
+
+**Shipped:** 2026-05-08
+**Phases:** 11 | **Plans:** 30 | **Tasks:** 47
+
+### What Was Built
+- Agent identity foundation: FSB-minted `agent_<uuid>` IDs via `crypto.randomUUID()`, registry mirrored to `chrome.storage.session` with SW-wake reconciliation, promise-chain mutex
+- AgentScope + bridge wiring: `agent_id` threaded through every MCP tool registration without behavior change
+- `run_task` lifecycle return-on-completion (Phase 236 reborn): 600s safety net, lifecycle event always wins, 30s `notifications/progress` heartbeats, SW-eviction yields `partial_state`
+- Tab-ownership enforcement: inline `checkOwnershipGate` at `dispatchMcpToolRoute` with three typed reject codes; `(agentId, tabId, ownership_token)` enforced same-microtask
+- Pooling, configurable cap (1-64, default 8), `connection_id`-keyed reconnect grace, pool-shrink-vs-release order independence
+- Ownership-gated `back` MCP tool with structured `{status, resultingUrl, historyDepth}` results
+- Background-tab audit + UI: agent-suffix client badge, popup/sidepanel owner chips, options.html cap control, foreground side-effect audit across 25+ tools
+- `fsb-mcp-server@0.8.0` prepared: SDK `^1.29.0`, version metadata, README, CHANGELOG, multi-agent tool descriptions; tag-ready
+- Post-action `change_report` on every action tool (URL delta, scoped node diffs, dialogs, focus shift), size-capped with `truncated`
+- Agent-scoped tab resolution (Phase 246, gap-closure): replaced `chrome.tabs.query({active:true})` with registry-driven resolver across read tools, visual-session, and ~37 action tools; `open_tab` default to background; D-16 closure folds resolved tabId back into routeParams
+- Bootstrap-safe recovery from restricted active tabs (Phase 247, gap-closure): `open_tab`/zero-owned `navigate`/`switch_tab`/`list_tabs` work from `chrome://newtab/` while still rejecting cross-agent owned tabs; protocol error labels accurate
+
+### What Worked
+- Independent-phase parallelization: Phase 239 (run_task fix) shipped in parallel with 237/238 because it had no dependency on the multi-agent surface, eliminating critical-path drag
+- Single dispatch chokepoint pattern paid off again: every cross-cutting concern (ownership, resolver, change_report) lands in one place rather than 25+ tool handlers
+- Byte-identity parity test (closes RESEARCH.md Pitfall 2) made the legacy:* preservation contract enforceable rather than aspirational
+- Phase 246/247 as gap-closure on existing REQ-IDs (no new requirement IDs minted) kept traceability clean while still acknowledging real protocol bugs surfaced in smoke tests
+- VERIFICATION.md `human_needed` markers held -- 12 outstanding human-UAT items were honestly carried as known-debt rather than auto-marked passed
+
+### What Was Inefficient
+- Smoke testing surfaced two distinct gap-closure phases (246 + 247) AFTER the milestone roadmap was authored; the original Phase 244 audit pass missed them. Earlier hostile multi-agent smoke would have folded both into the original roadmap
+- The auto-generated MILESTONES.md entry from `gsd-tools milestone complete` produced low-quality "1. [Rule N]" extracts because `extract-accomplishments` walked into RESEARCH-style files; required manual deletion of the duplicate entry and reliance on the pre-curated entry
+- Long `run_task` 5-run live soak was deferred -- automated lifecycle coverage is green but the deferred soak is recurring debt
+- 12 human-UAT items remain `human_needed` across Phase 239 and 246 VERIFICATION.md files; the milestone audit accepted these as documented caveats rather than blocking on them
+- One live `switch_tab` unowned-target branch could not be reproduced because the local browser auto-owned candidate tabs as `legacy:sidepanel`; coverage moved to automated dispatcher tests instead of being able to capture live evidence
+
+### Patterns Established
+- FSB-minted, caller-cannot-supply agent ID pattern: eliminates spoofing class entirely; ID is FSB-internal authority
+- Resolver-feeds-routeParams pattern (D-16): the gate sees the same tabId the resolver chose, eliminating dispatch-time TOCTOU
+- `legacy:<surface>` synthesized agent ID pattern: preserves popup/sidepanel/autopilot UX byte-for-byte while routing the same dispatch path through the multi-agent gate
+- Bootstrap-safe tool classification: small whitelist of recovery tools (`open_tab`, `navigate`, `switch_tab`, `list_tabs`) that work without content-script attachability while still respecting cross-agent ownership
+- Action vs read tool change_report contract: action tools always return; read tools never return -- a clean type-level distinction
+
+### Key Lessons
+1. Smoke-test multi-agent scenarios EARLIER -- gap-closure phases (246, 247) added 4 plans of work after the original roadmap was authored because foreground-only test paths missed agent-scoped resolution gaps and restricted-tab recovery
+2. Auto-generated milestone accomplishments from `gsd-tools milestone complete` pull from the wrong files (rules-extracted from research/diagnosis docs, not curated from one-liners); always pre-curate the MILESTONES.md entry before running the CLI archival, or expect to delete the auto-generated duplicate
+3. Single dispatch chokepoint compounds in value as more cross-cutting concerns land: ownership gate, resolver, change_report, and protocol error labeling all benefit from the shared chokepoint architected in Phase 240
+4. `human_needed` UAT items should be tracked as first-class closeout debt with explicit "verify by Xms after release" deadlines; carrying 12 of them silently across milestones risks them becoming permanent
+5. Independent-phase parallelization (Phase 239 alongside 237/238) demonstrably accelerates delivery; the roadmapper should explicitly identify and call out parallelizable phases at authoring time
+
+### Cost Observations
+- Model mix: inherit profile (no explicit override)
+- Notable: 11 phases with 3 distinct gap-closure waves (244 hardening + 246 resolver + 247 bootstrap) reflects "ship the surface, then audit, then audit again" pattern rather than a clean linear roadmap
+- Independent-parallel Phase 239 collapsed the 8-phase critical chain to 7-phase
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -180,6 +233,7 @@
 | v0.9.34 | 8 | 11 | Vault/payment/MCP security closure with accepted validation debt |
 | v0.9.35 | 5 | 15 | MCP reliability before new feature expansion |
 | v0.9.36 | 3 | 6 | Explicit MCP visual lifecycle and trusted client identity |
+| v0.9.60 | 11 | 30 | Multi-agent tab concurrency, MCP 0.8.0, run_task lifecycle return, change_report, restricted-tab recovery |
 
 ### Top Lessons (Verified Across Milestones)
 

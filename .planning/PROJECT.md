@@ -10,40 +10,27 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.50 Autopilot Refinement (MCP-Parity) — 2026-05-03. Phases 224-230 (audit + tool alignment + prompt refinement + stuck-detection + dynamic model discovery + overlay stability + dwell floor) plus three opportunistic phases 231-233 (cost-limit removal, model-discovery cache + sticky selection, meta-cognitive attempt tracker). 54 commits, 91 files changed (+7607/−362). Audit status `tech_debt` accepted; gap-closure phases 234-236 (REQUIREMENTS backfill, retro GSD coverage for 231/232/233, MCP `run_task` return-on-completion publish) carried into next milestone.
+**Last shipped:** v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- 2026-05-08. Phases 237-247 delivered MCP agent identity, tab ownership, concurrency caps, reconnect grace, background-tab execution, the `back` tool, `run_task` return-on-completion, post-action `change_report`, and restricted-active-tab recovery. Audit status `passed` with documented caveats: npm publish remains user-gated, one live `switch_tab` branch is accepted by automated evidence, and the long `run_task` soak is deferred.
 
 **Recent shipping cadence:**
+- v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- shipped 2026-05-08
 - v0.9.50 Autopilot Refinement (MCP-Parity) — shipped 2026-05-03
 - v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up — shipped 2026-05-02
 - v0.9.48 Angular 20 Migration — shipped 2026-05-02
 - v0.9.47 Workspace Reorganization — shipped 2026-05-02
 - v0.9.46 Site Discoverability (SEO + GEO) — shipped 2026-05-02
 
-**Version:** Extension + showcase APP_VERSION at `0.9.50`. MCP server still at `fsb-mcp-server@0.7.4` (0.7.5 publish gated by Phase 236).
+**Version:** MCP server package prepared at `fsb-mcp-server@0.8.0`; final npm publish is user-gated. Extension/showcase version bump remains outside this milestone unless separately requested.
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)
+## Previous Milestone: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) (shipped 2026-05-08)
 
-**Goal:** Let multiple agents drive FSB in parallel, each isolated to its own tab(s), with explicit ownership and a hard concurrency cap -- and ship `fsb-mcp-server@0.8.0` including the deferred Phase 236 fix.
+**Shipped:** 11 phases (237-247), 30 plans, 42/42 requirements traced. MCP agent identity + tab ownership with typed `TAB_NOT_OWNED` rejection, configurable concurrency cap (1-64, default 8) with `AGENT_CAP_REACHED`, forced-new-tab pooling, `connection_id`-keyed reconnect grace, ownership-gated `back` MCP tool, `run_task` lifecycle return-on-completion (Phase 236 reborn) with 30s heartbeats and SW-eviction `partial_state`, post-action `change_report`, agent-scoped tab resolution (no focus-stealing on background tabs), and bootstrap-safe recovery from restricted active tabs (`chrome://newtab/`). `fsb-mcp-server@0.8.0` is tag-ready.
 
-**Milestone progress:** Phase 237 (Agent Registry Foundation) complete. Phase 238 (AgentScope + Bridge Wiring) complete 2026-05-06 -- AGENT-04 closed; per-process AgentScope mints `agent_id` on first tool call via `agent:register`, threads through every autopilot/manual/visual-session bridge payload, extension explicitly ignores until Phase 240 enforcement. 6 phases remain (239-244).
+**Archive:** [.planning/milestones/v0.9.60-ROADMAP.md](milestones/v0.9.60-ROADMAP.md), [.planning/milestones/v0.9.60-REQUIREMENTS.md](milestones/v0.9.60-REQUIREMENTS.md), [.planning/milestones/v0.9.60-MILESTONE-AUDIT.md](milestones/v0.9.60-MILESTONE-AUDIT.md).
 
-**Target features:**
-- Per-session/task agent identity -- one MCP client may run multiple parallel agents, each with its own ID
-- Tab ownership: opening a tab binds its `tab_id` to the owning agent; cross-agent access rejected
-- Background-tab execution: no requirement that the owned tab be active/foregrounded
-- Hard cap: 8 concurrent agents/tabs; 9th request rejected with a clear "cap reached" error
-- Forced-new-tab pooling: if an owning agent opens another tab, both pool under that agent and stay locked together
-- Lock release on: task/session ends, MCP client disconnects, user closes the tab (no idle timeout)
-- New `back` MCP tool -- browser back-button equivalent
-- `fsb-mcp-server@0.8.0` release, including Phase 236 (`run_task` returns on completion instead of hitting the 300s ceiling)
-
-**Key context / constraints:**
-- Branch-locked to `Refinements`; no push/PR until explicit user command
-- Reuse v0.9.36 trusted MCP client allowlist for client labeling; agent identity is finer-grained (per session)
-- Must preserve existing single-agent autopilot + manual MCP visual session contracts (no regressions)
-- Excludes GEO content pack, off-page launch, zoneless migration -- separate later milestone
+**Accepted closeout caveats:** `npm publish fsb-mcp-server@0.8.0` is user-gated; live `switch_tab` unowned-target branch covered only by automated dispatcher tests (browser auto-owned candidate tabs as `legacy:sidepanel`); 5-run long `run_task` soak deferred (automated lifecycle coverage green).
 
 ## Future Milestone Candidates (deferred)
 
@@ -240,11 +227,20 @@ Carry-forward backlog candidates:
 
 ### Active
 
-- [ ] Background agents deprecated with playful "we're not reinventing this wheel" copy in the FSB control panel pointing at OpenClaw and Claude Routines
-- [ ] Background-agent-only code paths carefully commented out (not deleted) with deprecation annotation; shared utilities preserved
-- [ ] Showcase/dashboard surfaces mirror the agent-sunset messaging consistently
-- [ ] New top-level Sync tab in the control panel consolidates QR pairing and remote-control state into a single surface
-- [ ] Showcase/dashboard navigation/copy points at the simplified Sync surface
+(Awaiting next milestone -- run `/gsd-new-milestone` to define scope.)
+
+### Validated (v0.9.60)
+
+- ✓ Per-session/task agent identity: MCP server mints `agent_<uuid>` IDs FSB-side via `crypto.randomUUID()`; one MCP client may run multiple parallel agents -- Phase 237 (AGENT-01..04)
+- ✓ Tab ownership with typed `TAB_NOT_OWNED` rejection on cross-agent access; ownership tokens; incognito/cross-window rejected at dispatch boundary -- Phase 240 (OWN-01..05)
+- ✓ Configurable concurrency cap (1-64, default 8) with fail-loud `AGENT_CAP_REACHED`; forced-new-tab pooling via `chrome.tabs.onCreated` + `openerTabId`; `connection_id`-keyed reconnect grace; pool-shrink release; no idle reaping -- Phase 241 (POOL-01..06, LOCK-01..04)
+- ✓ Background-tab execution: action and read tools resolve target via agent registry, never `chrome.tabs.query({active:true})`; `open_tab` defaults to background; no focus-stealing on MCP-routed surfaces -- Phase 246
+- ✓ Ownership-gated `back` MCP tool with structured `{status, resultingUrl, historyDepth}` results (`ok` / `no_history` / `cross_origin` / `bf_cache` / `fragment_only`) -- Phase 242 (BACK-01..05)
+- ✓ MCP `run_task` returns on lifecycle completion with 30s `notifications/progress` heartbeats and SW-eviction `partial_state` envelope; 600s safety net -- Phase 239 (MCP-03..06)
+- ✓ Agent-suffix MCP client badge, popup/sidepanel "owned by Agent X" chips, options.html Concurrency Cap control with active-agent context -- Phase 243 (BG-01..04, UI-01..03)
+- ✓ Post-action `change_report` on every action tool (URL delta, added/removed/attr-changed nodes near action vicinity, dialogs, focus shift), size-capped with `truncated`, opt-out per-tool and global -- Phase 245 (CHANGE-01..05)
+- ✓ Bootstrap-safe recovery from restricted active tabs: `open_tab`, zero-owned `navigate`, `switch_tab`, `list_tabs` work without content-script attachability; cross-agent owned tabs still rejected; protocol error labels accurate -- Phase 247
+- ✓ `fsb-mcp-server@0.8.0` prepared with SDK `^1.29.0`, version metadata, README, CHANGELOG, multi-agent tool descriptions; tag-driven publish remains user-gated -- Phase 244 (MCP-01..02, MCP-07..08, TEST-01..05)
 
 ### Validated (v0.9.40)
 
@@ -454,6 +450,15 @@ The following backlog items are formally retired in v0.9.45rc1. Better external 
 | Keep client-owned visual sessions separate from autopilot `activeSessions` | Manual MCP flows need clear ownership of the visible browser surface without colliding with FSB task runs | Good -- v0.9.36 keeps one owner per tab and avoids manual/autopilot overlap |
 | Persist visual-session replay state in `chrome.storage.session` | Reinjection and service-worker churn should preserve the same owner, badge, and final-clear deadlines | Good -- v0.9.36 replays running/final states without stretching stale glow |
 | Keep `run_task` and explicit visual sessions as separate MCP workflows | Autopilot planning and manual tool-driven browsing are different operator intents | Good -- v0.9.36 docs now steer callers to the right contract |
+| FSB mints agent IDs (callers cannot supply) | Eliminate spoofing class entirely; ID is an FSB-internal authority | Good -- v0.9.60 `crypto.randomUUID()` with `agent_<uuid>` prefix; cross-agent rejection works on first claim |
+| Single dispatch chokepoint enforces ownership in same microtask as dispatch | Avoid TOCTOU between gate and execution; prevent any path that bypasses the gate | Good -- v0.9.60 inline `checkOwnershipGate` at `dispatchMcpToolRoute` with three typed reject codes |
+| Resolver helper feeds resolved tabId back into routeParams | Single source of truth so the dispatch gate sees the same tabId as the resolver | Good -- v0.9.60 D-16 closure; `(agentId, tabId, ownership_token)` enforced on every non-creating MCP call |
+| Default cap 8, range 1-64, no queue, fail-loud on cap | User wants visibility into saturation, not silent backpressure | Good -- v0.9.60 `AGENT_CAP_REACHED` typed error; active agents grandfathered when cap is lowered |
+| `connection_id`-keyed reconnect grace, not idle timeout | Network blips on the MCP transport should not orphan tabs; user-driven close should | Good -- v0.9.60 `RECONNECT_GRACE_MS` (~10s) keyed by connection_id; pool-shrink-vs-release order independent |
+| `run_task` resolves on lifecycle event with 600s safety net (not 300s ceiling) | Real long tasks were hitting an arbitrary timeout while completed lifecycle events were ignored | Good -- v0.9.60 (Phase 239 / Phase 236 reborn) lifecycle wins the race; SW eviction yields `partial_state` |
+| Action tools always return `change_report`; read tools never do | Reduces follow-up `read_page` round-trips on action-heavy flows; keeps reads pristine | Good -- v0.9.60 ~halves tokens-per-task on action sequences; size-capped with `truncated` hint |
+| Bootstrap-safe recovery tools must work from restricted active tabs | Active `chrome://newtab/` was blocking the same recovery tools the error message advised | Good -- v0.9.60 (Phase 247) `open_tab`/zero-owned `navigate`/`switch_tab`/`list_tabs` recover without content-script attachability while preserving cross-agent rejection |
+| Background-tab-by-default for MCP-routed surfaces | MCP agents must not steal focus from the user or other agents | Good -- v0.9.60 (Phase 246) `open_tab` defaults background; agent-scoped tab resolution replaces `chrome.tabs.query({active:true})` everywhere except synthesized `legacy:*` agents |
 
 ## Evolution
 
@@ -473,4 +478,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-06 -- Phase 238 (AgentScope + Bridge Wiring) complete; AGENT-04 closed*
+*Last updated: 2026-05-08 -- after v0.9.60 milestone (Multi-Agent Tab Concurrency / MCP 0.8.0)*
