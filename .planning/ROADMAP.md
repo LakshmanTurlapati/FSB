@@ -34,7 +34,7 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 - [x] **Phase 248: OpenClaw Spec Verification Gate + Repo Scaffolding** -- Verify OpenClaw skill schema against a live build and stand up the empty `skills/FSB Skill/` skeleton. (completed 2026-05-08)
 - [x] **Phase 249: SKILL.md + Scripts** -- Author SKILL.md frontmatter and the three `.mjs` orchestration scripts so the skill is end-to-end executable on a clean machine. (completed 2026-05-08)
 - [x] **Phase 250: USAGE.md + References + Policy** -- Ship the human-facing one-pager and the five reference files that teach OpenClaw the FSB priors (tools, multi-agent contract, restricted-tab recovery, vault boundary, default-to-FSB rule, visual-session lifecycle). (completed 2026-05-08)
-- [ ] **Phase 251: Tests + CI Integration** -- Wire `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the skill is covered by the `ci / all-green` gate.
+- [x] **Phase 251: Tests + CI Integration** -- Wire `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the skill is covered by the `ci / all-green` gate. (completed 2026-05-08)
 - [ ] **Phase 252: Repo Integration & Doc Updates** -- Update `README.md`, `mcp/README.md`, `mcp/src/install.ts:413-420`, and showcase `llms.txt`/`llms-full.txt` so the skill is discoverable from existing entry points.
 - [ ] **Phase 253: ClawHub Pre-Publish QA + User-Gated Publish** -- Run the pre-publish QA pass (VirusTotal, ClawScan, secret-grep, invisible-unicode strip, GitHub-account-age, name-collision recheck), document the `package:skill` build, and leave the actual `clawhub publish` user-gated.
 
@@ -175,7 +175,7 @@ Plans:
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
 | 249. SKILL.md + Scripts | 4/4 | Complete    | 2026-05-08 |
 | 250. USAGE.md + References + Policy | 4/4 | Complete    | 2026-05-08 |
-| 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
+| 251. Tests + CI Integration | 1/1 | Complete    | 2026-05-08 |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
 | 253. ClawHub Pre-Publish QA + User-Gated Publish | 0/0 | Not started (gated on 252) | - |
 
