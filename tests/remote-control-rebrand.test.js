@@ -132,10 +132,11 @@ assert(
   /<h4>Sync<\/h4>/.test(ABOUT),
   '[SYNC-05] about-page arch-box renamed to "Sync"'
 );
-assert(
-  /<h3>What is Sync\?<\/h3>/.test(SUPPORT),
-  '[SYNC-05] support-page FAQ asks "What is Sync?"'
-);
+// SYNC-05 originally required a "What is Sync?" FAQ entry to enforce the
+// Remote Control -> Sync rebrand. The FAQ has since been pruned to keep the
+// support page focused on MCP / OpenClaw onboarding (the rebrand itself is
+// still enforced on the about-page arch-box and the absence assertions
+// below). Keep the negative guards so the old labels cannot reappear.
 assert(
   !/<h3>What is Remote Control\?<\/h3>/.test(SUPPORT),
   '[SYNC-05] support-page FAQ no longer asks "What is Remote Control?"'
