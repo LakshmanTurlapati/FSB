@@ -33,7 +33,7 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 
 - [x] **Phase 248: OpenClaw Spec Verification Gate + Repo Scaffolding** -- Verify OpenClaw skill schema against a live build and stand up the empty `skills/FSB Skill/` skeleton. (completed 2026-05-08)
 - [x] **Phase 249: SKILL.md + Scripts** -- Author SKILL.md frontmatter and the three `.mjs` orchestration scripts so the skill is end-to-end executable on a clean machine. (completed 2026-05-08)
-- [ ] **Phase 250: USAGE.md + References + Policy** -- Ship the human-facing one-pager and the five reference files that teach OpenClaw the FSB priors (tools, multi-agent contract, restricted-tab recovery, vault boundary, default-to-FSB rule, visual-session lifecycle).
+- [x] **Phase 250: USAGE.md + References + Policy** -- Ship the human-facing one-pager and the five reference files that teach OpenClaw the FSB priors (tools, multi-agent contract, restricted-tab recovery, vault boundary, default-to-FSB rule, visual-session lifecycle). (completed 2026-05-08)
 - [ ] **Phase 251: Tests + CI Integration** -- Wire `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the skill is covered by the `ci / all-green` gate.
 - [ ] **Phase 252: Repo Integration & Doc Updates** -- Update `README.md`, `mcp/README.md`, `mcp/src/install.ts:413-420`, and showcase `llms.txt`/`llms-full.txt` so the skill is discoverable from existing entry points.
 - [ ] **Phase 253: ClawHub Pre-Publish QA + User-Gated Publish** -- Run the pre-publish QA pass (VirusTotal, ClawScan, secret-grep, invisible-unicode strip, GitHub-account-age, name-collision recheck), document the `package:skill` build, and leave the actual `clawhub publish` user-gated.
@@ -107,10 +107,10 @@ Plans:
 **Plans**: 4 plans (all Wave 1, autonomous, files_modified disjoint)
 
 Plans:
-- [ ] 250-01-PLAN.md -- Author USAGE.md: framing, 3-step install with canonical Web Store URL + GitHub Releases fallback, try-it prompts (read_page/click/type_text + single run_task), six-layer doctor recovery table (covers DOCS-01, DOCS-02, DOCS-03)
-- [ ] 250-02-PLAN.md -- Author references/tool-decision-tree.md (read-only-first tree + typed-events-over-.value rule + autopilot prose) and references/multi-agent-contract.md (agent_id rule + four typed errors + back tool) (covers DOCS-04, DOCS-05)
-- [ ] 250-03-PLAN.md -- Author references/restricted-tab-recovery.md (seven safe recovery tools + chrome://newtab worked example), references/default-to-fsb.md (soft preference + hard escalation + WebFetch carve-out), references/vault-boundary.md (fill_credential / use_payment_method routing + no secrets in chat) (covers DOCS-06, POLICY-01, POLICY-02)
-- [ ] 250-04-PLAN.md -- Author references/visual-session-lifecycle.md (open/close pairing + try/finally + error-path coverage) and adjust the SKILL.md body pointer to name the new file (covers POLICY-03)
+- [x] 250-01-PLAN.md -- Author USAGE.md: framing, 3-step install with canonical Web Store URL + GitHub Releases fallback, try-it prompts (read_page/click/type_text + single run_task), six-layer doctor recovery table (covers DOCS-01, DOCS-02, DOCS-03)
+- [x] 250-02-PLAN.md -- Author references/tool-decision-tree.md (read-only-first tree + typed-events-over-.value rule + autopilot prose) and references/multi-agent-contract.md (agent_id rule + four typed errors + back tool) (covers DOCS-04, DOCS-05)
+- [x] 250-03-PLAN.md -- Author references/restricted-tab-recovery.md (seven safe recovery tools + chrome://newtab worked example), references/default-to-fsb.md (soft preference + hard escalation + WebFetch carve-out), references/vault-boundary.md (fill_credential / use_payment_method routing + no secrets in chat) (covers DOCS-06, POLICY-01, POLICY-02)
+- [x] 250-04-PLAN.md -- Author references/visual-session-lifecycle.md (open/close pairing + try/finally + error-path coverage) and adjust the SKILL.md body pointer to name the new file (covers POLICY-03)
 
 ---
 
@@ -174,7 +174,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
 | 249. SKILL.md + Scripts | 4/4 | Complete    | 2026-05-08 |
-| 250. USAGE.md + References + Policy | 0/4 | Planned     | - |
+| 250. USAGE.md + References + Policy | 4/4 | Complete   | 2026-05-08 |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
 | 253. ClawHub Pre-Publish QA + User-Gated Publish | 0/0 | Not started (gated on 252) | - |

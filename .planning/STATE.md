@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.61
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-08T16:11:16.703Z"
-last_activity: 2026-05-08 -- Phase 250 planning complete
+last_updated: "2026-05-08T16:11:20.501Z"
+last_activity: 2026-05-08 -- Phase 250 execution started
 progress:
   total_phases: 6
   completed_phases: 2
@@ -22,14 +22,14 @@ See: .planning/REQUIREMENTS.md (29 v1 requirements traced to 6 phases)
 See: .planning/ROADMAP.md (Phases 248-253)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
-**Current focus:** Phase 249 — SKILL.md + Scripts
+**Current focus:** Phase 250 — USAGE.md + References + Policy
 
 ## Current Position
 
-Phase: 250
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-08 -- Phase 250 planning complete
+Phase: 250 (USAGE.md + References + Policy) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 250
+Last activity: 2026-05-08 -- Phase 250 execution started
 Progress: 0/6 phases complete (0%)
 
 ```
