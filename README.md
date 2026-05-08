@@ -45,6 +45,29 @@ Project Mariner, Claude Computer Use, and OpenAI Operator rely heavily on visual
 | Typical per step latency | 1 to 3 seconds | 50 to 200 ms |
 | Token/cost profile | Image heavy | Text/structure heavy |
 
+### Quick Start TL;DR
+
+**FSB shines when your AI client drives it directly.** Install the MCP server for your client of choice — one command, no manual config edits, and **no FSB API key needed** (your MCP client's model handles the reasoning):
+
+| Client | One-command install |
+|--------|---------------------|
+| Claude Code | `npx -y fsb-mcp-server install --claude-code` |
+| Claude Desktop | `npx -y fsb-mcp-server install --claude-desktop` |
+| Cursor | `npx -y fsb-mcp-server install --cursor` |
+| VS Code | `npx -y fsb-mcp-server install --vscode` |
+| Windsurf | `npx -y fsb-mcp-server install --windsurf` |
+| Codex | `npx -y fsb-mcp-server install --codex` |
+| All at once | `npx -y fsb-mcp-server install --all` |
+
+Preview before writing: append `--dry-run`. Sanity check with `npx -y fsb-mcp-server doctor`. Restart the client so the new MCP server appears.
+
+**Then install the browser side** (the MCP bridge talks to the extension):
+
+1. Get **FSB** from the [Chrome Web Store](https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk).
+2. From your MCP client, try: `Search for cats on Google` or `Read this page and summarize it`.
+
+Want to run FSB standalone from the extension popup/side panel? Open settings, paste an API key (xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or custom), and start there — no MCP needed.
+
 ### What It Does
 
 - Runs natural language browser tasks from the popup or side panel.
