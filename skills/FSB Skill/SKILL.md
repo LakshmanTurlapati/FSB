@@ -30,7 +30,7 @@ If anything looks off (no page response, unexpected errors, stale state, missing
 
 ## Visual session wrapping
 
-Any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason=...)`. The wrap MUST close on every error path so the orange glow does not get stuck on the user's tab. Lifecycle details and recovery steps live in `references/`.
+Any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason=...)`. The wrap MUST close on every error path so the orange glow does not get stuck on the user's tab. Lifecycle details, the try/finally close pattern, and error-path close coverage live in `references/visual-session-lifecycle.md`.
 
 ## Multi-agent contract
 
