@@ -114,7 +114,7 @@ async function checkSitemapLocs() {
     return;
   }
   const locs = [...r.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
-  record(locs.length === 4, 'sitemap has 4 <loc> entries', `actual ${locs.length}`);
+  record(locs.length === 5, 'sitemap has 5 <loc> entries', `actual ${locs.length}`);
   for (const loc of locs) {
     // When running locally, rewrite the prod-host URLs in sitemap.xml to BASE_URL
     // so the loc assertions exercise the local server (the sitemap content is
