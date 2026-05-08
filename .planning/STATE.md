@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: between_milestones
+milestone: v0.9.61
+milestone_name: FSB Skill (OpenClaw)
+status: defining_requirements
 last_updated: "2026-05-08T12:00:00.000Z"
 last_activity: 2026-05-08
 progress:
@@ -20,13 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Between milestones -- v0.9.60 archived 2026-05-08; awaiting `/gsd-new-milestone`
+**Current focus:** v0.9.61 FSB Skill (OpenClaw) -- defining requirements on branch `Claw`
 
 ## Current Position
 
-Status: Between milestones. v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) shipped 2026-05-08.
-
-Last activity: 2026-05-08 -- v0.9.60 milestone archived (ROADMAP/REQUIREMENTS/AUDIT moved to milestones/, MILESTONES.md updated, PROJECT.md evolved).
+Phase: Not started (defining requirements)
+Plan: --
+Status: Defining requirements
+Last activity: 2026-05-08 -- Milestone v0.9.61 started on branch Claw
 
 ## Performance Metrics
 
@@ -42,7 +43,7 @@ Last activity: 2026-05-08 -- v0.9.60 milestone archived (ROADMAP/REQUIREMENTS/AU
 
 ### Blockers/Concerns
 
-- None blocking next milestone.
+- None blocking v0.9.61.
 
 ### Carry-Forward Caveats from v0.9.60
 
@@ -50,8 +51,15 @@ Last activity: 2026-05-08 -- v0.9.60 milestone archived (ROADMAP/REQUIREMENTS/AU
 - Live unowned-target `switch_tab` recovery covered only by automated dispatcher tests; live reproduction blocked by `legacy:sidepanel` auto-ownership in this browser profile.
 - Five long real `run_task` soak runs deferred; automated lifecycle coverage is green.
 
+### v0.9.61 Pre-Research Notes
+
+- OpenClaw MCP install is officially "manual / unsupported" (`mcp/src/install.ts:413-420`); skill must print stdio config rather than rely on `--openclaw` flag.
+- Chrome Web Store URL: `https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk` (canonical, from `README.md:66`, `showcase/angular/src/app/pages/home/home-page.component.ts:26`).
+- Local skill directory name is `FSB Skill` (with space); SKILL.md `name:` field is `FSB`.
+- Spec uncertainty owed to research: exact schema of `metadata.openclaw.install[]`, `requires.bins` accepted values, `command-arg-mode` parsing.
+
 ## Session Continuity
 
 Last session ended with: v0.9.60 milestone archived, PROJECT.md evolved, RETROSPECTIVE.md updated, git tag created.
 
-Next session should: run `/gsd-new-milestone` to define the next milestone scope, or perform the user-gated `npm publish` for `fsb-mcp-server@0.8.0`.
+Next session should: run requirements scoping for v0.9.61 FSB Skill, then create roadmap and proceed to phase planning.
