@@ -241,87 +241,119 @@
   white-space: pre;
 }
 
-/* --- Try It --- */
-.try-mode {
+/* --- Use-case prompt grid --- */
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
   margin-top: 40px;
-  padding: 28px;
+}
+
+.prompt-card {
+  position: relative;
+  padding: 20px 22px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--bg-card);
+  transition: border-color var(--transition-base), transform var(--transition-base), box-shadow var(--transition-base);
+  overflow: hidden;
 }
 
-.try-mode + .try-mode {
-  margin-top: 24px;
+.prompt-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent-color, #ff7a18) 0%, rgba(255, 122, 24, 0) 100%);
+  opacity: 0;
+  transition: opacity var(--transition-base);
 }
 
-.try-mode h3 {
-  margin-bottom: 10px;
-  font-size: 1.15rem;
+.prompt-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
-.try-mode > p {
-  color: var(--text-muted);
-  margin-bottom: 16px;
-  font-size: 0.96rem;
+.prompt-card:hover::before {
+  opacity: 1;
 }
 
-.autopilot-rule {
-  padding: 14px 16px;
-  background: rgba(255, 122, 24, 0.08);
-  border-left: 3px solid var(--accent-color, #ff7a18);
-  border-radius: var(--radius-sm);
-  font-size: 0.95rem !important;
-  line-height: 1.6;
-  color: var(--text-default) !important;
-}
-
-.autopilot-rule strong {
-  color: var(--accent-color, #ff7a18);
-  letter-spacing: 0.04em;
-}
-
-.try-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.prompt-card-head {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
+  margin-bottom: 12px;
 }
 
-.try-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+.prompt-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 122, 24, 0.12);
+  color: var(--accent-color, #ff7a18);
+  font-size: 1.05rem;
+}
+
+.prompt-card-label {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prompt-card-body {
+  position: relative;
+  margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--bg-body);
-}
-
-.try-tool {
-  flex: 0 0 auto;
-  min-width: 110px;
-}
-
-.try-tool code {
-  font-size: 0.88rem;
-  padding: 3px 8px;
-  background: var(--bg-card);
-  border-radius: 4px;
-  color: var(--accent-color, #ff7a18);
-  font-weight: 600;
-}
-
-.try-prompt {
-  flex: 1 1 auto;
-  font-size: 0.94rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: var(--text-default);
 }
 
-.try-prompt code {
-  font-size: 0.88em;
+.prompt-caret {
+  display: inline-block;
+  margin-right: 8px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  color: var(--accent-color, #ff7a18);
+  user-select: none;
+}
+
+.prompt-card-body code {
+  font-size: 0.86em;
+  padding: 1px 5px;
+  background: var(--bg-card);
+  border-radius: 3px;
+}
+
+/* Autopilot footnote (reused from prior try-it section) */
+.autopilot-rule {
+  margin-top: 24px;
+  padding: 14px 18px;
+  background: rgba(255, 122, 24, 0.08);
+  border-left: 3px solid var(--accent-color, #ff7a18);
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-default);
+}
+
+.autopilot-rule strong {
+  color: var(--accent-color, #ff7a18);
+  letter-spacing: 0.02em;
+}
+
+.autopilot-rule code {
+  font-size: 0.86em;
   padding: 1px 5px;
   background: var(--bg-card);
   border-radius: 3px;
@@ -376,8 +408,11 @@
     min-width: 0;
   }
 
-  .try-list li {
-    flex-direction: column;
-    gap: 8px;
+  .prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-card {
+    padding: 18px;
   }
 }

@@ -30,11 +30,11 @@ If anything looks off (no page response, unexpected errors, stale state, missing
 
 ## Visual session wrapping
 
-Any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason=...)`. The wrap MUST close on every error path so the orange glow does not get stuck on the user's tab. Lifecycle details, the try/finally close pattern, and error-path close coverage live in `references/visual-session-lifecycle.md`.
+Any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason="ended"|"cancelled")`. Those are the only two reason values the MCP schema accepts -- use `ended` for normal completion and `cancelled` for any non-normal termination (error, abort, user cancel). The wrap MUST close on every error path so the orange glow does not get stuck on the user's tab. If `start_visual_session` fails with `NO_OWNED_TAB`, call `open_tab({ url, active: false })` first, then retry. Lifecycle details, the try/finally close pattern, and error-path close coverage live in `references/visual-session-lifecycle.md`.
 
 ## Multi-agent contract
 
-Never pass `agent_id` (the server mints it). Use the `back` tool instead of `execute_js("history.back()")`. Typed errors and recovery rules: see `references/multi-agent-contract.md`.
+Never pass `agent_id` (the server mints it). Use the `back` tool instead of `execute_js("history.back()")`. Each agent owns its own tabs; do not foreground or close tabs you do not own, and do not introduce a global browser lock -- per-agent ownership is the only concurrency mechanism. Typed errors (`NO_OWNED_TAB`, `AMBIGUOUS_TAB`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`), the bootstrap recovery ladder, and the default recovery flow: see `references/multi-agent-contract.md`.
 
 ## Vault and credentials
 
@@ -42,8 +42,8 @@ Passwords and CVV resolve INSIDE the extension via `fill_credential` and `use_pa
 
 ## References (load on demand)
 
-- `references/tool-decision-tree.md` -- read_page vs get_dom_snapshot vs get_page_snapshot vs get_site_guide; typed events over .value.
-- `references/multi-agent-contract.md` -- typed errors (TAB_NOT_OWNED, AGENT_CAP_REACHED, TAB_INCOGNITO_NOT_SUPPORTED, TAB_OUT_OF_SCOPE) and the back tool.
+- `references/tool-decision-tree.md` -- read_page vs get_dom_snapshot vs get_page_snapshot vs get_site_guide; when execute_js is first-class vs when typed tools are required; verify after "no detectable effect" warnings.
+- `references/multi-agent-contract.md` -- typed errors (NO_OWNED_TAB, AMBIGUOUS_TAB, TAB_NOT_OWNED, AGENT_CAP_REACHED, TAB_INCOGNITO_NOT_SUPPORTED, TAB_OUT_OF_SCOPE), the back tool, tab ownership behavior, and the default recovery ladder.
 - `references/restricted-tab-recovery.md` -- chrome://, edge://, and web-store recovery tools.
 - `references/vault-boundary.md` -- credential routing rules and forbidden patterns.
 - `references/default-to-fsb.md` -- soft preference and hard escalation rule in full.

@@ -6,18 +6,30 @@ While a visual session is open, the FSB extension paints an orange glow on the a
 
 1. Open the session with `start_visual_session({ client: "OpenClaw", task: <short label> })`. Save the returned `session_token`.
 2. Run the work (any sequence of FSB tools).
-3. Close the session with `end_visual_session({ session_token, reason })` exactly once. The `reason` is one of `complete`, `error`, `aborted`, `user_cancelled`. Use whichever matches the actual termination state.
+3. Close the session with `end_visual_session({ session_token, reason })` exactly once. The `reason` is one of `ended` or `cancelled` (the only values the MCP schema accepts). Use whichever matches the actual termination state.
 
 One open => exactly one close. No exceptions.
 
+## Bootstrap: NO_OWNED_TAB on session open
+
+`start_visual_session` requires the calling agent to already own a tab. On the first call of a new agent session there is no owned tab yet, so the open will fail with `NO_OWNED_TAB`. Recover by opening a tab first, then retrying the visual-session open:
+
+```
+list_tabs({})                                     // optional: see if anything is already owned
+open_tab({ url: "<target>", active: false })      // claim a tab without stealing user focus
+start_visual_session({ client: "OpenClaw", task: "..." })   // now succeeds
+```
+
 ## Termination outcomes (always close)
 
-| Outcome                                          | reason value     |
-|--------------------------------------------------|------------------|
-| Task finished successfully.                      | `complete`       |
-| A typed error fired and the loop cannot recover. | `error`          |
-| The model decided to abort mid-sequence.         | `aborted`        |
-| The user cancelled (stop button, escape, etc.).  | `user_cancelled` |
+The MCP `end_visual_session` schema accepts only two values; map each termination path onto one of them.
+
+| Outcome                                          | reason value |
+|--------------------------------------------------|--------------|
+| Task finished successfully.                      | `ended`      |
+| A typed error fired and the loop cannot recover. | `cancelled`  |
+| The model decided to abort mid-sequence.         | `cancelled`  |
+| The user cancelled (stop button, escape, etc.).  | `cancelled`  |
 
 ## Pattern: try/finally close
 
@@ -25,9 +37,9 @@ One open => exactly one close. No exceptions.
 const { session_token } = await start_visual_session({ client: "OpenClaw", task: "<short label>" });
 try {
   // ... FSB tool calls ...
-  await end_visual_session({ session_token, reason: "complete" });
+  await end_visual_session({ session_token, reason: "ended" });
 } catch (err) {
-  await end_visual_session({ session_token, reason: "error" });
+  await end_visual_session({ session_token, reason: "cancelled" });
   throw err;
 }
 ```
@@ -36,11 +48,11 @@ Even when the model is reasoning across multiple turns, the close MUST run on ev
 
 ## Error-path close coverage
 
-- Typed multi-agent error (`TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`) -- close with `reason: "error"` and report the typed error to the user.
-- Restricted-tab attach failure (`chrome://`, `edge://`, Web Store) -- recover via `references/restricted-tab-recovery.md` first; only close if recovery itself fails.
-- User cancel mid-task -- close with `reason: "user_cancelled"`.
-- Model self-aborts (decides task is impossible) -- close with `reason: "aborted"`.
-- Network / bridge disconnect -- close with `reason: "error"`. The bridge may have already invalidated the session; the close call is idempotent and safe to attempt anyway.
+- Typed multi-agent error (`TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`, `NO_OWNED_TAB`, `AMBIGUOUS_TAB`) -- close with `reason: "cancelled"` and report the typed error.
+- Restricted-tab attach failure (`chrome://`, `edge://`, Web Store, `data:`, `file:`) -- recover via `references/restricted-tab-recovery.md` first; only close if recovery itself fails.
+- User cancel mid-task -- close with `reason: "cancelled"`.
+- Model self-aborts (decides task is impossible) -- close with `reason: "cancelled"`.
+- Network / bridge disconnect -- close with `reason: "cancelled"`. The bridge may have already invalidated the session; the close call is idempotent and safe to attempt anyway.
 
 ## Anti-patterns
 
@@ -53,8 +65,8 @@ Even when the model is reasoning across multiple turns, the close MUST run on ev
 ```
 
 ```
-[BAD]  end_visual_session({ session_token })   // missing reason
-[GOOD] end_visual_session({ session_token, reason: "complete" })
+[BAD]  end_visual_session({ session_token, reason: "complete" })   // schema rejects this
+[GOOD] end_visual_session({ session_token, reason: "ended" })      // or "cancelled"
 ```
 
 ## See also

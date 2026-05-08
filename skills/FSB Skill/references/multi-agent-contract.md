@@ -1,6 +1,13 @@
 # FSB multi-agent contract (v0.8.0)
 
-This file documents the rules that make FSB's per-agent tab ownership work. Anyone calling FSB tools through MCP MUST follow these rules; breaking them produces typed errors that recover cleanly only when the caller knows the contract. The contract is small (four error names + the `agent_id` rule + the `back` tool), but every rule matters: bypassing one corrupts the ownership graph and the only recovery is closing the affected tab.
+This file documents the rules that make FSB's per-agent tab ownership work. Anyone calling FSB tools through MCP MUST follow these rules; breaking them produces typed errors that recover cleanly only when the caller knows the contract. The contract is small (six error names + the `agent_id` rule + the `back` tool), but every rule matters: bypassing one corrupts the ownership graph and the only recovery is closing the affected tab.
+
+## Tab ownership behavior (v0.8.0)
+
+- Each agent owns its own tabs. `open_tab` defaults to `active: false` so it claims a tab without stealing the user's focus -- only pass `active: true` when the user explicitly needs to see that tab.
+- Do not foreground a tab unless the task requires it. `switch_tab` defaults to background; it foregrounds only when `active: true` is explicit.
+- Close only tabs this agent owns. `close_tab` refuses the active foreground tab unless `allow_active: true` is set. Never close or reopen Chrome itself.
+- There is no global browser lock. The per-agent ownership graph is the only concurrency mechanism -- do not introduce a global lock as a blocker.
 
 ## Never pass agent_id
 
@@ -13,9 +20,19 @@ Caller-supplied `agent_id` breaks ownership accounting -- a fabricated id either
 [GOOD] click({ selector: "#submit" })
 ```
 
-## Four typed errors and how to recover
+## Six typed errors and how to recover
 
-When an FSB tool call hits one of the dispatcher boundaries, the server returns a structured error with one of the four names below. Match on the name; do not parse the human-readable message.
+When an FSB tool call hits one of the dispatcher boundaries, the server returns a structured error with one of the names below. Match on the name; do not parse the human-readable message.
+
+### NO_OWNED_TAB
+
+- What it means: The calling agent does not currently own any tabs. The most common cause is the very first tool call of a fresh agent session (including `start_visual_session`).
+- What to do: Call `open_tab({ url, active: false })` to claim a tab without stealing focus, then retry the original call. `navigate` and `switch_tab` can also claim an unowned normal tab if one already exists.
+
+### AMBIGUOUS_TAB
+
+- What it means: The calling agent owns multiple tabs and the tool did not specify a `tab_id`, so the target is ambiguous.
+- What to do: Call `list_tabs` to enumerate owned tabs, then retry with the intended `tab_id`.
 
 ### TAB_NOT_OWNED
 
@@ -52,7 +69,16 @@ Note: `go_back` (the existing tool in `mcp/ai/tool-definitions.cjs`) is the same
 
 ## Why the contract matters
 
-FSB's per-agent ownership is what lets multiple AI sessions share one Chrome instance without fighting. The contract is small (four error names plus `agent_id` plus `back`), but every rule matters -- bypassing one rule corrupts the ownership graph and the only recovery is closing the affected tab.
+FSB's per-agent ownership is what lets multiple AI sessions share one Chrome instance without fighting. The contract is small (six error names plus `agent_id` plus `back`), but every rule matters -- bypassing one rule corrupts the ownership graph and the only recovery is closing the affected tab.
+
+## Default recovery ladder
+
+When a tool call fails and you are not sure which layer broke, try these in order before escalating to the doctor:
+
+1. `list_tabs({})` -- check whether this agent owns any tab. Recovery-safe; works on restricted URLs too.
+2. If no owned tab: `open_tab({ url, active: false })` to claim one in the background.
+3. If the tab is on a non-injectable URL (`chrome://`, `edge://`, Web Store, `data:`, `file:`): `navigate({ url })` to a normal `http(s)` page.
+4. If the page loaded but DOM tools still fail: bridge or content-script issue. Run `node scripts/doctor.mjs`.
 
 ## See also
 

@@ -13,18 +13,29 @@ Pick the lightest reader that answers the question. Escalate down the list only 
 
 If `get_site_guide` returns a guide, follow the guide's selectors first; only fall back to `read_page` or the snapshot tools when the guide does not cover the current state.
 
-## Typed events over .value
+## execute_js vs typed tools
 
-Always use the typed action tools (`click`, `type_text`, `press_enter`, `press_key`, `select_option`, `check_box`, `hover`, `focus`, `clear_input`, etc.) instead of `execute_js` with `.value =` or `.click()`.
+`execute_js` is a first-class interaction tool in FSB, not a last resort. The current MCP tool description even instructs callers to "try execute_js FIRST" for clicks, scrolls, reads, and attribute lookups, because it bypasses overlay/obscured-element issues, viewport constraints, and CDP timeouts that block native click/scroll.
 
-React, Vue, Solid, and Angular all install change and input handlers that fire only on real user-style events. Setting `input.value = 'foo'` directly via `execute_js` does NOT fire those handlers, so the framework's internal state stays out of sync with the DOM, and the form does not validate, dirty-check, or submit. The same applies to programmatic `.click()` -- it bypasses the synthetic-event pipeline most modern frameworks rely on. The typed tools dispatch real input, change, keydown, keyup, and click events at the DOM level, which the frameworks observe.
+Use this split:
+
+- **Use `execute_js` freely for**: reading DOM (text, attributes, computed styles, hidden nodes), querying multiple elements at once, scrolling, probing structure during exploration, and clicking elements blocked by overlays or off-screen.
+- **Use typed tools (`type_text`, `clear_input`, `select_option`, `check_box`, `press_enter`, `press_key`, `drag`, `drag_drop`) for**: controlled text inputs, validation-sensitive form fields, real drag operations, and any input where framework change handlers must fire.
+- **After any `execute_js` click, verify** with `read_page` or `get_dom_snapshot` -- a true click produces an observable DOM change. If the page state did not change, fall back to the typed `click` tool, which dispatches real CDP events that React/Vue/Angular synthetic-event pipelines listen for.
+
+The one rule that does not bend: `element.value = 'foo'` via `execute_js` will NOT update controlled-input component state in React, Vue, Solid, or Angular. Use `type_text` for any text input bound to framework state.
 
 ```
-[BAD]  execute_js("document.querySelector('input').value = 'foo'")
+[BAD]  execute_js("document.querySelector('input[name=q]').value = 'foo'")
 [GOOD] type_text({ selector: "input[name=q]", text: "foo" })
+
+[OK]   execute_js("return Array.from(document.querySelectorAll('a')).map(a=>a.href)")
+[OK]   execute_js("document.querySelector('#add-to-cart').click(); return true")  // verify after
 ```
 
-Reach for `execute_js` only when the typed tools genuinely cannot express the action (rare; e.g., reading a computed style or invoking a non-DOM API).
+## Verify after a "no detectable effect" warning
+
+`click` (and other action tools) can return a "no detectable effect" warning even when the page actually changed -- the action-detection heuristic produces false negatives on async/animated UIs. Before retrying, verify page state with `read_page` or `get_dom_snapshot`. If the state already advanced, treat the action as successful and continue.
 
 ## Tool-by-tool quick reference
 
@@ -46,7 +57,7 @@ Reach for `execute_js` only when the typed tools genuinely cannot express the ac
 | `go_back` | Step back one history entry. | Use this typed tool, never `execute_js("history.back()")` -- see `references/multi-agent-contract.md`. |
 | `go_forward` | Step forward one history entry. | Pair with `go_back`; same ownership rules. |
 | `refresh` | Reload current tab. | Use after content-script attach failures. |
-| `execute_js` | Last resort for things the typed tools cannot express. | Bypasses framework change handlers; do not use for input or clicks. |
+| `execute_js` | First-class for reads, attribute lookups, scrolls, and clicks blocked by overlays. | Do not use to set `.value` on controlled inputs (use `type_text`); verify state after JS clicks. |
 
 ## Worked example
 
