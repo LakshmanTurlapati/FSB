@@ -1,311 +1,270 @@
 # Feature Research
 
-**Domain:** Multi-agent / multi-tab concurrency surface for an AI-driven Chrome extension exposing an MCP server (FSB autopilot + manual MCP tools)
-**Researched:** 2026-05-05
-**Milestone:** v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)
-**Confidence:** HIGH on the table-stakes contract (Browserbase Contexts, Playwright BrowserContext, Puppeteer-Cluster, Browser Use, Stagehand v3 cited from primary docs); MEDIUM on Project Mariner specifics (no published API; behavior inferred from Google DeepMind product copy + TechCrunch coverage); HIGH on the `back` tool scope (Playwright `page.goBack()` is the canonical reference)
+**Domain:** OpenClaw skill package wrapping the FSB Chrome extension + `fsb-mcp-server` (Agent-Skills-compatible bundle, manual MCP install posture)
+**Researched:** 2026-05-08
+**Milestone:** v0.9.61 FSB Skill (OpenClaw)
+**Confidence:** MEDIUM-HIGH
 
-## Existing Surface (Constraints On New Features)
+The frontmatter schema, install-lifecycle, slash-command behaviour, `command-arg-mode: raw` semantics, and progressive-disclosure pattern are all corroborated by official OpenClaw docs and the Anthropic Agent Skills spec (HIGH). Specific ClawHub publishing rituals and the exact diagnostic-output JSON shape for a `command-dispatch: tool` skill are documented loosely (MEDIUM); no live OpenClaw build was exercised — Phase 0 of the milestone is correctly tasked with verifying the literal frontmatter against a running build before SKILL.md is finalized.
 
-These already exist in FSB and define the boundary the new multi-agent surface must respect. Pulled from `PROJECT.md` and the milestone brief; do not re-design these.
+---
 
-- **Single-agent autopilot loop** -- popup/sidepanel-driven, one task at a time, binds to one active tab. Multi-agent must not regress this; a 1-agent run is a degenerate case of N-agent.
-- **MCP `run_task` tool** -- one autopilot run per call. v0.9.60 ships Phase 236 (return on completion, not 300s ceiling) inside the same MCP `0.8.0` release; that is a separate workstream from agent identity but lands together.
-- **Manual MCP tools** -- `click`, `type`, `navigate`, etc., already work; v0.9.60 adds `back`. These tools currently target the active tab implicitly. Multi-agent flips this to "target the agent's owned tab."
-- **Explicit visual sessions + trusted-client allowlist (v0.9.36)** -- Claude/Codex/Cursor render a trusted badge during MCP visual sessions. Agent identity in v0.9.60 is **finer-grained than client identity**: one trusted client may run multiple agents in parallel, each needing its own tab lock. Reuse the allowlist for badge/labeling; do not reuse it as the agent identity.
-- **DOM streaming, remote control, dashboard pairing** -- already shipped. Out of scope here, but multi-agent overlay/badge collisions on the same window are a known constraint (see deferred item from v0.9.36: "MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions" -- v0.9.60 effectively closes this gap).
-- **Hard cap target: 8 concurrent agents** -- already decided in the milestone brief. Research confirms this is in the same neighborhood as Project Mariner's "up to 10 tasks at once" and well within Chrome's practical tab budget on a developer machine. Treat 8 as a fixed product decision; this research does not relitigate it.
-- **Lock release rules: task ends, MCP client disconnects, user closes the tab** -- explicit "no idle timeout." Research notes (below) confirm this is the user-friendly default; idle-timeout reaping is an anti-feature in interactive surfaces.
-- **Branch-locked to `Refinements`; no push/PR until explicit user command** -- planning posture, not a feature constraint, but conditions how aggressively the surface can be extended.
+## Scope Note (read first)
+
+This file maps features the **skill itself** must expose. The underlying browser-automation tool surface — visual sessions, autopilot, manual mode, vault, observability, multi-agent contract, `back` tool, `change_report`, restricted-tab recovery — is already shipped in `fsb-mcp-server@0.8.0` and is **not re-evaluated here**. The skill's job is to (a) make sure that surface is reachable from OpenClaw, (b) teach the agent *when* and *how* to use it, and (c) fail loudly when something is wrong rather than pretend everything works.
+
+Two architectural facts shape every feature below:
+
+1. **OpenClaw MCP support is "manual / unsupported"** in FSB's installer (`mcp/src/install.ts:413-420`). There is no `--openclaw` flag. The skill cannot rely on the same one-command auto-install pattern Claude Desktop / Cursor / Codex enjoy — it must print a canonical stdio config block and walk the user through dropping it into OpenClaw's MCP registry by hand.
+2. **OpenClaw skill installer metadata (`metadata.openclaw.install[]`) runs at `openclaw skills install` time, not at every invocation.** First-run UX is therefore split: install-time hooks (idempotent prerequisite checks) vs. invocation-time hooks (doctor / extension verify / config print).
+
+---
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Missing any of these = the multi-agent surface looks broken or unsafe. Direct evidence cited from named tools.
+The OpenClaw user installed an FSB skill expecting a one-command path from "I added FSB" to "Claude / OpenClaw can drive my browser." Anything missing here makes the skill feel half-finished.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Stable per-agent ID issued by FSB on session start** | Browserbase issues a `sessionId` per browser session; Playwright hands back a `BrowserContext` handle; Puppeteer-Cluster identifies queued tasks. Every parallel-browser tool returns an opaque handle the caller keeps using. Without this, callers cannot disambiguate which agent did what. Per the milestone brief, "one MCP client may run multiple parallel agents, each with its own ID" -- so client identity is not a substitute. | S | Generate FSB-side (`agent_<uuid>` or `agent_<short>`); return in the `run_task` / session-start response payload; include in every subsequent tool call. Do **not** let the client invent IDs (mirrors v0.9.36's allowlist-only-FSB-side decision). |
-| **Stable per-tab handle bound to the owning agent** | Tab IDs are stable strings (e.g., `t1`, `t2`) that are never reused within a session, allowing agents to keep referring to the same tab even after other tabs are opened or closed. FSB already has Chrome's `tab.id` -- reuse it; do not reinvent. | S | Use Chrome's native `tab.id` (integer). Maintain a server-side map: `tabId -> agentId`. The owning agent receives `tab_id` on the open/bind event and threads it through subsequent calls. |
-| **Tab ownership enforcement (cross-agent reject)** | Every parallel browser-agent system enforces "this context, this agent." Playwright's BrowserContext isolates cookies, storage, cache, permissions per context; Puppeteer-Cluster's `CONCURRENCY_CONTEXT` mode is the default for the same reason. In FSB's single-window model, ownership is the proxy for isolation. A cross-agent click on a tab the other agent is mid-flow on **must** reject loudly, not race. | M | Enforce at the tool-dispatch layer in `background.js`. Every tool call (`click`, `type`, `back`, etc.) must validate `agentId` matches the lock owner of `tab_id`. Reject with a typed error code (e.g., `TAB_NOT_OWNED`) carrying the actual owner ID for debuggability. |
-| **Forced-new-tab pooling under the originating agent** | Real-world flows open new tabs constantly (target=_blank, OAuth popups, Google search results spawning a result tab). If a tab opened by agent A becomes orphan-owned, A's flow breaks. Browserbase, Browser Use, and Stagehand all model "child page opens" as still belonging to the originating agent context. | M | Hook `chrome.tabs.onCreated` with `openerTabId`. If the opener belongs to agent A, the new tab is locked to A automatically. Both tabs stay pooled together; releasing one releases neither (the pool releases on agent termination). |
-| **Hard concurrency cap with fail-loud rejection at the cap** | The milestone brief specifies 8 with "9th request rejected with a clear cap-reached error." Research confirms this is the right shape: silent queueing is a known MCP anti-pattern -- when an agent spends several minutes on analysis before invoking tools, the HTTP connection can be dropped, causing the agent to fail to call tools while the workflow still reports success, resulting in a silent failure. Loud rejection is safer than queue-and-hope. | S | Reject with a typed error (e.g., `AGENT_CAP_REACHED`) carrying the current cap (8) and the count of active agents. No retry-after, no backoff hint -- the caller's retry policy is the caller's problem. Puppeteer-Cluster does silent queueing because it is a long-running batch tool; FSB is interactive, so the contract should match Browserbase's session-create semantics (immediate 4xx-equivalent). |
-| **Lock release on task end, MCP client disconnect, and tab close (no idle timeout)** | Already decided in the milestone brief; research backs the "no idle timeout" choice. Browserbase's Contexts persist across sessions but session locks release on disconnect; agents whose connection is dropped should release immediately. Idle-reaping is hostile to long-running visual sessions where the user is reading the page (v0.9.36 already shipped explicit visual sessions for exactly this read-and-think workflow). | M | Three release paths: (1) `finalizeSession` already exists from v0.9.40 -- extend it to release agent locks; (2) MCP client disconnect handler in the bridge; (3) `chrome.tabs.onRemoved`. All three converge on a single `releaseAgent(agentId)` that clears every tab in the pool. |
-| **Background-tab execution (no foreground requirement)** | One of the most consistently-broken things in browser automation: clicking a backgrounded tab silently fails or focus-steals. Per the milestone brief, "no requirement that the owned tab be active/foregrounded." Chrome extensions historically forced focus on every interaction, redirecting whatever users are typing into whichever window Chrome has grabbed -- this is a top user frustration. Multi-agent **must** not focus-steal. | M | FSB already drives interactions via DOM-level (and CDP) calls that do not require foreground in most cases. Audit existing tool implementations for any that call `chrome.tabs.update({active: true})` or window-focus side effects and gate them behind an explicit `force_foreground` flag (default false). The `back` tool in particular must be gated. |
-| **Typed errors for every cross-agent / cap / lock failure** | Project Mariner's published Trusted Tester docs and Browserbase's session API both emit explicit, machine-parseable error codes for "tab does not exist," "session not found," "concurrency exceeded." Browser Use and Stagehand wrap these into agent-visible exceptions. Without typed errors, the calling LLM will hallucinate a recovery strategy. | S | At minimum: `AGENT_NOT_FOUND`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_NOT_FOUND`, `AGENT_RELEASED`. Each carries enough payload (current owner agent ID, cap, count) for the caller's LLM to write a coherent retry/abandon plan. |
-| **`back` MCP tool (single-step browser back-button equivalent)** | Every browser agent framework ships this: Playwright `page.goBack()`, Browser Use `go_back`, Stagehand inherits Playwright. FSB already has `goBack` in its 25+-action library internally; v0.9.60 just exposes it through MCP. | S | See dedicated scope section below. |
-| **Documentation of the agent identity / tab ownership / cap contract in MCP tool descriptions** | LLMs read MCP tool descriptions verbatim. Browser Use and Stagehand have explicit "operating loop" docs in their tool descriptions explaining: keep refs on the same tab, use `tabId` for tab targeting, recover stale refs once, report blockers. Without this, calling LLMs will guess the contract and guess wrong. | S | Update `fsb-mcp-server` tool descriptions for `run_task`, all manual tools, and the new `back` tool to call out: agent ID is required, tab IDs are agent-scoped, cap is 8, ownership is enforced. Mirror v0.9.36's docs-and-test discipline. |
+| Valid `SKILL.md` with `name: FSB`, frontmatter parse-clean against current OpenClaw build | Without this, OpenClaw rejects the skill at load time and the user sees nothing | LOW | Phase 0 milestone task already calls for live-build verification of `metadata.openclaw.install[]` shape, `requires.bins` accepted values, and `command-arg-mode` behaviour. Don't ship without this gate. |
+| `description:` written as task-trigger phrases ("automate Chrome", "click on a webpage", "fill a form", "log into a site", "drive the browser") | OpenClaw pre-loads `name + description` into system prompt; this is the SOLE signal for auto-invocation | LOW | Anthropic Agent Skills guidance: "describe the task to a coworker"; avoid marketing copy. Include the nouns users actually type. |
+| Idempotent install-time prerequisite check (`requires.bins: ["node", "npx"]`, optional `requires.env`) | Skill should refuse to "install OK" if the box can't run the MCP server | LOW | Native to OpenClaw: skill load filters on `requires.bins` (each must exist on PATH). Costs nothing, prevents support tickets later. |
+| `metadata.openclaw.install[]` entry that runs `npx -y fsb-mcp-server doctor` and surfaces output | At install-time, validate the MCP package can fetch and the bridge can attempt connection | LOW-MEDIUM | Doctor exits with structured layer output (package / bridge / extension / active-tab / content-script / config). Map non-zero to a clear "what to do next" message. |
+| Canonical OpenClaw stdio config block printed during install / `/fsb setup` | The OpenClaw installer flag does not exist; user must paste config themselves. Skill must hand them the exact block. | LOW | Block is `{ command: "npx", args: ["-y", "fsb-mcp-server"] }` plus whatever wrapping OpenClaw's MCP registry expects. Phase 0 verifies that wrapper. |
+| Chrome Web Store install link (`https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk`) shown verbatim with copy affordance | Without the extension installed, the MCP bridge has nothing to connect to and every browser tool fails | LOW | Single static string; do not auto-launch a URL — print and let the user click. |
+| `fsb-mcp-server wait-for-extension` step (or equivalent polling) before declaring setup complete | Many users will install the extension *after* MCP is wired; skill must wait for the handshake | LOW | Existing CLI command. Time-bound (e.g. 60s) with a clear "still waiting -- did you reload Chrome?" message. |
+| `/fsb` slash command exposed via `user-invocable: true` | Users on slash-command-driven hosts expect the skill name to be invocable directly | LOW | Confirmed in OpenClaw docs: `user-invocable` defaults to `true`; setting it explicit communicates intent. |
+| Doctor recovery recipe surfaced *before* "reinstall" suggestion | `fsb-mcp-server` already pinpoints the failing layer; skill must not regress to "try reinstalling" | LOW | Reuse the README's failure-mode table verbatim -- don't re-author. |
+| `USAGE.md` (3-step install / "try it" prompts / doctor recipe) | OpenClaw / ClawHub UIs render skill folder content; users browse before they invoke | LOW | Anthropic Agent Skills convention: USAGE.md / README.md are user-facing; SKILL.md is agent-facing. Keep them disjoint to avoid context bloat in the agent. |
+| Default-to-FSB rule documented in SKILL.md body ("for any web automation request, prefer FSB tools") | Without this guidance, the agent will use whatever browser tool is loaded first; skill exists *because* FSB is the right default | LOW | This is descriptive guidance, not a config knob -- there is no "priority" / "must-use" field. Effectiveness depends on the description + body wording. |
+| Multi-agent contract documentation: callers MUST NOT pass `agent_id`; explain `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE` | v0.8.0 enforces this server-side; agents that try to fabricate `agent_id` get ignored, but ones that retry-loop on typed errors will spin | LOW (pure docs) | Already explained in `mcp/README.md`; copy-paste into a `references/multi-agent.md`. |
+| Vault boundary policy in SKILL.md body ("route credentials through `fill_credential` / `use_payment_method`; never put secrets in chat") | This is a hard product invariant -- secrets do not leave the extension | LOW | Already enforced by the MCP server; documenting it in the skill prevents the agent from suggesting workarounds. |
+| Secrets-out-of-skill discipline (no API keys, no `.env` smuggled into `scripts/`) | OpenClaw security stance treats community skills as code dependencies; embedded secrets are a flagged anti-pattern | LOW | Use `requires.env` to declare what env vars the skill *expects* the user to set; never bake values. |
+| `version:` pinned in frontmatter, aligned with extension/MCP milestone (e.g. `0.9.61`) | Skills are dependencies; users (and ClawHub) need a version to pin against / scan / update | LOW | Anti-pattern: tracking `latest`. Bump on every milestone alongside `fsb-mcp-server` and the extension. |
+| First-invocation read-only-first decision tree (`read_page` -> `get_dom_snapshot` -> `get_page_snapshot` -> `get_site_guide`) | Existing FSB tool selection guide already encodes this; skill must surface it so the agent doesn't reach for `execute_js` first | LOW | Place in `references/decision-tree.md`; SKILL.md body links with one short sentence. Progressive disclosure keeps tokens low. |
+| Restricted-tab recovery playbook (`list_tabs` / `navigate` / `open_tab` / `switch_tab` / `go_back` / `go_forward` / `refresh`) | Hitting `chrome://newtab/` with `read_page` is the #1 footgun; v0.9.60 Phase 247 ships the recovery surface | LOW | Reference doc, two-paragraph max -- agent loads on demand. |
 
 ### Differentiators (Competitive Advantage)
 
-These set FSB apart from the obvious alternatives. Cheap wins where the agent-aware contract is the product.
+These are what make the skill feel *crafted* rather than auto-generated. Every item below leverages an existing FSB capability — there's no new browser code to write.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Agent identity surfaced in the trusted-client badge** | v0.9.36 already ships trusted-client badges (Claude/Codex/Cursor). Surfacing the per-agent ID alongside (e.g., "Claude / agent_a3f1") on the overlay closes the v0.9.36 deferred gap "MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions." Browserbase's dashboard does this; Browser Use's logs do this; FSB's overlay can do this on the page itself, which is unique. | M | Reuse v0.9.36's badge renderer. Append the short agent ID. Color-bucket per agent (4-6 stable colors cycling) so two parallel Claude agents look distinct on the dashboard preview. Depends on existing badge code, not new infra. |
-| **Tab-ownership-aware overlay glow** | When agent A is mid-action on tab 1 and agent B is mid-action on tab 5, the user sees two glows on two different tabs simultaneously. This is the visible payoff of multi-agent isolation. No competitor renders this on the actual page (Browserbase shows it in their dashboard, not in-page; Mariner shows it in a separate live-preview panel). | M | Already partially supported by v0.9.36 explicit visual sessions per tab. The new piece is making sure two parallel sessions on different tabs both render correctly without one stomping the other -- an audit/regression-test problem more than a new feature. |
-| **Pool semantics: "agent A opened tab B, both stay pooled until A ends"** | This is the table-stakes feature with a differentiator framing: making the pool **observable** (tool to list `pools` for an agent: `[t12, t14, t17]`). Browser Use's `tabs` listing only shows global tabs; pool-aware listing is unique. | S | A new optional tool `list_my_tabs(agentId)` returning the pool. Or piggyback on existing `list_tabs` and add a `pool` field per tab. LOW value-add; ship only if it falls out for free. |
-| **Loud, explicit `cap reached` error message with current count** | Most concurrency-capped APIs return a generic 429. A typed `AGENT_CAP_REACHED { cap: 8, active: 8, hint: "release a session via finalizeSession or wait" }` tells the calling LLM exactly what to do. Browserbase returns generic-ish 4xx; Mariner doesn't expose this (managed cloud); FSB owning a precise contract is a small win. | S | Already in table stakes; the differentiator is the wording quality and that it's documented in the tool description. |
+| `command-dispatch: tool` + `command-arg-mode: raw` for `/fsb <admin-verb>` to forward raw args to a setup/diag tool | Lets users trigger doctor / setup / re-pair without round-tripping the model -- fast and deterministic | MEDIUM | Phase 0 must verify exact OpenClaw build supports this. Risk: if `command-dispatch` is taken, model can't intervene with intent -- use only for unambiguous admin verbs (`/fsb doctor`, `/fsb setup`, `/fsb status`), not for actual browser tasks. |
+| Visual-session auto-wrapping: skill body teaches "for any external-AI-driven sequence, call `start_visual_session(client="OpenClaw")` first, `end_visual_session` last" | Users *see* what's happening -- orange glow, badge, action overlay -- turning an opaque MCP call into a trusted live demo | LOW (docs) | Allowlist already includes `OpenClaw` (per `mcp/README.md` line 279). Skill just has to remember to use it. |
+| Cross-host MCP install detection + opt-in install: skill optionally offers to run `npx -y fsb-mcp-server install --claude-desktop / --cursor / --codex / ...` for other hosts on the same machine | A user who installed FSB skill once gets FSB everywhere with one prompt | MEDIUM | 21-platform installer already exists. Skill detects via `install --list`; presents detected hosts as opt-in checkboxes/prompts. Must be opt-in -- auto-installing across hosts without consent is an anti-feature. |
+| Decision tree for tool selection embedded as a `references/tool-selection.md` reference file | Picks between `read_page` vs `get_dom_snapshot` vs `get_page_snapshot` vs `get_site_guide`; nudges to typed events (`type_text`) over `.value`; flags `run_task` as user-explicit-only | LOW | Lifts FSB's existing tool-selection guide (already in extension's autopilot system prompt) into reference form. Reuses, doesn't re-author. |
+| `get_site_guide` first-class hint: "before any non-trivial site automation, call `get_site_guide` for known patterns" | 50+ site guides ship with FSB; agent ignoring them is the difference between flaky and reliable | LOW | One-line guidance in SKILL.md body + sample in references. `fsb://site-guides` resource already exposes the catalog. |
+| `back` tool steering: "use `back` instead of `execute_js("history.back()")`" | v0.9.60 ships ownership-gated `back`; using `execute_js` bypasses ownership and loses the typed status (`ok`/`no_history`/`cross_origin`/`bf_cache`/`fragment_only`) | LOW (docs) | Strong differentiator -- most skills wouldn't know to call this out. |
+| `change_report` awareness: "after every action, FSB returns a change report; you don't need to call `read_page` again unless the report says `truncated: true`" | Halves tokens-per-task on action sequences -- measurable user-visible cost win | LOW (docs) | Already documented in `mcp/README.md`; surface it explicitly to OpenClaw. |
+| Soft preference + hard escalation rule: "for any web read, FSB tools are preferred; for any click/type/auth/multi-tab task, FSB tools are required" | Stops the agent from inventing its own `fetch()` calls or asking for screenshots when FSB is sitting right there | LOW (docs) | Phrasing matters -- write it as the agent's own checklist, not as marketing. |
+| Doctor-first recovery flow: skill instructs agent "if a tool returns an error, call `npx -y fsb-mcp-server doctor` *before* suggesting reinstall" | Existing FSB diagnostics are layer-aware; skill teaches the agent to use them | LOW (docs) | Prevents the failure mode where the agent suggests "try reinstalling the extension" on every transient failure. |
+| Branded skill emoji (`metadata.openclaw.emoji`) + homepage link | Polish -- the skill shows up in OpenClaw's UI with FSB's identity | LOW | Use the FSB logo / a browser glyph; homepage = `https://full-selfbrowsing.com` (already prerendered, SEO-ready per v0.9.46). |
+| `references/sample-prompts.md` with 5–10 verified working "try it" prompts | First-touch trust: user copy-pastes a known-good prompt and sees the orange glow | LOW | Pull from existing dashboard demos / showcase. |
+| Idempotent setup: re-running `/fsb setup` is safe (detects existing install, only fixes the broken layer) | Users will run setup multiple times; skill must not corrupt state on the 2nd run | MEDIUM | Implementation discipline: every install-time / setup-time action is "check then conditionally apply" not "always apply." |
+| Live verification step at end of setup: skill performs a tiny round-trip (`list_tabs` or `read_page` against `about:blank`-equivalent) and reports green/red | Ends setup with a real signal, not just "config written" | LOW | Uses already-shipped tools; no new code. |
+| `disable-model-invocation: false` (default) intentionally documented | Decision: we *want* the model to auto-invoke FSB when it sees a browser task; we are NOT opting out of model invocation | LOW | Documenting the choice in CHANGELOG / decision log makes the auto-invocation behaviour intentional. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-These will come up in roadmap discussions; document why they are bad ideas now to prevent scope creep mid-milestone.
+The skill milestone is small. These are the temptations to NOT chase.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Cross-window agent isolation** | "What if I want each agent in its own Chrome window?" | FSB is a Chrome extension running in the user's existing profile; spawning new windows is jarring and clashes with users' tab/window organization. Chrome extensions also do not have clean per-window service-worker scoping. Browserbase solves this by running cloud VMs -- FSB cannot, by design. The user's milestone brief explicitly says no cross-window. | Stay single-window, multi-tab. If users want strict isolation, they can run multiple Chrome profiles -- explicitly out of FSB's scope. |
-| **Incognito-mode agent isolation** | "True isolation requires incognito profiles per agent" | Chrome MV3 service workers do not get a guarantee of running in incognito unless the extension is explicitly allowed in incognito by the user. Adds an installation/UAT burden, divergent storage paths, and breaks the v0.9.36 trusted-client allowlist (which lives in normal storage). Defer entirely. | Document that "isolation" in v0.9.60 means tab-ownership lock, not OS-level profile isolation. Cookies/localStorage **are shared** across same-origin tabs by Chrome's design; cross-tab data leakage is a property of Chrome, not FSB. |
-| **Headless / server-side worker agents** | "Run agents without the user's browser open" | Already in PROJECT.md "Out of Scope": *"Headless server-side execution -- server is relay only, user's browser must stay active."* Multi-agent does not change this contract; v0.9.60 makes the user's existing Chrome more capable, not into a server farm. | Defer to OpenClaw / Claude Routines (the v0.9.45rc1 sunset path). FSB's deprecation card already directs background-agent users there. |
-| **Agent-to-agent messaging / coordination protocol** | "What if agent A wants to hand off to agent B?" | Massive scope: now FSB needs a message bus, addressing, security model, ordering guarantees. Project Mariner does not expose this; Browser Use does not expose this; Stagehand does not expose this. The orchestrating LLM (Claude / GPT / etc.) is the coordinator -- it owns multiple agents and routes information itself via its own context. FSB providing this is duplicative and dangerous. | Agents are leaves; the LLM is the trunk. The LLM serializes state across agents in its own conversation. FSB should not become a multi-agent runtime. |
-| **Idle timeout reaping** | "What if an agent gets stuck and holds a tab forever?" | Hostile to long-running visual sessions (a user reading a page slowly inside an MCP visual session is the v0.9.36 use case). Silent reaping = unexplained tab "thefts." Milestone brief explicitly says no idle timeout. | Explicit release paths only: task end, client disconnect, tab close. If a stuck agent is the concern, that's what stuck-detection (already shipped in v0.9.50) handles -- and stuck-detection emits an explicit failure that triggers `finalizeSession`. The system already self-heals. |
-| **Auto-promotion of orphaned tabs to "any agent can claim"** | "If an agent dies, the tab becomes free game" | Race conditions, surprise behavior. If agent A dies mid-flow, the right answer is to kill the tab too (or close the pool) -- not let agent B inherit a half-completed checkout flow. | On agent release, the entire pool releases. Tabs may stay open (user can keep them) but no agent can drive them again until rebound via a new task. |
-| **Per-agent custom user-agent / fingerprint isolation** | "Different agents should look like different browsers" | Anti-bot evasion is its own deep rabbit hole (Camofox, anti-detect tools); FSB is not a stealth tool, it is an automation tool that runs in the user's real Chrome. Sites that don't want bots can detect MV3 extensions trivially anyway. | Out of scope. Refer users to dedicated stealth-browser tools (Camofox, Browserbase) for evasion use cases. |
-| **Confirmation dialog for `back` on dirty forms** | "What if the user has typed into a form and `back` discards their input?" | Two reasons this is wrong: (1) The agent is the operator -- it just typed into the form, so "user input loss" is the agent losing its own work, which is its problem to plan around. (2) Chrome's native `beforeunload` fires anyway and Playwright has documented bugs trying to dismiss it programmatically (bug #14431). Adding an FSB-level confirmation would compound the problem. | Let Chrome's native `beforeunload` fire. If a `beforeunload` dialog appears, the existing FSB dialog-handling path catches it. Document in the `back` tool description: "may trigger a beforeunload prompt if the page has unsaved input; standard dialog-handling applies." |
-| **Multi-step `back(n)` / "go back 3 pages"** | "Sometimes I want to back out of a sequence" | Browser history stacks are not always what they look like (redirects, replaceState, hash-only changes don't always count as a back step uniformly across sites). Compounding `n` calls multiplies the unreliability. Playwright `page.goBack()` is single-step for this exact reason. | Single-step only in v0.9.60. Caller wanting 3-back can call `back` three times and read the page between calls. |
-| **Cross-agent `back` (agent A goes back on a tab agent B owns)** | "Why not let any agent navigate any tab?" | Defeats the entire ownership model. | Reject with `TAB_NOT_OWNED`, same as any other cross-agent tool call. |
+| Run `npx -y fsb-mcp-server install --openclaw` automatically | Symmetry with the 17 existing `--<host>` flags; "one-click install" is a strong UX | OpenClaw's MCP support is officially "manual / unsupported" in FSB (`mcp/src/install.ts:413-420`); guessing at OpenClaw's MCP registry path will silently corrupt user config | Print canonical stdio config block; let the user paste it. Re-evaluate when OpenClaw stabilises an MCP file path FSB can write to. |
+| Re-run installer/setup logic on every skill invocation | Self-healing; "always make sure setup is good" | Anti-pattern flagged by Agent Skills guide ("running install at every invocation is wasteful"); slows down every prompt; risks infinite loops on partial failures | Run setup only on `/fsb setup` and on first `metadata.openclaw.install[]` execution; on tool failure, suggest `/fsb doctor` instead of silent re-install. |
+| Embed AI provider API keys / vault secrets / installer credentials in the skill folder | "Out-of-the-box" polish | OpenClaw security guide flags this explicitly; ClawHub scanners will block; secrets in skills are a known attack vector | Use `requires.env` to declare expected env vars; user supplies via `~/.openclaw/openclaw.json` `skills.entries.<key>.env`. FSB's vault is already the right place for credentials and lives inside the extension. |
+| Bypass FSB's vault by encouraging the agent to type passwords with `type_text` | "Simpler" -- fewer tools to learn | Defeats the entire point of the vault boundary; passwords would flow through MCP transport in cleartext | Hard rule in SKILL.md: passwords go through `fill_credential` only. Vault returns metadata only, never raw secrets -- this is a product invariant. |
+| Auto-launch the Chrome Web Store URL via `chrome://` or `open` on install | Hands-off UX | OpenClaw skills run install-time hooks in user contexts that may not have a browser, may be remote SSH, may be CI; auto-launching surprises users; failure modes are hard to detect | Print the URL with copy affordance; let the user click. |
+| Recommend `run_task` (autopilot) as the default entry point | "Autopilot is the headline feature" | Two failure modes: (a) user wanted manual control, FSB just took over; (b) external agent's plan and FSB's plan fight each other | SKILL.md body: "use `run_task` ONLY when the user explicitly delegates the whole task to FSB; otherwise stay in manual mode." |
+| Have the skill fabricate `agent_id` to "improve session tracking" | Looks like a multi-tenant feature | v0.8.0 explicitly ignores caller-supplied `agent_id` and mints its own; passing one is at best dead code, at worst a misleading log line | Document that `agent_id` is server-issued; the skill never touches it. |
+| Bake a `--force` reinstall path into setup | Easier troubleshooting | Hides root cause; users will reach for `--force` instead of running doctor | Doctor-first rule. `--force` only as a last-resort flag the user has to type explicitly. |
+| Ship the skill bundling its own copy of `fsb-mcp-server` source / `node_modules` | "Offline install" | Bloats the skill folder, drifts from npm releases, defeats `npx -y` cache, and breaks the version-pin discipline | Stay on `npx -y fsb-mcp-server@<pinned-version>`; npm is the source of truth. |
+| Custom WebSocket port discovery / multiple bridge endpoints | "Configurability" | The bridge is intentionally `ws://localhost:7225` -- fixed, well-known, single-instance with hub/relay promotion (already shipped). Adding configurability fragments the contract | Stay on the canonical port. If the user has a port conflict, that's a doctor finding, not a skill feature. |
+| Cross-tab / multi-window orchestration logic inside the skill | "Power user" feature | v0.8.0 already enforces tab ownership and handles cross-window with `TAB_OUT_OF_SCOPE`; adding skill-side orchestration races the extension | Document the typed errors; let the agent obey them. |
+| Verbose, "optimistic" auto-generated SKILL.md body | Easy to produce; looks comprehensive | Anti-pattern flagged in OpenClaw skills authoring guide ("auto-generated skills are verbose and optimistic"); inflates context, dilutes auto-invocation signal | Tighten boundaries; require explicit input over guessing; clear stop conditions. |
 
-### Out of Scope for v0.9.60
-
-Explicitly excluded from this milestone, per the brief and per research.
-
-- Cross-window agent isolation (anti-feature above)
-- Incognito-mode agents (anti-feature above)
-- Headless / server-side workers (PROJECT.md OOS, anti-feature above)
-- Agent-to-agent messaging (anti-feature above)
-- Idle timeout reaping (anti-feature above)
-- Per-agent fingerprint / stealth (anti-feature above)
-- Multi-step `back(n)` (anti-feature above)
-- Auto-promotion of orphaned tabs (anti-feature above)
-- Cross-agent `back` (anti-feature above)
-- **Persistent agent identity across browser restarts** -- agents are session-scoped; no one expects an agent ID to survive Chrome reload. Browserbase persists *contexts* (cookies/storage), not session IDs.
-- **Quotas / rate limits per agent** -- the cap is on simultaneous agents, not per-agent tool-call rate. v0.9.50 already ships per-task safety breakers.
-- **Authoritative agent registry shared across MCP clients** -- agents are scoped to the MCP client connection; if Claude has 3 agents and Codex has 2, they share the cap of 8 but each only sees its own.
-- **Chrome profile / Chrome user isolation** -- FSB lives in one profile.
-- **Visual fairness scheduling** (round-robin focus, etc.) -- background-tab execution removes the need; no agent needs the foreground.
-
-## `back` Tool Scope (v0.9.60)
-
-A dedicated section because the milestone brief explicitly flags this and asks for "minimal" scope. Anchored on Playwright `page.goBack()` semantics.
-
-### What `back` IS
-
-- A single-step browser back navigation, equivalent to clicking the browser's back button once.
-- Targets the agent's owned tab (uses the same `tab_id` parameter shape as other tools).
-- Returns success when navigation settles (mirrors Playwright's `page.goBack()` returning when navigation finishes -- `await` semantics).
-- Returns a typed error if there is no history to go back to (Playwright returns `null` from `page.goBack()` in that case; FSB should be louder -- explicit `NO_BACK_HISTORY` typed error so the calling LLM can replan).
-- Honors background-tab execution (no `chrome.tabs.update({active: true})` -- the tab does not need to be foregrounded).
-- Honors tab ownership: cross-agent calls reject with `TAB_NOT_OWNED`.
-
-### What `back` IS NOT
-
-- Not multi-step (`back(n)` is an anti-feature; see above).
-- Not a "go to URL" tool (use the existing `navigate` tool for that).
-- Not a same-page state revert (it is browser-history-stack-only; SPA route changes that pushed `history.pushState` will be reverted, but in-memory app state will not).
-- Not gated on dirty-form confirmation (let Chrome's native `beforeunload` handle it; see anti-feature above).
-- Not an alias for `goForward` -- `forward` is **NOT** added in v0.9.60 (defer; minimal scope means one new tool).
-
-### Failure Modes (typed errors)
-
-| Code | Meaning | Caller LLM should… |
-|------|---------|--------------------|
-| `NO_BACK_HISTORY` | Tab has no prior page in its history (fresh tab, only one navigation). | Replan: do not retry, find a different way to get to the prior context. |
-| `TAB_NOT_OWNED` | Agent doesn't own this tab. | Refuse the operation, surface to user. |
-| `TAB_NOT_FOUND` | Tab was closed mid-flight. | Acknowledge tab gone, replan from page list. |
-| `AGENT_RELEASED` | Agent's lock was released (client disconnect, etc.) between the `back` call landing and resolving. | Stop, the session is over. |
-| `NAVIGATION_TIMEOUT` | Back fired but the new page didn't settle within FSB's existing navigation timeout. | Standard retry-or-abandon, same as `navigate`. |
-
-### Edge Cases Worth Handling
-
-- **`beforeunload` prompt fires** -- existing dialog-handling path catches it. Document in tool description that `back` may surface a confirm dialog and FSB will use the agent's existing dialog-handling decision.
-- **Back to a redirect** -- sometimes "back" lands on a 301 source URL that immediately re-redirects forward, creating an infinite back-redirect loop. FSB's existing stuck-detection (v0.9.50) already covers this pattern; no new logic.
-- **Back across origin boundaries** -- works fine in Chrome; no special handling needed.
-- **Back after `pushState` SPA navigation** -- works (this is just popstate); no special handling needed.
-
-### Implementation Notes
-
-- FSB already has internal `goBack` in its action library (per CLAUDE.md "Navigation & Control" tool list). v0.9.60 work is: expose it via MCP, add agent-ownership gate, add typed errors, document the contract.
-- Probably 50-150 LOC total in `mcp-server/src/tools/`, plus a few lines of dispatch wiring in `background.js`, plus tool description text.
+---
 
 ## Feature Dependencies
 
 ```
-Per-agent ID issuance
-    +-- required by --> Tab ownership map (tabId -> agentId)
-                            +-- required by --> Cross-agent tool dispatch gate
-                                                    +-- required by --> back tool (gated)
-                                                    +-- required by --> all existing manual tools (gated)
-                                                    +-- required by --> run_task (gated; receives agent ID)
-                            +-- required by --> Forced-new-tab pooling (chrome.tabs.onCreated + openerTabId)
+[Chrome Web Store Extension Install]
+    └──required-by──> [WebSocket bridge handshake]
+                          └──required-by──> [any tool call beyond `doctor`/`status`]
 
-Hard concurrency cap (8)
-    +-- enforced at --> Agent-creation entry points (run_task start, manual session start)
-    +-- requires --> Per-agent ID issuance (to count active agents)
+[fsb-mcp-server reachable via npx]
+    └──required-by──> [OpenClaw stdio config block being meaningful]
+                          └──required-by──> [/fsb working at all]
 
-Lock release paths
-    +-- triggered by --> finalizeSession (existing v0.9.40 hook)
-    +-- triggered by --> MCP client disconnect (bridge handler)
-    +-- triggered by --> chrome.tabs.onRemoved (existing handler, extend to release agent locks)
-    +-- requires --> Per-agent ID + ownership map (to know what to release)
+[Valid SKILL.md frontmatter (Phase 0 verification)]
+    └──required-by──> [skill loads in OpenClaw]
+                          └──required-by──> [everything else]
 
-Background-tab execution
-    +-- requires --> Audit of existing tools for foreground side effects
-    +-- enables --> Multi-agent UX (no agent steals focus from another)
+[wait-for-extension polling]
+    └──enhances──> [first-run setup UX]
+        └──enhances──> [user trust]
 
-Trusted-client badge with agent ID
-    +-- depends on --> v0.9.36 trusted-client badge renderer
-    +-- enhances --> Per-agent ID issuance (visible payoff)
+[get_site_guide reference]
+    └──enhances──> [tool-selection decision tree]
+        └──enhances──> [first-attempt success rate]
 
-run_task return-on-completion (Phase 236)
-    +-- INDEPENDENT of multi-agent work -- bundled in same MCP 0.8.0 release
-    +-- but should ride the same lock-release paths (return-on-completion = finalizeSession trigger)
+[Visual session wrapping (start_visual_session "OpenClaw")]
+    └──enhances──> [user-visible feedback during MCP-driven sessions]
+
+[change_report awareness]
+    └──enhances──> [tool-selection guidance: "no follow-up read needed"]
+
+[Multi-agent contract docs]
+    └──conflicts──> [skill code that sets/forwards agent_id] (the skill must not pass it)
+
+[command-dispatch: tool + raw args]
+    └──conflicts──> [model auto-invocation on the same /fsb command]
+        # Mitigation: only use for admin verbs (/fsb setup, /fsb doctor),
+        # leave plain task prompts for the model
 ```
 
 ### Dependency Notes
 
-- **Per-agent ID is the keystone.** Everything else is gated on having a stable, FSB-issued agent identifier. Build this first; without it, ownership, cap enforcement, and pool semantics cannot exist.
-- **Existing `finalizeSession` is the natural lock-release hook.** v0.9.40 hardened session lifecycle; v0.9.60 piggybacks on it. Adding agent-lock release to `finalizeSession` is one targeted change, not a new lifecycle module.
-- **Tab-ownership gate is a single chokepoint in `background.js` tool dispatch.** Every tool currently routes through dispatch; gating happens there, not per-tool. This makes the audit/test surface manageable.
-- **Background-tab execution is a quality bar more than a feature.** It is "the absence of focus-stealing." The work is auditing the existing 25+ tools for `tabs.update({active: true})` and similar, and gating them. This is a high-value, low-glamour task -- the kind that breaks the milestone if skipped.
-- **Phase 236 (`run_task` return on completion) lands in MCP 0.8.0 alongside multi-agent.** It is technically independent but contractually coupled -- once `run_task` returns on completion, it triggers `finalizeSession`, which releases the agent lock cleanly. The two changes reinforce each other.
-- **Differentiator features (agent ID in badge, pool listing tool) depend on table stakes.** Do not build differentiators before the base contract is solid; v0.9.36 taught this lesson.
+- **Chrome extension install gates everything past doctor/status:** Without it, the bridge has nothing to connect to. Setup flow must verify extension presence (via `wait-for-extension`) before declaring success -- otherwise the user gets a green check and a non-functional skill.
+- **OpenClaw MCP "manual" posture inverts the usual install order:** For most hosts, FSB writes config and the host picks it up. For OpenClaw, the *user* writes config and FSB (the skill) prints it. This means the install-time hook's job is to *generate and display* the config, not to mutate any OpenClaw file.
+- **`get_site_guide` enhances `read_page`/`get_dom_snapshot`:** The decision tree should call `get_site_guide` *first* on known sites; the read tools fill in the rest. Documenting them out of order in the skill body produces worse first-attempt success.
+- **`command-dispatch: tool` blocks model intervention:** If `/fsb` is dispatched directly to a tool, the user prompt after `/fsb` does not flow through the model. This is desirable for `/fsb doctor` and `/fsb setup` (admin verbs); undesirable for actual browser tasks. The cleanest split is: model handles auto-invocation on intent, slash command handles admin verbs only -- or use sub-commands (`/fsb setup`, `/fsb doctor`, `/fsb status`) and let plain language prompts reach the model normally.
+- **`change_report` awareness reduces follow-up reads:** Documenting it well is dependency-free *for the skill* but compounds value when paired with the read-only-first decision tree.
+
+---
 
 ## MVP Definition
 
-### Launch With (v0.9.60 -- this milestone)
+### Launch With (v0.9.61)
 
-The minimum to ship the multi-agent contract. Every line below is a hard requirement.
+Minimum viable skill — what the milestone ROADMAP.md should require to ship.
 
-- [ ] **Per-agent ID issuance** -- FSB-side generation, returned on session/task start, threaded through every subsequent tool call (Table stakes -- S)
-- [ ] **Tab ownership map** -- `tabId -> agentId`, persisted in `chrome.storage.session` so MV3 service worker churn doesn't drop locks (Table stakes -- S)
-- [ ] **Tool-dispatch ownership gate** -- single chokepoint in `background.js` rejecting cross-agent calls with `TAB_NOT_OWNED` (Table stakes -- M)
-- [ ] **Forced-new-tab pooling** -- `chrome.tabs.onCreated` + `openerTabId` lookup; new tab inherits agent ID of opener (Table stakes -- M)
-- [ ] **Hard concurrency cap (8) at agent-creation entry points** -- both `run_task` and manual MCP session start gated; reject with `AGENT_CAP_REACHED` carrying `{cap: 8, active: N}` (Table stakes -- S)
-- [ ] **Lock release on task end** -- extend existing `finalizeSession` from v0.9.40 to release the agent's tab pool (Table stakes -- M)
-- [ ] **Lock release on MCP client disconnect** -- bridge handler releases all agents owned by the disconnecting client (Table stakes -- M)
-- [ ] **Lock release on tab close** -- extend `chrome.tabs.onRemoved` handler; if the closed tab was agent-owned, the rest of the pool stays (the tab is gone, the agent is not necessarily) (Table stakes -- S)
-- [ ] **Background-tab execution audit** -- review all 25+ existing tools for foreground side effects; gate any that exist behind explicit `force_foreground` flag (Table stakes -- M)
-- [ ] **Typed error payloads** -- `AGENT_NOT_FOUND`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_NOT_FOUND`, `AGENT_RELEASED`, plus `NO_BACK_HISTORY` and `NAVIGATION_TIMEOUT` for `back` (Table stakes -- S)
-- [ ] **`back` MCP tool** -- single-step, ownership-gated, typed errors, no foreground requirement (Table stakes -- S; see scope section above)
-- [ ] **MCP tool description updates** -- agent ID required, tab IDs are agent-scoped, cap is 8, ownership enforced; updated for `run_task`, all manual tools, and new `back` tool (Table stakes -- S)
-- [ ] **Trusted-client badge surfaces agent ID** -- extend v0.9.36 badge renderer to append short agent ID (Differentiator -- M; closes v0.9.36 deferred gap)
-- [ ] **`fsb-mcp-server@0.8.0` release** -- includes Phase 236 (`run_task` returns on completion); the cap and ownership contract is documented in the package README (Release engineering -- S)
+- [ ] **Valid `SKILL.md` with `name: FSB`** — parse-clean against live OpenClaw build (Phase 0 verification gate)
+- [ ] **Trigger-phrase `description:`** including "Chrome", "browser", "automate", "click", "fill form", "log into", "navigate", and "drive a webpage" — these are the nouns users type
+- [ ] **`requires.bins: ["node", "npx"]` + `metadata.openclaw.requires`** — fail-loud at skill-load if Node toolchain is absent
+- [ ] **`metadata.openclaw.install[]` running `npx -y fsb-mcp-server doctor`** — first-run prerequisite check that pins the failing layer
+- [ ] **Canonical OpenClaw stdio config block** printed (verbatim from Phase 0 verification of OpenClaw's MCP registry shape) with copy affordance
+- [ ] **Chrome Web Store install link** (`https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk`) printed verbatim
+- [ ] **`fsb-mcp-server wait-for-extension`** step (or polling equivalent) before declaring setup complete
+- [ ] **`USAGE.md`** — 3-step install / "try it" prompts / doctor recipe
+- [ ] **`references/decision-tree.md`** — read-only-first tool selection (read_page → get_dom_snapshot → get_page_snapshot → get_site_guide; type_text over .value; run_task only when user explicitly delegates)
+- [ ] **`references/multi-agent.md`** — `TAB_NOT_OWNED` / `AGENT_CAP_REACHED` / `TAB_INCOGNITO_NOT_SUPPORTED` / `TAB_OUT_OF_SCOPE` decoded; "do not pass agent_id" rule
+- [ ] **`references/restricted-tabs.md`** — recovery playbook (`list_tabs`, `navigate`, `open_tab`, `switch_tab`, `go_back`, `go_forward`, `refresh`)
+- [ ] **`references/vault-policy.md`** — credentials via `fill_credential` / `use_payment_method` only; no secrets in chat
+- [ ] **Default-to-FSB rule** in SKILL.md body — soft preference for reads, hard escalation for click/type/auth/multi-tab
+- [ ] **Visual-session wrapping** — body teaches `start_visual_session(client="OpenClaw")` for external-AI-driven sequences
+- [ ] **`back` tool over `execute_js("history.back()")`** — explicit guidance with the typed-status payoff
+- [ ] **`version: 0.9.61`** pinned, aligned with extension/MCP milestone
+- [ ] **Idempotent setup discipline** — every install/setup action is check-then-apply; re-running `/fsb setup` is safe
+- [ ] **Live verification at end of setup** — tiny round-trip (`list_tabs` or read against an open tab) reporting green/red
 
-### Add After Validation (v0.9.61+)
+### Add After Validation (v0.9.62 / v0.9.63)
 
-Ship after v0.9.60 lands and there is at least one cycle of evidence (real Claude/Codex multi-agent runs, dashboard preview confirms two-tab parallel flow) that the contract is solid.
+Reach for these once v0.9.61 is in users' hands and we have feedback signal.
 
-- [ ] **Pool listing tool** (`list_my_tabs(agentId)` or `list_tabs` with `pool` field) -- only if user feedback flags discoverability gap (Differentiator -- S)
-- [ ] **Per-agent dashboard preview** -- show all agents in a multi-pane layout instead of one preview-per-tab (Differentiator -- M; depends on dashboard work)
-- [ ] **`forward` MCP tool** -- counterpart to `back`; deferred for "minimal scope" reasons in v0.9.60 (Table stakes -- S)
-- [ ] **Visual session badge color-bucketing per agent** -- 4-6 stable colors cycling so two parallel Claude agents look distinct on the page itself (Differentiator -- S)
+- [ ] **`command-dispatch: tool` + `command-arg-mode: raw`** for admin verbs (`/fsb doctor`, `/fsb setup`, `/fsb status`) — defer until Phase 0 has live-verified OpenClaw behaves consistently across the verbs
+- [ ] **Cross-host MCP install opt-in** — "We detect Claude Desktop / Cursor / Codex on this machine; install FSB there too?" — wires existing 21-platform installer into the skill
+- [ ] **`metadata.openclaw.emoji` + homepage** branding polish
+- [ ] **`references/sample-prompts.md`** — 5–10 verified "try it" prompts pulled from showcase / dashboard demos
+- [ ] **`change_report`-aware guidance** explicit in body — once we have telemetry showing it actually reduces follow-up reads
+- [ ] **Trigger when OpenClaw publishes its MCP registry shape** — promote skill from "manual config print" to a real `--openclaw` installer flag in `mcp/src/install.ts`; collapse the workaround
 
-### Future Consideration (v0.9.70+)
+### Future Consideration (v1.0+)
 
-Defer indefinitely; revisit only if product direction changes.
+Defer until product-market fit is established for the skill itself.
 
-- [ ] **Agent persistence across Chrome reload** -- requires reworking session storage; no demand evidence
-- [ ] **Per-agent quota / rate limit** -- v0.9.50 safety breakers cover the worst case
-- [ ] **Cross-MCP-client agent registry sharing** -- privacy/security implications outweigh benefit
-- [ ] **Visual fairness scheduling** -- background-tab execution removes the need
+- [ ] **Localised SKILL.md / USAGE.md** (i18n) — only valuable once English version has demonstrably good auto-invocation rates
+- [ ] **Skill telemetry** (which tools the agent actually picked, where it stalled) — requires an opt-in observability channel; cuts against the "no secrets, no surprise network calls" stance of skills
+- [ ] **Multi-skill split** (e.g. `FSB-Reader` read-only skill + `FSB-Driver` mutating skill) — only if data shows users want a "safe mode" that can't click anything
+- [ ] **ClawHub publication with verified-publisher badge** — once the skill is stable and we have a maintenance commitment
+- [ ] **Allow-list integration** if OpenClaw introduces a per-skill tool allowlist surface — currently no such field is documented
+
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Per-agent ID issuance | HIGH | LOW | P1 |
-| Tab ownership map | HIGH | LOW | P1 |
-| Tool-dispatch ownership gate | HIGH | MEDIUM | P1 |
-| Forced-new-tab pooling | HIGH | MEDIUM | P1 |
-| Hard concurrency cap with typed reject | HIGH | LOW | P1 |
-| Lock release (task end) | HIGH | MEDIUM | P1 |
-| Lock release (client disconnect) | HIGH | MEDIUM | P1 |
-| Lock release (tab close) | HIGH | LOW | P1 |
-| Background-tab execution audit | HIGH | MEDIUM | P1 |
-| Typed errors | HIGH | LOW | P1 |
-| `back` MCP tool | HIGH | LOW | P1 |
-| MCP tool description updates | HIGH | LOW | P1 |
-| Trusted-client badge with agent ID | MEDIUM | MEDIUM | P1 |
-| `fsb-mcp-server@0.8.0` release w/ Phase 236 | HIGH | LOW | P1 |
-| Pool listing tool | LOW | LOW | P2 |
-| Per-agent dashboard preview | MEDIUM | MEDIUM | P2 |
-| `forward` MCP tool | LOW | LOW | P2 |
-| Badge color-bucketing per agent | LOW | LOW | P2 |
-| Cross-window agents | LOW | HIGH | Anti-feature |
-| Incognito agents | LOW | HIGH | Anti-feature |
-| Idle timeout reaping | NEGATIVE | LOW | Anti-feature |
-| Agent-to-agent messaging | LOW | HIGH | Anti-feature |
-| Multi-step `back(n)` | LOW | LOW | Anti-feature |
-| Dirty-form `back` confirmation | NEGATIVE | LOW | Anti-feature |
+| Valid SKILL.md frontmatter (Phase 0 live-verified) | HIGH | LOW | P1 |
+| Trigger-phrase description for auto-invocation | HIGH | LOW | P1 |
+| Install-time `doctor` hook | HIGH | LOW | P1 |
+| Canonical stdio config block printout | HIGH | LOW | P1 |
+| Chrome Web Store extension link | HIGH | LOW | P1 |
+| `wait-for-extension` setup gate | HIGH | LOW | P1 |
+| USAGE.md (3-step install + recovery) | HIGH | LOW | P1 |
+| Default-to-FSB rule in body | HIGH | LOW | P1 |
+| Tool-selection decision tree reference | HIGH | LOW | P1 |
+| Multi-agent contract reference | HIGH | LOW | P1 |
+| Restricted-tab recovery reference | HIGH | LOW | P1 |
+| Vault-policy reference | HIGH | LOW | P1 |
+| Visual-session wrapping guidance | MEDIUM | LOW | P1 |
+| `back` tool guidance | MEDIUM | LOW | P1 |
+| Version pin (0.9.61) | MEDIUM | LOW | P1 |
+| Idempotent setup discipline | HIGH | MEDIUM | P1 |
+| Live-verification round-trip at end of setup | MEDIUM | LOW | P1 |
+| `requires.bins` + `requires.env` declarations | MEDIUM | LOW | P1 |
+| `command-dispatch: tool` for admin verbs | MEDIUM | MEDIUM | P2 |
+| Cross-host MCP install opt-in | HIGH | MEDIUM | P2 |
+| Branded emoji + homepage in metadata | LOW | LOW | P2 |
+| `change_report` awareness in body | MEDIUM | LOW | P2 |
+| Sample-prompts reference file | MEDIUM | LOW | P2 |
+| Skill telemetry | LOW | HIGH | P3 |
+| i18n SKILL.md | LOW | MEDIUM | P3 |
+| ClawHub publication | MEDIUM | MEDIUM | P3 |
+| Multi-skill split (Reader / Driver) | LOW | HIGH | P3 |
 
 **Priority key:**
-- P1: Must ship in v0.9.60
-- P2: Defer to v0.9.61+, ship only after v0.9.60 validation
-- Anti-feature: Document and explicitly exclude
+- **P1**: Required for v0.9.61 milestone close. Skill does not feel polished without these.
+- **P2**: Add in next milestone after the skill ships and we have user feedback.
+- **P3**: Nice to have; defer past v1.0 unless data forces the issue.
 
-## Competitor / Reference Tool Comparison
+---
 
-| Feature | Browserbase | Browser Use | Stagehand v3 | Playwright | Puppeteer-Cluster | Project Mariner | FSB v0.9.60 (proposed) |
-|---------|-------------|-------------|--------------|------------|-------------------|-----------------|------------------------|
-| Agent / session identity | `sessionId` per session | Implicit per agent instance | `Stagehand` instance handle | `BrowserContext` handle | Internal queue task ID | Hidden (managed cloud) | `agentId` issued by FSB on session start |
-| Tab handle convention | Page object | `tab_id` (string) | `page` (Playwright) | Page object | Page in worker | Hidden | Chrome `tab.id` (integer) |
-| Isolation boundary | Cloud session (per-VM) | Per-agent userDataDir | Per-context | Per-`BrowserContext` | Per-context (default) | Per-VM | Per-tab ownership lock (single profile) |
-| Concurrency cap | Plan-based (cloud quota) | Caller-managed | Caller-managed | Worker count | `maxConcurrency` | "up to 10" | Hard 8, fail-loud |
-| Cap-exceeded behavior | 4xx with retry-after | N/A (caller decides) | N/A | N/A | Silent queue | Hidden | Typed `AGENT_CAP_REACHED` reject |
-| Background tab execution | N/A (headless cloud) | Yes | Yes (CDP) | Yes | Yes | Yes (VMs) | Yes (audit-driven) |
-| New-tab pooling | Per-context | Per-context | Per-context | Per-`BrowserContext` | Per-context | Per-VM | Per-agent (`openerTabId` lookup) |
-| `back` semantics | Playwright | Playwright | Playwright | `page.goBack()` single-step | Playwright | Hidden | Single-step, typed `NO_BACK_HISTORY` |
-| Idle timeout | Yes (server cost) | No | No | No | No | Yes (cloud cost) | **No** (intentional) |
-| Cross-agent tab access | Reject (separate sessions) | Reject (separate agents) | Reject | Reject | Reject | Reject | Reject (`TAB_NOT_OWNED`) |
+## Competitor / Sibling-Pattern Feature Analysis
 
-**FSB's distinct posture:** Shared Chrome profile (only single-window option), no idle timeout (interactive use case), tab-ownership lock instead of per-context isolation (impossible without separate profiles). The cost is that cookies/localStorage **are** shared across same-origin tabs -- this is a Chrome property, not an FSB choice; document it.
+Comparison is across **agent-skill-shaped wrappers for browser-automation MCP servers** rather than against FSB's actual competitors (Browser Use, Project Mariner, Stagehand, BrowserOS — those compare at the *product* layer, not the skill layer).
+
+| Feature | Anthropic reference skills (e.g. `docx`, `pdf`) | OpenClaw stock skills (`coding-agent`) | Browser-MCP wrappers (Playwright MCP, BrowserMCP) | FSB Skill (planned) |
+|---------|--------------------------------------------------|----------------------------------------|----------------------------------------------------|---------------------|
+| Folder layout | SKILL.md + scripts/ + references/ | SKILL.md only, lean | Generally README-only | SKILL.md + USAGE.md + references/ + (optional scripts/) |
+| Install hook | None — pure docs/scripts | Limited — `requires.bins` only | Manual config edit | `metadata.openclaw.install[]` running doctor + config printout |
+| Description style | Task-trigger phrases | Task-trigger phrases | Marketing copy | Task-trigger phrases (verified against Anthropic guidance) |
+| Auto-invocation strategy | Description-driven | Description-driven | Often N/A (no skill wrapper) | Description-driven; default-to-FSB body rule |
+| Diagnostics surface | None | None | None | Doctor-first via existing layer-aware CLI |
+| Dependency on external runtime | Usually self-contained | Usually self-contained | Yes, but wrapped invisibly | Yes (extension + MCP server), made explicit and verified |
+| Visual feedback during use | None | None | None | `start_visual_session` "OpenClaw" badge + glow |
+| Vault/secret handling | N/A | `requires.env` declaration | Plain config | `requires.env` + extension-resident vault (no secrets cross MCP) |
+| Multi-agent / concurrency contract | N/A | N/A | Mostly absent | Documented (typed errors, server-issued agent_id) |
+
+**Takeaway:** The FSB skill differentiates on *operational rigor* — diagnostics-first recovery, visible feedback, vault discipline, multi-agent contract — not on browser-tool count. That alignment with FSB's existing strengths is correct.
+
+---
 
 ## Sources
 
-### Primary tool docs (HIGH confidence)
-- Browserbase Contexts -- https://docs.browserbase.com/features/contexts (session persistence, encryption-at-rest, context-vs-session distinction)
-- Browserbase internal-agents blog -- https://www.browserbase.com/blog/internal-agents
-- Stagehand on GitHub -- https://github.com/browserbase/stagehand (v3 CDP-native architecture, `stagehand.context.pages()`)
-- Browser Use on GitHub -- https://github.com/browser-use/browser-use (multi-tab + parallel agents)
-- Browser Use AgentID feature request issue -- https://github.com/browser-use/browser-use/issues/4470 (ECDSA P-256 verifiable agent identity proposal)
-- Playwright BrowserContext -- https://playwright.dev/docs/browser-contexts (isolation boundary: cookies, storage, cache, permissions, auth credentials per context)
-- Playwright BrowserContext API -- https://playwright.dev/docs/api/class-browsercontext
-- Playwright Navigations -- https://playwright.dev/docs/navigations (`page.goBack()` semantics, `await` requirement)
-- Playwright issue #14431 -- https://github.com/microsoft/playwright/issues/14431 (`beforeunload` dialog dismissal bug -- supports the "let Chrome native handle it" anti-feature decision)
-- Puppeteer-Cluster on GitHub -- https://github.com/thomasdondorf/puppeteer-cluster (`maxConcurrency`, `CONCURRENCY_PAGE/CONTEXT/BROWSER`, queue vs execute)
-- Puppeteer-Cluster npm -- https://www.npmjs.com/package/puppeteer-cluster
+OpenClaw skill specification & frontmatter:
+- [OpenClaw Skills documentation](https://docs.openclaw.ai/tools/skills) — primary source for `user-invocable`, `disable-model-invocation`, `command-dispatch`, `metadata.openclaw` shape
+- [openclaw/openclaw `docs/tools/skills.md` on GitHub](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md) — confirmed `requires.bins` are PATH-checked binaries; install scanner runs at `skills install` time
+- [OpenClaw Docs (open-claw.bot mirror)](https://open-claw.bot/docs/tools/skills/) — overlap with primary docs; confirms managed lifecycle vs. local override layout
+- [OpenClaw Skills (LearnClawDBot mirror)](https://www.learnclawdbot.org/docs/tools/skills) — confirms `command-arg-mode: raw` semantics and the `{ command, commandName, skillName }` payload shape
 
-### Secondary references (HIGH confidence)
-- Playwright vs Browser Use vs Stagehand 2026 comparison -- https://www.nxcode.io/resources/news/stagehand-vs-browser-use-vs-playwright-ai-browser-automation-2026
-- Browser Use vs Stagehand comparison -- https://www.skyvern.com/blog/browser-use-vs-stagehand-which-is-better/
-- Parallel browser agents architecture -- https://www.mindstudio.ai/blog/parallel-browser-agents-claude-code (the three-layer task/orchestration/execution decomposition)
-- Stagehand vs Browser Use Scrapfly -- https://scrapfly.io/blog/posts/stagehand-vs-browser-use
-- Vercel agent-browser sessions docs -- https://agent-browser.dev/sessions (tab handle convention `t1, t2, t3`)
-- Vercel agent-browser CDP context request -- https://github.com/vercel-labs/agent-browser/issues/1068 (CDP BrowserContexts for cookie-isolated parallel sessions in one Chrome window)
+Anthropic Agent Skills foundation (the broader spec OpenClaw is compatible with):
+- [Anthropic Agent Skills overview (platform.claude.com)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) — progressive disclosure (description → SKILL.md → scripts/refs); `disable-model-invocation` semantics
+- [anthropics/skills GitHub repo](https://github.com/anthropics/skills) — canonical folder layout and SKILL.md frontmatter shape
+- [Agent Skills Specification (DeepWiki)](https://deepwiki.com/anthropics/skills/6.1-agent-skills-specification) — description as routing signal
 
-### Project Mariner (MEDIUM confidence -- product copy, not API docs)
-- Project Mariner DeepMind page -- https://deepmind.google/models/project-mariner/
-- Project Mariner DeepMind technologies page -- https://deepmind.google/technologies/project-mariner/
-- TechCrunch Project Mariner unveil -- https://techcrunch.com/2024/12/11/google-unveils-project-mariner-ai-agents-to-use-the-web-for-you/
-- Project Mariner DataCamp guide -- https://www.datacamp.com/tutorial/project-mariner (10 parallel tasks, VM-per-task architecture)
-- Project Mariner allaboutai -- https://www.allaboutai.com/ai-agents/project-mariner/
+Authoring guidance:
+- [AI Agent Skills Guide 2026 — The Prompt Index](https://www.thepromptindex.com/how-to-use-ai-agent-skills-the-complete-guide.html) — three-tier progressive disclosure; precondition validation pattern; anti-patterns (install-on-every-invoke, embedded secrets, false-success reporting)
+- [OpenClaw skills guide — LumaDock](https://lumadock.com/tutorials/openclaw-skills-guide) — description as "trigger phrases not marketing copy"; security stance on community skill folders; secrets via `openclaw.json` env injection
 
-### MCP concurrency / error handling
-- Configuring MCP for multiple connections -- https://mcpcat.io/guides/configuring-mcp-servers-multiple-simultaneous-connections/ (STDIO is sequential; HTTP+SSE supports true concurrency)
-- MCP error handling best practices -- https://mcpcat.io/guides/error-handling-custom-mcp-servers/
-- "Why Your MCP Agent Keeps Timing Out" -- https://medium.com/@ai_transfer_lab/why-your-mcp-agent-keeps-timing-out-and-the-fix-that-just-shipped-ad9cb130f8c4 (silent failure on idle drop)
-- gh-aw silent-close issue -- https://github.com/github/gh-aw/issues/20885 (concrete silent-failure case)
-
-### Chrome focus-stealing (anti-feature evidence)
-- Claude Code issue #39696 -- https://github.com/anthropics/claude-code/issues/39696 (Chrome extension steals system-wide focus on every tool interaction)
-- Claude Code issue #39558 -- https://github.com/anthropics/claude-code/issues/39558 (focus + keyboard hijack during concurrent Cowork tasks)
-- Chrome focus-stealing community thread -- https://support.google.com/chrome/thread/19827802/
-
-### Browser-side dirty-form / beforeunload
-- Playwright `page.goBack()` reference -- https://runebook.dev/en/docs/playwright/api/class-page/page-go-back
-- Playwright beforeunload bug #14431 -- https://github.com/microsoft/playwright/issues/14431 (cited above; supports `back` anti-feature decision)
+Internal context (already-built FSB capabilities, not re-researched):
+- `/Users/lakshmanturlapati/Desktop/FSB/.planning/PROJECT.md` — milestone goals, `mcp/src/install.ts:413-420` reference for OpenClaw "manual / unsupported" posture
+- `/Users/lakshmanturlapati/Desktop/FSB/mcp/README.md` — 60-tool surface; multi-agent contract; visual-session allowlist (includes `OpenClaw`); doctor / status / wait-for-extension diagnostics; restricted-tab recovery surface
 
 ---
-*Feature research for: Multi-agent / multi-tab concurrency surface for FSB v0.9.60*
-*Researched: 2026-05-05*
-*Downstream consumer: REQUIREMENTS.md authoring (REQ-IDs grouped by category)*
+
+*Feature research for: OpenClaw skill package wrapping FSB extension + fsb-mcp-server*
+*Researched: 2026-05-08*

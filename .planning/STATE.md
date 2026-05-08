@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: between_milestones
-last_updated: "2026-05-08T12:00:00.000Z"
+milestone: none
+milestone_name: ""
+status: milestone_complete
+last_updated: "2026-05-08T15:00:00.000Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 0
@@ -17,41 +17,42 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-08)
+See: .planning/PROJECT.md (updated 2026-05-08 -- v0.9.61 closed)
+See: .planning/MILESTONES.md (v0.9.61 archive entry added 2026-05-08)
+See: .planning/ROADMAP.md (collapsed; awaiting new milestone)
 
-**Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Between milestones -- v0.9.60 archived 2026-05-08; awaiting `/gsd-new-milestone`
+**Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
+**Current focus:** No active milestone. Last shipped: v0.9.61 FSB Skill (OpenClaw) on 2026-05-08.
 
 ## Current Position
 
-Status: Between milestones. v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) shipped 2026-05-08.
-
-Last activity: 2026-05-08 -- v0.9.60 milestone archived (ROADMAP/REQUIREMENTS/AUDIT moved to milestones/, MILESTONES.md updated, PROJECT.md evolved).
+Phase: -- (no active milestone)
+Plan: --
+Status: Milestone v0.9.61 archived; ready for `/gsd-new-milestone`.
+Last activity: 2026-05-08 -- v0.9.61 milestone archived; audit `passed` (29/29 requirements).
+Progress: --
 
 ## Performance Metrics
 
-- Last milestone: v0.9.60 (11 phases, 30 plans, 42/42 requirements traced, audit passed)
-- Tag created: v0.9.60 (push to remote: user-gated)
+- Last milestone: v0.9.61 (6 phases, 14 plans, 29/29 requirements traced, audit passed).
+- Tag: pending user push of `v0.9.61`.
 
 ## Accumulated Context
 
-### Pending Todos
+### Pending User-Gated Actions
 
-- User-gated release action remains: publish/tag `fsb-mcp-server@0.8.0` when ready (`npm publish` not yet run).
-- Optional future: split live UAT coverage for unowned `switch_tab` into a controlled browser profile where normal tabs are not auto-owned by `legacy:sidepanel`.
+- `clawhub publish "skills/FSB Skill"` (after `clawhub login`). Mirrors v0.9.60 `npm publish` posture.
+- `npm publish fsb-mcp-server@0.8.0` (carried from v0.9.60). Tag-driven publish remains user-gated.
+- 4 live-OpenClaw runtime UAT items in `.planning/phases/249-skill-md-scripts/249-HUMAN-UAT.md` (load skill, six-layer doctor matrix, paste stdio JSON, install-host happy path).
 
 ### Blockers/Concerns
 
-- None blocking next milestone.
+- None blocking. Next step is `/gsd-new-milestone` whenever the user is ready.
 
-### Carry-Forward Caveats from v0.9.60
+### Carry-Forward Caveats
 
-- `fsb-mcp-server@0.8.0` is tag-ready; actual `npm publish` remains user-gated.
-- Live unowned-target `switch_tab` recovery covered only by automated dispatcher tests; live reproduction blocked by `legacy:sidepanel` auto-ownership in this browser profile.
-- Five long real `run_task` soak runs deferred; automated lifecycle coverage is green.
+- See `.planning/v0.9.61-MILESTONE-AUDIT.md` for full closeout caveats.
 
 ## Session Continuity
 
-Last session ended with: v0.9.60 milestone archived, PROJECT.md evolved, RETROSPECTIVE.md updated, git tag created.
-
-Next session should: run `/gsd-new-milestone` to define the next milestone scope, or perform the user-gated `npm publish` for `fsb-mcp-server@0.8.0`.
+Last session ended with: v0.9.61 archived; ROADMAP.md collapsed; REQUIREMENTS.md retired (fresh one created at next `/gsd-new-milestone`).

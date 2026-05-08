@@ -4,9 +4,12 @@ FSB (Full Self-Browsing) is an open-source Chrome extension that automates the b
 
 FSB also works as an MCP browser layer for AI agents. Claude Code, Codex, Cursor, Windsurf, OpenClaw, and other MCP clients can use FSB to operate a real Chrome browser, which is useful for app testing, browser-state inspection, and agent workflows that need to act, observe, verify, and iterate. The About page includes real demo videos for Grok 4.1 e-commerce autopilot, Codex MCP flight booking, OpenClaw monitoring, and Claude-powered browser iteration.
 
+OpenClaw users get a dedicated FSB skill at `skills/FSB Skill/` in the FSB repo. The skill is the canonical OpenClaw onboarding path: it runs the doctor flow against `fsb-mcp-server`, prints the OpenClaw stdio config block for the user to paste, and offers consent-gated install for any other detected MCP hosts.
+
 ## Docs
 
 - [About](https://full-selfbrowsing.com/about): Watch FSB drive Google, search Amazon, and book travel autonomously.
+- [Agents](https://full-selfbrowsing.com/agents): OpenClaw skill onboarding, FSB MCP power story (50+ tools, multi-agent identity, vault boundary, real Chrome session), 3-step install, and try-it prompts.
 - [Support](https://full-selfbrowsing.com/support): Setup guides, troubleshooting, GitHub issues, and direct contact.
 - [Privacy](https://full-selfbrowsing.com/privacy): How FSB handles your data -- API keys encrypted in Chrome local storage, no telemetry.
 - [GitHub repository](https://github.com/lakshmanturlapati/FSB): BSL 1.1 source code, install instructions, issue tracker.

@@ -68,6 +68,8 @@ Preview before writing: append `--dry-run`. Sanity check with `npx -y fsb-mcp-se
 
 Want to run FSB standalone from the extension popup/side panel? Open settings, paste an API key (xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or custom), and start there — no MCP needed.
 
+**On OpenClaw?** Load the FSB skill from [`skills/FSB Skill/`](./skills/FSB%20Skill/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent-gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds; the skill prints + you paste, never auto-writes.
+
 ### What It Does
 
 - Runs natural language browser tasks from the popup or side panel.
@@ -116,6 +118,7 @@ The core design goal is to keep the browser as the source of truth. The model re
 |------|---------|
 | [`extension/`](./extension/README.md) | Chrome extension package. Load this directory as an unpacked MV3 extension. |
 | [`mcp/`](./mcp/README.md) | npm package `fsb-mcp-server`, the local MCP bridge for external AI clients. |
+| [`skills/FSB Skill/`](./skills/FSB%20Skill/SKILL.md) | OpenClaw skill: doctor + stdio printer + consent-gated multi-host install. |
 | [`showcase/`](./showcase/README.md) | Marketing and dashboard site for full-selfbrowsing.com. Angular 20 static prerender + Express relay. |
 | `showcase/server/` | Node/Express deploy backend for pairing, relay, auth, and dashboard data. |
 | `server-py/` | Legacy Python/FastAPI-style backend prototype retained for reference. |

@@ -10,9 +10,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- 2026-05-08. Phases 237-247 delivered MCP agent identity, tab ownership, concurrency caps, reconnect grace, background-tab execution, the `back` tool, `run_task` return-on-completion, post-action `change_report`, and restricted-active-tab recovery. Audit status `passed` with documented caveats: npm publish remains user-gated, one live `switch_tab` branch is accepted by automated evidence, and the long `run_task` soak is deferred.
+**Last shipped:** v0.9.61 FSB Skill (OpenClaw) -- 2026-05-08. Phases 248-253 delivered an OpenClaw skill at `skills/FSB Skill/` with verified frontmatter, SKILL.md body with progressive-disclosure pointers, three Node `.mjs` scripts (six-layer doctor dispatcher, canonical stdio printer, consent-gated multi-host installer), seven reference files, a static-content test wired into `npm test` / `ci / all-green`, repo-wide discoverability edits (root README + mcp README + install.ts CLI + showcase llms.txt), and a reproducible `npm run package:skill` build artifact. Audit status `passed` (29/29 requirements). Live OpenClaw runtime validation and `clawhub publish` remain user-gated.
 
 **Recent shipping cadence:**
+- v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
 - v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- shipped 2026-05-08
 - v0.9.50 Autopilot Refinement (MCP-Parity) — shipped 2026-05-03
 - v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up — shipped 2026-05-02
@@ -23,6 +24,30 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 **Version:** MCP server package prepared at `fsb-mcp-server@0.8.0`; final npm publish is user-gated. Extension/showcase version bump remains outside this milestone unless separately requested.
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
+
+## Current Milestone
+
+No active milestone -- v0.9.61 FSB Skill (OpenClaw) shipped 2026-05-08; next milestone TBD. Run `/gsd-new-milestone` to scope the next cycle.
+
+## Previous Milestone: v0.9.61 FSB Skill (OpenClaw) (shipped 2026-05-08)
+
+**Goal:** Ship an OpenClaw skill that installs `fsb-mcp-server`, walks the user through FSB Chrome extension install, and defaults web-automation requests to FSB.
+
+**Target features:**
+- OpenClaw skill package at `<workspace>/skills/FSB Skill/` with `name: FSB` in SKILL.md frontmatter, organized SKILL.md + USAGE.md + references/ + scripts/
+- First-run setup flow that runs `fsb-mcp-server doctor`, branches on the failing layer (package/bridge/extension/active-tab/content-script/config), and prints the OpenClaw stdio config block (since `--openclaw` install is officially "manual / unsupported" per `mcp/src/install.ts:413-420`)
+- Optional auto-install of FSB MCP for other detected MCP hosts on the same machine (Claude Desktop, Cursor, Codex, etc.) via existing `npx -y fsb-mcp-server install --<host>` flags
+- Chrome extension install guide pointing at `https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk`
+- USAGE.md user-facing one-pager: 3-step install, "try it" prompts, `doctor` recovery recipe
+- Decision-tree reference teaching FSB tool selection: read-only first (`read_page` → `get_dom_snapshot` → `get_page_snapshot`), `get_site_guide` for known sites, typed events over `.value`, `run_task` only when user explicitly delegates to FSB autopilot
+- Visual-session wrapping with `client="OpenClaw"` for any external-AI-driven sequence
+- Multi-agent contract documentation: callers must not pass `agent_id`; surface and explain typed errors `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`; use `back` tool instead of `execute_js("history.back()")`
+- Vault boundary policy: route credentials through `fill_credential` / `use_payment_method`; no secrets in chat
+- Default-to-FSB rule: soft preference for FSB tools when one fits; hard escalation for any click/type/auth/multi-tab task
+- Restricted-tab recovery playbook (`list_tabs`, `navigate`, `open_tab`, `switch_tab`, `go_back`, `go_forward`, `refresh`)
+- OpenClaw skill spec verification: confirm exact schema of `metadata.openclaw.install[]`, `requires.bins` accepted values, and `command-arg-mode` behavior against a live OpenClaw build before finalizing SKILL.md frontmatter
+
+**Branch:** `Claw`
 
 ## Previous Milestone: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) (shipped 2026-05-08)
 
@@ -227,7 +252,7 @@ Carry-forward backlog candidates:
 
 ### Active
 
-(Awaiting next milestone -- run `/gsd-new-milestone` to define scope.)
+(Milestone v0.9.61 FSB Skill in scoping -- requirements pending REQUIREMENTS.md generation.)
 
 ### Validated (v0.9.60)
 
@@ -478,4 +503,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 -- after v0.9.60 milestone (Multi-Agent Tab Concurrency / MCP 0.8.0)*
+*Last updated: 2026-05-08 -- milestone v0.9.61 FSB Skill (OpenClaw) opened on branch Claw*

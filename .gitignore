@@ -43,3 +43,4 @@ showcase/server/fsb-data.db
 Research/
 .claude/worktrees/
 BUG-REPORT-*.md
+dist/skill/
