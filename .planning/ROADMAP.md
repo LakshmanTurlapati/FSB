@@ -32,7 +32,7 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 ## Phases
 
 - [x] **Phase 248: OpenClaw Spec Verification Gate + Repo Scaffolding** -- Verify OpenClaw skill schema against a live build and stand up the empty `skills/FSB Skill/` skeleton. (completed 2026-05-08)
-- [ ] **Phase 249: SKILL.md + Scripts** -- Author SKILL.md frontmatter and the three `.mjs` orchestration scripts so the skill is end-to-end executable on a clean machine.
+- [x] **Phase 249: SKILL.md + Scripts** -- Author SKILL.md frontmatter and the three `.mjs` orchestration scripts so the skill is end-to-end executable on a clean machine. (completed 2026-05-08)
 - [ ] **Phase 250: USAGE.md + References + Policy** -- Ship the human-facing one-pager and the five reference files that teach OpenClaw the FSB priors (tools, multi-agent contract, restricted-tab recovery, vault boundary, default-to-FSB rule, visual-session lifecycle).
 - [ ] **Phase 251: Tests + CI Integration** -- Wire `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the skill is covered by the `ci / all-green` gate.
 - [ ] **Phase 252: Repo Integration & Doc Updates** -- Update `README.md`, `mcp/README.md`, `mcp/src/install.ts:413-420`, and showcase `llms.txt`/`llms-full.txt` so the skill is discoverable from existing entry points.
@@ -82,10 +82,10 @@ Plans:
 **Plans**: 4 plans (all Wave 1, autonomous, files_modified disjoint)
 
 Plans:
-- [ ] 249-01-PLAN.md -- Author SKILL.md frontmatter (verified OpenClaw shape) and concise body with progressive-disclosure pointers (covers SKILL-01, SKILL-02)
-- [ ] 249-02-PLAN.md -- Implement scripts/doctor.mjs (six-layer dispatcher wrapping `npx -y fsb-mcp-server doctor` with [OK]/[FAIL]/[WARN] markers) (covers SKILL-03, SKILL-06)
-- [ ] 249-03-PLAN.md -- Implement scripts/print-stdio.mjs (canonical OpenClaw stdio block, parity-locked with mcp/src/install.ts) (covers SKILL-04, SKILL-06)
-- [ ] 249-04-PLAN.md -- Implement scripts/install-host.mjs (consent-gated detect-list-confirm flow, never --all, never --openclaw) (covers SKILL-05, SKILL-06)
+- [x] 249-01-PLAN.md -- Author SKILL.md frontmatter (verified OpenClaw shape) and concise body with progressive-disclosure pointers (covers SKILL-01, SKILL-02)
+- [x] 249-02-PLAN.md -- Implement scripts/doctor.mjs (six-layer dispatcher wrapping `npx -y fsb-mcp-server doctor` with [OK]/[FAIL]/[WARN] markers) (covers SKILL-03, SKILL-06)
+- [x] 249-03-PLAN.md -- Implement scripts/print-stdio.mjs (canonical OpenClaw stdio block, parity-locked with mcp/src/install.ts) (covers SKILL-04, SKILL-06)
+- [x] 249-04-PLAN.md -- Implement scripts/install-host.mjs (consent-gated detect-list-confirm flow, never --all, never --openclaw) (covers SKILL-05, SKILL-06)
 
 ---
 
@@ -167,7 +167,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
-| 249. SKILL.md + Scripts | 0/4 | Planned                    | - |
+| 249. SKILL.md + Scripts | 4/4 | Complete   | 2026-05-08 |
 | 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
