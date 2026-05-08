@@ -8,8 +8,8 @@
       <a routerLink="/dashboard" class="btn btn-primary">
         <i class="fa-solid fa-gauge-high"></i> Open Dashboard
       </a>
-      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-outline">
-        <i class="fa-brands fa-github"></i> Get Started
+      <a [href]="storeUrl" target="_blank" rel="noopener" class="btn btn-outline">
+        <i [class]="'fa-brands ' + browserIconClass"></i> Get Started
       </a>
       <a routerLink="/about" class="btn btn-outline">
         <i class="fa-solid fa-play"></i> See it in Action
