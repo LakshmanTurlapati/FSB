@@ -11,8 +11,9 @@
  *     handleStartVisualSessionRoute (Plan 02)
  *
  * Decisions covered:
- *   D-01 -- registry-driven 3-branch resolution (1 owned tab use, 0 owned
- *           NO_OWNED_TAB, 2+ owned AMBIGUOUS_TAB)
+ *   D-01 -- registry-driven resolution (1 owned tab use, 0 owned
+ *           NO_OWNED_TAB, 2+ owned tabs use selectedTabId when valid,
+ *           otherwise AMBIGUOUS_TAB)
  *   D-04 -- legacy:<surface> first-line branch falls through to active tab
  *           via client._getActiveTab(), tagged skipGate:true so the gate's
  *           tab-arm is skipped (legacy synthesis does not track per-tab
@@ -74,6 +75,12 @@
       return { success: false, code: 'NO_OWNED_TAB', agentId };
     }
     if (tabIds.length > 1) {
+      const selectedTabId = (typeof reg.getSelectedTabId === 'function')
+        ? reg.getSelectedTabId(agentId)
+        : null;
+      if (Number.isFinite(selectedTabId) && tabIds.indexOf(selectedTabId) !== -1) {
+        return { tabId: selectedTabId, ownershipToken: null, skipGate: false };
+      }
       return { success: false, code: 'AMBIGUOUS_TAB', agentId, tabIds: tabIds.slice() };
     }
     return { tabId: tabIds[0], ownershipToken: null, skipGate: false };

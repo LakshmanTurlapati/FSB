@@ -32,6 +32,7 @@ const requiredSmokeTools = [
   'get_page_snapshot',
   'get_site_guide',
   'click',
+  'close_tab',
   'start_visual_session',
   'end_visual_session',
   'run_task',
@@ -132,8 +133,8 @@ async function run() {
   const listTabsCall = await invokeTool(harness, 'list_tabs');
   assertDeepEqual(
     listTabsCall && listTabsCall.message,
-    { type: 'mcp:get-tabs', payload: {} },
-    'list_tabs routes through mcp:get-tabs with empty payload',
+    { type: 'mcp:get-tabs', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'list_tabs routes through mcp:get-tabs with agent identity',
   );
 
   const navigateCall = await invokeTool(harness, 'navigate', { url: 'https://example.com' });
@@ -146,29 +147,29 @@ async function run() {
   const readPageCall = await invokeTool(harness, 'read_page', { full: true });
   assertDeepEqual(
     readPageCall && readPageCall.message,
-    { type: 'mcp:read-page', payload: { full: true } },
-    'read_page routes through mcp:read-page with full flag',
+    { type: 'mcp:read-page', payload: { full: true, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'read_page routes through mcp:read-page with full flag and agent identity',
   );
 
   const domSnapshotCall = await invokeTool(harness, 'get_dom_snapshot', { maxElements: 5 });
   assertDeepEqual(
     domSnapshotCall && domSnapshotCall.message,
-    { type: 'mcp:get-dom', payload: { maxElements: 5 } },
-    'get_dom_snapshot routes through mcp:get-dom with maxElements payload',
+    { type: 'mcp:get-dom', payload: { maxElements: 5, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_dom_snapshot routes through mcp:get-dom with maxElements payload and agent identity',
   );
 
   const pageSnapshotCall = await invokeTool(harness, 'get_page_snapshot');
   assertDeepEqual(
     pageSnapshotCall && pageSnapshotCall.message,
-    { type: 'mcp:get-page-snapshot', payload: {} },
-    'get_page_snapshot routes through mcp:get-page-snapshot with empty payload',
+    { type: 'mcp:get-page-snapshot', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_page_snapshot routes through mcp:get-page-snapshot with agent identity',
   );
 
   const siteGuideCall = await invokeTool(harness, 'get_site_guide', { domain: 'example.com' });
   assertDeepEqual(
     siteGuideCall && siteGuideCall.message,
-    { type: 'mcp:get-site-guides', payload: { domain: 'example.com', url: 'example.com' } },
-    'get_site_guide routes through mcp:get-site-guides with domain payload',
+    { type: 'mcp:get-site-guides', payload: { domain: 'example.com', url: 'example.com', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_site_guide routes through mcp:get-site-guides with domain payload and agent identity',
   );
 
   const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });
@@ -240,6 +241,29 @@ async function run() {
     backCall && backCall.message,
     { type: 'mcp:go-back', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
     'back routes through mcp:go-back with agentId + ownershipToken (Phase 242 D-01)',
+  );
+
+  console.log('\n--- explicit tab_id uses tab-specific ownership token ---');
+  agentScope.captureOwnershipToken(77, 'token_tab_77');
+  const explicitReadPageCall = await invokeTool(harness, 'read_page', { full: true, tab_id: 77 });
+  assertDeepEqual(
+    explicitReadPageCall && explicitReadPageCall.message,
+    { type: 'mcp:read-page', payload: { full: true, tab_id: 77, agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77' } },
+    'read_page with tab_id uses ownershipTokenFor(tab_id)',
+  );
+
+  const explicitBackCall = await invokeTool(harness, 'back', { tab_id: 77 });
+  assertDeepEqual(
+    explicitBackCall && explicitBackCall.message,
+    { type: 'mcp:go-back', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77', tabId: 77 } },
+    'back with tab_id uses ownershipTokenFor(tab_id)',
+  );
+
+  const explicitCloseTabCall = await invokeTool(harness, 'close_tab', { tab_id: 77 });
+  assertDeepEqual(
+    explicitCloseTabCall && explicitCloseTabCall.message,
+    { type: 'mcp:execute-action', payload: { tool: 'close_tab', params: { tab_id: 77 }, agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77' } },
+    'close_tab with tab_id uses ownershipTokenFor(tab_id)',
   );
 
   console.log('\n--- agent:register lazy-mint invariant (Phase 238 D-13.4) ---');

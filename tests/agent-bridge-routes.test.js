@@ -65,7 +65,8 @@ class MockAgentRegistry {
     this.calls = {
       registerAgent: [],
       releaseAgent: [],
-      getAgentTabs: []
+      getAgentTabs: [],
+      stampConnectionId: []
     };
   }
   async registerAgent() {
@@ -79,6 +80,10 @@ class MockAgentRegistry {
   getAgentTabs(agentId) {
     this.calls.getAgentTabs.push([agentId]);
     return this._tabsByAgent[agentId] || [];
+  }
+  stampConnectionId(agentId, connectionId) {
+    this.calls.stampConnectionId.push([agentId, connectionId]);
+    return true;
   }
 }
 
@@ -141,6 +146,25 @@ async function test2_registerRegistryUnavailable() {
       "errorCode is 'agent_registry_unavailable'");
     check(typeof response.error === 'string' && response.error.length > 0,
       'response.error is a non-empty string');
+  } finally {
+    uninstallRegistry();
+  }
+}
+
+async function test2b_registerUsesClientConnectionIdFallback() {
+  console.log('--- Test 2b: register handler uses client connectionId fallback ---');
+  const mock = new MockAgentRegistry({ mintId: 'agent_conn-fallback' });
+  installMockRegistry(mock);
+  try {
+    const response = await handleAgentRegisterRoute({
+      payload: {},
+      client: { getConnectionId: () => 'conn-client-123' }
+    });
+    check(response.success === true, 'response.success === true');
+    check(response.connectionId === 'conn-client-123', 'response echoes client connectionId fallback');
+    check(mock.calls.stampConnectionId.length === 1, 'stampConnectionId called once');
+    check(mock.calls.stampConnectionId[0][0] === 'agent_conn-fallback', 'stampConnectionId receives minted agent id');
+    check(mock.calls.stampConnectionId[0][1] === 'conn-client-123', 'stampConnectionId receives client connection id');
   } finally {
     uninstallRegistry();
   }
@@ -251,6 +275,7 @@ async function test6_statusMissingAgentId() {
   try {
     await test1_registerIgnoresCallerSuppliedId();
     await test2_registerRegistryUnavailable();
+    await test2b_registerUsesClientConnectionIdFallback();
     await test3_releaseHappyPath();
     await test4_releaseMissingAgentId();
     await test5_statusCallerSelfOnly();

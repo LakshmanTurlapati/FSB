@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 
 // Must exceed the extension-side 120_000ms payment confirmation gate.
@@ -63,29 +64,16 @@ export function registerVaultTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('fill_credential', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const payload: Record<string, unknown> = { domain, agentId };
+        const targetTabId = typeof tab_id === 'number' ? tab_id : null;
+        const payload: Record<string, unknown> = { domain };
         if (tab_id !== undefined) payload.tab_id = tab_id;
-        if (ownershipToken) payload.ownershipToken = ownershipToken;
-        if (connectionId) payload.connectionId = connectionId;
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:fill-credential', payload },
-          { timeout: 15_000 },
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:fill-credential',
+          payload,
+          { timeout: 15_000, targetTabId },
         );
-        if (result
-            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-            && typeof agentScope.captureOwnershipToken === 'function') {
-          agentScope.captureOwnershipToken(
-            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-            (result as { ownershipToken: string }).ownershipToken,
-          );
-        }
         return mapFSBError(result);
       });
     },
@@ -126,29 +114,16 @@ export function registerVaultTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('use_payment_method', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const payload: Record<string, unknown> = { paymentMethodId: payment_method_id, agentId };
+        const targetTabId = typeof tab_id === 'number' ? tab_id : null;
+        const payload: Record<string, unknown> = { paymentMethodId: payment_method_id };
         if (tab_id !== undefined) payload.tab_id = tab_id;
-        if (ownershipToken) payload.ownershipToken = ownershipToken;
-        if (connectionId) payload.connectionId = connectionId;
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:use-payment-method', payload },
-          { timeout: PAYMENT_CONFIRMATION_TIMEOUT_MS },
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:use-payment-method',
+          payload,
+          { timeout: PAYMENT_CONFIRMATION_TIMEOUT_MS, targetTabId },
         );
-        if (result
-            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-            && typeof agentScope.captureOwnershipToken === 'function') {
-          agentScope.captureOwnershipToken(
-            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-            (result as { ownershipToken: string }).ownershipToken,
-          );
-        }
         return mapFSBError(result);
       });
     },

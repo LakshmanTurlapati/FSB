@@ -15,6 +15,7 @@ const MCP_RECONNECT_ALARM = 'fsb-mcp-bridge-reconnect';
 const MCP_RECONNECT_BASE_MS = 2000;
 const MCP_RECONNECT_MAX_MS = 30000;
 const MCP_PING_INTERVAL_MS = 25000;
+const MCP_DISPATCHER_SYNTHETIC_CHANGE_REPORT_TOOLS = new Set(['open_tab', 'close_tab']);
 // Phase 241 D-07 / D-08 -- mirror of agent-registry.js RECONNECT_GRACE_MS.
 // On bridge _ws.onclose the bridge asks the registry to stage release for
 // every agent stamped with the current connection_id; that staged release
@@ -371,6 +372,14 @@ class MCPBridgeClient {
    */
   async _routeMessage(type, payload, id) {
     switch (type) {
+      // Phase 240/246 agent lifecycle handshake. Server opens every connection
+      // with agent:register; without these cases the switch's default throws
+      // "Unknown MCP message type" and every subsequent tool rejects.
+      case 'agent:register':
+      case 'agent:release':
+      case 'agent:status':
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
+
       case 'mcp:get-tabs':
         return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
@@ -574,12 +583,55 @@ class MCPBridgeClient {
   async _handleExecuteAction(payload) {
     // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
     // through to active-tab via the resolver's first-line branch.
+    //
+    // Phase 247: tab bootstrap/recovery tools are a deliberate exception to
+    // the "resolve an already-owned target first" rule. open_tab creates the
+    // first owned tab; switch_tab may claim an unowned tab; navigate may need
+    // to recover from chrome://newtab/ when the agent owns zero tabs.
     const agentId = (payload && payload.agentId) || null;
     const params = payload && payload.params ? payload.params : {};
+    const toolName = payload && payload.tool;
+    const toolDef = typeof getToolByName === 'function' ? getToolByName(toolName) : null;
+    const usesDispatcherSyntheticChangeReport = MCP_DISPATCHER_SYNTHETIC_CHANGE_REPORT_TOOLS.has(toolName);
+
+    const buildRouteParams = (extra) => ({
+      ...params,
+      ...(extra || {}),
+      ...(agentId ? { agentId } : {}),
+      ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+      ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+    });
+
+    const dispatchBackground = async (tabIdForDispatch, routeParams) => {
+      const tab = Number.isFinite(tabIdForDispatch) ? { id: tabIdForDispatch } : null;
+      return this._handleExecuteBackground(tab, payload, toolDef, routeParams);
+    };
+
+    const dispatchWithoutResolvedTab = async (routeParams) => {
+      const tabIdForReport = Number.isFinite(routeParams && routeParams.tabId) ? routeParams.tabId : null;
+      const executeFn = async () => dispatchBackground(tabIdForReport, routeParams);
+      if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
+        return wrapWithChangeReport({
+          toolName,
+          tabId: tabIdForReport,
+          params,
+          execute: executeFn
+        });
+      }
+      return executeFn();
+    };
+
+    if (toolName === 'open_tab' || toolName === 'switch_tab') {
+      return dispatchWithoutResolvedTab(buildRouteParams());
+    }
+
     const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
       ? globalThis.resolveAgentTabOrError(agentId, params, this)
       : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
     if (resolved.success === false) {
+      if (toolName === 'navigate' && resolved.code === 'NO_OWNED_TAB') {
+        return dispatchWithoutResolvedTab(buildRouteParams());
+      }
       // Surface plain-object error envelope; bridge serializes to MCP shape.
       return resolved;
     }
@@ -591,7 +643,6 @@ class MCPBridgeClient {
     // surfaces (Phase 240's D-02 carve-out preserved). See Pitfall 3.
     const tabId = resolved.tabId;
     const tab = { id: tabId };
-    const toolDef = typeof getToolByName === 'function' ? getToolByName(payload.tool) : null;
 
     const routeParams = {
       ...params,
@@ -619,7 +670,7 @@ class MCPBridgeClient {
       });
     };
 
-    if (typeof wrapWithChangeReport === 'function') {
+    if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
       return wrapWithChangeReport({
         toolName: payload.tool,
         tabId,

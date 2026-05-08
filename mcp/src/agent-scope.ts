@@ -29,7 +29,8 @@ export class AgentScope {
   // wires the smoke-test path which carries a deterministic token; this
   // single-slot fallback lets manual / visual-session / autopilot include
   // an ownershipToken in the bridge payload without needing an explicit
-  // tabId (Plan 03 owns full per-tab routing).
+  // tabId. Explicit-tab tool sites prefer ownershipTokenFor(tabId) and fall
+  // back to this slot only for implicit selected-tab calls.
   private lastOwnershipToken: string | null = null;
   // Phase 241 D-08: per-bridge-connect connection_id captured from the
   // agent:register response. The extension mints a fresh UUID at every
@@ -144,9 +145,9 @@ export class AgentScope {
   }
 
   /**
-   * Phase 240: read the ownership token for a specific tab (null if absent).
-   * Plan 03 will use this to thread tab-specific tokens; Plan 02 falls back
-   * to currentOwnershipToken() in tool sites that do not yet know the tabId.
+   * Phase 240/248: read the ownership token for a specific tab (null if
+   * absent). Tool sites with explicit tab_id use this first, then fall back
+   * to currentOwnershipToken() for implicit selected-tab calls.
    */
   ownershipTokenFor(tabId: number | null | undefined): string | null {
     if (!Number.isFinite(tabId as number) || tabId === null || tabId === undefined) return null;

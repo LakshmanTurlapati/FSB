@@ -4,6 +4,7 @@ import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPResponse } from '../types.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 
 /**
@@ -116,24 +117,20 @@ export function registerAutopilotTools(
           });
         };
 
-        const agentId = await agentScope.ensure(bridge);
-        // Phase 240: thread ownershipToken alongside agentId so the dispatch
-        // gate (extension-side) can verify the 3-tuple (D-04, D-06, D-07).
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        // Phase 241 D-08: thread connection_id (additive; defensive probe).
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const startPayload: Record<string, unknown> = { task, agentId };
-        if (ownershipToken) startPayload.ownershipToken = ownershipToken;
-        if (connectionId) startPayload.connectionId = connectionId;
+        let agentIdForSnapshot: string | null = null;
+        const startPayload: Record<string, unknown> = { task };
         let result: Record<string, unknown>;
         try {
-          result = await bridge.sendAndWait(
-            { type: 'mcp:start-automation', payload: startPayload },
-            { timeout: 600_000, onProgress },   // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
+          result = await sendAgentScopedBridgeMessage(
+            bridge,
+            agentScope,
+            'mcp:start-automation',
+            startPayload,
+            {
+              timeout: 600_000, // Phase 239 plan 03 -- 600s safety net (was 300_000); CONTEXT.md D-04 + ROADMAP SC#1
+              onProgress,
+              onAgentId: (agentId) => { agentIdForSnapshot = agentId; },
+            },
           );
         } catch (sendErr) {
           const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
@@ -166,7 +163,7 @@ export function registerAutopilotTools(
               }
               if (bridge.isConnected) {
                 const snap = await bridge.sendAndWait(
-                  { type: 'mcp:get-task-snapshot', payload: { agentId } },
+                  { type: 'mcp:get-task-snapshot', payload: { agentId: agentIdForSnapshot || agentScope.current() || '' } },
                   { timeout: 5_000 },
                 );
                 const snapshot = (snap as Record<string, unknown> | undefined)?.snapshot as Record<string, unknown> | undefined;
@@ -216,19 +213,11 @@ export function registerAutopilotTools(
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
-      const agentId = await agentScope.ensure(bridge);
-      const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-        ? agentScope.currentOwnershipToken()
-        : null;
-      // Phase 241 D-08: thread connection_id (additive; defensive probe).
-      const connectionId = (typeof agentScope.currentConnectionId === 'function')
-        ? agentScope.currentConnectionId()
-        : null;
-      const stopPayload: Record<string, unknown> = { agentId };
-      if (ownershipToken) stopPayload.ownershipToken = ownershipToken;
-      if (connectionId) stopPayload.connectionId = connectionId;
-      const result = await bridge.sendAndWait(
-        { type: 'mcp:stop-automation', payload: stopPayload },
+      const result = await sendAgentScopedBridgeMessage(
+        bridge,
+        agentScope,
+        'mcp:stop-automation',
+        {},
         { timeout: 10_000 },
       );
       return mapFSBError(result);
@@ -245,10 +234,12 @@ export function registerAutopilotTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('get_task_status', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:get-status', payload: { agentId } },
-          { timeout: 5_000 },
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:get-status',
+          {},
+          { timeout: 5_000, includeOwnershipToken: false },
         );
         return mapFSBError(result);
       });

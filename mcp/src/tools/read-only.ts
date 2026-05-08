@@ -3,6 +3,7 @@ import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPMessageType } from '../types.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 import { TOOL_REGISTRY, jsonSchemaToZod } from './schema-bridge.js';
 
@@ -117,31 +118,15 @@ export function registerReadOnlyTools(
           return mapFSBError({ success: false, error: 'extension_not_connected' });
         }
         return queue.enqueue(tool.name, async () => {
-          const agentId = await agentScope.ensure(bridge);
-          const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-            ? agentScope.currentOwnershipToken()
-            : null;
-          const connectionId = (typeof agentScope.currentConnectionId === 'function')
-            ? agentScope.currentConnectionId()
-            : null;
+          const targetTabId = typeof params.tab_id === 'number' ? params.tab_id : null;
           const built = messageBuilder(params);
-          // Thread agentId + ownershipToken + connectionId at the TOP of the
-          // bridge payload. The resolver checks payload.agentId/params.tab_id;
-          // the gate checks payload.tabId/params.tabId (camelCase) -- the
-          // extension-side bridge_client converts as needed.
-          const payloadWithAgent: Record<string, unknown> = { ...(built.payload as Record<string, unknown>), agentId };
-          if (ownershipToken) payloadWithAgent.ownershipToken = ownershipToken;
-          if (connectionId) payloadWithAgent.connectionId = connectionId;
-          const msg: BridgeMessage = { type: built.type, payload: payloadWithAgent };
-          const result = await bridge.sendAndWait(msg, { timeout });
-          if (result
-              && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-              && typeof agentScope.captureOwnershipToken === 'function') {
-            agentScope.captureOwnershipToken(
-              typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-              (result as { ownershipToken: string }).ownershipToken,
-            );
-          }
+          const result = await sendAgentScopedBridgeMessage(
+            bridge,
+            agentScope,
+            built.type,
+            built.payload as Record<string, unknown>,
+            { timeout, targetTabId },
+          );
           return mapFSBError(result);
         });
       },

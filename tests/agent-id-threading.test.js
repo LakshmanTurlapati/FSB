@@ -172,10 +172,117 @@ async function testReadOnlyTabIdForwarded() {
   assert(typeof payload.agentId === 'string', 'agentId still threaded alongside tab_id');
 }
 
+async function testStaleAgentSelfHealsOnce() {
+  const agentBridgeModule = await loadBuildModule('agent-bridge.js');
+  const agentScope = await loadAgentScope();
+  const bridgeCalls = [];
+  let registerCount = 0;
+
+  const bridge = {
+    isConnected: true,
+    async sendAndWait(message, options) {
+      bridgeCalls.push({ message, options });
+      if (message.type === 'agent:register') {
+        registerCount += 1;
+        const agentId = registerCount === 1 ? 'agent_stale' : 'agent_fresh';
+        return { success: true, agentId, agentIdShort: agentId.slice(0, 12), ownershipTokens: {} };
+      }
+      if (message.type === 'mcp:execute-action') {
+        if (message.payload.agentId === 'agent_stale') {
+          return { success: false, code: 'AGENT_NOT_REGISTERED', requestingAgentId: 'agent_stale' };
+        }
+        return { success: true, tool: message.payload.tool, tabId: 99, ownershipToken: 'tok-fresh-99' };
+      }
+      return { success: false, error: 'unexpected message type' };
+    },
+  };
+
+  const result = await agentBridgeModule.sendAgentScopedBridgeMessage(
+    bridge,
+    agentScope,
+    'mcp:execute-action',
+    { tool: 'navigate', params: { url: 'https://example.com' } },
+    { timeout: 30_000 },
+  );
+
+  assert(result && result.success === true, 'stale AGENT_NOT_REGISTERED retry eventually succeeds');
+  assert(registerCount === 2, 'stale-agent path registers twice: initial stale id, then fresh id');
+  const execCalls = bridgeCalls.filter((c) => c.message.type === 'mcp:execute-action');
+  assert(execCalls.length === 2, 'stale-agent path retries the tool exactly once');
+  assert(execCalls[0].message.payload.agentId === 'agent_stale', 'first tool call used stale agent id');
+  assert(execCalls[1].message.payload.agentId === 'agent_fresh', 'retry tool call used fresh agent id');
+  assert(agentScope.current() === 'agent_fresh', 'AgentScope cache now holds the fresh agent id');
+}
+
+async function testStaleAgentRetryLimitAndNoRetryForOtherErrors() {
+  const agentBridgeModule = await loadBuildModule('agent-bridge.js');
+
+  const repeatingScope = await loadAgentScope();
+  const repeatingCalls = [];
+  let repeatingRegisterCount = 0;
+  const repeatingBridge = {
+    isConnected: true,
+    async sendAndWait(message) {
+      repeatingCalls.push({ message });
+      if (message.type === 'agent:register') {
+        repeatingRegisterCount += 1;
+        const agentId = 'agent_repeat_' + repeatingRegisterCount;
+        return { success: true, agentId, agentIdShort: agentId.slice(0, 12), ownershipTokens: {} };
+      }
+      return { success: false, code: 'AGENT_NOT_REGISTERED', requestingAgentId: message.payload.agentId };
+    },
+  };
+
+  const repeatResult = await agentBridgeModule.sendAgentScopedBridgeMessage(
+    repeatingBridge,
+    repeatingScope,
+    'mcp:execute-action',
+    { tool: 'navigate', params: { url: 'https://example.com' } },
+    {},
+  );
+  assert(repeatResult && repeatResult.code === 'AGENT_NOT_REGISTERED', 'second AGENT_NOT_REGISTERED is returned after one retry');
+  assert(repeatingRegisterCount === 2, 'repeating stale-agent path does not register more than twice');
+  assert(
+    repeatingCalls.filter((c) => c.message.type === 'mcp:execute-action').length === 2,
+    'repeating stale-agent path sends exactly two tool calls',
+  );
+
+  const ownedScope = await loadAgentScope();
+  const ownedCalls = [];
+  let ownedRegisterCount = 0;
+  const ownedBridge = {
+    isConnected: true,
+    async sendAndWait(message) {
+      ownedCalls.push({ message });
+      if (message.type === 'agent:register') {
+        ownedRegisterCount += 1;
+        return { success: true, agentId: 'agent_owned', agentIdShort: 'agent_owned', ownershipTokens: {} };
+      }
+      return { success: false, code: 'TAB_NOT_OWNED', requestedTabId: 7, requestingAgentId: message.payload.agentId };
+    },
+  };
+
+  const ownedResult = await agentBridgeModule.sendAgentScopedBridgeMessage(
+    ownedBridge,
+    ownedScope,
+    'mcp:execute-action',
+    { tool: 'readsheet', params: { tab_id: 7 } },
+    { targetTabId: 7 },
+  );
+  assert(ownedResult && ownedResult.code === 'TAB_NOT_OWNED', 'TAB_NOT_OWNED is returned without self-heal retry');
+  assert(ownedRegisterCount === 1, 'TAB_NOT_OWNED path does not re-register');
+  assert(
+    ownedCalls.filter((c) => c.message.type === 'mcp:execute-action').length === 1,
+    'TAB_NOT_OWNED path sends exactly one tool call',
+  );
+}
+
 async function run() {
   await testManualNavigateAgentIdThreading();
   await testReadOnlyAgentIdThreading();
   await testReadOnlyTabIdForwarded();
+  await testStaleAgentSelfHealsOnce();
+  await testStaleAgentRetryLimitAndNoRetryForOtherErrors();
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
 }

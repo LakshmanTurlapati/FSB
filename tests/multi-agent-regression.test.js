@@ -588,8 +588,8 @@ test('test_case_9_phase246_open_tab_background_default_with_bindtab', async () =
   }
 });
 
-// Scenario D: AMBIGUOUS_TAB error envelope shape + retry with explicit tab_id
-test('test_case_10_phase246_ambiguous_tab_error_then_explicit_recovery', async () => {
+// Scenario D: selected-tab implicit resolution + explicit tab_id recovery
+test('test_case_10_selected_tab_resolution_then_explicit_recovery', async () => {
   const tabsList = [
     { id: 1300, incognito: false, windowId: 1 },
     { id: 1301, incognito: false, windowId: 1 }
@@ -608,15 +608,14 @@ test('test_case_10_phase246_ambiguous_tab_error_then_explicit_recovery', async (
     delete require.cache[require.resolve('../extension/utils/agent-tab-resolver.js')];
     require('../extension/utils/agent-tab-resolver.js');
 
-    // No tab_id => AMBIGUOUS_TAB
-    const ambig = await globalThis.resolveAgentTabOrError(aReg.agentId, {}, null);
-    assert.strictEqual(ambig.success, false, 'no tab_id with multi-tab agent => error');
-    assert.strictEqual(ambig.code, 'AMBIGUOUS_TAB', 'error code is AMBIGUOUS_TAB');
-    assert.strictEqual(ambig.agentId, aReg.agentId, 'error includes agentId');
-    assert.ok(Array.isArray(ambig.tabIds), 'error includes tabIds array');
-    assert.strictEqual(ambig.tabIds.length, 2, 'tabIds includes both owned tabs');
-    assert.ok(ambig.tabIds.indexOf(1300) >= 0 && ambig.tabIds.indexOf(1301) >= 0,
-      'tabIds enumerates the actual owned tabs');
+    // No tab_id resolves to the agent-selected tab. bindTab selects the latest
+    // bound tab, and switch_tab updates this same selected-tab state in the
+    // real dispatcher path.
+    assert.strictEqual(reg.getSelectedTabId(aReg.agentId), 1301, 'latest bound tab 1301 is selected');
+    const selected = await globalThis.resolveAgentTabOrError(aReg.agentId, {}, null);
+    assert.strictEqual(selected.tabId, 1301, 'no tab_id with selected multi-tab agent resolves selected tab');
+    assert.strictEqual(selected.success, undefined, 'selected-tab resolution is not an error');
+    assert.strictEqual(selected.skipGate, false, 'skipGate false for selected tab (gate enforces)');
 
     // Retry with explicit tab_id=1300 => resolves.
     const recovered = await globalThis.resolveAgentTabOrError(aReg.agentId, { tab_id: 1300 }, null);

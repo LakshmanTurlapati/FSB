@@ -45,6 +45,7 @@ var _mcp_getAllowedVisualClientLabels = _mcp_visual_defs.getAllowedMcpVisualClie
 const MCP_NAVIGATION_RECOVERY_TOOLS = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
 const MCP_ROUTE_RECOVERY_HINT = 'Use an explicitly supported MCP route or a navigation recovery tool.';
 const MCP_PHASE199_EXCLUDED_BACKGROUND_TOOLS = new Set(['fill_credential', 'fill_payment_method']);
+const MCP_CLAIMABLE_RECOVERY_TOOLS = new Set(['navigate', 'switch_tab']);
 
 const MCP_PHASE199_TOOL_ROUTES = {
   navigate: { routeFamily: 'browser', handler: handleNavigateRoute },
@@ -53,6 +54,7 @@ const MCP_PHASE199_TOOL_ROUTES = {
   refresh: { routeFamily: 'browser', handler: handleNavigationHistoryRoute },
   open_tab: { routeFamily: 'browser', handler: handleOpenTabRoute },
   switch_tab: { routeFamily: 'browser', handler: handleSwitchTabRoute },
+  close_tab: { routeFamily: 'browser', handler: handleCloseTabRoute },
   list_tabs: { routeFamily: 'browser', handler: handleListTabsRoute },
   start_visual_session: { routeFamily: 'visual-session', messageType: 'mcp:start-visual-session', handler: handleToolAliasRoute },
   end_visual_session: { routeFamily: 'visual-session', messageType: 'mcp:end-visual-session', handler: handleToolAliasRoute },
@@ -170,6 +172,66 @@ function _resolveTabIdForGate(tool, params, payload) {
   return null;
 }
 
+function createMcpOwnershipError(code, extra = {}) {
+  return {
+    success: false,
+    code,
+    errorCode: code,
+    error: code,
+    ...extra
+  };
+}
+
+function getRegistryOwner(reg, tabId) {
+  return (reg && typeof reg.getOwner === 'function') ? (reg.getOwner(tabId) || null) : null;
+}
+
+function checkClaimableTargetBeforeSideEffect({ tool, tabId, agentId, ownershipToken }) {
+  const reg = (typeof globalThis !== 'undefined') ? globalThis.fsbAgentRegistryInstance : null;
+  if (!reg || !Number.isFinite(tabId)) return null;
+  if (!agentId || (typeof reg.hasAgent === 'function' && !reg.hasAgent(agentId))) {
+    return createMcpOwnershipError('AGENT_NOT_REGISTERED', { requestingAgentId: agentId || null });
+  }
+  const ownerAgentId = getRegistryOwner(reg, tabId);
+  if (ownerAgentId && ownerAgentId !== agentId) {
+    return createMcpOwnershipError('TAB_NOT_OWNED', { ownerAgentId, requestedTabId: tabId, requestingAgentId: agentId });
+  }
+  if (ownerAgentId === agentId
+      && typeof reg.isOwnedBy === 'function'
+      && !reg.isOwnedBy(tabId, agentId, ownershipToken)) {
+    return createMcpOwnershipError('TAB_NOT_OWNED', { ownerAgentId, requestedTabId: tabId, requestingAgentId: agentId });
+  }
+  return null;
+}
+
+async function bindClaimedTabOrError({ tool, tabId, agentId }) {
+  if (!agentId || !Number.isFinite(tabId)
+      || typeof globalThis === 'undefined'
+      || !globalThis.fsbAgentRegistryInstance
+      || typeof globalThis.fsbAgentRegistryInstance.bindTab !== 'function') {
+    return null;
+  }
+  try {
+    const bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, tabId);
+    if (!bindResult) {
+      const ownerAgentId = getRegistryOwner(globalThis.fsbAgentRegistryInstance, tabId);
+      return createMcpOwnershipError('TAB_NOT_OWNED', {
+        tool,
+        ownerAgentId,
+        requestedTabId: tabId,
+        requestingAgentId: agentId
+      });
+    }
+    return bindResult;
+  } catch (error) {
+    return createMcpRouteError(tool, 'browser', MCP_ROUTE_RECOVERY_HINT, {
+      errorCode: 'ownership_bind_failed',
+      tabId,
+      error: error.message || String(error)
+    });
+  }
+}
+
 // Sync reads the gate consumes via the `reg` alias (= globalThis.fsbAgentRegistryInstance):
 //   reg.hasAgent, reg.isOwnedBy, reg.getOwner,
 //   globalThis.fsbAgentRegistryInstance.getTabMetadata,
@@ -184,7 +246,7 @@ function checkOwnershipGate({ tool, params, payload }) {
   const ownershipToken = src.ownershipToken || null;
 
   if (!agentId || (typeof reg.hasAgent === 'function' && !reg.hasAgent(agentId))) {
-    return { success: false, code: 'AGENT_NOT_REGISTERED', requestingAgentId: agentId };
+    return createMcpOwnershipError('AGENT_NOT_REGISTERED', { requestingAgentId: agentId });
   }
 
   const tabId = _resolveTabIdForGate(tool, params, payload);
@@ -192,14 +254,20 @@ function checkOwnershipGate({ tool, params, payload }) {
 
   // 1. Token-aware ownership (D-04).
   if (typeof reg.isOwnedBy === 'function' && !reg.isOwnedBy(tabId, agentId, ownershipToken)) {
-    const ownerAgentId = (typeof reg.getOwner === 'function') ? (reg.getOwner(tabId) || null) : null;
-    return { success: false, code: 'TAB_NOT_OWNED', ownerAgentId, requestedTabId: tabId, requestingAgentId: agentId };
+    const ownerAgentId = getRegistryOwner(reg, tabId);
+    if (!ownerAgentId && MCP_CLAIMABLE_RECOVERY_TOOLS.has(tool)) {
+      // Phase 247: recovery tools may claim unowned tabs. Other-agent tabs
+      // still reject above; same-agent token mismatches still reject because
+      // ownerAgentId is non-null.
+    } else {
+      return createMcpOwnershipError('TAB_NOT_OWNED', { ownerAgentId, requestedTabId: tabId, requestingAgentId: agentId });
+    }
   }
 
   // 2. Incognito reject (D-10 / OWN-05).
   const meta = (typeof reg.getTabMetadata === 'function') ? reg.getTabMetadata(tabId) : null;
   if (meta && meta.incognito === true) {
-    return { success: false, code: 'TAB_INCOGNITO_NOT_SUPPORTED', tabId };
+    return createMcpOwnershipError('TAB_INCOGNITO_NOT_SUPPORTED', { tabId });
   }
 
   // 3. Cross-window reject (Open Q2: per-agent windowId pinning). Set-once on
@@ -207,7 +275,7 @@ function checkOwnershipGate({ tool, params, payload }) {
   if (meta && Number.isFinite(meta.windowId) && typeof reg.getAgentWindowId === 'function') {
     const pinnedWindowId = reg.getAgentWindowId(agentId);
     if (Number.isFinite(pinnedWindowId) && pinnedWindowId !== meta.windowId) {
-      return { success: false, code: 'TAB_OUT_OF_SCOPE', tabId, reason: 'cross_window' };
+      return createMcpOwnershipError('TAB_OUT_OF_SCOPE', { tabId, reason: 'cross_window' });
     }
   }
 
@@ -383,6 +451,54 @@ function sanitizeSingleTab(tool, tab, extra = {}) {
   };
 }
 
+function shouldEmitSyntheticChangeReport(tool) {
+  const toolDef = (typeof _mcp_getToolByName === 'function') ? _mcp_getToolByName(tool) : null;
+  return !!(fsbChangeReportsEnabled && toolDef && toolDef._emitChangeReport === true);
+}
+
+function attachOpenTabChangeReport(response, params) {
+  if (!response || response.success !== true || !shouldEmitSyntheticChangeReport('open_tab')) {
+    return response;
+  }
+  const afterUrl = response.url || (params && typeof params.url === 'string' ? params.url : 'about:blank');
+  response.change_report = {
+    url: { before: null, after: afterUrl, changed: true },
+    title_changed: false,
+    dialogs_opened: [],
+    nodes_added: [],
+    nodes_removed: [],
+    attrs_changed: [],
+    inputs_changed: {},
+    focus_shift: null,
+    mutation_count: 0,
+    settle_ms: 0,
+    truncated: false,
+    partial: true
+  };
+  return response;
+}
+
+function attachCloseTabChangeReport(response, tab) {
+  if (!response || response.success !== true || !shouldEmitSyntheticChangeReport('close_tab')) {
+    return response;
+  }
+  response.change_report = {
+    url: { before: (tab && tab.url) || '', after: null, changed: true },
+    title_changed: false,
+    dialogs_opened: [],
+    nodes_added: [],
+    nodes_removed: [],
+    attrs_changed: [],
+    inputs_changed: {},
+    focus_shift: null,
+    mutation_count: 0,
+    settle_ms: 0,
+    truncated: false,
+    partial: true
+  };
+  return response;
+}
+
 function hasActiveAutomationSessionForTab(tabId) {
   if (!Number.isFinite(tabId)) return false;
   const sessions = getActiveSessionsMap();
@@ -395,7 +511,7 @@ function hasActiveAutomationSessionForTab(tabId) {
   return false;
 }
 
-async function handleNavigateRoute({ params, client }) {
+async function handleNavigateRoute({ params, client, tab }) {
   const { agentId } = params || {};
   // Phase 240: agentId now load-bearing for the bindTab D-08 site below.
   if (!params?.url || typeof params.url !== 'string') {
@@ -404,15 +520,28 @@ async function handleNavigateRoute({ params, client }) {
 
   try {
     getChromeTabsApi();
-    const activeTab = await getActiveTabFromClient(client);
-    if (!activeTab?.id && !Number.isFinite(params.tabId)) {
-      return createMcpRouteError('navigate', 'browser', 'Use list_tabs or open_tab to find a navigable tab before retrying.', {
-        errorCode: 'no_active_tab',
-        error: 'No active tab available for navigation'
-      });
+    const targetTabId = Number.isFinite(params.tabId)
+      ? params.tabId
+      : (tab && Number.isFinite(tab.id) ? tab.id : null);
+
+    if (targetTabId === null) {
+      const createdTab = await chrome.tabs.create({ url: params.url, active: false });
+      const bindResult = await bindClaimedTabOrError({ tool: 'navigate', tabId: createdTab && createdTab.id, agentId });
+      if (bindResult && bindResult.success === false) return bindResult;
+      const extra = (bindResult && bindResult.ownershipToken)
+        ? { ownershipToken: bindResult.ownershipToken }
+        : {};
+      return sanitizeSingleTab('navigate', createdTab, extra);
     }
 
-    const targetTabId = Number.isFinite(params.tabId) ? params.tabId : activeTab.id;
+    const ownershipPrecheck = checkClaimableTargetBeforeSideEffect({
+      tool: 'navigate',
+      tabId: targetTabId,
+      agentId,
+      ownershipToken: params.ownershipToken
+    });
+    if (ownershipPrecheck) return ownershipPrecheck;
+
     // Phase 243 plan 02 (BG-04): stamp lastAgentNavigationAt BEFORE the
     // chrome.tabs.update so the webNavigation.onCommitted listener suppresses
     // its agent-tab-user-navigation emission within the 500ms window for
@@ -429,23 +558,12 @@ async function handleNavigateRoute({ params, client }) {
     // Phase 240 D-08: bindTab on the navigated tab BEFORE returning success
     // so the originating agent owns the tab; the freshly minted ownershipToken
     // threads back through sanitizeSingleTab so AgentScope can capture it.
-    let bindResult = null;
-    if (agentId
-        && typeof globalThis !== 'undefined'
-        && globalThis.fsbAgentRegistryInstance
-        && typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function'
-        && Number.isFinite(targetTabId)) {
-      try {
-        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(agentId, targetTabId);
-      } catch (_e) {
-        // Tab may have closed mid-flight; success return continues with null bindResult.
-        bindResult = null;
-      }
-    }
+    let bindResult = await bindClaimedTabOrError({ tool: 'navigate', tabId: targetTabId, agentId });
+    if (bindResult && bindResult.success === false) return bindResult;
     const extra = (bindResult && bindResult.ownershipToken)
       ? { ownershipToken: bindResult.ownershipToken }
       : {};
-    return sanitizeSingleTab('navigate', { ...activeTab, ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url }, extra);
+    return sanitizeSingleTab('navigate', { ...updatedTab, id: targetTabId, url: updatedTab?.url || params.url }, extra);
   } catch (error) {
     return createMcpRouteError('navigate', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
@@ -938,7 +1056,7 @@ async function handleOpenTabRoute({ params }) {
     const extra = (bindResult && bindResult.ownershipToken)
       ? { ownershipToken: bindResult.ownershipToken }
       : {};
-    return sanitizeSingleTab('open_tab', tab, extra);
+    return attachOpenTabChangeReport(sanitizeSingleTab('open_tab', tab, extra), params);
   } catch (error) {
     return createMcpRouteError('open_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error) });
   }
@@ -946,27 +1064,34 @@ async function handleOpenTabRoute({ params }) {
 
 async function handleSwitchTabRoute({ params }) {
   const { agentId } = params || {};
-  // Phase 240 will validate agent_id; Phase 238 deliberately ignores it.
-  void agentId;
   if (!Number.isFinite(params?.tabId)) {
     return createMcpInvalidParamsError('switch_tab', 'switch_tab requires numeric tabId');
   }
 
   try {
     getChromeTabsApi();
+    const ownershipPrecheck = checkClaimableTargetBeforeSideEffect({
+      tool: 'switch_tab',
+      tabId: params.tabId,
+      agentId,
+      ownershipToken: params.ownershipToken
+    });
+    if (ownershipPrecheck) return ownershipPrecheck;
+
     const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const previousTabId = currentTab ? currentTab.id : null;
 
-    // Phase 243 BG-02: read the per-tool flag from the registry. switch_tab
-    // is the only tool with _forceForeground:true (D-01); every other tool
-    // routes through this dispatcher with the flag false and must NOT steal
-    // focus from another agent's tab or from the user.
+    // switch_tab is background-safe by default. Its explicit active:true flag
+    // is the only foreground escape hatch for MCP tab selection.
     const toolDef = (typeof _mcp_getToolByName === 'function')
       ? _mcp_getToolByName('switch_tab')
       : null;
-    const forceForeground = !!(toolDef && toolDef._forceForeground === true);
+    const forceForeground = !!(toolDef && toolDef._forceForeground === true && params.active === true);
 
     let tab = await chrome.tabs.get(params.tabId);
+    const bindResult = await bindClaimedTabOrError({ tool: 'switch_tab', tabId: params.tabId, agentId });
+    if (bindResult && bindResult.success === false) return bindResult;
+
     if (forceForeground) {
       tab = await chrome.tabs.update(params.tabId, { active: true });
       if (chrome.tabs.get) {
@@ -977,9 +1102,53 @@ async function handleSwitchTabRoute({ params }) {
       }
     }
 
-    return sanitizeSingleTab('switch_tab', tab, { tabId: params.tabId, previousTabId });
+    const extra = (bindResult && bindResult.ownershipToken)
+      ? { ownershipToken: bindResult.ownershipToken }
+      : {};
+    return sanitizeSingleTab('switch_tab', tab, { tabId: params.tabId, previousTabId, ...extra });
   } catch (error) {
     return createMcpRouteError('switch_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, { error: error.message || String(error), tabId: params.tabId });
+  }
+}
+
+async function handleCloseTabRoute({ params }) {
+  const tabId = params && Number.isFinite(params.tabId) ? params.tabId : null;
+  if (!Number.isFinite(tabId)) {
+    return createMcpInvalidParamsError('close_tab', 'close_tab requires numeric tabId');
+  }
+
+  try {
+    getChromeTabsApi();
+    const tab = await chrome.tabs.get(tabId);
+    if (tab && tab.active === true && params.allow_active !== true) {
+      return createMcpRouteError('close_tab', 'browser', 'Pass allow_active:true only if you intentionally want to close the active tab.', {
+        errorCode: 'active_tab_close_rejected',
+        tabId,
+        error: 'close_tab refused to close the active tab without allow_active:true'
+      });
+    }
+
+    await chrome.tabs.remove(tabId);
+    if (typeof globalThis !== 'undefined'
+        && globalThis.fsbAgentRegistryInstance
+        && typeof globalThis.fsbAgentRegistryInstance.releaseTab === 'function') {
+      try {
+        await globalThis.fsbAgentRegistryInstance.releaseTab(tabId);
+      } catch (_e) { /* chrome.tabs.onRemoved also performs registry cleanup */ }
+    }
+
+    return attachCloseTabChangeReport({
+      success: true,
+      tool: 'close_tab',
+      tabId,
+      closed: true,
+      wasActive: Boolean(tab && tab.active)
+    }, tab);
+  } catch (error) {
+    return createMcpRouteError('close_tab', 'browser', MCP_ROUTE_RECOVERY_HINT, {
+      error: error.message || String(error),
+      tabId
+    });
   }
 }
 
@@ -1300,7 +1469,7 @@ async function handleEndVisualSessionRoute({ payload }) {
 // surface (globalThis.fsbAgentRegistryInstance). Phase 240 will validate
 // ownership at every dispatch boundary; Phase 238 is structural setup only.
 
-async function handleAgentRegisterRoute({ payload } = {}) {
+async function handleAgentRegisterRoute({ payload, client } = {}) {
   const reg = globalThis.fsbAgentRegistryInstance;
   if (!reg || typeof reg.registerAgent !== 'function') {
     return { success: false, errorCode: 'agent_registry_unavailable', error: 'AgentRegistry not initialized' };
@@ -1332,7 +1501,7 @@ async function handleAgentRegisterRoute({ payload } = {}) {
   // findAgentByConnectionId path keys off this stamp.
   const connectionId = (payload && typeof payload.connectionId === 'string' && payload.connectionId.length > 0)
     ? payload.connectionId
-    : null;
+    : (client && typeof client.getConnectionId === 'function' ? client.getConnectionId() : null);
   if (connectionId && typeof reg.stampConnectionId === 'function') {
     try { reg.stampConnectionId(agentId, connectionId); } catch (_e) { /* best-effort */ }
   }

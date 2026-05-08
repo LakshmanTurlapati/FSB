@@ -15,6 +15,7 @@
  *   Test 2 (D-01 zero owned)     -- agent registered but owns 0 tabs;
  *                                   {success:false, code:'NO_OWNED_TAB', ...}.
  *   Test 3 (D-01 multi owned)    -- agent owns 2+ tabs; resolver returns
+ *                                   selectedTabId if valid, otherwise
  *                                   {success:false, code:'AMBIGUOUS_TAB',
  *                                    agentId, tabIds:[...]}.
  *   Test 4 (D-04 legacy popup)   -- agentId='legacy:popup' with active tab;
@@ -70,6 +71,7 @@ function buildRegistryMock(opts) {
   opts = opts || {};
   const knownAgents = new Set(opts.knownAgents || []);
   const tabOwners = new Map(opts.tabOwners || []);
+  const selectedTabIds = new Map(opts.selectedTabIds || []);
   return {
     hasAgent(agentId) {
       return typeof agentId === 'string' && knownAgents.has(agentId);
@@ -81,6 +83,9 @@ function buildRegistryMock(opts) {
         if (owner === agentId) tabs.push(tabId);
       });
       return tabs;
+    },
+    getSelectedTabId(agentId) {
+      return selectedTabIds.get(agentId) || null;
     }
   };
 }
@@ -136,7 +141,7 @@ async function test2_zeroOwned() {
 // Test 3 (D-01 multi owned)
 // =========================================================================
 async function test3_multiOwned() {
-  console.log('--- Test 3: D-01 multi owned tabs -> AMBIGUOUS_TAB ---');
+  console.log('--- Test 3: D-01 multi owned tabs without selection -> AMBIGUOUS_TAB ---');
   installRegistry(buildRegistryMock({
     knownAgents: ['agent_a'],
     tabOwners: [[42, 'agent_a'], [43, 'agent_a']]
@@ -147,6 +152,45 @@ async function test3_multiOwned() {
     check(resolved && resolved.code === 'AMBIGUOUS_TAB', 'code === AMBIGUOUS_TAB');
     check(resolved && resolved.agentId === 'agent_a', 'agentId echoed');
     check(Array.isArray(resolved.tabIds) && resolved.tabIds.includes(42) && resolved.tabIds.includes(43), 'tabIds contains both 42 and 43');
+  } finally {
+    uninstallRegistry();
+  }
+}
+
+// =========================================================================
+// Test 3b (multi owned + selected tab)
+// =========================================================================
+async function test3b_multiOwnedSelected() {
+  console.log('--- Test 3b: multi owned tabs with selectedTabId resolves selection ---');
+  installRegistry(buildRegistryMock({
+    knownAgents: ['agent_a'],
+    tabOwners: [[42, 'agent_a'], [43, 'agent_a']],
+    selectedTabIds: [['agent_a', 43]]
+  }));
+  try {
+    const resolved = await resolveAgentTabOrError('agent_a', {}, null);
+    check(resolved && resolved.tabId === 43, 'tabId === selected tab 43');
+    check(resolved && resolved.skipGate === false, 'skipGate === false');
+  } finally {
+    uninstallRegistry();
+  }
+}
+
+// =========================================================================
+// Test 3c (multi owned + invalid selected tab)
+// =========================================================================
+async function test3c_multiOwnedInvalidSelected() {
+  console.log('--- Test 3c: invalid selectedTabId still returns AMBIGUOUS_TAB ---');
+  installRegistry(buildRegistryMock({
+    knownAgents: ['agent_a'],
+    tabOwners: [[42, 'agent_a'], [43, 'agent_a']],
+    selectedTabIds: [['agent_a', 99]]
+  }));
+  try {
+    const resolved = await resolveAgentTabOrError('agent_a', {}, null);
+    check(resolved && resolved.success === false, 'success === false');
+    check(resolved && resolved.code === 'AMBIGUOUS_TAB', 'code === AMBIGUOUS_TAB');
+    check(Array.isArray(resolved.tabIds) && resolved.tabIds.length === 2, 'tabIds still enumerates owned tabs');
   } finally {
     uninstallRegistry();
   }
@@ -234,6 +278,8 @@ async function run() {
   await test1_singleOwned();
   await test2_zeroOwned();
   await test3_multiOwned();
+  await test3b_multiOwnedSelected();
+  await test3c_multiOwnedInvalidSelected();
   await test4_legacyPopup();
   await test5_legacyNoActive();
   await test6_explicitSnakeCase();

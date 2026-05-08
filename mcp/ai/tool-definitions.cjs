@@ -1,14 +1,14 @@
 /**
  * Canonical Tool Registry for FSB Browser Automation
  *
- * Single source of truth for all 43 browser automation tool definitions.
+ * Single source of truth for all 52 browser automation tool definitions.
  * Shared between autopilot (agent loop) and MCP server.
  *
  * Per D-11/D-12: Each tool is a plain object with JSON Schema inputSchema
  * and routing metadata (_route, _readOnly, _contentVerb, _cdpVerb).
  *
  * Per D-01: All tool names use snake_case matching MCP convention.
- * Per D-04: All 51 tools defined (49 original + 2 vault fill tools).
+ * Per D-04: All 52 tools defined (49 original + 2 vault fill tools + close_tab).
  *
  * @module tool-definitions
  */
@@ -27,7 +27,7 @@
  */
 
 /**
- * All 51 browser automation tool definitions.
+ * All 52 browser automation tool definitions.
  * Grouped by category: Navigation, Interaction, Scrolling, Waiting, Tabs, Data, CDP, Read-Only.
  * @type {ToolDefinition[]}
  */
@@ -561,7 +561,7 @@ const TOOL_REGISTRY = [
   },
 
   // =========================================================================
-  // TAB TOOLS (2 tools)
+  // TAB TOOLS (3 tools)
   // =========================================================================
 
   {
@@ -589,11 +589,16 @@ const TOOL_REGISTRY = [
 
   {
     name: 'switch_tab',
-    description: 'Switch the active browser tab by tab ID. Returns confirmation with the new active tab info. When to use: to move between open tabs for multi-tab workflows. Related: list_tabs (get available tab IDs first), open_tab (open a new tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
+    description: 'Select an agent-owned browser tab by tab ID without changing the foreground tab by default. Returns confirmation with the selected tab info. When to use: to move between tabs for multi-tab workflows while keeping the user foreground undisturbed. Pass active:true only when the user explicitly wants this tab foregrounded. Related: list_tabs (get available tab IDs first), open_tab (open a new tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
       type: 'object',
       properties: {
-        tabId: { type: 'number', description: 'Tab ID to switch to (get IDs from list_tabs tool)' }
+        tabId: { type: 'number', description: 'Tab ID to select (get IDs from list_tabs tool)' },
+        active: {
+          type: 'boolean',
+          default: false,
+          description: 'When true, foreground this tab. Default false selects the tab for this agent without stealing focus.'
+        }
       },
       required: ['tabId']
     },
@@ -601,8 +606,34 @@ const TOOL_REGISTRY = [
     _readOnly: false,
     _contentVerb: null,
     _cdpVerb: null,
-    // Phase 243 BG-02: switch_tab's semantic intent IS focus transfer (D-01).
+    // switch_tab can foreground only when params.active === true.
     _forceForeground: true,
+    _emitChangeReport: true
+  },
+
+  {
+    name: 'close_tab',
+    description: 'Close an agent-owned browser tab without changing the foreground tab. When to use: clean up background tabs opened by this agent after work is complete. By default, refuses to close the current active foreground tab; pass allow_active:true only when the user explicitly wants the active tab closed. Related: open_tab (create a new tab), list_tabs (find tab IDs), switch_tab (select an agent tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tab_id: {
+          type: 'number',
+          description: 'Optional. Tab id to close. Omit when the calling agent owns exactly one tab; required to disambiguate when the agent owns multiple.'
+        },
+        allow_active: {
+          type: 'boolean',
+          default: false,
+          description: 'When true, allow closing the active foreground tab. Default false protects the user-visible active tab.'
+        }
+      },
+      required: []
+    },
+    _route: 'background',
+    _readOnly: false,
+    _contentVerb: null,
+    _cdpVerb: null,
+    _forceForeground: false,
     _emitChangeReport: true
   },
 

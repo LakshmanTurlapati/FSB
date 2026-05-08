@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 
 // Approved visual-session client labels (must match the extension's allowlist)
@@ -56,34 +57,18 @@ export function registerVisualSessionTools(
       }
 
       return queue.enqueue('start_visual_session', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        // Phase 240: thread ownershipToken alongside agentId so the dispatch
-        // gate (extension-side) can verify the 3-tuple (D-04, D-06, D-07).
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        // Phase 241 D-08: thread connection_id (additive; defensive probe).
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const payload: Record<string, unknown> = { clientLabel, task, detail, agentId };
+        const targetTabId = typeof tab_id === 'number' ? tab_id : null;
+        const payload: Record<string, unknown> = { clientLabel, task, detail };
         // Phase 246 D-10: forward optional tab_id so the extension-side
         // resolver can disambiguate when the calling agent owns multiple tabs.
         if (tab_id !== undefined) payload.tab_id = tab_id;
-        if (ownershipToken) payload.ownershipToken = ownershipToken;
-        if (connectionId) payload.connectionId = connectionId;
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:start-visual-session', payload },
-          { timeout: 10_000 },
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:start-visual-session',
+          payload,
+          { timeout: 10_000, targetTabId },
         );
-        if (result
-            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-            && typeof agentScope.captureOwnershipToken === 'function') {
-          agentScope.captureOwnershipToken(
-            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-            (result as { ownershipToken: string }).ownershipToken,
-          );
-        }
         return mapFSBError(result);
       });
     },
@@ -102,19 +87,11 @@ export function registerVisualSessionTools(
       }
 
       return queue.enqueue('end_visual_session', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        // Phase 241 D-08: thread connection_id (additive; defensive probe).
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const payload: Record<string, unknown> = { sessionToken: session_token, reason, agentId };
-        if (ownershipToken) payload.ownershipToken = ownershipToken;
-        if (connectionId) payload.connectionId = connectionId;
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:end-visual-session', payload },
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:end-visual-session',
+          { sessionToken: session_token, reason },
           { timeout: 10_000 },
         );
         return mapFSBError(result);

@@ -2,10 +2,10 @@
  * Phase 243-01 BG-01/BG-02/BG-03: foreground audit invariants.
  *
  * These tests guard the per-tool `_forceForeground` opt-in introduced by
- * Phase 243. switch_tab is the ONLY tool that may steal focus by calling
- * chrome.tabs.update({ active: true }) (and chrome.windows.update({
- * focused: true })) inside an MCP / autopilot tool route. Every other tool
- * must default to `_forceForeground: false`.
+ * Phase 243 and narrowed in the no-focus multi-tab work. switch_tab is the
+ * ONLY tool allowed to foreground, and it may only do so when the caller
+ * explicitly passes active:true. Every other tool must default to
+ * `_forceForeground: false`.
  *
  * Test strategy: read the three target source files as text and assert
  * structural invariants via string / regex predicates. We deliberately
@@ -67,6 +67,10 @@ console.log('\n--- Test 1: tool-definitions.js _forceForeground shape ---');
   assert(!!switchTab, 'switch_tab tool definition exists');
   assert(switchTab && switchTab._forceForeground === true,
     'switch_tab._forceForeground === true');
+  assert(switchTab && switchTab.inputSchema && switchTab.inputSchema.properties
+    && switchTab.inputSchema.properties.active
+    && switchTab.inputSchema.properties.active.default === false,
+    'switch_tab active flag exists and defaults false');
 
   const trueCount = registry.filter(t => t._forceForeground === true).length;
   assert(trueCount === 1,
@@ -123,6 +127,8 @@ console.log('\n--- Test 3: mcp-tool-dispatcher.js gates active:true behind _forc
   const flagRefs = (src.match(/_forceForeground/g) || []).length;
   assert(flagRefs >= 1,
     'mcp-tool-dispatcher.js references _forceForeground at least once — got ' + flagRefs);
+  assert(/_forceForeground\s*===\s*true\s*&&\s*params\.active\s*===\s*true/.test(src),
+    'mcp-tool-dispatcher.js requires params.active === true before foregrounding switch_tab');
 }
 
 // -----------------------------------------------------------------------
@@ -153,6 +159,8 @@ console.log('\n--- Test 4: tool-executor.js gates active:true behind _forceForeg
   const flagRefs = (src.match(/_forceForeground/g) || []).length;
   assert(flagRefs >= 1,
     'tool-executor.js references _forceForeground at least once — got ' + flagRefs);
+  assert(/_forceForeground\s*===\s*true\s*&&\s*params\?\.active\s*===\s*true/.test(src),
+    'tool-executor.js requires params.active === true before foregrounding switch_tab');
 }
 
 // -----------------------------------------------------------------------

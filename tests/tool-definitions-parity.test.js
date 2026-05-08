@@ -84,6 +84,26 @@ if (openTab) {
   check(openTab.inputSchema.properties.active.default === false, 'open_tab.active default is false (Phase 246 D-05)');
 }
 
+const switchTab = td.getToolByName('switch_tab');
+check(!!switchTab, 'switch_tab exists in TOOL_REGISTRY');
+if (switchTab) {
+  check(!!switchTab.inputSchema.properties.active, 'switch_tab has active in inputSchema.properties');
+  check(switchTab.inputSchema.properties.active.type === 'boolean', 'switch_tab.active type is boolean');
+  check(switchTab.inputSchema.properties.active.default === false, 'switch_tab.active default is false');
+  check(!((switchTab.inputSchema.required || []).includes('active')), 'switch_tab.active is OPTIONAL');
+}
+
+const closeTab = td.getToolByName('close_tab');
+check(!!closeTab, 'close_tab exists in TOOL_REGISTRY');
+if (closeTab) {
+  check(!!closeTab.inputSchema.properties.tab_id, 'close_tab has tab_id in inputSchema.properties');
+  check(!((closeTab.inputSchema.required || []).includes('tab_id')), 'close_tab.tab_id is OPTIONAL');
+  check(!!closeTab.inputSchema.properties.allow_active, 'close_tab has allow_active in inputSchema.properties');
+  check(closeTab.inputSchema.properties.allow_active.type === 'boolean', 'close_tab.allow_active type is boolean');
+  check(closeTab.inputSchema.properties.allow_active.default === false, 'close_tab.allow_active default is false');
+  check(!((closeTab.inputSchema.required || []).includes('allow_active')), 'close_tab.allow_active is OPTIONAL');
+}
+
 // Action tools have tab_id (Plan 02 Task 4 -- 35 tools)
 const actionTools = ['execute_js','navigate','search','go_back','go_forward','refresh','click','type_text','press_enter','press_key','select_option','check_box','hover','right_click','double_click','select_text_range','drag_drop','drop_file','focus','clear_input','scroll','scroll_to_top','scroll_to_bottom','scroll_to_element','wait_for_element','wait_for_stable','fill_sheet','click_at','click_and_hold','drag','drag_variable_speed','scroll_at','insert_text','double_click_at','set_attribute'];
 actionTools.forEach(function(name) {

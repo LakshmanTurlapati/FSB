@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage, targetTabIdFromParams } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 import {
   TOOL_REGISTRY,
@@ -49,40 +50,13 @@ async function execAction(
 
   return queue.enqueue(toolName, async () => {
     try {
-      const agentId = await agentScope.ensure(bridge);
-      // Phase 240 Open Q1: thread the most recently captured ownershipToken
-      // alongside agentId so the extension's dispatch gate can verify the
-      // 3-tuple (agentId, tabId, ownershipToken). Token is null on the very
-      // first call (no bindTab has resolved yet); the gate accepts null token
-      // for tools without a tabId and for legacy back-compat where the
-      // registry's isOwnedBy(token === undefined) returns true.
-      const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-        ? agentScope.currentOwnershipToken()
-        : null;
-      // Phase 241 D-08: thread connection_id alongside ownershipToken so the
-      // extension's registry can match agents to the current bridge connect
-      // when staging release on _ws.onclose. Defensive function-presence
-      // probe keeps older AgentScope builds working (additive).
-      const connectionId = (typeof agentScope.currentConnectionId === 'function')
-        ? agentScope.currentConnectionId()
-        : null;
-      const payload: Record<string, unknown> = { tool: fsbVerb, params, agentId };
-      if (ownershipToken) payload.ownershipToken = ownershipToken;
-      if (connectionId) payload.connectionId = connectionId;
-      const result = await bridge.sendAndWait(
-        { type: 'mcp:execute-action', payload },
-        { timeout },
+      const result = await sendAgentScopedBridgeMessage(
+        bridge,
+        agentScope,
+        'mcp:execute-action',
+        { tool: fsbVerb, params },
+        { timeout, targetTabId: targetTabIdFromParams(params) },
       );
-      // Phase 240 D-08: capture any ownershipToken returned by the handler so
-      // subsequent calls (read-only or otherwise) thread the latest token.
-      if (result
-          && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-          && typeof agentScope.captureOwnershipToken === 'function') {
-        agentScope.captureOwnershipToken(
-          typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-          (result as { ownershipToken: string }).ownershipToken,
-        );
-      }
       if (!result?.success) {
         console.error(`[FSB Manual] ${toolName}: FAILED - ${result?.error || 'unknown error'}`);
       }

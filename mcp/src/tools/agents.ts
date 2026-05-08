@@ -4,6 +4,7 @@ import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import type { MCPResponse } from '../types.js';
 import { AgentScope } from '../agent-scope.js';
+import { sendAgentScopedBridgeMessage } from '../agent-bridge.js';
 import { mapFSBError } from '../errors.js';
 
 /**
@@ -37,34 +38,16 @@ export function registerAgentTools(
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('back', async () => {
-        const agentId = await agentScope.ensure(bridge);
-        // Phase 240: thread the most recently captured ownershipToken alongside
-        // agentId so the extension's dispatch gate can verify the 3-tuple.
-        const ownershipToken = (typeof agentScope.currentOwnershipToken === 'function')
-          ? agentScope.currentOwnershipToken()
-          : null;
-        // Phase 241 D-08: thread connection_id (additive; defensive probe).
-        const connectionId = (typeof agentScope.currentConnectionId === 'function')
-          ? agentScope.currentConnectionId()
-          : null;
-        const payload: Record<string, unknown> = { agentId };
-        if (ownershipToken) payload.ownershipToken = ownershipToken;
-        if (connectionId) payload.connectionId = connectionId;
+        const targetTabId = typeof tab_id === 'number' ? tab_id : null;
+        const payload: Record<string, unknown> = {};
         if (typeof tab_id === 'number') payload.tabId = tab_id;
-        const result = await bridge.sendAndWait(
-          { type: 'mcp:go-back', payload },
-          { timeout: 5_000 },  // 2s settle + 3s headroom (RESEARCH Pattern 1)
+        const result = await sendAgentScopedBridgeMessage(
+          bridge,
+          agentScope,
+          'mcp:go-back',
+          payload,
+          { timeout: 5_000, targetTabId },  // 2s settle + 3s headroom (RESEARCH Pattern 1)
         );
-        // Phase 240 D-08 parity: capture any ownershipToken returned by the
-        // handler so subsequent calls thread the latest token.
-        if (result
-            && typeof (result as { ownershipToken?: unknown }).ownershipToken === 'string'
-            && typeof agentScope.captureOwnershipToken === 'function') {
-          agentScope.captureOwnershipToken(
-            typeof (result as { tabId?: unknown }).tabId === 'number' ? (result as { tabId: number }).tabId : null,
-            (result as { ownershipToken: string }).ownershipToken,
-          );
-        }
         return mapFSBError(result);
       });
     },

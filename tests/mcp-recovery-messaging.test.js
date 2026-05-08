@@ -93,6 +93,63 @@ async function run() {
       },
     },
     {
+      label: 'NO_OWNED_TAB',
+      input: {
+        success: false,
+        code: 'NO_OWNED_TAB',
+        agentId: 'agent_zero',
+      },
+      checks(text) {
+        assert(text.includes('Agent scope'), 'NO_OWNED_TAB fixture names Agent scope layer');
+        assert(text.includes('open_tab'), 'NO_OWNED_TAB fixture suggests open_tab');
+        assert(!text.includes('Page navigation'), 'NO_OWNED_TAB fixture does NOT use Page navigation layer');
+      },
+    },
+    {
+      label: 'AMBIGUOUS_TAB',
+      input: {
+        success: false,
+        code: 'AMBIGUOUS_TAB',
+        agentId: 'agent_multi',
+        tabIds: [42, 43],
+      },
+      checks(text) {
+        assert(text.includes('Agent scope'), 'AMBIGUOUS_TAB fixture names Agent scope layer');
+        assert(text.includes('list_tabs'), 'AMBIGUOUS_TAB fixture suggests list_tabs');
+        assert(text.includes('tab_id'), 'AMBIGUOUS_TAB fixture suggests tab_id');
+        assert(!text.includes('Page navigation'), 'AMBIGUOUS_TAB fixture does NOT use Page navigation layer');
+      },
+    },
+    {
+      label: 'TAB_NOT_OWNED',
+      input: {
+        success: false,
+        code: 'TAB_NOT_OWNED',
+        ownerAgentId: 'agent_owner',
+        requestingAgentId: 'agent_requester',
+        requestedTabId: 42,
+      },
+      checks(text) {
+        assert(text.includes('Tab ownership'), 'TAB_NOT_OWNED fixture names Tab ownership layer');
+        assert(text.includes('agent_owner'), 'TAB_NOT_OWNED fixture mentions owner');
+        assert(!text.includes('Page navigation'), 'TAB_NOT_OWNED fixture does NOT use Page navigation layer');
+      },
+    },
+    {
+      label: 'AGENT_CAP_REACHED',
+      input: {
+        success: false,
+        code: 'AGENT_CAP_REACHED',
+        cap: 8,
+        active: 8,
+      },
+      checks(text) {
+        assert(text.includes('Agent scope'), 'AGENT_CAP_REACHED fixture names Agent scope layer');
+        assert(text.includes('8'), 'AGENT_CAP_REACHED fixture includes cap/active values');
+        assert(!text.includes('Page navigation'), 'AGENT_CAP_REACHED fixture does NOT use Page navigation layer');
+      },
+    },
+    {
       // Phase 225-01: replace the misleading "Page navigation / Refresh page state"
       // fallback with an accurate Session lookup diagnostic when get_session_detail
       // or stop_task cannot resolve the session id in either active or historical

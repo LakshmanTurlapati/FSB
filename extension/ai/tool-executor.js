@@ -283,7 +283,7 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
 
       case 'open_tab': {
         const url = params?.url || 'about:blank';
-        const active = params?.active !== false;
+        const active = params?.active === true;
         const newTab = await chrome.tabs.create({ url, active });
         return makeResult({
           success: true,
@@ -305,7 +305,7 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
         const switchTabDef = (typeof _te_getToolByName === 'function')
           ? _te_getToolByName('switch_tab')
           : null;
-        const forceForeground = !!(switchTabDef && switchTabDef._forceForeground === true);
+        const forceForeground = !!(switchTabDef && switchTabDef._forceForeground === true && params?.active === true);
         if (forceForeground) {
           await chrome.tabs.update(targetTabId, { active: true });
           // Focus the window containing the tab

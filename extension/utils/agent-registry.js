@@ -240,7 +240,8 @@
   // Mirrors mcp-visual-session.js:85-88 -- the v0.9.36 storage-keyed manager
   // pattern. Three Maps form the in-memory authoritative state:
   //
-  //   _agents      : agentId  -> AgentRecord { agentId, createdAt, tabIds }
+  //   _agents      : agentId  -> AgentRecord { agentId, createdAt, tabIds,
+  //                    selectedTabId? }
   //   _tabOwners   : tabId    -> agentId      (AUTHORITATIVE owner index)
   //   _tabsByAgent : agentId  -> Set<tabId>   (reverse index for fast lookup)
   //
@@ -477,6 +478,7 @@
       var record = self._agents.get(agentId);
       if (record) {
         record.tabIds = Array.from(ownedTabs);
+        record.selectedTabId = tabId;
         // Phase 240 Open Q2: per-agent window pinning. Set ONCE on first
         // bindTab; never overwritten. Dispatch gate consumes via
         // getAgentWindowId for cross-window detection.
@@ -534,6 +536,14 @@
         var record = self._agents.get(agentId);
         if (record) {
           record.tabIds = Array.from(ownedTabs);
+          if (record.selectedTabId === tabId) {
+            var nextSelected = ownedTabs.values().next();
+            if (nextSelected && nextSelected.done === false && Number.isFinite(nextSelected.value)) {
+              record.selectedTabId = nextSelected.value;
+            } else {
+              delete record.selectedTabId;
+            }
+          }
         }
         // Phase 241 D-10 / POOL-04: when the pool drains to zero, release the
         // agent record itself. Inlined (cannot call releaseAgent from inside
@@ -1027,6 +1037,19 @@
   };
 
   /**
+   * Synchronous read: which tab is selected for this agent's implicit
+   * no-tab_id calls? Returns null when the agent is unknown, owns no tabs, or
+   * the persisted selected tab no longer belongs to the agent.
+   */
+  AgentRegistry.prototype.getSelectedTabId = function(agentId) {
+    var record = this._agents.get(agentId);
+    if (!record || !Number.isFinite(record.selectedTabId)) return null;
+    var ownedTabs = this._tabsByAgent.get(agentId);
+    if (!ownedTabs || !ownedTabs.has(record.selectedTabId)) return null;
+    return record.selectedTabId;
+  };
+
+  /**
    * Synchronous read: list all agents. Returns shallow CLONES so callers
    * cannot mutate live records. Order is insertion order (Map semantics).
    */
@@ -1094,6 +1117,9 @@
         // staged-release recovery can match agents on the persisted snapshot.
         if (typeof record.connectionId === 'string') {
           rebuilt.connectionId = record.connectionId;
+        }
+        if (Number.isFinite(record.selectedTabId) && tabIds.indexOf(record.selectedTabId) !== -1) {
+          rebuilt.selectedTabId = record.selectedTabId;
         }
         self._agents.set(agentId, rebuilt);
         self._tabsByAgent.set(agentId, new Set(tabIds));
@@ -1175,7 +1201,12 @@
               self._agents.delete(agentId);
             } else {
               var rec = self._agents.get(agentId);
-              if (rec) rec.tabIds = Array.from(setRef);
+              if (rec) {
+                rec.tabIds = Array.from(setRef);
+                if (rec.selectedTabId === tabId) {
+                  delete rec.selectedTabId;
+                }
+              }
             }
           }
         }
@@ -1286,6 +1317,9 @@
       // recovery path can match staged releases against rehydrated agents.
       if (typeof record.connectionId === 'string') {
         stored.connectionId = record.connectionId;
+      }
+      if (Number.isFinite(record.selectedTabId) && tabSet && tabSet.has(record.selectedTabId)) {
+        stored.selectedTabId = record.selectedTabId;
       }
       records[agentId] = stored;
     });

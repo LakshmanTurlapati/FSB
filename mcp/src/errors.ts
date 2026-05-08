@@ -43,11 +43,24 @@ const LAYER_LABELS = {
   extension: 'Extension attachment',
   contentScript: 'Content script availability',
   toolRouting: 'Tool routing',
+  agentScope: 'Agent scope',
+  tabOwnership: 'Tab ownership',
   restrictedPage: 'Restricted page',
   pageNavigation: 'Page navigation',
   visualSession: 'Visual session contract',
   sessionLookup: 'Session lookup',
 } as const;
+
+const CODE_ONLY_ERROR_KEYS = new Set([
+  'NO_OWNED_TAB',
+  'AMBIGUOUS_TAB',
+  'AGENT_NOT_REGISTERED',
+  'TAB_NOT_OWNED',
+  'TAB_INCOGNITO_NOT_SUPPORTED',
+  'TAB_OUT_OF_SCOPE',
+  'AGENT_CAP_REACHED',
+  'AGENT_REGISTRY_UNAVAILABLE',
+]);
 
 type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
 type ErrorDetail = {
@@ -83,9 +96,11 @@ function resolveErrorKey(
   fsbResult: Record<string, unknown> | null | undefined,
   errorMsg: string,
 ): string {
-  const errorCode = typeof fsbResult?.errorCode === 'string' ? fsbResult.errorCode : '';
-  if (FSB_ERROR_MESSAGES[errorCode]) {
-    return errorCode;
+  const explicitCode = typeof fsbResult?.errorCode === 'string'
+    ? fsbResult.errorCode
+    : (typeof fsbResult?.code === 'string' ? fsbResult.code : '');
+  if (FSB_ERROR_MESSAGES[explicitCode] || CODE_ONLY_ERROR_KEYS.has(explicitCode)) {
+    return explicitCode;
   }
 
   const lower = errorMsg.toLowerCase();
@@ -145,6 +160,18 @@ function buildLayeredDetail(
     : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '');
   const allowedClients = getAllowedClientLabels(fsbResult);
   const clientLabel = typeof fsbResult?.clientLabel === 'string' ? fsbResult.clientLabel : '';
+  const agentId = typeof fsbResult?.agentId === 'string'
+    ? fsbResult.agentId
+    : (typeof fsbResult?.requestingAgentId === 'string' ? fsbResult.requestingAgentId : '');
+  const ownerAgentId = typeof fsbResult?.ownerAgentId === 'string' ? fsbResult.ownerAgentId : '';
+  const requestedTabId = typeof fsbResult?.requestedTabId === 'number'
+    ? fsbResult.requestedTabId
+    : (typeof fsbResult?.tabId === 'number' ? fsbResult.tabId : undefined);
+  const tabIds = Array.isArray(fsbResult?.tabIds)
+    ? fsbResult.tabIds.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+    : [];
+  const cap = typeof fsbResult?.cap === 'number' ? fsbResult.cap : undefined;
+  const active = typeof fsbResult?.active === 'number' ? fsbResult.active : undefined;
 
   switch (errorKey) {
     case 'package_version_mismatch':
@@ -198,6 +225,64 @@ function buildLayeredDetail(
         detected: LAYER_LABELS.pageNavigation,
         why: `Navigation to ${url || 'the requested URL'} failed.`,
         nextAction: 'Verify the destination URL or switch to a normal website tab, then retry.',
+      };
+    case 'NO_OWNED_TAB':
+      return {
+        detected: LAYER_LABELS.agentScope,
+        why: agentId
+          ? `Agent ${agentId} does not currently own any tabs.`
+          : 'The calling agent does not currently own any tabs.',
+        nextAction: 'Use open_tab to create and claim a new tab, or switch_tab/navigate to claim an unowned normal browser tab.',
+      };
+    case 'AMBIGUOUS_TAB':
+      return {
+        detected: LAYER_LABELS.agentScope,
+        why: tabIds.length > 0
+          ? `The calling agent owns multiple tabs (${tabIds.join(', ')}), so the target is ambiguous.`
+          : 'The calling agent owns multiple tabs, so the target is ambiguous.',
+        nextAction: 'Use list_tabs, then retry with the intended tab_id.',
+      };
+    case 'AGENT_NOT_REGISTERED':
+      return {
+        detected: LAYER_LABELS.agentScope,
+        why: agentId
+          ? `Agent ${agentId} is not registered in the extension registry.`
+          : 'The request did not include a registered FSB agent id.',
+        nextAction: 'Retry the tool call so the MCP server can run agent:register, or reconnect the MCP bridge if registration keeps failing.',
+      };
+    case 'TAB_NOT_OWNED':
+      return {
+        detected: LAYER_LABELS.tabOwnership,
+        why: ownerAgentId
+          ? `Tab ${requestedTabId ?? 'the requested tab'} is owned by ${ownerAgentId}, not the calling agent.`
+          : `Tab ${requestedTabId ?? 'the requested tab'} is not owned by the calling agent.`,
+        nextAction: 'Use a tab owned by this agent, open_tab to create a new owned tab, or list_tabs to inspect available tab ids.',
+      };
+    case 'TAB_INCOGNITO_NOT_SUPPORTED':
+      return {
+        detected: LAYER_LABELS.tabOwnership,
+        why: `Tab ${requestedTabId ?? 'the requested tab'} is an incognito tab, which this extension does not support for MCP automation.`,
+        nextAction: 'Use a normal browser tab instead.',
+      };
+    case 'TAB_OUT_OF_SCOPE':
+      return {
+        detected: LAYER_LABELS.tabOwnership,
+        why: `Tab ${requestedTabId ?? 'the requested tab'} is outside this agent's allowed browser window.`,
+        nextAction: 'Use list_tabs to choose a tab in the agent window, or open_tab to create a new owned tab there.',
+      };
+    case 'AGENT_CAP_REACHED':
+      return {
+        detected: LAYER_LABELS.agentScope,
+        why: cap !== undefined && active !== undefined
+          ? `The configured agent cap is ${cap}, and ${active} agents are already active.`
+          : 'The configured concurrent-agent cap has been reached.',
+        nextAction: 'Release an existing agent/session or raise the concurrency cap in the FSB settings before retrying.',
+      };
+    case 'AGENT_REGISTRY_UNAVAILABLE':
+      return {
+        detected: LAYER_LABELS.agentScope,
+        why: 'The extension-side agent registry is not available, so the tool cannot resolve or enforce tab ownership.',
+        nextAction: 'Reload or reconnect the FSB extension, then retry after agent:register succeeds.',
       };
     case 'invalid_client_label':
       return {
