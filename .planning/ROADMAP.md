@@ -160,7 +160,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete   | 2026-05-08 |
+| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
 | 249. SKILL.md + Scripts | 0/0 | Not started (gated on 248) | - |
 | 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
