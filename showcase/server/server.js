@@ -124,7 +124,7 @@ if (staticPath) {
 // the previous all-routes -> root-index SPA fallback, which would have shadowed
 // crawler files and served the wrong <title>/<meta> for /about /privacy /support
 // after Phase 215 prerender landed.
-const marketingRoutes = new Set(['/', '/about', '/privacy', '/support']);
+const marketingRoutes = new Set(['/', '/about', '/agents', '/privacy', '/support']);
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return next();

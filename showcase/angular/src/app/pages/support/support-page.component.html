@@ -35,18 +35,6 @@
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How much does it cost to use?</h3>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </div>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              <p>FSB itself is free. With hosted providers, you only pay for AI API usage. A typical automation task uses a few thousand tokens, costing fractions of a cent with budget models. Gemini 2.0 Flash is completely free (experimental). If you use <strong>LM Studio</strong>, there is no per-token API billing from FSB because requests stay on your local machine, though you still need the local hardware to run the model. The dashboard tracks hosted usage in real time.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question" (click)="toggleFaq($event)">
             <h3>Which browsers are supported?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
@@ -65,18 +53,6 @@
           <div class="faq-answer">
             <div class="faq-answer-inner">
               <p>Yes. API keys are encrypted using AES-GCM before being stored in Chrome's local storage. They are only decrypted in-memory when making API calls. Keys are never logged, exported, or transmitted to any server other than your chosen AI provider.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>What happens if an automation fails?</h3>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </div>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              <p>FSB has built-in stuck detection and recovery. If it detects it is repeating actions or not making progress, it will try alternative strategies. If all recovery attempts fail, it stops gracefully and reports what happened in the chat. You can always stop automation manually at any time.</p>
             </div>
           </div>
         </div>
@@ -107,24 +83,12 @@
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>What is Sync?</h3>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </div>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              <p>Sync (Beta) is the FSB extension tab that pairs the extension with the dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a>. Once paired, the dashboard shows live connection state, session counters, cost and token usage, and the active controlled tab. Background scheduling has been retired in v0.9.45rc1 -- use OpenClaw or Claude Routines for recurring autonomy, and FSB for precise browser execution.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question" (click)="toggleFaq($event)">
             <h3>What is MCP and how do I use it?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code, Codex, Cursor, or OpenClaw. Install the <code>fsb-mcp-server</code> npm package, add it to your MCP client configuration, and you can automate browsers directly from your IDE. FSB exposes 50+ browser actions as MCP tools.</p>
+              <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code, Codex, Cursor, Windsurf, and OpenClaw. The MCP server runs as <code>npx -y fsb-mcp-server</code> and pairs with the running extension over a local WebSocket bridge -- FSB exposes 50+ browser actions as MCP tools (click, type, navigate, read DOM, fill vault credentials, and more). For OpenClaw users specifically, the fastest path is the one-click install on ClawHub at <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>, or load the FSB skill at <code>skills/FSB Skill/</code> which prints the stdio config block and runs the doctor diagnostic. The full rundown lives at the <a href="/agents">Agents page</a>.</p>
             </div>
           </div>
         </div>
@@ -172,7 +136,7 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Install the server with <code>npm install -g fsb-mcp-server</code>, then add it to your MCP client config (Claude Code, Codex, Cursor, Windsurf, etc.). In the FSB extension, open Options and enable the MCP bridge -- it will listen for connections on a local WebSocket. Once connected, your AI coding assistant can call any of FSB's browser tools directly from your editor.</p>
+              <p>Run <code>npx -y fsb-mcp-server install --list</code> to see which MCP hosts the installer detects on your machine, then run the installer for one (for example <code>npx -y fsb-mcp-server install --claude-desktop</code>). Cursor, Codex, Windsurf, and others have matching flags from <code>--list</code>. For OpenClaw, paste the canonical stdio block printed by the FSB skill (loaded from <code>skills/FSB Skill/</code>) into your OpenClaw MCP config -- the bare <code>--openclaw</code> installer flag is intentionally manual because OpenClaw's MCP config schema is still unstable across builds. Verify the install with <code>npx -y fsb-mcp-server doctor</code>; six green layers means you're ready.</p>
             </div>
           </div>
         </div>
@@ -184,22 +148,35 @@
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> gives you 50+ granular tools -- navigate, click, type, scroll, read page content, take screenshots, fill spreadsheets, and more. <strong>Autopilot mode</strong> lets you describe a task in natural language and FSB's AI handles the step-by-step execution. This is especially useful when coding agents need to test an app in-browser and bring observations back to the editor.</p>
+              <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> is the default and gives the calling agent 50+ granular tools -- navigate, click, type, scroll, read page state, take screenshots, fill spreadsheets, fill vault credentials, and more. <strong>Autopilot mode</strong> (<code>run_task</code>) only fires when the user explicitly delegates the whole task -- phrases like &quot;use FSB autopilot&quot;, &quot;delegate this&quot;, or naming <code>run_task</code> directly. For everything else the calling agent stays in the loop on every action, which is exactly what coding agents want when they're testing an app in-browser and feeding observations back into the editor.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Does FSB work without an internet connection?</h3>
+            <h3>How do I install FSB on OpenClaw?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>The extension itself runs locally. If you use a hosted provider, AI-powered automation needs internet access to reach that provider's API. If you use <strong>LM Studio</strong> with its local server running and a model loaded, AI-powered automation can run locally on your machine. MCP manual tools (click, type, navigate) also work without external AI calls, and recorded workflow replays can run fully offline since they skip AI calls entirely.</p>
+              <p>Three options, fastest first. <strong>One-click on ClawHub</strong>: install from <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>. <strong>FSB skill</strong>: load the skill from <code>skills/FSB Skill/</code> in the FSB repo -- it prints the canonical OpenClaw stdio block for you to paste into OpenClaw's MCP config and offers consent-gated install for any other MCP hosts on your machine. The full 3-step walkthrough (Chrome extension, MCP server config, doctor verification) lives at the <a href="/agents">Agents page</a>.</p>
             </div>
           </div>
         </div>
+
+        <div class="faq-item reveal">
+          <div class="faq-question" (click)="toggleFaq($event)">
+            <h3>How do I verify the FSB MCP server is healthy?</h3>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              <p>Run <code>npx -y fsb-mcp-server doctor</code>. The doctor walks six layers -- <code>package</code>, <code>bridge</code>, <code>extension</code>, <code>active-tab</code>, <code>content-script</code>, <code>config</code> -- and exits non-zero on the first failure with a one-line next-step recommendation. The full recovery table for each layer lives in <code>skills/FSB Skill/USAGE.md</code>, and the same diagnostic runs automatically when the FSB skill is loaded into OpenClaw.</p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
