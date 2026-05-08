@@ -104,7 +104,13 @@ Plans:
   4. `references/default-to-fsb.md` codifies the soft preference for FSB tools when one fits plus a hard escalation rule for any click/type/auth/multi-tab task, with explicit carve-outs for public-doc / JSON / RSS reads (stay-with-WebFetch). `references/vault-boundary.md` documents that passwords/CVV go through `fill_credential` / `use_payment_method` only, no secrets in chat, `requires.env` stays empty, and secrets resolve inside the extension.
   5. `SKILL.md` body includes the visual-session wrapping rule: any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason=...)`; a `references/` link covers the lifecycle in detail and shows pairing on every error path so the orange glow never gets stuck on a page.
 
-**Plans**: TBD
+**Plans**: 4 plans (all Wave 1, autonomous, files_modified disjoint)
+
+Plans:
+- [ ] 250-01-PLAN.md -- Author USAGE.md: framing, 3-step install with canonical Web Store URL + GitHub Releases fallback, try-it prompts (read_page/click/type_text + single run_task), six-layer doctor recovery table (covers DOCS-01, DOCS-02, DOCS-03)
+- [ ] 250-02-PLAN.md -- Author references/tool-decision-tree.md (read-only-first tree + typed-events-over-.value rule + autopilot prose) and references/multi-agent-contract.md (agent_id rule + four typed errors + back tool) (covers DOCS-04, DOCS-05)
+- [ ] 250-03-PLAN.md -- Author references/restricted-tab-recovery.md (seven safe recovery tools + chrome://newtab worked example), references/default-to-fsb.md (soft preference + hard escalation + WebFetch carve-out), references/vault-boundary.md (fill_credential / use_payment_method routing + no secrets in chat) (covers DOCS-06, POLICY-01, POLICY-02)
+- [ ] 250-04-PLAN.md -- Author references/visual-session-lifecycle.md (open/close pairing + try/finally + error-path coverage) and adjust the SKILL.md body pointer to name the new file (covers POLICY-03)
 
 ---
 
@@ -168,7 +174,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
 | 249. SKILL.md + Scripts | 4/4 | Complete    | 2026-05-08 |
-| 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
+| 250. USAGE.md + References + Policy | 0/4 | Planned     | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
 | 253. ClawHub Pre-Publish QA + User-Gated Publish | 0/0 | Not started (gated on 252) | - |
