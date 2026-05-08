@@ -79,7 +79,13 @@ Plans:
   4. `scripts/install-host.mjs` detects other MCP hosts via `npx -y fsb-mcp-server install --list`, lists them, prompts `y/n` per host, and only invokes `npx -y fsb-mcp-server install --<host>` on explicit yes; never `--all` without consent; never auto-writes OpenClaw config.
   5. All three scripts run end-to-end on macOS, Linux, and Windows happy paths using `.mjs` only (no `.sh`/`.cmd` siblings); re-running the install end-to-end on a fully-installed system produces zero file mutations and only "already configured" lines.
 
-**Plans**: TBD
+**Plans**: 4 plans (all Wave 1, autonomous, files_modified disjoint)
+
+Plans:
+- [ ] 249-01-PLAN.md -- Author SKILL.md frontmatter (verified OpenClaw shape) and concise body with progressive-disclosure pointers (covers SKILL-01, SKILL-02)
+- [ ] 249-02-PLAN.md -- Implement scripts/doctor.mjs (six-layer dispatcher wrapping `npx -y fsb-mcp-server doctor` with [OK]/[FAIL]/[WARN] markers) (covers SKILL-03, SKILL-06)
+- [ ] 249-03-PLAN.md -- Implement scripts/print-stdio.mjs (canonical OpenClaw stdio block, parity-locked with mcp/src/install.ts) (covers SKILL-04, SKILL-06)
+- [ ] 249-04-PLAN.md -- Implement scripts/install-host.mjs (consent-gated detect-list-confirm flow, never --all, never --openclaw) (covers SKILL-05, SKILL-06)
 
 ---
 
@@ -161,7 +167,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete    | 2026-05-08 |
-| 249. SKILL.md + Scripts | 0/0 | Not started (gated on 248) | - |
+| 249. SKILL.md + Scripts | 0/4 | Planned                    | - |
 | 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
 | 252. Repo Integration & Doc Updates | 0/0 | Not started (gated on 251) | - |
