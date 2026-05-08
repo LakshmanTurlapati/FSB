@@ -31,7 +31,7 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 
 ## Phases
 
-- [ ] **Phase 248: OpenClaw Spec Verification Gate + Repo Scaffolding** -- Verify OpenClaw skill schema against a live build and stand up the empty `skills/FSB Skill/` skeleton.
+- [x] **Phase 248: OpenClaw Spec Verification Gate + Repo Scaffolding** -- Verify OpenClaw skill schema against a live build and stand up the empty `skills/FSB Skill/` skeleton. (completed 2026-05-08)
 - [ ] **Phase 249: SKILL.md + Scripts** -- Author SKILL.md frontmatter and the three `.mjs` orchestration scripts so the skill is end-to-end executable on a clean machine.
 - [ ] **Phase 250: USAGE.md + References + Policy** -- Ship the human-facing one-pager and the five reference files that teach OpenClaw the FSB priors (tools, multi-agent contract, restricted-tab recovery, vault boundary, default-to-FSB rule, visual-session lifecycle).
 - [ ] **Phase 251: Tests + CI Integration** -- Wire `tests/skill-fsb-spec.test.js` into the root `npm test` chain so the skill is covered by the `ci / all-green` gate.
@@ -59,8 +59,8 @@ Ship an OpenClaw skill at `skills/FSB Skill/` that installs `fsb-mcp-server`, wa
 **Plans**: 2 plans (parallel, both autonomous)
 
 Plans:
-- [ ] 248-01-PLAN.md -- Refine and pin the OpenClaw spec verification findings doc (.planning/v0.9.61-OPENCLAW-SPEC.md); add schema-pinned sign-off; record ClawHub name decision (covers SCAFFOLD-01..04)
-- [ ] 248-02-PLAN.md -- Stand up empty skills/FSB Skill/ skeleton (SKILL.md, USAGE.md, references/README.md, scripts/README.md placeholders); no frontmatter, no scripts (covers SCAFFOLD-05)
+- [x] 248-01-PLAN.md -- Refine and pin the OpenClaw spec verification findings doc (.planning/v0.9.61-OPENCLAW-SPEC.md); add schema-pinned sign-off; record ClawHub name decision (covers SCAFFOLD-01..04)
+- [x] 248-02-PLAN.md -- Stand up empty skills/FSB Skill/ skeleton (SKILL.md, USAGE.md, references/README.md, scripts/README.md placeholders); no frontmatter, no scripts (covers SCAFFOLD-05)
 
 ---
 
@@ -160,7 +160,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 0/2 | Not started | - |
+| 248. OpenClaw Spec Verification Gate + Repo Scaffolding | 2/2 | Complete   | 2026-05-08 |
 | 249. SKILL.md + Scripts | 0/0 | Not started (gated on 248) | - |
 | 250. USAGE.md + References + Policy | 0/0 | Not started (gated on 249) | - |
 | 251. Tests + CI Integration | 0/0 | Not started (gated on 250) | - |
