@@ -6,7 +6,7 @@ user-invocable: true
 requires:
   bins: [node, npx]
   env: []
-homepage: https://github.com/LakshmanTurlapati/FSB
+homepage: https://full-selfbrowsing.com
 metadata:
   openclaw: {"install":[{"kind":"node","package":"fsb-mcp-server","bins":["fsb-mcp-server"],"label":"Install FSB MCP server (npm)"}]}
 ---
