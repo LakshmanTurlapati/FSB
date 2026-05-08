@@ -69,19 +69,6 @@
   color: var(--text-primary);
 }
 
-.nav-with-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.nav-icon {
-  width: 18px;
-  height: 18px;
-  display: block;
-  flex: 0 0 auto;
-}
-
 .nav-links a.active::after {
   content: '';
   position: absolute;

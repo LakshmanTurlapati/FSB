@@ -74,19 +74,19 @@ Manual-mode prompts are the default entry point. Each one calls a single FSB too
 
 ### Autopilot (explicit delegation only)
 
-NEVER call `run_task` (autopilot) unless the user has explicitly said something like "use FSB autopilot", "delegate this to FSB", "run the whole task autonomously", or named `run_task` directly. Manual-mode tools (`read_page`, `click`, `type_text`, `press_enter`, etc.) are the default for everything else, including multi-step tasks. If the user has not asked for autopilot, drive each step yourself with manual-mode tools and observe the result before the next step.
+NEVER call `run_task` (autopilot) unless the user has explicitly said something like "use FSB autopilot", "delegate this to FSB", "run the whole task autonomously", or named `run_task` directly. Manual mode tools (`read_page`, `click`, `type_text`, `press_enter`, etc.) are the default for everything else, including tasks with many steps. If the user has not asked for autopilot, drive each step yourself with manual mode tools and observe the result before the next step.
 
-When the user does explicitly delegate, autopilot hands the full plan-and-execute loop to FSB. Example invocation:
+When the user does explicitly delegate, autopilot hands the full plan and execute loop to FSB. Example invocation:
 
-- Exercise `run_task`: "Use FSB autopilot to find the first GitHub repo for `fsb-mcp-server` and report a one-paragraph summary of its README."
+- Exercise `run_task`: "Use FSB autopilot to find the first GitHub repo for `fsb-mcp-server` and report a one paragraph summary of its README."
 
-Autopilot is NOT the default entry point. Re-read the user's message before reaching for `run_task`; if delegation language is missing, stay in manual mode.
+Autopilot is NOT the default entry point. Read the user's message again before reaching for `run_task`. If delegation language is missing, stay in manual mode.
 
 ## Visual session handling
 
-FSB shows a trusted client badge and an orange element-targeting overlay on the user's tab while a tool sequence is running, so the user can see what is being driven. OpenClaw is a trusted client; wrap any external-AI-driven sequence in an explicit visual session.
+FSB shows a trusted client badge and an orange element targeting overlay on the user's tab while a tool sequence is running, so the user can see what is being driven. OpenClaw is a trusted client. Wrap any sequence driven by an external AI in an explicit visual session.
 
-Open the session before the first action and close it on every termination path -- success, error, abort, user cancel. The pairing rule:
+Open the session before the first action and close it on every termination path: success, error, abort, user cancel. The pairing rule:
 
 ```
 const { session_token } = await start_visual_session({
@@ -103,12 +103,12 @@ try {
 
 Cleanup rules (must hold on every termination path, not just success):
 
-- Always close the session in a `finally` block (or equivalent error-path handling). The orange glow stays on the user's tab until `end_visual_session` is called -- if the agent crashes or returns without closing, the user sees a stuck overlay.
+- Always close the session in a `finally` block (or equivalent error path handling). The orange glow stays on the user's tab until `end_visual_session` is called. If the agent crashes or returns without closing, the user sees a stuck overlay.
 - `reason` is one of `complete` (normal success), `error` (tool error or exception), `aborted` (agent decided to stop), `user_cancelled` (user interrupted). Pick the one that matches the actual termination state.
 - Close exactly once per session. Do NOT call `end_visual_session` twice with the same `session_token`.
 - If `run_task` (autopilot) is being used, autopilot manages its own visual session lifecycle. Do NOT wrap a `run_task` call in your own `start_visual_session` / `end_visual_session`.
 
-For lifecycle details, the full try/finally pattern, error-path coverage, and `[BAD]` / `[GOOD]` anti-pattern callouts, see `references/visual-session-lifecycle.md`.
+For lifecycle details, the full try/finally pattern, error path coverage, and `[BAD]` / `[GOOD]` anti pattern callouts, see `references/visual-session-lifecycle.md`.
 
 ## Recover when the doctor fails
 
