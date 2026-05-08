@@ -62,14 +62,25 @@ for (const f of annotationFiles) {
   else fail('AGENTS-02 annotation MISSING in ' + f);
 }
 
-// ---- Section 2: AGENTS-02 zero LIVE server.tool() calls in mcp/src/tools/agents.ts ----
+// ---- Section 2: AGENTS-02 only `back` tool is LIVE in mcp/src/tools/agents.ts ----
+// Phase 242 (v0.9.60) added the `back` browser-history tool to this file. It is NOT a
+// background-agent tool; the AGENTS-02 invariant is "no background-agent tool registrations",
+// not "no tool registrations at all". Allow exactly one live registration AND assert it's `back`.
 
 {
   const src = read('mcp/src/tools/agents.ts');
   const lines = src.split('\n');
   const liveServerTool = lines.filter(line => /^[\s]*server\.tool\(/.test(line));
-  if (liveServerTool.length === 0) pass('AGENTS-02 zero LIVE server.tool() calls in agents.ts');
-  else fail('AGENTS-02 found ' + liveServerTool.length + ' LIVE server.tool() calls in agents.ts', JSON.stringify(liveServerTool.slice(0, 3)));
+  const allowedSingle = liveServerTool.length === 1;
+  // Confirm the single live registration is for `back` by scanning the next ~3 lines after the call.
+  let isBackTool = false;
+  if (allowedSingle) {
+    const idx = lines.findIndex(line => /^[\s]*server\.tool\(/.test(line));
+    const window = lines.slice(idx, idx + 4).join('\n');
+    isBackTool = /['"]back['"]/.test(window);
+  }
+  if (allowedSingle && isBackTool) pass('AGENTS-02 only `back` tool live in agents.ts (Phase 242 carve-out)');
+  else fail('AGENTS-02 found ' + liveServerTool.length + ' LIVE server.tool() calls in agents.ts (only `back` permitted)', JSON.stringify(liveServerTool.slice(0, 3)));
 }
 
 // ---- Section 3: AGENTS-02 registerAgentTools function shell preserved in runtime.ts (D-16) ----
@@ -77,7 +88,8 @@ for (const f of annotationFiles) {
 {
   const src = read('mcp/src/runtime.ts');
   const hasImport = /^\s*import\s*\{\s*registerAgentTools\s*\}\s*from\s*['"]\.\/tools\/agents\.js['"]/m.test(src);
-  const hasCall = /^\s*registerAgentTools\(server,\s*bridge,\s*queue\)\s*;/m.test(src);
+  // Phase 238 added agentScope as a 4th argument; signature is now (server, bridge, queue, agentScope).
+  const hasCall = /^\s*registerAgentTools\(server,\s*bridge,\s*queue(?:,\s*agentScope)?\)\s*;/m.test(src);
   if (hasImport && hasCall) pass('AGENTS-02 registerAgentTools import + call preserved in runtime.ts');
   else fail('AGENTS-02 registerAgentTools shell broken (import=' + hasImport + ', call=' + hasCall + ')');
 }

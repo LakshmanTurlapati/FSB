@@ -1,405 +1,311 @@
 # Feature Research
 
-**Domain:** SEO + GEO/AEO/LLMO discoverability for Angular 19 SPA marketing site (`full-selfbrowsing.com`)
-**Researched:** 2026-04-30
-**Milestone:** v0.9.46 Site Discoverability
-**Confidence:** HIGH (crawler list, llms.txt spec, sitemap status verified against vendor docs and Cloudflare data; JSON-LD weighting MEDIUM — community consensus rather than vendor-stated rankings)
+**Domain:** Multi-agent / multi-tab concurrency surface for an AI-driven Chrome extension exposing an MCP server (FSB autopilot + manual MCP tools)
+**Researched:** 2026-05-05
+**Milestone:** v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)
+**Confidence:** HIGH on the table-stakes contract (Browserbase Contexts, Playwright BrowserContext, Puppeteer-Cluster, Browser Use, Stagehand v3 cited from primary docs); MEDIUM on Project Mariner specifics (no published API; behavior inferred from Google DeepMind product copy + TechCrunch coverage); HIGH on the `back` tool scope (Playwright `page.goBack()` is the canonical reference)
 
 ## Existing Surface (Constraints On New Features)
 
-- 5 Angular routes: `/`, `/about`, `/dashboard`, `/privacy`, `/support` (`showcase/angular/src/app/app.routes.ts`)
-- `index.html` ships only `<title>FSB</title>` plus a CDN block for `html5-qrcode` and `lz-string` -- no description, no OG, no canonical, no JSON-LD
-- Per the milestone in `PROJECT.md`, marketing routes (`/`, `/about`, `/privacy`, `/support`) are prerendered; `/dashboard` stays SPA (auth-gated, not for crawlers)
-- Express SPA-fallback must serve prerendered HTML before the catch-all -- already in target features
+These already exist in FSB and define the boundary the new multi-agent surface must respect. Pulled from `PROJECT.md` and the milestone brief; do not re-design these.
 
-These constrain where each feature can live: anything that must be visible to non-JS crawlers has to be in prerendered HTML at build time, not injected by Angular runtime on a stale `<app-root>`.
+- **Single-agent autopilot loop** -- popup/sidepanel-driven, one task at a time, binds to one active tab. Multi-agent must not regress this; a 1-agent run is a degenerate case of N-agent.
+- **MCP `run_task` tool** -- one autopilot run per call. v0.9.60 ships Phase 236 (return on completion, not 300s ceiling) inside the same MCP `0.8.0` release; that is a separate workstream from agent identity but lands together.
+- **Manual MCP tools** -- `click`, `type`, `navigate`, etc., already work; v0.9.60 adds `back`. These tools currently target the active tab implicitly. Multi-agent flips this to "target the agent's owned tab."
+- **Explicit visual sessions + trusted-client allowlist (v0.9.36)** -- Claude/Codex/Cursor render a trusted badge during MCP visual sessions. Agent identity in v0.9.60 is **finer-grained than client identity**: one trusted client may run multiple agents in parallel, each needing its own tab lock. Reuse the allowlist for badge/labeling; do not reuse it as the agent identity.
+- **DOM streaming, remote control, dashboard pairing** -- already shipped. Out of scope here, but multi-agent overlay/badge collisions on the same window are a known constraint (see deferred item from v0.9.36: "MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions" -- v0.9.60 effectively closes this gap).
+- **Hard cap target: 8 concurrent agents** -- already decided in the milestone brief. Research confirms this is in the same neighborhood as Project Mariner's "up to 10 tasks at once" and well within Chrome's practical tab budget on a developer machine. Treat 8 as a fixed product decision; this research does not relitigate it.
+- **Lock release rules: task ends, MCP client disconnects, user closes the tab** -- explicit "no idle timeout." Research notes (below) confirm this is the user-friendly default; idle-timeout reaping is an anti-feature in interactive surfaces.
+- **Branch-locked to `Refinements`; no push/PR until explicit user command** -- planning posture, not a feature constraint, but conditions how aggressively the surface can be extended.
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Missing any of these = the site looks abandoned to Google, ChatGPT, Claude, and Perplexity.
+Missing any of these = the multi-agent surface looks broken or unsafe. Direct evidence cited from named tools.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Per-route `<title>` and `<meta name="description">` | Single hardcoded `FSB` title on every URL is a known anti-pattern; Google shows the description in SERPs and LLMs cite it as the page summary | LOW (4 components x ~5 lines via Angular `Title`/`Meta` services in `ngOnInit`) | Must be applied **before prerender freezes the HTML**. Use Angular's static prerender so the meta tags end up in the on-disk HTML, not just runtime DOM |
-| Per-route `<link rel="canonical">` | Prevents duplicate-content split between `https://full-selfbrowsing.com/about` and trailing-slash / case variants; mandatory for Google indexing | LOW (one line per page component, set via `Meta.updateTag` or via Angular's `DOCUMENT` token) | Canonical URL must be absolute, `https://`, no trailing slash for consistency. Skip on `/dashboard` (noindex anyway) |
-| Open Graph tags (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`) | Required for link previews on Twitter/X, LinkedIn, Slack, Discord, iMessage; missing = unfurled link shows raw URL | LOW (5-6 tags per route, same `Meta` service) | Need a 1200x630 PNG at `/assets/og/<route>.png`. `og:type=website` for marketing pages. Single shared image is acceptable for v1 |
-| Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`) | X/Twitter still ignores OG for the card type itself; needs `twitter:card=summary_large_image` to render the wide preview | LOW (4 tags, set alongside OG) | Can reuse OG image. No `twitter:site` needed unless an X handle exists |
-| `robots.txt` at site root with explicit `Allow` for AI crawlers + `Sitemap:` line | Default Angular build ships none. Crawlers (Google, GPTBot, ClaudeBot, PerplexityBot) explicitly check `/robots.txt` first; missing = ambiguous policy | TRIVIAL (~30 lines, plain text in `showcase/express/public/robots.txt`) | Must be served as `text/plain` at the apex. Express static must resolve it before SPA fallback. **Current verified 2026 list below** |
-| `sitemap.xml` with the 5 routes + `<lastmod>` | Google Search Console requires this for fast indexing of new sites; sitemap URL goes in `robots.txt` | LOW (~25 lines, hand-written or generated at build) | Drop `<changefreq>` and `<priority>` -- Google explicitly ignores both in 2026 (sitemaps.org keeps them in spec, but they are noise). Keep only `<loc>` and `<lastmod>` |
-| `Organization` JSON-LD in prerendered HTML | The single highest-leverage structured-data signal for LLM entity recognition; ChatGPT/Claude/Perplexity parse it to identify "what is FSB" | LOW (15-line script tag in `index.html` `<head>`) | Place in `index.html` so all prerendered routes inherit it. One `Organization` per site, not per page |
-| `SoftwareApplication` JSON-LD on home route | FSB is a Chrome extension -- `SoftwareApplication` (or `WebApplication`) is the canonical schema.org type. Surfaces in Google rich results and is the strongest "this is software, here is what it does" signal for LLMs | LOW (20-line script tag, prerendered into `/index.html`) | Place per-route (only on `/`) so it is bound to the home page, not every page. `applicationCategory: BrowserApplication`, `operatingSystem: Chrome` |
-| Noindex on `/dashboard` | Auth-gated; SPA-only; crawlers should not waste budget there or surface it in search | TRIVIAL (one `<meta name="robots" content="noindex,nofollow">` injected via Angular `Meta` for that route) | Belt-and-suspenders: also add `Disallow: /dashboard` in `robots.txt` |
+| **Stable per-agent ID issued by FSB on session start** | Browserbase issues a `sessionId` per browser session; Playwright hands back a `BrowserContext` handle; Puppeteer-Cluster identifies queued tasks. Every parallel-browser tool returns an opaque handle the caller keeps using. Without this, callers cannot disambiguate which agent did what. Per the milestone brief, "one MCP client may run multiple parallel agents, each with its own ID" -- so client identity is not a substitute. | S | Generate FSB-side (`agent_<uuid>` or `agent_<short>`); return in the `run_task` / session-start response payload; include in every subsequent tool call. Do **not** let the client invent IDs (mirrors v0.9.36's allowlist-only-FSB-side decision). |
+| **Stable per-tab handle bound to the owning agent** | Tab IDs are stable strings (e.g., `t1`, `t2`) that are never reused within a session, allowing agents to keep referring to the same tab even after other tabs are opened or closed. FSB already has Chrome's `tab.id` -- reuse it; do not reinvent. | S | Use Chrome's native `tab.id` (integer). Maintain a server-side map: `tabId -> agentId`. The owning agent receives `tab_id` on the open/bind event and threads it through subsequent calls. |
+| **Tab ownership enforcement (cross-agent reject)** | Every parallel browser-agent system enforces "this context, this agent." Playwright's BrowserContext isolates cookies, storage, cache, permissions per context; Puppeteer-Cluster's `CONCURRENCY_CONTEXT` mode is the default for the same reason. In FSB's single-window model, ownership is the proxy for isolation. A cross-agent click on a tab the other agent is mid-flow on **must** reject loudly, not race. | M | Enforce at the tool-dispatch layer in `background.js`. Every tool call (`click`, `type`, `back`, etc.) must validate `agentId` matches the lock owner of `tab_id`. Reject with a typed error code (e.g., `TAB_NOT_OWNED`) carrying the actual owner ID for debuggability. |
+| **Forced-new-tab pooling under the originating agent** | Real-world flows open new tabs constantly (target=_blank, OAuth popups, Google search results spawning a result tab). If a tab opened by agent A becomes orphan-owned, A's flow breaks. Browserbase, Browser Use, and Stagehand all model "child page opens" as still belonging to the originating agent context. | M | Hook `chrome.tabs.onCreated` with `openerTabId`. If the opener belongs to agent A, the new tab is locked to A automatically. Both tabs stay pooled together; releasing one releases neither (the pool releases on agent termination). |
+| **Hard concurrency cap with fail-loud rejection at the cap** | The milestone brief specifies 8 with "9th request rejected with a clear cap-reached error." Research confirms this is the right shape: silent queueing is a known MCP anti-pattern -- when an agent spends several minutes on analysis before invoking tools, the HTTP connection can be dropped, causing the agent to fail to call tools while the workflow still reports success, resulting in a silent failure. Loud rejection is safer than queue-and-hope. | S | Reject with a typed error (e.g., `AGENT_CAP_REACHED`) carrying the current cap (8) and the count of active agents. No retry-after, no backoff hint -- the caller's retry policy is the caller's problem. Puppeteer-Cluster does silent queueing because it is a long-running batch tool; FSB is interactive, so the contract should match Browserbase's session-create semantics (immediate 4xx-equivalent). |
+| **Lock release on task end, MCP client disconnect, and tab close (no idle timeout)** | Already decided in the milestone brief; research backs the "no idle timeout" choice. Browserbase's Contexts persist across sessions but session locks release on disconnect; agents whose connection is dropped should release immediately. Idle-reaping is hostile to long-running visual sessions where the user is reading the page (v0.9.36 already shipped explicit visual sessions for exactly this read-and-think workflow). | M | Three release paths: (1) `finalizeSession` already exists from v0.9.40 -- extend it to release agent locks; (2) MCP client disconnect handler in the bridge; (3) `chrome.tabs.onRemoved`. All three converge on a single `releaseAgent(agentId)` that clears every tab in the pool. |
+| **Background-tab execution (no foreground requirement)** | One of the most consistently-broken things in browser automation: clicking a backgrounded tab silently fails or focus-steals. Per the milestone brief, "no requirement that the owned tab be active/foregrounded." Chrome extensions historically forced focus on every interaction, redirecting whatever users are typing into whichever window Chrome has grabbed -- this is a top user frustration. Multi-agent **must** not focus-steal. | M | FSB already drives interactions via DOM-level (and CDP) calls that do not require foreground in most cases. Audit existing tool implementations for any that call `chrome.tabs.update({active: true})` or window-focus side effects and gate them behind an explicit `force_foreground` flag (default false). The `back` tool in particular must be gated. |
+| **Typed errors for every cross-agent / cap / lock failure** | Project Mariner's published Trusted Tester docs and Browserbase's session API both emit explicit, machine-parseable error codes for "tab does not exist," "session not found," "concurrency exceeded." Browser Use and Stagehand wrap these into agent-visible exceptions. Without typed errors, the calling LLM will hallucinate a recovery strategy. | S | At minimum: `AGENT_NOT_FOUND`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_NOT_FOUND`, `AGENT_RELEASED`. Each carries enough payload (current owner agent ID, cap, count) for the caller's LLM to write a coherent retry/abandon plan. |
+| **`back` MCP tool (single-step browser back-button equivalent)** | Every browser agent framework ships this: Playwright `page.goBack()`, Browser Use `go_back`, Stagehand inherits Playwright. FSB already has `goBack` in its 25+-action library internally; v0.9.60 just exposes it through MCP. | S | See dedicated scope section below. |
+| **Documentation of the agent identity / tab ownership / cap contract in MCP tool descriptions** | LLMs read MCP tool descriptions verbatim. Browser Use and Stagehand have explicit "operating loop" docs in their tool descriptions explaining: keep refs on the same tab, use `tabId` for tab targeting, recover stale refs once, report blockers. Without this, calling LLMs will guess the contract and guess wrong. | S | Update `fsb-mcp-server` tool descriptions for `run_task`, all manual tools, and the new `back` tool to call out: agent ID is required, tab IDs are agent-scoped, cap is 8, ownership is enforced. Mirror v0.9.36's docs-and-test discipline. |
 
 ### Differentiators (Competitive Advantage)
 
-Features competitors in adjacent space (Browser-Use, Stagehand, BrowserOS) mostly skip. Cheap wins for AI-search visibility.
+These set FSB apart from the obvious alternatives. Cheap wins where the agent-aware contract is the product.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| `llms.txt` at site root | Markdown index pointing LLMs at the canonical content map. Anthropic's own docs ship one; Cloudflare and Stripe adopted; 844K+ sites by Oct 2025. **No major LLM has officially confirmed they read it**, but it is a low-cost bet that costs nothing if ignored and pays off if adopted | TRIVIAL (~40 lines markdown, hand-written, served as `text/markdown` or `text/plain`) | Per llmstxt.org spec: H1 title, blockquote summary, `## Docs` section with markdown links, optional `## Optional` section. Keep under 100 lines for v1 |
-| `llms-full.txt` at site root | Concatenated full-text of marketing pages in one file, optimized for single-fetch LLM ingestion. Lets a crawler grab the entire FSB pitch in one request | LOW (~500-1500 lines, generated at build from prerendered HTML stripped to markdown) | Spec is informal; norms are "everything important, in markdown, in one file." Practical cap ~50-100KB. Auto-generate from the 4 prerendered routes to avoid drift |
-| Explicit `User-agent:` blocks per AI crawler in `robots.txt` (vs. one wildcard `Allow`) | Signals intentional opt-in to GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended individually. Some operators read explicit Allow as stronger consent than wildcard | TRIVIAL (extends robots.txt by ~25 lines) | See verified 2026 list below. Each Anthropic/OpenAI bot has independent semantics (training vs search vs user-fetch) -- being explicit shows you understand the distinction |
-| `BreadcrumbList` JSON-LD on `/about`, `/privacy`, `/support` | Surfaces breadcrumb trail in Google SERPs ("fsb.com > About"); modest CTR lift, helps LLMs understand site hierarchy | LOW (10-line script per non-home route) | Skip on `/` (it IS the breadcrumb root). Trivial since the site is shallow (one level deep) |
+| **Agent identity surfaced in the trusted-client badge** | v0.9.36 already ships trusted-client badges (Claude/Codex/Cursor). Surfacing the per-agent ID alongside (e.g., "Claude / agent_a3f1") on the overlay closes the v0.9.36 deferred gap "MCP visual sessions can be coordinated safely across multiple tabs or windows without badge/glow collisions." Browserbase's dashboard does this; Browser Use's logs do this; FSB's overlay can do this on the page itself, which is unique. | M | Reuse v0.9.36's badge renderer. Append the short agent ID. Color-bucket per agent (4-6 stable colors cycling) so two parallel Claude agents look distinct on the dashboard preview. Depends on existing badge code, not new infra. |
+| **Tab-ownership-aware overlay glow** | When agent A is mid-action on tab 1 and agent B is mid-action on tab 5, the user sees two glows on two different tabs simultaneously. This is the visible payoff of multi-agent isolation. No competitor renders this on the actual page (Browserbase shows it in their dashboard, not in-page; Mariner shows it in a separate live-preview panel). | M | Already partially supported by v0.9.36 explicit visual sessions per tab. The new piece is making sure two parallel sessions on different tabs both render correctly without one stomping the other -- an audit/regression-test problem more than a new feature. |
+| **Pool semantics: "agent A opened tab B, both stay pooled until A ends"** | This is the table-stakes feature with a differentiator framing: making the pool **observable** (tool to list `pools` for an agent: `[t12, t14, t17]`). Browser Use's `tabs` listing only shows global tabs; pool-aware listing is unique. | S | A new optional tool `list_my_tabs(agentId)` returning the pool. Or piggyback on existing `list_tabs` and add a `pool` field per tab. LOW value-add; ship only if it falls out for free. |
+| **Loud, explicit `cap reached` error message with current count** | Most concurrency-capped APIs return a generic 429. A typed `AGENT_CAP_REACHED { cap: 8, active: 8, hint: "release a session via finalizeSession or wait" }` tells the calling LLM exactly what to do. Browserbase returns generic-ish 4xx; Mariner doesn't expose this (managed cloud); FSB owning a precise contract is a small win. | S | Already in table stakes; the differentiator is the wording quality and that it's documented in the tool description. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
+These will come up in roadmap discussions; document why they are bad ideas now to prevent scope creep mid-milestone.
+
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| `FAQPage` JSON-LD | Trendy for AEO/GEO; thought to surface in AI Overviews | FSB has no FAQ page yet (deferred per `PROJECT.md` "Out of scope"). Faking FAQs in JSON-LD that do not exist as visible page content violates Google's structured-data policy and risks manual action. Revisit when a real FAQ page ships | Defer until FAQ page exists. Then add `FAQPage` schema bound to that page's visible Q&A |
-| `HowTo` JSON-LD | Tempting for "how to install FSB" content | Google deprecated `HowTo` rich results in late 2023 and has not reinstated them. Markup is harmless but yields zero SERP benefit; LLM weighting is unproven | Use plain prose with clear `<h2>` step headings. LLMs parse step lists from semantic HTML fine without `HowTo` markup |
-| `priority` and `changefreq` in sitemap.xml | Standard sitemap-builder output; "feels complete" | Google explicitly ignores both in 2026. Bing largely ignores them. They add bytes and a maintenance burden (every release someone debates "is this 0.7 or 0.8?") with zero ranking impact | Ship `<loc>` + `<lastmod>` only. Drop the other two |
-| `WebSite` schema with `SearchAction` (sitelinks searchbox) | Classic SEO checklist item | FSB has no site-wide search. Declaring a `SearchAction` that points to a non-existent `/search?q={query}` is a structured-data lie; Google can de-list rich results for it | Skip until on-site search exists (not on roadmap) |
-| Wildcard `User-agent: *` `Disallow: /` then per-bot `Allow:` blocks | "Allowlist-only" feels safer | Inverts the open-web default; risks accidentally blocking Googlebot if a config typo slips in. Also unfriendly to legitimate aggregators (archive.org, search engines you forgot about) | Default-allow with explicit per-bot `Allow:` blocks for AI crawlers (signals intent without blocking the open web). Only `Disallow: /dashboard` |
-| `noai` / `noimageai` `<meta>` tags | Some publishers use these to opt out of AI training | FSB *wants* AI ingestion (it is a developer tool; LLM citations are the goal). Adding these signals the opposite of FSB's intent | Explicitly omit. Document in code comment that absence is intentional |
-| Angular Universal full SSR | "Proper" SSR feels more legitimate than prerender | Already explicitly out of scope per `PROJECT.md`. Static prerender of 4 marketing routes is sufficient -- there is no per-request dynamic content to render | Stay with static prerender; add SSR only if dynamic per-user marketing emerges (it will not) |
-| Per-route OG images generated dynamically | Visual polish | Each unique image is a design+infra task. v1 ships fine with one shared `og-default.png`. Per-route images are a v2 polish pass | One shared 1200x630 PNG; revisit per-route variants once core SEO ships |
+| **Cross-window agent isolation** | "What if I want each agent in its own Chrome window?" | FSB is a Chrome extension running in the user's existing profile; spawning new windows is jarring and clashes with users' tab/window organization. Chrome extensions also do not have clean per-window service-worker scoping. Browserbase solves this by running cloud VMs -- FSB cannot, by design. The user's milestone brief explicitly says no cross-window. | Stay single-window, multi-tab. If users want strict isolation, they can run multiple Chrome profiles -- explicitly out of FSB's scope. |
+| **Incognito-mode agent isolation** | "True isolation requires incognito profiles per agent" | Chrome MV3 service workers do not get a guarantee of running in incognito unless the extension is explicitly allowed in incognito by the user. Adds an installation/UAT burden, divergent storage paths, and breaks the v0.9.36 trusted-client allowlist (which lives in normal storage). Defer entirely. | Document that "isolation" in v0.9.60 means tab-ownership lock, not OS-level profile isolation. Cookies/localStorage **are shared** across same-origin tabs by Chrome's design; cross-tab data leakage is a property of Chrome, not FSB. |
+| **Headless / server-side worker agents** | "Run agents without the user's browser open" | Already in PROJECT.md "Out of Scope": *"Headless server-side execution -- server is relay only, user's browser must stay active."* Multi-agent does not change this contract; v0.9.60 makes the user's existing Chrome more capable, not into a server farm. | Defer to OpenClaw / Claude Routines (the v0.9.45rc1 sunset path). FSB's deprecation card already directs background-agent users there. |
+| **Agent-to-agent messaging / coordination protocol** | "What if agent A wants to hand off to agent B?" | Massive scope: now FSB needs a message bus, addressing, security model, ordering guarantees. Project Mariner does not expose this; Browser Use does not expose this; Stagehand does not expose this. The orchestrating LLM (Claude / GPT / etc.) is the coordinator -- it owns multiple agents and routes information itself via its own context. FSB providing this is duplicative and dangerous. | Agents are leaves; the LLM is the trunk. The LLM serializes state across agents in its own conversation. FSB should not become a multi-agent runtime. |
+| **Idle timeout reaping** | "What if an agent gets stuck and holds a tab forever?" | Hostile to long-running visual sessions (a user reading a page slowly inside an MCP visual session is the v0.9.36 use case). Silent reaping = unexplained tab "thefts." Milestone brief explicitly says no idle timeout. | Explicit release paths only: task end, client disconnect, tab close. If a stuck agent is the concern, that's what stuck-detection (already shipped in v0.9.50) handles -- and stuck-detection emits an explicit failure that triggers `finalizeSession`. The system already self-heals. |
+| **Auto-promotion of orphaned tabs to "any agent can claim"** | "If an agent dies, the tab becomes free game" | Race conditions, surprise behavior. If agent A dies mid-flow, the right answer is to kill the tab too (or close the pool) -- not let agent B inherit a half-completed checkout flow. | On agent release, the entire pool releases. Tabs may stay open (user can keep them) but no agent can drive them again until rebound via a new task. |
+| **Per-agent custom user-agent / fingerprint isolation** | "Different agents should look like different browsers" | Anti-bot evasion is its own deep rabbit hole (Camofox, anti-detect tools); FSB is not a stealth tool, it is an automation tool that runs in the user's real Chrome. Sites that don't want bots can detect MV3 extensions trivially anyway. | Out of scope. Refer users to dedicated stealth-browser tools (Camofox, Browserbase) for evasion use cases. |
+| **Confirmation dialog for `back` on dirty forms** | "What if the user has typed into a form and `back` discards their input?" | Two reasons this is wrong: (1) The agent is the operator -- it just typed into the form, so "user input loss" is the agent losing its own work, which is its problem to plan around. (2) Chrome's native `beforeunload` fires anyway and Playwright has documented bugs trying to dismiss it programmatically (bug #14431). Adding an FSB-level confirmation would compound the problem. | Let Chrome's native `beforeunload` fire. If a `beforeunload` dialog appears, the existing FSB dialog-handling path catches it. Document in the `back` tool description: "may trigger a beforeunload prompt if the page has unsaved input; standard dialog-handling applies." |
+| **Multi-step `back(n)` / "go back 3 pages"** | "Sometimes I want to back out of a sequence" | Browser history stacks are not always what they look like (redirects, replaceState, hash-only changes don't always count as a back step uniformly across sites). Compounding `n` calls multiplies the unreliability. Playwright `page.goBack()` is single-step for this exact reason. | Single-step only in v0.9.60. Caller wanting 3-back can call `back` three times and read the page between calls. |
+| **Cross-agent `back` (agent A goes back on a tab agent B owns)** | "Why not let any agent navigate any tab?" | Defeats the entire ownership model. | Reject with `TAB_NOT_OWNED`, same as any other cross-agent tool call. |
 
-## Verified 2026 AI Crawler List
+### Out of Scope for v0.9.60
 
-Cross-referenced against OpenAI's `platform.openai.com/docs/bots`, Anthropic's `support.claude.com` crawler page, and Cloudflare Radar's verified-bots directory.
+Explicitly excluded from this milestone, per the brief and per research.
 
-| User-Agent | Operator | Purpose | Should Allow? |
-|-----------|----------|---------|---------------|
-| `GPTBot` | OpenAI | Training data for foundation models | YES (FSB wants AI to know what it is) |
-| `ChatGPT-User` | OpenAI | User-initiated fetch when a ChatGPT user asks ChatGPT to read a URL | YES |
-| `OAI-SearchBot` | OpenAI | ChatGPT search index | YES |
-| `ClaudeBot` | Anthropic | Training data | YES |
-| `Claude-User` | Anthropic | User-initiated fetch from Claude | YES |
-| `Claude-SearchBot` | Anthropic | Claude search index | YES |
-| `PerplexityBot` | Perplexity | Search indexing (no foundation-model training per Cloudflare) | YES |
-| `Perplexity-User` | Perplexity | User-initiated fetch | YES |
-| `Google-Extended` | Google | Opt-out token for Gemini/Vertex training (NOT a real crawler -- controls how content from Googlebot's existing crawl is used) | YES (allow training use) |
-| `Applebot-Extended` | Apple | Same shape as Google-Extended -- controls Apple Intelligence training use | YES |
-| `Amazonbot` | Amazon | Alexa / Amazon AI ingestion | YES |
-| `Bytespider` | ByteDance | Training crawler (no public vendor doc page; identified by Cloudflare) | YES (consistent posture) |
-| `CCBot` | Common Crawl | Open-data web crawl that feeds many LLM training sets | YES |
-| `Meta-ExternalAgent` | Meta | Llama training + Meta AI search; 16.7% of global AI bot traffic in March 2026 | YES |
-| `DuckAssistBot` | DuckDuckGo | DuckDuckGo AI assist | YES (optional, low traffic) |
-| `Googlebot` | Google | Standard web search | YES (implicit -- default-allow) |
+- Cross-window agent isolation (anti-feature above)
+- Incognito-mode agents (anti-feature above)
+- Headless / server-side workers (PROJECT.md OOS, anti-feature above)
+- Agent-to-agent messaging (anti-feature above)
+- Idle timeout reaping (anti-feature above)
+- Per-agent fingerprint / stealth (anti-feature above)
+- Multi-step `back(n)` (anti-feature above)
+- Auto-promotion of orphaned tabs (anti-feature above)
+- Cross-agent `back` (anti-feature above)
+- **Persistent agent identity across browser restarts** -- agents are session-scoped; no one expects an agent ID to survive Chrome reload. Browserbase persists *contexts* (cookies/storage), not session IDs.
+- **Quotas / rate limits per agent** -- the cap is on simultaneous agents, not per-agent tool-call rate. v0.9.50 already ships per-task safety breakers.
+- **Authoritative agent registry shared across MCP clients** -- agents are scoped to the MCP client connection; if Claude has 3 agents and Codex has 2, they share the cap of 8 but each only sees its own.
+- **Chrome profile / Chrome user isolation** -- FSB lives in one profile.
+- **Visual fairness scheduling** (round-robin focus, etc.) -- background-tab execution removes the need; no agent needs the foreground.
 
-**Verification sources:**
-- OpenAI docs (`platform.openai.com/docs/bots`) -- confirms GPTBot/1.1, ChatGPT-User/1.0, OAI-SearchBot/1.0 as the three independent identifiers
-- Anthropic docs (`support.claude.com` / `privacy.claude.com`) -- confirms ClaudeBot, Claude-User, Claude-SearchBot are independent and all honor robots.txt
-- Cloudflare bot list (`developers.cloudflare.com/bots/concepts/bot/`) and Cloudflare Radar (`radar.cloudflare.com/bots/directory/meta-externalagent`) -- confirms Meta-ExternalAgent, Bytespider, CCBot, Applebot, PetalBot, TikTokSpider as the verified-bot universe in 2026
+## `back` Tool Scope (v0.9.60)
 
-## Concrete Example Payloads
+A dedicated section because the milestone brief explicitly flags this and asks for "minimal" scope. Anchored on Playwright `page.goBack()` semantics.
 
-### `robots.txt` (table-stakes minimum, ~40 lines)
+### What `back` IS
 
-```
-# https://full-selfbrowsing.com/robots.txt
-# FSB explicitly opts into AI ingestion -- we want LLMs to know what FSB is.
+- A single-step browser back navigation, equivalent to clicking the browser's back button once.
+- Targets the agent's owned tab (uses the same `tab_id` parameter shape as other tools).
+- Returns success when navigation settles (mirrors Playwright's `page.goBack()` returning when navigation finishes -- `await` semantics).
+- Returns a typed error if there is no history to go back to (Playwright returns `null` from `page.goBack()` in that case; FSB should be louder -- explicit `NO_BACK_HISTORY` typed error so the calling LLM can replan).
+- Honors background-tab execution (no `chrome.tabs.update({active: true})` -- the tab does not need to be foregrounded).
+- Honors tab ownership: cross-agent calls reject with `TAB_NOT_OWNED`.
 
-User-agent: *
-Allow: /
-Disallow: /dashboard
+### What `back` IS NOT
 
-# OpenAI
-User-agent: GPTBot
-Allow: /
+- Not multi-step (`back(n)` is an anti-feature; see above).
+- Not a "go to URL" tool (use the existing `navigate` tool for that).
+- Not a same-page state revert (it is browser-history-stack-only; SPA route changes that pushed `history.pushState` will be reverted, but in-memory app state will not).
+- Not gated on dirty-form confirmation (let Chrome's native `beforeunload` handle it; see anti-feature above).
+- Not an alias for `goForward` -- `forward` is **NOT** added in v0.9.60 (defer; minimal scope means one new tool).
 
-User-agent: ChatGPT-User
-Allow: /
+### Failure Modes (typed errors)
 
-User-agent: OAI-SearchBot
-Allow: /
+| Code | Meaning | Caller LLM should… |
+|------|---------|--------------------|
+| `NO_BACK_HISTORY` | Tab has no prior page in its history (fresh tab, only one navigation). | Replan: do not retry, find a different way to get to the prior context. |
+| `TAB_NOT_OWNED` | Agent doesn't own this tab. | Refuse the operation, surface to user. |
+| `TAB_NOT_FOUND` | Tab was closed mid-flight. | Acknowledge tab gone, replan from page list. |
+| `AGENT_RELEASED` | Agent's lock was released (client disconnect, etc.) between the `back` call landing and resolving. | Stop, the session is over. |
+| `NAVIGATION_TIMEOUT` | Back fired but the new page didn't settle within FSB's existing navigation timeout. | Standard retry-or-abandon, same as `navigate`. |
 
-# Anthropic
-User-agent: ClaudeBot
-Allow: /
+### Edge Cases Worth Handling
 
-User-agent: Claude-User
-Allow: /
+- **`beforeunload` prompt fires** -- existing dialog-handling path catches it. Document in tool description that `back` may surface a confirm dialog and FSB will use the agent's existing dialog-handling decision.
+- **Back to a redirect** -- sometimes "back" lands on a 301 source URL that immediately re-redirects forward, creating an infinite back-redirect loop. FSB's existing stuck-detection (v0.9.50) already covers this pattern; no new logic.
+- **Back across origin boundaries** -- works fine in Chrome; no special handling needed.
+- **Back after `pushState` SPA navigation** -- works (this is just popstate); no special handling needed.
 
-User-agent: Claude-SearchBot
-Allow: /
+### Implementation Notes
 
-# Perplexity
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Perplexity-User
-Allow: /
-
-# Google / Apple AI training opt-in
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-# Other major AI crawlers
-User-agent: Amazonbot
-Allow: /
-
-User-agent: Bytespider
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: Meta-ExternalAgent
-Allow: /
-
-Sitemap: https://full-selfbrowsing.com/sitemap.xml
-```
-
-### `sitemap.xml` (4 marketing routes, lastmod only)
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://full-selfbrowsing.com/</loc>
-    <lastmod>2026-04-30</lastmod>
-  </url>
-  <url>
-    <loc>https://full-selfbrowsing.com/about</loc>
-    <lastmod>2026-04-30</lastmod>
-  </url>
-  <url>
-    <loc>https://full-selfbrowsing.com/privacy</loc>
-    <lastmod>2026-04-30</lastmod>
-  </url>
-  <url>
-    <loc>https://full-selfbrowsing.com/support</loc>
-    <lastmod>2026-04-30</lastmod>
-  </url>
-</urlset>
-```
-
-(`/dashboard` intentionally absent -- it is `noindex` and `Disallow`-ed.)
-
-### `Organization` JSON-LD (place in `index.html` `<head>`, inherited by all prerendered routes)
-
-```html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "FSB",
-  "alternateName": "Full Self-Browsing",
-  "url": "https://full-selfbrowsing.com",
-  "logo": "https://full-selfbrowsing.com/assets/icon48.png",
-  "description": "FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions, with reliable single-attempt execution and an MCP server for external clients.",
-  "sameAs": [
-    "https://github.com/LakshmanTurlapati/FSB",
-    "https://www.npmjs.com/package/fsb-mcp-server"
-  ]
-}
-</script>
-```
-
-### `SoftwareApplication` JSON-LD (home route only, prerendered into `/index.html`)
-
-```html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "FSB (Full Self-Browsing)",
-  "applicationCategory": "BrowserApplication",
-  "operatingSystem": "Chrome, Chromium-based browsers",
-  "description": "AI-powered browser automation Chrome extension. Describe a task in natural language; FSB executes the clicks, types, and navigation reliably on the first attempt. Includes MCP server for Claude, Codex, Cursor, and other AI hosts.",
-  "url": "https://full-selfbrowsing.com",
-  "downloadUrl": "https://github.com/LakshmanTurlapati/FSB",
-  "softwareVersion": "0.9.46",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  },
-  "author": {
-    "@type": "Person",
-    "name": "Lakshman Turlapati"
-  }
-}
-</script>
-```
-
-### Per-route meta in Angular component (example: `about-page.component.ts` `ngOnInit`)
-
-```typescript
-ngOnInit() {
-  this.title.setTitle('About FSB -- AI Browser Automation Chrome Extension');
-  this.meta.updateTag({ name: 'description', content: 'FSB executes browser tasks from natural language. Built on reliable single-attempt mechanics with an MCP server for Claude, Codex, and Cursor.' });
-  // Canonical: prefer setting via DOCUMENT token since Meta service does not handle <link>
-  this.meta.updateTag({ property: 'og:title', content: 'About FSB' });
-  this.meta.updateTag({ property: 'og:description', content: 'How FSB works and why single-attempt reliability matters.' });
-  this.meta.updateTag({ property: 'og:url', content: 'https://full-selfbrowsing.com/about' });
-  this.meta.updateTag({ property: 'og:image', content: 'https://full-selfbrowsing.com/assets/og/default.png' });
-  this.meta.updateTag({ property: 'og:type', content: 'website' });
-  this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
-  this.meta.updateTag({ name: 'twitter:title', content: 'About FSB' });
-  this.meta.updateTag({ name: 'twitter:description', content: 'How FSB works and why single-attempt reliability matters.' });
-  this.meta.updateTag({ name: 'twitter:image', content: 'https://full-selfbrowsing.com/assets/og/default.png' });
-}
-```
-
-### `llms.txt` (site root, ~40 lines)
-
-```markdown
-# FSB (Full Self-Browsing)
-
-> AI-powered browser automation Chrome extension. Describe a task in natural language; FSB executes the clicks, types, and navigation reliably on the first attempt. Ships with an MCP server (`fsb-mcp-server` on npm) so external AI hosts (Claude, Codex, Cursor, Continue, OpenClaw) can drive a real browser surface.
-
-FSB is open source. The core value is reliable single-attempt execution: the AI decides correctly and the mechanics execute precisely. Every click hits the right element with uniqueness-scored selectors, visible orange-glow feedback, and post-action verification.
-
-## Docs
-
-- [Home](https://full-selfbrowsing.com/): What FSB is and how to install
-- [About](https://full-selfbrowsing.com/about): Architecture, MCP integration, supported hosts
-- [Privacy](https://full-selfbrowsing.com/privacy): Data handling, encrypted API keys, no telemetry by default
-- [Support](https://full-selfbrowsing.com/support): GitHub issues, MCP host setup, troubleshooting
-
-## Optional
-
-- [GitHub repository](https://github.com/LakshmanTurlapati/FSB): Source code, issue tracker, releases
-- [npm: fsb-mcp-server](https://www.npmjs.com/package/fsb-mcp-server): MCP server distribution
-- [Full content export](https://full-selfbrowsing.com/llms-full.txt): Concatenated marketing pages for single-fetch ingestion
-```
+- FSB already has internal `goBack` in its action library (per CLAUDE.md "Navigation & Control" tool list). v0.9.60 work is: expose it via MCP, add agent-ownership gate, add typed errors, document the contract.
+- Probably 50-150 LOC total in `mcp-server/src/tools/`, plus a few lines of dispatch wiring in `background.js`, plus tool description text.
 
 ## Feature Dependencies
 
 ```
-Static prerender of marketing routes (build pipeline)
-    +-- required by --> Per-route <title>/<meta>/<link rel=canonical>
-    +-- required by --> Per-route OG / Twitter Card tags
-    +-- required by --> Organization JSON-LD (inherited via index.html)
-    +-- required by --> SoftwareApplication JSON-LD (home only)
-    +-- required by --> BreadcrumbList JSON-LD (about/privacy/support)
+Per-agent ID issuance
+    +-- required by --> Tab ownership map (tabId -> agentId)
+                            +-- required by --> Cross-agent tool dispatch gate
+                                                    +-- required by --> back tool (gated)
+                                                    +-- required by --> all existing manual tools (gated)
+                                                    +-- required by --> run_task (gated; receives agent ID)
+                            +-- required by --> Forced-new-tab pooling (chrome.tabs.onCreated + openerTabId)
 
-Express SPA-fallback adjustment (serve prerendered HTML before catch-all)
-    +-- required by --> All of the above (or crawlers see the empty <app-root> with title=FSB)
+Hard concurrency cap (8)
+    +-- enforced at --> Agent-creation entry points (run_task start, manual session start)
+    +-- requires --> Per-agent ID issuance (to count active agents)
 
-robots.txt
-    +-- references --> sitemap.xml (Sitemap: line)
-    +-- enhances --> llms.txt (parallel signal; both opt AI crawlers in)
+Lock release paths
+    +-- triggered by --> finalizeSession (existing v0.9.40 hook)
+    +-- triggered by --> MCP client disconnect (bridge handler)
+    +-- triggered by --> chrome.tabs.onRemoved (existing handler, extend to release agent locks)
+    +-- requires --> Per-agent ID + ownership map (to know what to release)
 
-llms.txt
-    +-- references --> llms-full.txt (link in Optional section)
-    +-- references --> Per-route prerendered HTML (links in Docs section)
+Background-tab execution
+    +-- requires --> Audit of existing tools for foreground side effects
+    +-- enables --> Multi-agent UX (no agent steals focus from another)
 
-llms-full.txt
-    +-- generated from --> Prerendered HTML of /, /about, /privacy, /support
+Trusted-client badge with agent ID
+    +-- depends on --> v0.9.36 trusted-client badge renderer
+    +-- enhances --> Per-agent ID issuance (visible payoff)
 
-noindex on /dashboard (Angular Meta in ngOnInit)
-    +-- reinforced by --> Disallow: /dashboard in robots.txt
+run_task return-on-completion (Phase 236)
+    +-- INDEPENDENT of multi-agent work -- bundled in same MCP 0.8.0 release
+    +-- but should ride the same lock-release paths (return-on-completion = finalizeSession trigger)
 ```
 
 ### Dependency Notes
 
-- **Everything visible to crawlers requires prerender first.** Angular's `Title`/`Meta` services running in `ngOnInit` only mutate the runtime DOM. Without prerender, crawlers (which mostly do not execute JS -- including all OpenAI/Anthropic/Perplexity bots) see only the literal `<title>FSB</title>` and an empty `<app-root>`. This is why prerender is the keystone phase, not an optional polish.
-- **JSON-LD placement matters.** `Organization` belongs in `index.html` `<head>` so all prerendered routes inherit it (one definition, every page). `SoftwareApplication` belongs in the home-route component's prerendered output only, so it is bound semantically to `/`. `BreadcrumbList` belongs per non-home page.
-- **Express ordering is a silent failure mode.** If the catch-all `app.get('*', sendIndex)` runs before the static handler for `/about/index.html`, every prerendered file is shadowed and crawlers still see the SPA shell. The Express change is a hard prerequisite for the meta/JSON-LD phases.
-- **`llms-full.txt` should be generated, not hand-written.** Hand-maintained = drifts from the actual site within one release. Build-time generation from prerendered HTML keeps it in sync.
-- **`robots.txt`'s `Sitemap:` line is the only reliable sitemap discovery path.** Search Console submission is deferred per `PROJECT.md`; the robots.txt reference is what tells Googlebot/Bingbot where to look on first crawl.
+- **Per-agent ID is the keystone.** Everything else is gated on having a stable, FSB-issued agent identifier. Build this first; without it, ownership, cap enforcement, and pool semantics cannot exist.
+- **Existing `finalizeSession` is the natural lock-release hook.** v0.9.40 hardened session lifecycle; v0.9.60 piggybacks on it. Adding agent-lock release to `finalizeSession` is one targeted change, not a new lifecycle module.
+- **Tab-ownership gate is a single chokepoint in `background.js` tool dispatch.** Every tool currently routes through dispatch; gating happens there, not per-tool. This makes the audit/test surface manageable.
+- **Background-tab execution is a quality bar more than a feature.** It is "the absence of focus-stealing." The work is auditing the existing 25+ tools for `tabs.update({active: true})` and similar, and gating them. This is a high-value, low-glamour task -- the kind that breaks the milestone if skipped.
+- **Phase 236 (`run_task` return on completion) lands in MCP 0.8.0 alongside multi-agent.** It is technically independent but contractually coupled -- once `run_task` returns on completion, it triggers `finalizeSession`, which releases the agent lock cleanly. The two changes reinforce each other.
+- **Differentiator features (agent ID in badge, pool listing tool) depend on table stakes.** Do not build differentiators before the base contract is solid; v0.9.36 taught this lesson.
 
 ## MVP Definition
 
-### Launch With (v0.9.46 -- this milestone)
+### Launch With (v0.9.60 -- this milestone)
 
-The minimum to flip the site from "invisible to AI search" to "fully indexed and cited." Everything below is a hard requirement to ship the milestone.
+The minimum to ship the multi-agent contract. Every line below is a hard requirement.
 
-- [ ] Static prerender of `/`, `/about`, `/privacy`, `/support` -- keystone enabling everything else
-- [ ] Express SPA-fallback ordering fix -- prerendered HTML must win over `index.html` catch-all
-- [ ] Per-route `<title>` and `<meta name="description">` via Angular `Title`/`Meta` in 4 page components
-- [ ] Per-route `<link rel="canonical">`
-- [ ] Per-route OG tags (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`) + one shared default OG image
-- [ ] Per-route Twitter Card tags (`twitter:card=summary_large_image`, `twitter:title`, `twitter:description`, `twitter:image`)
-- [ ] `Organization` JSON-LD in `index.html` `<head>`
-- [ ] `SoftwareApplication` JSON-LD prerendered into `/index.html` (home route only)
-- [ ] `<meta name="robots" content="noindex,nofollow">` on `/dashboard`
-- [ ] `robots.txt` at site root with explicit per-bot Allow blocks + `Sitemap:` line + `Disallow: /dashboard`
-- [ ] `sitemap.xml` at site root with 4 marketing routes, `<loc>` and `<lastmod>` only
+- [ ] **Per-agent ID issuance** -- FSB-side generation, returned on session/task start, threaded through every subsequent tool call (Table stakes -- S)
+- [ ] **Tab ownership map** -- `tabId -> agentId`, persisted in `chrome.storage.session` so MV3 service worker churn doesn't drop locks (Table stakes -- S)
+- [ ] **Tool-dispatch ownership gate** -- single chokepoint in `background.js` rejecting cross-agent calls with `TAB_NOT_OWNED` (Table stakes -- M)
+- [ ] **Forced-new-tab pooling** -- `chrome.tabs.onCreated` + `openerTabId` lookup; new tab inherits agent ID of opener (Table stakes -- M)
+- [ ] **Hard concurrency cap (8) at agent-creation entry points** -- both `run_task` and manual MCP session start gated; reject with `AGENT_CAP_REACHED` carrying `{cap: 8, active: N}` (Table stakes -- S)
+- [ ] **Lock release on task end** -- extend existing `finalizeSession` from v0.9.40 to release the agent's tab pool (Table stakes -- M)
+- [ ] **Lock release on MCP client disconnect** -- bridge handler releases all agents owned by the disconnecting client (Table stakes -- M)
+- [ ] **Lock release on tab close** -- extend `chrome.tabs.onRemoved` handler; if the closed tab was agent-owned, the rest of the pool stays (the tab is gone, the agent is not necessarily) (Table stakes -- S)
+- [ ] **Background-tab execution audit** -- review all 25+ existing tools for foreground side effects; gate any that exist behind explicit `force_foreground` flag (Table stakes -- M)
+- [ ] **Typed error payloads** -- `AGENT_NOT_FOUND`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_NOT_FOUND`, `AGENT_RELEASED`, plus `NO_BACK_HISTORY` and `NAVIGATION_TIMEOUT` for `back` (Table stakes -- S)
+- [ ] **`back` MCP tool** -- single-step, ownership-gated, typed errors, no foreground requirement (Table stakes -- S; see scope section above)
+- [ ] **MCP tool description updates** -- agent ID required, tab IDs are agent-scoped, cap is 8, ownership enforced; updated for `run_task`, all manual tools, and new `back` tool (Table stakes -- S)
+- [ ] **Trusted-client badge surfaces agent ID** -- extend v0.9.36 badge renderer to append short agent ID (Differentiator -- M; closes v0.9.36 deferred gap)
+- [ ] **`fsb-mcp-server@0.8.0` release** -- includes Phase 236 (`run_task` returns on completion); the cap and ownership contract is documented in the package README (Release engineering -- S)
 
-### Add After Validation (v0.9.47+)
+### Add After Validation (v0.9.61+)
 
-Ship after v0.9.46 lands and there is at least one cycle of evidence (Search Console impressions, ChatGPT/Perplexity citations) confirming the foundation works.
+Ship after v0.9.60 lands and there is at least one cycle of evidence (real Claude/Codex multi-agent runs, dashboard preview confirms two-tab parallel flow) that the contract is solid.
 
-- [ ] `llms.txt` -- trigger: v0.9.46 ships and the milestone proves the pipeline works end-to-end
-- [ ] `llms-full.txt` (auto-generated at build) -- trigger: same as above; bundle in same follow-up phase as `llms.txt`
-- [ ] `BreadcrumbList` JSON-LD on `/about`, `/privacy`, `/support` -- trigger: v0.9.46 ships clean and there is appetite for SERP polish
-- [ ] Per-route OG images (4 distinct 1200x630 PNGs) -- trigger: design pass after v0.9.46
+- [ ] **Pool listing tool** (`list_my_tabs(agentId)` or `list_tabs` with `pool` field) -- only if user feedback flags discoverability gap (Differentiator -- S)
+- [ ] **Per-agent dashboard preview** -- show all agents in a multi-pane layout instead of one preview-per-tab (Differentiator -- M; depends on dashboard work)
+- [ ] **`forward` MCP tool** -- counterpart to `back`; deferred for "minimal scope" reasons in v0.9.60 (Table stakes -- S)
+- [ ] **Visual session badge color-bucketing per agent** -- 4-6 stable colors cycling so two parallel Claude agents look distinct on the page itself (Differentiator -- S)
 
-### Future Consideration (v0.9.50+)
+### Future Consideration (v0.9.70+)
 
-Explicitly deferred per `PROJECT.md` "Out of scope" or pending product evolution.
+Defer indefinitely; revisit only if product direction changes.
 
-- [ ] `FAQPage` JSON-LD -- defer until a real FAQ page exists (currently OOS)
-- [ ] Comparison pages + `Article` schema (`/vs-browser-use`, `/vs-mariner`, `/vs-stagehand`, `/vs-browseros`) -- OOS in current milestone
-- [ ] Search Console / Bing Webmaster registration + sitemap submission -- OOS
-- [ ] Off-page push (Show HN, Reddit, awesome-list PRs, YouTube) -- OOS
-- [ ] Angular Universal full SSR -- OOS, prerender is sufficient for static marketing
-- [ ] `WebSite` schema with `SearchAction` -- defer until on-site search exists (not on roadmap)
+- [ ] **Agent persistence across Chrome reload** -- requires reworking session storage; no demand evidence
+- [ ] **Per-agent quota / rate limit** -- v0.9.50 safety breakers cover the worst case
+- [ ] **Cross-MCP-client agent registry sharing** -- privacy/security implications outweigh benefit
+- [ ] **Visual fairness scheduling** -- background-tab execution removes the need
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Static prerender of 4 marketing routes | HIGH | MEDIUM | P1 |
-| Express SPA-fallback ordering | HIGH | LOW | P1 |
-| Per-route `<title>` + `<meta description>` | HIGH | LOW | P1 |
-| Canonical link tag | HIGH | LOW | P1 |
-| OG + Twitter Card tags | HIGH | LOW | P1 |
-| `robots.txt` with AI crawler allowlist | HIGH | LOW | P1 |
-| `sitemap.xml` (loc + lastmod) | HIGH | LOW | P1 |
-| `Organization` JSON-LD | HIGH | LOW | P1 |
-| `SoftwareApplication` JSON-LD | HIGH | LOW | P1 |
-| `noindex` on `/dashboard` | MEDIUM | LOW | P1 |
-| `llms.txt` | MEDIUM | LOW | P2 |
-| `llms-full.txt` (generated) | MEDIUM | LOW | P2 |
-| `BreadcrumbList` JSON-LD | LOW | LOW | P2 |
-| Per-route OG images | LOW | MEDIUM | P3 |
-| `FAQPage` JSON-LD | MEDIUM | MEDIUM (requires FAQ page first) | P3 |
-| `HowTo` JSON-LD | LOW (Google deprecated rich result) | LOW | Anti-feature |
-| `priority`/`changefreq` in sitemap | LOW (Google ignores) | LOW | Anti-feature |
-| `WebSite` `SearchAction` | LOW (no on-site search exists) | LOW | Anti-feature |
+| Per-agent ID issuance | HIGH | LOW | P1 |
+| Tab ownership map | HIGH | LOW | P1 |
+| Tool-dispatch ownership gate | HIGH | MEDIUM | P1 |
+| Forced-new-tab pooling | HIGH | MEDIUM | P1 |
+| Hard concurrency cap with typed reject | HIGH | LOW | P1 |
+| Lock release (task end) | HIGH | MEDIUM | P1 |
+| Lock release (client disconnect) | HIGH | MEDIUM | P1 |
+| Lock release (tab close) | HIGH | LOW | P1 |
+| Background-tab execution audit | HIGH | MEDIUM | P1 |
+| Typed errors | HIGH | LOW | P1 |
+| `back` MCP tool | HIGH | LOW | P1 |
+| MCP tool description updates | HIGH | LOW | P1 |
+| Trusted-client badge with agent ID | MEDIUM | MEDIUM | P1 |
+| `fsb-mcp-server@0.8.0` release w/ Phase 236 | HIGH | LOW | P1 |
+| Pool listing tool | LOW | LOW | P2 |
+| Per-agent dashboard preview | MEDIUM | MEDIUM | P2 |
+| `forward` MCP tool | LOW | LOW | P2 |
+| Badge color-bucketing per agent | LOW | LOW | P2 |
+| Cross-window agents | LOW | HIGH | Anti-feature |
+| Incognito agents | LOW | HIGH | Anti-feature |
+| Idle timeout reaping | NEGATIVE | LOW | Anti-feature |
+| Agent-to-agent messaging | LOW | HIGH | Anti-feature |
+| Multi-step `back(n)` | LOW | LOW | Anti-feature |
+| Dirty-form `back` confirmation | NEGATIVE | LOW | Anti-feature |
 
 **Priority key:**
-- P1: Must ship in v0.9.46
-- P2: Add in v0.9.47 follow-up milestone
-- P3: Defer until product/design appetite emerges
+- P1: Must ship in v0.9.60
+- P2: Defer to v0.9.61+, ship only after v0.9.60 validation
+- Anti-feature: Document and explicitly exclude
+
+## Competitor / Reference Tool Comparison
+
+| Feature | Browserbase | Browser Use | Stagehand v3 | Playwright | Puppeteer-Cluster | Project Mariner | FSB v0.9.60 (proposed) |
+|---------|-------------|-------------|--------------|------------|-------------------|-----------------|------------------------|
+| Agent / session identity | `sessionId` per session | Implicit per agent instance | `Stagehand` instance handle | `BrowserContext` handle | Internal queue task ID | Hidden (managed cloud) | `agentId` issued by FSB on session start |
+| Tab handle convention | Page object | `tab_id` (string) | `page` (Playwright) | Page object | Page in worker | Hidden | Chrome `tab.id` (integer) |
+| Isolation boundary | Cloud session (per-VM) | Per-agent userDataDir | Per-context | Per-`BrowserContext` | Per-context (default) | Per-VM | Per-tab ownership lock (single profile) |
+| Concurrency cap | Plan-based (cloud quota) | Caller-managed | Caller-managed | Worker count | `maxConcurrency` | "up to 10" | Hard 8, fail-loud |
+| Cap-exceeded behavior | 4xx with retry-after | N/A (caller decides) | N/A | N/A | Silent queue | Hidden | Typed `AGENT_CAP_REACHED` reject |
+| Background tab execution | N/A (headless cloud) | Yes | Yes (CDP) | Yes | Yes | Yes (VMs) | Yes (audit-driven) |
+| New-tab pooling | Per-context | Per-context | Per-context | Per-`BrowserContext` | Per-context | Per-VM | Per-agent (`openerTabId` lookup) |
+| `back` semantics | Playwright | Playwright | Playwright | `page.goBack()` single-step | Playwright | Hidden | Single-step, typed `NO_BACK_HISTORY` |
+| Idle timeout | Yes (server cost) | No | No | No | No | Yes (cloud cost) | **No** (intentional) |
+| Cross-agent tab access | Reject (separate sessions) | Reject (separate agents) | Reject | Reject | Reject | Reject | Reject (`TAB_NOT_OWNED`) |
+
+**FSB's distinct posture:** Shared Chrome profile (only single-window option), no idle timeout (interactive use case), tab-ownership lock instead of per-context isolation (impossible without separate profiles). The cost is that cookies/localStorage **are** shared across same-origin tabs -- this is a Chrome property, not an FSB choice; document it.
 
 ## Sources
 
-### OpenAI (verified)
-- OpenAI: Overview of OpenAI Crawlers -- https://platform.openai.com/docs/bots (canonical source for GPTBot/1.1, ChatGPT-User/1.0, OAI-SearchBot/1.0 identifiers and independent semantics)
-- OpenAI Help Center: Publishers and Developers FAQ -- https://help.openai.com/en/articles/12627856-publishers-and-developers-faq
+### Primary tool docs (HIGH confidence)
+- Browserbase Contexts -- https://docs.browserbase.com/features/contexts (session persistence, encryption-at-rest, context-vs-session distinction)
+- Browserbase internal-agents blog -- https://www.browserbase.com/blog/internal-agents
+- Stagehand on GitHub -- https://github.com/browserbase/stagehand (v3 CDP-native architecture, `stagehand.context.pages()`)
+- Browser Use on GitHub -- https://github.com/browser-use/browser-use (multi-tab + parallel agents)
+- Browser Use AgentID feature request issue -- https://github.com/browser-use/browser-use/issues/4470 (ECDSA P-256 verifiable agent identity proposal)
+- Playwright BrowserContext -- https://playwright.dev/docs/browser-contexts (isolation boundary: cookies, storage, cache, permissions, auth credentials per context)
+- Playwright BrowserContext API -- https://playwright.dev/docs/api/class-browsercontext
+- Playwright Navigations -- https://playwright.dev/docs/navigations (`page.goBack()` semantics, `await` requirement)
+- Playwright issue #14431 -- https://github.com/microsoft/playwright/issues/14431 (`beforeunload` dialog dismissal bug -- supports the "let Chrome native handle it" anti-feature decision)
+- Puppeteer-Cluster on GitHub -- https://github.com/thomasdondorf/puppeteer-cluster (`maxConcurrency`, `CONCURRENCY_PAGE/CONTEXT/BROWSER`, queue vs execute)
+- Puppeteer-Cluster npm -- https://www.npmjs.com/package/puppeteer-cluster
 
-### Anthropic (verified)
-- Anthropic Privacy Center: Does Anthropic crawl data from the web -- https://privacy.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
-- Anthropic Support (same article) -- https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
-- Search Engine Journal: Anthropic's Claude Bots Make Robots.txt Decisions More Granular -- https://www.searchenginejournal.com/anthropics-claude-bots-make-robots-txt-decisions-more-granular/568253/
+### Secondary references (HIGH confidence)
+- Playwright vs Browser Use vs Stagehand 2026 comparison -- https://www.nxcode.io/resources/news/stagehand-vs-browser-use-vs-playwright-ai-browser-automation-2026
+- Browser Use vs Stagehand comparison -- https://www.skyvern.com/blog/browser-use-vs-stagehand-which-is-better/
+- Parallel browser agents architecture -- https://www.mindstudio.ai/blog/parallel-browser-agents-claude-code (the three-layer task/orchestration/execution decomposition)
+- Stagehand vs Browser Use Scrapfly -- https://scrapfly.io/blog/posts/stagehand-vs-browser-use
+- Vercel agent-browser sessions docs -- https://agent-browser.dev/sessions (tab handle convention `t1, t2, t3`)
+- Vercel agent-browser CDP context request -- https://github.com/vercel-labs/agent-browser/issues/1068 (CDP BrowserContexts for cookie-isolated parallel sessions in one Chrome window)
 
-### Cloudflare (verified bot data)
-- Cloudflare bots concepts -- https://developers.cloudflare.com/bots/concepts/bot/ (verified-bot universe including Applebot, Bytespider, ClaudeBot, GPTBot, Meta-ExternalAgent, CCBot)
-- Cloudflare Radar: Meta-ExternalAgent -- https://radar.cloudflare.com/bots/directory/meta-externalagent (March 2026 traffic share data)
-- Cloudflare blog: Control content use for AI training -- https://blog.cloudflare.com/control-content-use-for-ai-training/
-- Cloudflare blog: From Googlebot to GPTBot -- https://blog.cloudflare.com/from-googlebot-to-gptbot-whos-crawling-your-site-in-2025/
+### Project Mariner (MEDIUM confidence -- product copy, not API docs)
+- Project Mariner DeepMind page -- https://deepmind.google/models/project-mariner/
+- Project Mariner DeepMind technologies page -- https://deepmind.google/technologies/project-mariner/
+- TechCrunch Project Mariner unveil -- https://techcrunch.com/2024/12/11/google-unveils-project-mariner-ai-agents-to-use-the-web-for-you/
+- Project Mariner DataCamp guide -- https://www.datacamp.com/tutorial/project-mariner (10 parallel tasks, VM-per-task architecture)
+- Project Mariner allaboutai -- https://www.allaboutai.com/ai-agents/project-mariner/
 
-### llms.txt specification
-- llmstxt.org official spec -- https://llmstxt.org/
-- Mintlify: What is llms.txt -- https://www.mintlify.com/blog/what-is-llms-txt (co-developer perspective; notes Anthropic collaboration and skepticism about actual ingestion)
-- Search Engine Land: llms.txt proposed standard -- https://searchengineland.com/llms-txt-proposed-standard-453676
+### MCP concurrency / error handling
+- Configuring MCP for multiple connections -- https://mcpcat.io/guides/configuring-mcp-servers-multiple-simultaneous-connections/ (STDIO is sequential; HTTP+SSE supports true concurrency)
+- MCP error handling best practices -- https://mcpcat.io/guides/error-handling-custom-mcp-servers/
+- "Why Your MCP Agent Keeps Timing Out" -- https://medium.com/@ai_transfer_lab/why-your-mcp-agent-keeps-timing-out-and-the-fix-that-just-shipped-ad9cb130f8c4 (silent failure on idle drop)
+- gh-aw silent-close issue -- https://github.com/github/gh-aw/issues/20885 (concrete silent-failure case)
 
-### Sitemap status (Google ignoring priority/changefreq in 2026)
-- sitemaps.org Protocol -- https://www.sitemaps.org/protocol.html (canonical schema; both fields still valid spec but "support varies")
-- Iridium Works: Change Frequency, Last Change and Priority Values in Sitemaps -- https://www.iridium-works.com/en/blog-post/change-frequency-last-change-and-priority-values-in-sitemaps (2026 Google posture)
+### Chrome focus-stealing (anti-feature evidence)
+- Claude Code issue #39696 -- https://github.com/anthropics/claude-code/issues/39696 (Chrome extension steals system-wide focus on every tool interaction)
+- Claude Code issue #39558 -- https://github.com/anthropics/claude-code/issues/39558 (focus + keyboard hijack during concurrent Cowork tasks)
+- Chrome focus-stealing community thread -- https://support.google.com/chrome/thread/19827802/
 
-### JSON-LD / Schema.org for LLMs (MEDIUM confidence -- community consensus, not vendor-stated weighting)
-- Szymon Slowik: Schema & JSON-LD for LLM Search (LLMO/AEO/GEO) -- https://www.szymonslowik.com/json-ld-for-llm-seo/
-- Schema Pilot: JSON-LD Complete Guide 2026 -- https://www.schemapilot.app/blog/json-ld-guide/
-- SchemaApp: Why Structured Data is the Future of LLMs -- https://www.schemaapp.com/schema-markup/why-structured-data-not-tokenization-is-the-future-of-llms/
-- Schema.org SoftwareApplication -- https://schema.org/SoftwareApplication
-
-### General 2026 AI crawler landscape
-- No Hacks: AI User-Agent Landscape 2026 -- https://nohacks.co/blog/ai-user-agents-landscape-2026
-- WebSearchAPI: Monthly AI Crawler Report March 2026 -- https://websearchapi.ai/blog/monthly-ai-crawler-report
-- Lumina SEO: AI Crawlers 2026 Guide -- https://lumina-seo.com/blog/ai-crawlers-guide/
+### Browser-side dirty-form / beforeunload
+- Playwright `page.goBack()` reference -- https://runebook.dev/en/docs/playwright/api/class-page/page-go-back
+- Playwright beforeunload bug #14431 -- https://github.com/microsoft/playwright/issues/14431 (cited above; supports `back` anti-feature decision)
 
 ---
-*Feature research for: SEO + GEO/AEO/LLMO discoverability for `full-selfbrowsing.com`*
-*Researched: 2026-04-30*
+*Feature research for: Multi-agent / multi-tab concurrency surface for FSB v0.9.60*
+*Researched: 2026-05-05*
+*Downstream consumer: REQUIREMENTS.md authoring (REQ-IDs grouped by category)*

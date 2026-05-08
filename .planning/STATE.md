@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: (no active milestone)
-status: v0.9.50 shipped 2026-05-03; awaiting `/gsd-new-milestone` to define next
-last_updated: "2026-05-03T11:30:00.000Z"
-last_activity: 2026-05-03 — v0.9.50 archived; tech_debt audit accepted; gap-closure phases 234-236 carried forward
+milestone: null
+milestone_name: null
+status: between_milestones
+last_updated: "2026-05-08T12:00:00.000Z"
+last_activity: 2026-05-08
 progress:
   total_phases: 0
   completed_phases: 0
@@ -17,50 +17,41 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-02)
+See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.50 — autopilot refinement to MCP-parity (4 phases: 224-227)
+**Current focus:** Between milestones -- v0.9.60 archived 2026-05-08; awaiting `/gsd-new-milestone`
 
 ## Current Position
 
-Phase: Not started (roadmap ready)
-Plan: —
-Status: Roadmap created, awaiting `/gsd-plan-phase 224`
-Last activity: 2026-05-02 — ROADMAP.md authored for v0.9.50 (Phases 224-227)
+Status: Between milestones. v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) shipped 2026-05-08.
+
+Last activity: 2026-05-08 -- v0.9.60 milestone archived (ROADMAP/REQUIREMENTS/AUDIT moved to milestones/, MILESTONES.md updated, PROJECT.md evolved).
 
 ## Performance Metrics
 
-- Phases shipped this milestone: 0/4
-- Plans shipped this milestone: 0/0 (TBD per phase)
-- Active requirements: 13 (4 categories: AUDIT, TOOLS, PROMPT, TARGET, VERIFY) + 3 cross-cutting GUARD criteria embedded per phase
+- Last milestone: v0.9.60 (11 phases, 30 plans, 42/42 requirements traced, audit passed)
+- Tag created: v0.9.60 (push to remote: user-gated)
 
 ## Accumulated Context
 
-### Decisions
-
-- [v0.9.50]: MCP tool surface is the reference baseline. External agents (Claude Desktop, OpenClaw, Codex) achieve near-100% via MCP — autopilot must mirror that contract shape and annotation quality.
-- [v0.9.50]: Both tool-surface audit AND prompt/context refinement in scope (not prompt-only).
-- [v0.9.50]: Verification is operator-driven via MCP `run_task` + log inspection, not autonomous test harness.
-- [v0.9.50]: Branch-locked to `Refinements`. No git push, no PRs until explicit user command.
-- [v0.9.50]: Top failure modes targeted — wrong element / misclicks, wrong tool / strategy choice. Loops and completion drift secondary.
-- [v0.9.50/roadmap]: AUDIT phase (224) sequenced first — its inventory and baseline log run are inputs to every other phase.
-- [v0.9.50/roadmap]: VERIFY-01/02 placed in Phase 224 (not own phase) so the operator can re-run the recipe after every implementation phase.
-- [v0.9.50/roadmap]: GUARD-01/02/03 embedded as standing success criteria on every implementation phase rather than a dedicated guard phase — regression checks travel with the work.
-- [v0.9.50/roadmap]: 4 atomic phases preferred over larger bundles to keep operator verification cycles tight.
-
 ### Pending Todos
 
-- `/gsd-plan-phase 224` — Audit & Verification Baseline
-- After each phase: re-run verification recipe and confirm GUARD criteria
+- User-gated release action remains: publish/tag `fsb-mcp-server@0.8.0` when ready (`npm publish` not yet run).
+- Optional future: split live UAT coverage for unowned `switch_tab` into a controlled browser profile where normal tabs are not auto-owned by `legacy:sidepanel`.
 
 ### Blockers/Concerns
 
-- Must preserve every existing autopilot capability — regression risk on any tool surface change.
-- Operator verification loop means longer feedback cycles per change; favor small, atomic refinements.
+- None blocking next milestone.
+
+### Carry-Forward Caveats from v0.9.60
+
+- `fsb-mcp-server@0.8.0` is tag-ready; actual `npm publish` remains user-gated.
+- Live unowned-target `switch_tab` recovery covered only by automated dispatcher tests; live reproduction blocked by `legacy:sidepanel` auto-ownership in this browser profile.
+- Five long real `run_task` soak runs deferred; automated lifecycle coverage is green.
 
 ## Session Continuity
 
-Last session ended with: ROADMAP.md authored for v0.9.50 (Phases 224-227); REQUIREMENTS.md traceability filled.
+Last session ended with: v0.9.60 milestone archived, PROJECT.md evolved, RETROSPECTIVE.md updated, git tag created.
 
-Next session should: spawn `/gsd-plan-phase 224` to plan the Audit & Verification Baseline phase.
+Next session should: run `/gsd-new-milestone` to define the next milestone scope, or perform the user-gated `npm publish` for `fsb-mcp-server@0.8.0`.

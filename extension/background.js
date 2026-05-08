@@ -8,6 +8,23 @@ importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('utils/mcp-visual-session.js');
+try { importScripts('utils/agent-registry.js'); } catch (e) { console.error('[FSB] Failed to load agent-registry.js:', e.message); }
+// Phase 246 plan 01: agent-scoped tab resolver. Pure helper; consumes
+// globalThis.fsbAgentRegistryInstance via getAgentTabs(agentId). Loaded
+// AFTER the registry and BEFORE the dispatcher / bridge-client so those
+// callers see globalThis.resolveAgentTabOrError at module-eval time.
+try { importScripts('utils/agent-tab-resolver.js'); } catch (e) { console.error('[FSB] Failed to load agent-tab-resolver.js:', e.message); }
+// Phase 243 plan 02 (BG-04): user-initiated nav emission helper. Pure
+// module; no chrome.* dependency. The webNavigation.onCommitted listener
+// at this file's line ~2464 calls FsbAgentNavEmission._maybeEmitUserNavigation.
+try { importScripts('utils/agent-nav-emission.js'); } catch (e) { console.error('[FSB] Failed to load agent-nav-emission.js:', e.message); }
+try { importScripts('utils/mcp-task-store.js'); } catch (e) { console.error('[FSB] Failed to load mcp-task-store.js:', e.message); }
+// Phase 245 (v0.9.60): action-verification.js exports buildChangeReport /
+// applyChangeReportSizeCap which the dispatcher calls from SW context after
+// harvesting mutations from the page. capturePageState / startMutationHarvest
+// remain DOM-bound but are not invoked here -- SW reaches them via
+// chrome.scripting.executeScript injection inside wrapWithChangeReport.
+try { importScripts('utils/action-verification.js'); } catch (e) { console.error('[FSB] Failed to load action-verification.js:', e.message); }
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
@@ -215,6 +232,7 @@ const CONTENT_SCRIPT_FILES = [
   'content/utils.js',
   'content/dom-state.js',
   'content/selectors.js',
+  'content/badge-combine.js',
   'content/visual-feedback.js',
   'content/accessibility.js',
   'content/actions.js',
@@ -773,6 +791,29 @@ async function restorePersistedMcpVisualSessions() {
   });
 }
 
+// Phase 237 -- Agent Registry boot.
+// Hydrates registry from chrome.storage.session and reconciles against live tabs.
+// Idempotent: subsequent calls within the same SW lifetime are no-ops.
+// Failure mode: log via rateLimitedWarn and continue; never poison SW startup.
+async function bootstrapAgentRegistry() {
+  if (!globalThis.FsbAgentRegistry || !globalThis.FsbAgentRegistry.AgentRegistry) return;
+  if (!globalThis.fsbAgentRegistryInstance) {
+    globalThis.fsbAgentRegistryInstance = new globalThis.FsbAgentRegistry.AgentRegistry();
+  }
+  try {
+    await globalThis.fsbAgentRegistryInstance.hydrate();
+  } catch (err) {
+    if (typeof globalThis.rateLimitedWarn === 'function') {
+      globalThis.rateLimitedWarn(
+        'AGT',
+        'hydrate-failed',
+        'agent registry hydrate failed',
+        typeof globalThis.redactForLog === 'function' ? globalThis.redactForLog(err) : { kind: 'error' }
+      );
+    }
+  }
+}
+
 function findActiveAutomationSessionForTab(tabId) {
   if (!Number.isFinite(tabId)) return null;
   for (const session of activeSessions.values()) {
@@ -1153,6 +1194,10 @@ async function handleStartMcpVisualSession(request, sender, sendResponse) {
       tabId,
       task,
       detail: request?.detail,
+      // Phase 240 D-09: thread agentId so the cross-agent reject /
+      // same-agent resume branch in McpVisualSessionManager.startSession
+      // fires on production dispatch (not just direct unit-test calls).
+      agentId: typeof request?.agentId === 'string' && request.agentId ? request.agentId : null,
     });
     if (!started?.session) {
       sendResponse({
@@ -2278,6 +2323,12 @@ async function restoreSessionsFromStorage() {
 
     // Restore conversation session mappings after sessions are restored
     await restoreConversationSessions();
+    // Phase 237 -- hydrate the agent registry adjacent to the visual-session
+    // restore site so registry ownership is reconciled before any message
+    // handler can read getOwner(tabId). The bootstrap function swallows its
+    // own errors, but we still chain a defensive .catch in case construction
+    // throws so SW boot is never poisoned.
+    await bootstrapAgentRegistry().catch(() => {});
     await restorePersistedMcpVisualSessions();
 
     automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size, conversationSessions: conversationSessions.size });
@@ -2444,6 +2495,25 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     contentScriptPorts.delete(tabId);
   }
 
+  // Phase 243 plan 02 (BG-04 / D-03): emit a LOG-04
+  // 'agent-tab-user-navigation' diagnostic when the user (typed,
+  // auto_bookmark, reload, link) navigates an agent-owned tab. The
+  // helper applies frameId / transitionType / legacy:* / 500ms-stamp
+  // suppression filters internally and is a no-op when any precondition
+  // fails. EMISSION-only: no session.status mutation, no pause/resume
+  // primitive (CONTEXT specifics line 67-68).
+  try {
+    if (typeof FsbAgentNavEmission !== 'undefined'
+        && FsbAgentNavEmission
+        && typeof FsbAgentNavEmission._maybeEmitUserNavigation === 'function') {
+      FsbAgentNavEmission._maybeEmitUserNavigation(
+        details,
+        globalThis.fsbAgentRegistryInstance,
+        Date.now()
+      );
+    }
+  } catch (_e) { /* swallow -- diagnostic is best-effort */ }
+
   automationLogger.logComm(null, 'nav', 'state_cleared', true, {
     tabId,
     transitionType: details.transitionType,
@@ -2502,6 +2572,51 @@ chrome.tabs.onRemoved.addListener((tabId) => {
         sessionAIInstances.delete(sessionId);
       }
     }
+  }
+});
+
+// Phase 237 -- registry tab-release hook.
+// Standalone listener (NOT a modification of the two existing onRemoved listeners
+// for session/port cleanup above and the keyboard-emulator detach further below).
+// releaseTab is idempotent per registry contract (plan-01 task 1 test 7), so
+// duplicate fires from listener reordering or future consolidation are no-ops.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  try {
+    if (globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.releaseTab === 'function') {
+      // Fire-and-forget: releaseTab is internally promise-chain-locked.
+      // Matches the non-blocking pattern of the existing v0.9.36 cleanup listeners.
+      globalThis.fsbAgentRegistryInstance.releaseTab(tabId);
+    }
+  } catch (err) {
+    // Defensive: never let registry errors stop the existing onRemoved cleanup chain.
+  }
+});
+
+// Phase 241 D-01 / POOL-03 -- forced-pool routing for new tabs.
+// Standalone listener (does NOT modify the existing onCreated handlers nor the
+// onRemoved chain above). When Chrome opens a new tab whose openerTabId points
+// to an agent-owned tab, the new tab is automatically pooled under that same
+// agent via bindTab(forced:true). New tabs without an openerTabId (Ctrl+T,
+// address-bar) are intentionally left unowned -- they are not the spawn of an
+// agent action, so no agent should claim them.
+//
+// D-02: forced-pool routing reuses an existing agent record; it does NOT call
+// registerAgent and therefore does NOT consume cap budget.
+chrome.tabs.onCreated.addListener((tab) => {
+  try {
+    if (!tab || typeof tab.id !== 'number') return;
+    if (typeof tab.openerTabId !== 'number') return; // Pitfall 2: Ctrl+T / address-bar tabs unowned.
+    var reg = globalThis.fsbAgentRegistryInstance;
+    if (!reg || typeof reg.findAgentByTabId !== 'function') return;
+    var ownerAgentId = reg.findAgentByTabId(tab.openerTabId);
+    if (!ownerAgentId) return;
+    if (typeof reg.bindTab === 'function') {
+      // Fire-and-forget: bindTab is internally promise-chain-locked.
+      reg.bindTab(ownerAgentId, tab.id, { forced: true });
+    }
+  } catch (_err) {
+    // Defensive: never let registry errors stop other onCreated listeners.
   }
 });
 
@@ -5103,10 +5218,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
 
   switch (request.action) {
+    case 'ensureLegacyAgent': {
+      // Phase 240 D-02: legacy surfaces (popup, sidepanel, autopilot)
+      // synthesize a constant agentId via Plan 01's getOrRegisterLegacyAgent
+      // carve-out. Each surface calls this once at boot; the registry mints
+      // the agent if missing or returns the existing record. The runtime
+      // action accepts only 3 hardcoded surfaces -- the registry's ALLOWED
+      // map enforces the carve-out boundary (T-240-04 mitigation).
+      const surface = (request && typeof request.surface === 'string') ? request.surface : null;
+      if (!globalThis.fsbAgentRegistryInstance) {
+        sendResponse({ success: false, error: 'agent_registry_not_initialized' });
+        return true;
+      }
+      globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent(surface)
+        .then((result) => {
+          if (result && result.error) {
+            sendResponse({ success: false, error: result.error, surface: result.surface || surface });
+            return;
+          }
+          sendResponse({
+            success: true,
+            agentId: result.agentId,
+            ownershipToken: (result && result.ownershipToken) || null
+          });
+        })
+        .catch((err) => {
+          sendResponse({ success: false, error: (err && err.message) || String(err) });
+        });
+      return true; // async response
+    }
+
     case 'startAutomation':
       handleStartAutomation(request, sender, sendResponse);
       return true; // Will respond asynchronously
-      
+
     case 'stopAutomation':
       handleStopAutomation(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -6273,11 +6418,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
           } catch (switchErr) {
             // Tab may have been closed between discovery and switch - fall back to navigate
             automationLogger.debug('Tab switch failed, falling back to navigate', { error: switchErr.message });
+            // Phase 243 plan 02 (BG-04): stamp lastAgentNavigationAt BEFORE
+            // the chrome.tabs.update so the webNavigation.onCommitted
+            // listener suppresses its agent-tab-user-navigation emission for
+            // the resulting auto_bookmark / link transition (Pitfall 2 / 500ms).
+            try { globalThis.fsbAgentRegistryInstance && globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId); } catch (_e) {}
             await chrome.tabs.update(targetTabId, { url: targetUrl });
             navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
           }
         } else {
           // Navigate current (restricted) tab to target
+          // Phase 243 plan 02 (BG-04): stamp before programmatic navigation
+          // so the webNavigation listener suppresses the agent-driven commit.
+          try { globalThis.fsbAgentRegistryInstance && globalThis.fsbAgentRegistryInstance.stampAgentNavigation(targetTabId); } catch (_e) {}
           await chrome.tabs.update(targetTabId, { url: targetUrl });
           navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
         }
@@ -6437,11 +6590,47 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions
 
+    // Phase 240 D-08 (4th site): bindTab before success return.
+    // Source-agnostic per Open Q3: fires on EVERY handleStartAutomation
+    // success, whether from popup (legacy:popup), sidepanel (legacy:sidepanel),
+    // MCP dispatch (real agent_<uuid>), or autopilot fallback
+    // (legacy:autopilot). agentId is sourced from request.agentId; fallback
+    // to legacy:autopilot when caller did not thread one (covers run_task
+    // pre-Phase-238 callers and the agent-loop fallback).
+    let resolvedAgentId = (request && typeof request.agentId === 'string') ? request.agentId : null;
+    if (!resolvedAgentId && globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent === 'function') {
+      try {
+        const fallback = await globalThis.fsbAgentRegistryInstance.getOrRegisterLegacyAgent('autopilot');
+        if (fallback && !fallback.error) {
+          resolvedAgentId = fallback.agentId || null;
+        }
+      } catch (_fallbackErr) {
+        // Fallback failure is non-fatal: dispatch gate (Plan 02) will reject
+        // tool calls, but the session itself starts so the popup/sidepanel
+        // user is not blocked.
+      }
+    }
+    let bindResult = null;
+    if (resolvedAgentId && globalThis.fsbAgentRegistryInstance &&
+        typeof globalThis.fsbAgentRegistryInstance.bindTab === 'function' &&
+        Number.isFinite(targetTabId)) {
+      try {
+        bindResult = await globalThis.fsbAgentRegistryInstance.bindTab(resolvedAgentId, targetTabId);
+      } catch (_bindErr) {
+        // Best-effort: bind failure does not block the success response so
+        // legacy single-agent flows remain functional during the v0.9.60
+        // multi-agent transition.
+      }
+    }
+
     sendResponse({
       success: true,
       sessionId,
       message: navigationMessage || 'Automation started',
-      navigationPerformed: navigationPerformed
+      navigationPerformed: navigationPerformed,
+      agentId: resolvedAgentId || undefined,
+      ownershipToken: (bindResult && bindResult.ownershipToken) || undefined
     });
 
     // EASY WIN #10: Start keep-alive when automation begins
@@ -6786,6 +6975,26 @@ async function handleStopAutomation(request, sender, sendResponse) {
     await cleanupSession(sessionId); // Await to ensure full cleanup before responding
 
     automationLogger.info('Session stopped and removed', { sessionId });
+
+    // Phase 239 plan 01 -- emit lifecycle event so any in-flight run_task MCP
+    // call resolves immediately on user stop (CONTEXT.md D-08 cleanup path 5;
+    // RESEARCH.md Open Question 4: dispatch BEFORE sendResponse so the bridge
+    // client subscription receives the bus event before stop_task's response
+    // travels back to the MCP server).
+    try {
+      fsbBroadcastAutomationLifecycle({
+        action: 'automationComplete',
+        sessionId: sessionId,
+        outcome: 'stopped',
+        reason: 'user_stopped',
+        stopped: true,
+        timestamp: Date.now()
+      });
+    } catch (busErr) {
+      console.warn('[FSB] handleStopAutomation lifecycle dispatch failed', busErr && busErr.message);
+      // never block sendResponse on bus failure
+    }
+
     sendResponse({
       success: true,
       message: 'Automation stopped'

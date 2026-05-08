@@ -1,5 +1,12 @@
 // Side Panel Script for FSB v0.9.50 - Persistent UI
 
+// Phase 243 plan 03 (UI-02): the sidepanel's surface id (matches the
+// legacy:sidepanel agent synthesized by ensureLegacySidepanelAgent below).
+// When the active tab is owned by THIS surface, the "owned by ..." chip
+// stays hidden -- per CONTEXT D-05, a surface does not announce ownership
+// of its own tab.
+const MY_SURFACE = 'legacy:sidepanel';
+
 let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
@@ -8,6 +15,32 @@ let livenessInterval = null;
 let livenessFailCount = 0;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
+
+// Phase 240 D-02: synthesize legacy:sidepanel agentId once per side panel
+// load. The side panel is longer-lived than the popup but still gets
+// recreated by Chrome on certain events; the registry's
+// getOrRegisterLegacyAgent is idempotent on the 'sidepanel' surface so the
+// constant 'legacy:sidepanel' agentId is reused across reopens. The
+// ownershipToken is null until bindTab fires inside handleStartAutomation
+// (D-08 4th site).
+let _legacySidepanelAgent = null;
+async function ensureLegacySidepanelAgent() {
+  if (_legacySidepanelAgent && _legacySidepanelAgent.agentId) return _legacySidepanelAgent;
+  try {
+    _legacySidepanelAgent = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'ensureLegacyAgent', surface: 'sidepanel' },
+        (resp) => resolve(resp || {})
+      );
+    });
+  } catch (_e) {
+    _legacySidepanelAgent = null;
+  }
+  if (!_legacySidepanelAgent || !_legacySidepanelAgent.success) {
+    _legacySidepanelAgent = { agentId: null, ownershipToken: null };
+  }
+  return _legacySidepanelAgent;
+}
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -184,7 +217,77 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.showSidepanelProgress != null) {
     showSidepanelProgressEnabled = changes.showSidepanelProgress.newValue ?? false;
   }
+  // Phase 243 plan 03 (UI-02) follow-up: refresh chip when registry mutates
+  // for the active tab (ownership claimed/released/transferred). The
+  // sidepanel persists across tab switches, so without this branch the chip
+  // would show stale ownership data when an agent claims or releases the
+  // active tab while the user stays on it.
+  if (area === 'session' && changes && changes.fsbAgentRegistry) {
+    refreshOwnerChip();
+  }
 });
+
+// Phase 243 plan 03 (UI-02): refresh the read-only "owned by Agent X" chip.
+// Reads the persisted registry envelope from chrome.storage.session (Phase 237
+// D-03 write-through) and the active tab; uses FSBOwnerChip pure helpers to
+// decide visibility and label format. Bypasses background.js entirely so this
+// plan stays Wave-1 zero-overlap with Plan 02's webNavigation listener.
+//
+// Sidepanel-specific: subscribed to chrome.tabs.onActivated below, since the
+// sidepanel persists across tab switches (popup is short-lived and skips this).
+async function refreshOwnerChip() {
+  try {
+    const chipEl = document.getElementById('fsb-owner-chip');
+    if (!chipEl) return;
+    if (typeof FSBOwnerChip === 'undefined') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (!tab || typeof tab.id !== 'number') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const stored = await chrome.storage.session.get('fsbAgentRegistry');
+    const envelope = stored && stored.fsbAgentRegistry;
+    const ownerAgentId = FSBOwnerChip.findOwnerInEnvelope(envelope, tab.id);
+
+    if (!FSBOwnerChip.shouldShowOwnerChip(ownerAgentId, MY_SURFACE)) {
+      chipEl.textContent = '';
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const formatter = (typeof FsbAgentRegistry !== 'undefined'
+      && typeof FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+      ? FsbAgentRegistry.formatAgentIdForDisplay
+      : null;
+    const label = FSBOwnerChip.ownerLabelFor(ownerAgentId, formatter);
+    chipEl.textContent = FSBOwnerChip.buildChipText(label);
+    chipEl.style.display = 'inline-flex';
+  } catch (_e) {
+    // Chip is best-effort -- never poison sidepanel boot.
+  }
+}
+
+// Phase 243 plan 03 (UI-02): refresh on tab switch. The sidepanel is
+// persistent, so the active tab can change while the surface is open --
+// without this listener the chip would show stale ownership data (Threat
+// T-243-03-02). Best-effort registration; if chrome.tabs.onActivated is
+// unavailable for any reason the chip simply does not auto-refresh.
+try {
+  if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onActivated
+      && typeof chrome.tabs.onActivated.addListener === 'function') {
+    chrome.tabs.onActivated.addListener(() => {
+      refreshOwnerChip();
+    });
+  }
+} catch (_e) {
+  // swallow: chip auto-refresh is non-critical
+}
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
@@ -247,7 +350,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Set UI mode preference
   await chrome.storage.local.set({ uiMode: 'sidepanel' });
-  
+
+  // Phase 243 plan 03 (UI-02): render the read-only owner chip on load. The
+  // chrome.tabs.onActivated subscription registered above keeps the chip in
+  // sync as the user switches tabs in the persistent sidepanel.
+  refreshOwnerChip();
+
   // History list event delegation for delete buttons
   const historyListEl = document.getElementById('historyList');
   if (historyListEl) {
@@ -398,12 +506,20 @@ async function handleSendMessage() {
     
     // Note: Restriction checking is now handled by background script with smart navigation
     
+    // Phase 240 D-02: ensure legacy:sidepanel agentId is synthesized BEFORE
+    // dispatching startAutomation. The agentId + ownershipToken thread into
+    // the envelope so handleStartAutomation can bindTab the target tab
+    // under legacy:sidepanel (D-08 4th site).
+    const legacy = await ensureLegacySidepanelAgent();
+
     // Send start command to background
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      conversationId: conversationId
+      conversationId: conversationId,
+      agentId: legacy && legacy.agentId,
+      ownershipToken: legacy && legacy.ownershipToken
     }, (response) => {
       if (chrome.runtime.lastError) {
         addMessage(`Error communicating with background script: ${chrome.runtime.lastError.message}`, 'error');

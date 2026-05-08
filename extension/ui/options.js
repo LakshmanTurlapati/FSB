@@ -27,7 +27,13 @@ const defaultSettings = {
   // CAPTCHA Solver
   captchaSolverEnabled: false,
   captchaApiKey: '',
-  autoRefineSiteMaps: true
+  autoRefineSiteMaps: true,
+  // Phase 241 D-05 / POOL-05: max simultaneous agents (range 1-64, default 8).
+  fsbAgentCap: 8,
+  // Phase 245 D-07: global toggle for action change_report emission. When
+  // false, the dispatcher skips harvest instrumentation entirely (zero
+  // overhead) and action tool responses revert to pre-Phase-245 shape.
+  fsbChangeReportsEnabled: true
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -147,6 +153,15 @@ function cacheElements() {
   elements.elementCacheSizePreset = document.getElementById('elementCacheSizePreset');
   elements.elementCacheSizeCustom = document.getElementById('elementCacheSizeCustom');
   elements.elementCacheSizeDisplay = document.getElementById('elementCacheSizeDisplay');
+  // Phase 241 D-05 / POOL-05: Agent Concurrency cap card.
+  elements.fsbAgentCap = document.getElementById('fsbAgentCap');
+  elements.fsbAgentCapDisplay = document.getElementById('fsbAgentCapDisplay');
+  elements.fsbAgentCapReset = document.getElementById('fsbAgentCapReset');
+  // Phase 243 Plan 04 / UI-03: validation hint + live current-active counter.
+  elements.fsbAgentCapValidation = document.getElementById('fsbAgentCapValidation');
+  elements.fsbAgentCapCurrentActive = document.getElementById('fsbAgentCapCurrentActive');
+  // Phase 245 D-07: Action Change Reports global toggle.
+  elements.fsbChangeReportsEnabled = document.getElementById('fsbChangeReportsEnabled');
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
   elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
@@ -282,6 +297,78 @@ function setupEventListeners() {
         }
       }
       markUnsavedChanges();
+    });
+  }
+
+  // Phase 241 D-05 / POOL-05 / POOL-06: Agent Concurrency cap input + reset.
+  // Real-time clamp: parseInt -> 1..64 integer; non-numeric -> default 8.
+  // Defense-in-depth layer 2 (HTML min/max is layer 1; SW setCap is layer 3).
+  if (elements.fsbAgentCap) {
+    elements.fsbAgentCap.addEventListener('input', (e) => {
+      // Phase 243 Plan 04 / UI-03: toggle the inline validation hint based on
+      // the RAW typed value (before clamp) so the user gets immediate feedback
+      // when they enter 0, 65, or non-numeric input. The clamp below still
+      // normalizes the persisted value (defense-in-depth layer 2).
+      const rawValue = e.target.value;
+      const validationEl = elements.fsbAgentCapValidation;
+      if (validationEl && typeof isCapInputInvalid === 'function') {
+        validationEl.style.display = isCapInputInvalid(rawValue) ? 'block' : 'none';
+      }
+
+      let raw = parseInt(rawValue, 10);
+      if (!Number.isFinite(raw)) raw = 8;
+      if (raw < 1) raw = 1;
+      if (raw > 64) raw = 64;
+      if (e.target.value !== String(raw)) e.target.value = String(raw);
+      if (elements.fsbAgentCapDisplay) {
+        elements.fsbAgentCapDisplay.textContent = String(raw);
+      }
+      // Phase 243 Plan 04 / UI-03: refresh the counter so "X of M active"
+      // tracks the in-progress (unsaved) cap value while the user types.
+      if (typeof refreshActiveAgentCount === 'function') {
+        refreshActiveAgentCount();
+      }
+      markUnsavedChanges();
+    });
+  }
+  if (elements.fsbAgentCapReset) {
+    elements.fsbAgentCapReset.addEventListener('click', () => {
+      if (elements.fsbAgentCap) elements.fsbAgentCap.value = '8';
+      if (elements.fsbAgentCapDisplay) elements.fsbAgentCapDisplay.textContent = '8';
+      // Phase 243 Plan 04 / UI-03: hide validation + refresh counter on reset.
+      if (elements.fsbAgentCapValidation) {
+        elements.fsbAgentCapValidation.style.display = 'none';
+      }
+      if (typeof refreshActiveAgentCount === 'function') {
+        refreshActiveAgentCount();
+      }
+      markUnsavedChanges();
+    });
+  }
+
+  // Phase 245 D-07: Action Change Reports toggle. Mirror the cap-toggle
+  // pattern: change handler marks unsaved; saveSettings/loadSettings handle
+  // persistence below.
+  if (elements.fsbChangeReportsEnabled) {
+    elements.fsbChangeReportsEnabled.addEventListener('change', () => {
+      markUnsavedChanges();
+    });
+  }
+
+  // Phase 243 Plan 04 / UI-03: subscribe chrome.storage.onChanged so the
+  // live current-active counter refreshes whenever the registry envelope
+  // mutates (session/fsbAgentRegistry, written by Phase 237's write-through)
+  // OR the cap value persists (local/fsbAgentCap, written by saveSettings).
+  // Debounced 100ms (Pitfall 4) so bulk registry writes during ramp-up
+  // collapse to a single counter refresh.
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged
+      && typeof chrome.storage.onChanged.addListener === 'function') {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'session' && changes && changes.fsbAgentRegistry) {
+        scheduleRefreshActiveAgentCount();
+      } else if (area === 'local' && changes && changes.fsbAgentCap) {
+        scheduleRefreshActiveAgentCount();
+      }
     });
   }
 
@@ -772,6 +859,27 @@ function loadSettings() {
       }
     }
 
+    // Phase 241 D-05 / POOL-05: Agent Concurrency cap. Re-clamp on read in
+    // case storage was tampered with (T-241-11) or set by an older build.
+    if (elements.fsbAgentCap) {
+      let capValue = (typeof settings.fsbAgentCap === 'number' && Number.isFinite(settings.fsbAgentCap))
+        ? settings.fsbAgentCap
+        : 8;
+      if (capValue < 1) capValue = 1;
+      if (capValue > 64) capValue = 64;
+      capValue = Math.floor(capValue);
+      elements.fsbAgentCap.value = String(capValue);
+      if (elements.fsbAgentCapDisplay) {
+        elements.fsbAgentCapDisplay.textContent = String(capValue);
+      }
+    }
+
+    // Phase 243 Plan 04 / UI-03: initial paint of the "X of M active" counter.
+    // Subsequent updates flow through chrome.storage.onChanged.
+    if (typeof refreshActiveAgentCount === 'function') {
+      refreshActiveAgentCount();
+    }
+
     if (elements.prioritizeViewport) {
       elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
     }
@@ -780,6 +888,12 @@ function loadSettings() {
     }
     if (elements.showSidepanelProgress) {
       elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
+    }
+
+    // Phase 245 D-07: Action Change Reports toggle. Default true when key
+    // absent (handles older builds whose storage doesn't have the key yet).
+    if (elements.fsbChangeReportsEnabled) {
+      elements.fsbChangeReportsEnabled.checked = settings.fsbChangeReportsEnabled ?? true;
     }
 
     // Credential Manager
@@ -801,6 +915,63 @@ function loadSettings() {
 
     addLog('info', 'Settings loaded successfully');
   });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 243 Plan 04 / UI-03 - Live current-active agent counter.
+//
+// Reads chrome.storage.session 'fsbAgentRegistry' (Phase 237 D-03 envelope),
+// counts records keys EXCLUDING the legacy:* synthesized agents (Pitfall 1
+// per 243-RESEARCH.md), and renders "N of M active" into the counter span.
+//
+// The pure helpers (computeActiveAgentCount / formatCounterText) are loaded
+// from extension/ui/cap-counter-helpers.js BEFORE this script (see
+// control_panel.html script-tag ordering).
+// ---------------------------------------------------------------------------
+
+let _capCounterDebounceHandle = null;
+
+function scheduleRefreshActiveAgentCount() {
+  // 100ms debounce — bulk registry writes during agent ramp-up
+  // (8 agents x 1-3 tabs each = up to 24 storage events) collapse to a
+  // single counter refresh. Pitfall 4 per 243-RESEARCH.md.
+  if (_capCounterDebounceHandle !== null) {
+    clearTimeout(_capCounterDebounceHandle);
+  }
+  _capCounterDebounceHandle = setTimeout(() => {
+    _capCounterDebounceHandle = null;
+    refreshActiveAgentCount();
+  }, 100);
+}
+
+function refreshActiveAgentCount() {
+  const counterEl = elements.fsbAgentCapCurrentActive;
+  if (!counterEl) return;
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.session
+      || typeof chrome.storage.session.get !== 'function') {
+    return;
+  }
+  try {
+    chrome.storage.session.get('fsbAgentRegistry', (result) => {
+      // chrome.runtime.lastError swallow — counter is best-effort UI.
+      if (chrome.runtime && chrome.runtime.lastError) {
+        return;
+      }
+      const envelope = result && result.fsbAgentRegistry;
+      const active = (typeof computeActiveAgentCount === 'function')
+        ? computeActiveAgentCount(envelope)
+        : 0;
+      let cap = parseInt(elements.fsbAgentCap && elements.fsbAgentCap.value, 10);
+      if (!Number.isFinite(cap)) cap = 8;
+      const text = (typeof formatCounterText === 'function')
+        ? formatCounterText(active, cap)
+        : (active + ' of ' + cap + ' active');
+      counterEl.textContent = text;
+    });
+  } catch (_e) {
+    // Swallow — counter is purely informational and must never throw into
+    // the options page.
+  }
 }
 
 function saveSettings() {
@@ -827,7 +998,22 @@ function saveSettings() {
     enableLogin: elements.enableLogin?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || '',
-    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true
+    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
+    // Phase 241 D-05 / POOL-05: Agent Concurrency cap. Defense-in-depth
+    // layer 2 (input clamp = layer 1; SW setCap on storage.onChanged = layer 3).
+    // Phase 241 WR-02: clamp at the write site for symmetry with the load
+    // path so DevTools-tampered values or stale settings exports cannot
+    // persist out-of-range cap values to chrome.storage.local.
+    fsbAgentCap: (function() {
+      var raw = parseInt(elements.fsbAgentCap?.value, 10);
+      if (!Number.isFinite(raw)) return 8;
+      if (raw < 1) return 1;
+      if (raw > 64) return 64;
+      return raw;
+    })(),
+    // Phase 245 D-07: persist Action Change Reports toggle. Default true so
+    // builds where the user has never visited the toggle still emit reports.
+    fsbChangeReportsEnabled: elements.fsbChangeReportsEnabled?.checked ?? true
   };
   
   chrome.storage.local.set(settings, () => {

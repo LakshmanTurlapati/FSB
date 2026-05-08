@@ -15,6 +15,16 @@ const MCP_RECONNECT_ALARM = 'fsb-mcp-bridge-reconnect';
 const MCP_RECONNECT_BASE_MS = 2000;
 const MCP_RECONNECT_MAX_MS = 30000;
 const MCP_PING_INTERVAL_MS = 25000;
+const MCP_DISPATCHER_SYNTHETIC_CHANGE_REPORT_TOOLS = new Set(['open_tab', 'close_tab']);
+// Phase 241 D-07 / D-08 -- mirror of agent-registry.js RECONNECT_GRACE_MS.
+// On bridge _ws.onclose the bridge asks the registry to stage release for
+// every agent stamped with the current connection_id; that staged release
+// fires after this many ms unless the bridge reconnects under the prior
+// connection_id and cancels it. setTimeout (not the Chrome alarms API) is
+// authoritative because the alarms API minimum delay is 30s, well above the
+// 10s default grace. Hydrate-time recovery in agent-registry.js covers the
+// SW-eviction-during-grace case via the persisted stagedReleases envelope.
+const RECONNECT_GRACE_MS = 10000;
 
 class MCPBridgeClient {
   constructor() {
@@ -33,6 +43,14 @@ class MCPBridgeClient {
     this._lastDisconnectReason = null;
     this._nextReconnectAt = null;
     this._reconnectAttemptCount = 0;
+    // Phase 241 D-08 -- per-bridge-connect connection_id state.
+    // _connectionId is minted at every _ws.onopen via crypto.randomUUID() and
+    // threaded through agent:register so the registry can stamp it on each
+    // freshly minted agent. _lastKnownConnectionId carries the prior id from
+    // _ws.onclose -> next _ws.onopen so the staged release for the prior id
+    // can be cancelled on a fast reconnect (within RECONNECT_GRACE_MS).
+    this._connectionId = null;
+    this._lastKnownConnectionId = null;
   }
 
   getState() {
@@ -99,6 +117,32 @@ class MCPBridgeClient {
       this._clearReconnectAlarm();
       this._persistState();
       this._startPing();
+      // Phase 241 D-08 -- mint a fresh connection_id at onopen.
+      // crypto.randomUUID is available in MV3 service workers and Node 18+.
+      // The defensive fallback ensures the bridge never throws even if the
+      // global is absent (Pitfall: should never trigger in practice).
+      this._connectionId = (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : (Date.now().toString(16) + '-' + Math.random().toString(16).slice(2, 10));
+      // Phase 241 D-08 -- cancel any staged release left over from the prior
+      // connection_id. _lastKnownConnectionId holds the id that was active
+      // when onclose fired so we can find the staging entry the registry
+      // recorded for it. Best-effort: a missing registry / missing helper is
+      // never fatal; the staged release will simply expire normally.
+      try {
+        const reg = globalThis.fsbAgentRegistryInstance;
+        if (reg && typeof reg.cancelStagedRelease === 'function' && this._lastKnownConnectionId) {
+          const cancelP = reg.cancelStagedRelease(this._lastKnownConnectionId);
+          if (cancelP && typeof cancelP.catch === 'function') {
+            cancelP.catch(() => { /* best-effort */ });
+          }
+        }
+      } catch (_e) { /* best-effort */ }
+      this._lastKnownConnectionId = this._connectionId;
+      // Phase 239 plan 03 -- best-effort reconciliation of any in-flight
+      // run_task snapshots that survived an SW eviction. Authoritative
+      // settle still lives server-side in autopilot.ts via sw_evicted.
+      try { this._reconcileInFlightTasksOnConnect(); } catch (_e) { /* best-effort */ }
     };
 
     this._ws.onmessage = (event) => {
@@ -113,6 +157,23 @@ class MCPBridgeClient {
       this._lastDisconnectReason = this._intentionalClose
         ? 'intentional_close'
         : (this._lastDisconnectReason === 'socket_error' ? 'socket_error' : 'socket_close');
+      // Phase 241 D-08 -- stage release for ALL agents stamped with the
+      // current connection_id. The registry resolves the agentIds snapshot
+      // at stage time (Q2 resolution) so a fresh agent claimed under a
+      // different bridge connect after this point is NOT swept up by the
+      // expiring grace timer. Best-effort: never let registry errors block
+      // the existing reconnect schedule below.
+      try {
+        const reg = globalThis.fsbAgentRegistryInstance;
+        if (reg && typeof reg.stageReleaseByConnectionId === 'function' && this._connectionId) {
+          const stageP = reg.stageReleaseByConnectionId(this._connectionId, RECONNECT_GRACE_MS);
+          if (stageP && typeof stageP.catch === 'function') {
+            stageP.catch(() => { /* best-effort */ });
+          }
+        }
+      } catch (_e) { /* best-effort */ }
+      // Phase 239 plan 03 -- arm reconciler for the next connect cycle.
+      this._inFlightTasksReconciled = false;
       this._persistState();
       this._stopPing();
       if (!this._intentionalClose) {
@@ -151,6 +212,18 @@ class MCPBridgeClient {
 
   get isConnected() {
     return this._connected;
+  }
+
+  /**
+   * Phase 241 D-08 -- expose the current per-bridge-connect connection_id
+   * so any code path that wants to thread it into outbound payloads can read
+   * it sync without depending on the private field. Returns null pre-connect
+   * or after disconnect-then-reset (reset only happens on intentional close;
+   * during reconnect the prior id is preserved on _lastKnownConnectionId so
+   * the cancel-on-reopen flow can find it).
+   */
+  getConnectionId() {
+    return this._connectionId || null;
   }
 
   // --------------------------------------------------------------------------
@@ -299,6 +372,14 @@ class MCPBridgeClient {
    */
   async _routeMessage(type, payload, id) {
     switch (type) {
+      // Phase 240/246 agent lifecycle handshake. Server opens every connection
+      // with agent:register; without these cases the switch's default throws
+      // "Unknown MCP message type" and every subsequent tool rejects.
+      case 'agent:register':
+      case 'agent:release':
+      case 'agent:status':
+        return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
+
       case 'mcp:get-tabs':
         return dispatchMcpMessageRoute({ type, payload, client: this, mcpMsgId: id });
 
@@ -322,6 +403,14 @@ class MCPBridgeClient {
 
       case 'mcp:start-automation':
         return this._handleStartAutomation(payload, id);
+
+      // Phase 239 plan 03 -- D-05 SW-wake snapshot lookup route.
+      // Server-side autopilot.ts run_task catches Bridge disconnected and asks
+      // the extension (after reconnect) for the persisted snapshot so the tool
+      // can resolve with sw_evicted: true + partial_state.
+      // Correlation key is `agentId` (per the <interfaces> block at top of plan).
+      case 'mcp:get-task-snapshot':
+        return this._handleGetTaskSnapshot(payload, id);
 
       case 'mcp:stop-automation':
         return this._handleStopAutomation(payload);
@@ -435,9 +524,21 @@ class MCPBridgeClient {
   }
 
   async _handleGetDOM(payload) {
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToContentScript(tab.id, {
+    const { agentId } = payload || {};
+    // Phase 246 D-02: read tools resolve via the agent-scoped registry
+    // (single-tab agent or explicit tab_id). Legacy:* agents fall through to
+    // active-tab semantics via the resolver's first-line branch. The resolver
+    // returns either {tabId, ownershipToken, skipGate} or a plain-object
+    // error envelope (NO_OWNED_TAB / AMBIGUOUS_TAB / NO_ACTIVE_TAB /
+    // AGENT_REGISTRY_UNAVAILABLE) that surfaces directly as the response.
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    const response = await this._sendToContentScript(resolved.tabId, {
       action: 'getDOM',
       maxElements: payload.maxElements || 50,
     });
@@ -445,9 +546,16 @@ class MCPBridgeClient {
   }
 
   async _handleReadPage(payload) {
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToContentScript(tab.id, {
+    const { agentId } = payload || {};
+    // Phase 246 D-02: see _handleGetDOM rationale.
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    const response = await this._sendToContentScript(resolved.tabId, {
       action: 'readPage',
       full: payload.full || false,
     });
@@ -473,34 +581,131 @@ class MCPBridgeClient {
   }
 
   async _handleExecuteAction(payload) {
-    const tab = await this._getActiveTab();
-    if (!tab || !tab.id) throw new Error('No active tab');
+    // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
+    // through to active-tab via the resolver's first-line branch.
+    //
+    // Phase 247: tab bootstrap/recovery tools are a deliberate exception to
+    // the "resolve an already-owned target first" rule. open_tab creates the
+    // first owned tab; switch_tab may claim an unowned tab; navigate may need
+    // to recover from chrome://newtab/ when the agent owns zero tabs.
+    const agentId = (payload && payload.agentId) || null;
+    const params = payload && payload.params ? payload.params : {};
+    const toolName = payload && payload.tool;
+    const toolDef = typeof getToolByName === 'function' ? getToolByName(toolName) : null;
+    const usesDispatcherSyntheticChangeReport = MCP_DISPATCHER_SYNTHETIC_CHANGE_REPORT_TOOLS.has(toolName);
 
-    // D-06: Route-aware dispatch using TOOL_REGISTRY _route field
-    const toolDef = typeof getToolByName === 'function' ? getToolByName(payload.tool) : null;
+    const buildRouteParams = (extra) => ({
+      ...params,
+      ...(extra || {}),
+      ...(agentId ? { agentId } : {}),
+      ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+      ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+    });
 
-    if (toolDef && toolDef._route === 'background') {
-      return this._handleExecuteBackground(tab, payload, toolDef);
+    const dispatchBackground = async (tabIdForDispatch, routeParams) => {
+      const tab = Number.isFinite(tabIdForDispatch) ? { id: tabIdForDispatch } : null;
+      return this._handleExecuteBackground(tab, payload, toolDef, routeParams);
+    };
+
+    const dispatchWithoutResolvedTab = async (routeParams) => {
+      const tabIdForReport = Number.isFinite(routeParams && routeParams.tabId) ? routeParams.tabId : null;
+      const executeFn = async () => dispatchBackground(tabIdForReport, routeParams);
+      if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
+        return wrapWithChangeReport({
+          toolName,
+          tabId: tabIdForReport,
+          params,
+          execute: executeFn
+        });
+      }
+      return executeFn();
+    };
+
+    if (toolName === 'open_tab' || toolName === 'switch_tab') {
+      return dispatchWithoutResolvedTab(buildRouteParams());
     }
 
-    // Default: send to content script (content-routed or unknown tools)
-    const response = await this._sendToContentScript(tab.id, {
-      action: 'executeAction',
-      tool: payload.tool,
-      params: payload.params || {},
-      source: 'mcp-manual',
-    });
-    return response;
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      if (toolName === 'navigate' && resolved.code === 'NO_OWNED_TAB') {
+        return dispatchWithoutResolvedTab(buildRouteParams());
+      }
+      // Surface plain-object error envelope; bridge serializes to MCP shape.
+      return resolved;
+    }
+
+    // Phase 246 D-16: feed the resolved tabId into routeParams so
+    // _resolveTabIdForGate (camelCase only) finds it and the gate's tab-arm
+    // fires. EXCEPTION: legacy:* surfaces (resolved.skipGate === true) MUST
+    // NOT push tabId into routeParams -- the gate's tab-arm SKIPS for legacy
+    // surfaces (Phase 240's D-02 carve-out preserved). See Pitfall 3.
+    const tabId = resolved.tabId;
+    const tab = { id: tabId };
+
+    const routeParams = {
+      ...params,
+      ...(resolved.skipGate ? {} : { tabId }),
+      ...(agentId ? { agentId } : {}),
+      ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+      ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+    };
+
+    // Phase 245: route the dispatch through wrapWithChangeReport when the
+    // tool's _emitChangeReport flag is true and the global toggle is on.
+    // The wrapper short-circuits to executeFn() when either gate is off, so
+    // adding this wrap is zero-overhead for read tools / opt-out tools / when
+    // fsbChangeReportsEnabled is false.
+    const executeFn = async () => {
+      if (toolDef && toolDef._route === 'background') {
+        return this._handleExecuteBackground(tab, payload, toolDef, routeParams);
+      }
+      // Default: send to content script (content-routed or unknown tools)
+      return this._sendToContentScript(tabId, {
+        action: 'executeAction',
+        tool: payload.tool,
+        params,
+        source: 'mcp-manual',
+      });
+    };
+
+    if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
+      return wrapWithChangeReport({
+        toolName: payload.tool,
+        tabId,
+        params,
+        execute: executeFn
+      });
+    }
+    return executeFn();
   }
 
   /**
    * Handle background-routed tools directly in the service worker.
    * Special-cases execute_js (chrome.scripting.executeScript); others
    * dispatch via chrome.runtime.sendMessage to background.js onMessage handler.
+   *
+   * Phase 246 D-16: accepts a routeParams arg from _handleExecuteAction
+   * containing the resolver-fed tabId (camelCase) plus agentId/ownershipToken/
+   * connectionId. Falls back to rebuilding from payload for back-compat
+   * with any caller that does not pass routeParams.
    */
-  async _handleExecuteBackground(tab, payload, toolDef) {
+  async _handleExecuteBackground(tab, payload, toolDef, routeParams) {
     const toolName = payload.tool;
     const params = payload.params || {};
+
+    // Phase 246 D-16: routeParams already built by caller (skipGate-aware).
+    // Fall back to legacy reconstruction only if a caller bypassed
+    // _handleExecuteAction (defensive; preserves Phase 245 back-compat).
+    if (!routeParams) {
+      routeParams = {
+        ...params,
+        ...(payload && payload.agentId ? { agentId: payload.agentId } : {}),
+        ...(payload && payload.ownershipToken ? { ownershipToken: payload.ownershipToken } : {}),
+        ...(payload && payload.connectionId ? { connectionId: payload.connectionId } : {})
+      };
+    }
 
     // Special handler for execute_js -- uses chrome.scripting.executeScript directly
     if (toolName === 'execute_js') {
@@ -508,7 +713,7 @@ class MCPBridgeClient {
     }
 
     if (typeof hasMcpToolRoute === 'function' && hasMcpToolRoute(toolName)) {
-      return dispatchMcpToolRoute({ tool: payload.tool, params: payload.params || {}, client: this, tab });
+      return dispatchMcpToolRoute({ tool: payload.tool, params: routeParams, client: this, tab, payload });
     }
 
     if (toolName === 'fill_credential' || toolName === 'fill_payment_method') {
@@ -650,18 +855,109 @@ class MCPBridgeClient {
     // the promise. We keep the chrome.runtime.onMessage listener for harness
     // tests (tests/mcp-bridge-client-lifecycle.test.js asserts that path) and
     // for any future cross-context broadcasters.
+    // Phase 239 plan 02 -- 30s setInterval heartbeat ticker scoped to each
+    // _handleStartAutomation Promise; paired clearInterval in settle prevents
+    // ticker leak across many invocations (RESEARCH Pitfall 2). Writes to
+    // chrome.storage.session via globalThis.FsbMcpTaskStore on every tick AND
+    // on settle (D-04 cadence). Plan 03 adds 600s ceiling raise + sw_evicted/
+    // partial_outcome resolve discipline; the heartbeat scope established
+    // here is the host of those new resolve sources.
     return new Promise((resolve) => {
       let settled = false;
+
+      // Phase 239 plan 02 -- closure-scope heartbeat state.
+      const heartbeatStartedAt = Date.now();
+      let lastHeartbeatAt = heartbeatStartedAt;
+      let heartbeatTickCount = 0;
+
+      const fireHeartbeat = async () => {
+        if (settled) return; // Pitfall 5 guard -- single-resolve invariant
+        const sessions = (typeof activeSessions !== 'undefined') ? activeSessions : null;
+        const session = (sessions && typeof sessions.get === 'function') ? sessions.get(sessionId) : null;
+        lastHeartbeatAt = Date.now();
+        heartbeatTickCount += 1;
+
+        const payload = {
+          timestamp: lastHeartbeatAt,
+          sessionId,
+          taskId: sessionId,           // taskId === sessionId in v0.9.60 single-task scope
+          alive: true,
+          step: (session && session.iterationCount) || 0,
+          elapsed_ms: lastHeartbeatAt - heartbeatStartedAt,
+          current_url: (session && session.lastKnownUrl) || null,
+          ai_cycles: (session && session.iterationCount) || 0,
+          last_action: (session && session._lastActionSummary) || null,
+        };
+
+        // D-02 wire: emit notifications/progress with rich D-01 fields. The
+        // server-side autopilot.ts onProgress callback re-shapes these into
+        // params._meta on the JSON-RPC notification.
+        try { this._sendProgress(mcpMsgId, payload); } catch (_e) { /* best-effort */ }
+
+        // D-04 cadence: write snapshot on every tick.
+        // Phase 239 WR-02 -- re-check settled flag AFTER _sendProgress and
+        // its implicit microtask boundary; settle() may have run between the
+        // top-of-fireHeartbeat guard and this point and already written the
+        // terminal snapshot. Without this re-check, the heartbeat's
+        // 'in_progress' write can race-overwrite settle's terminal write,
+        // leaving the persisted snapshot stuck at in_progress and confusing
+        // _reconcileInFlightTasksOnConnect on the next bridge reconnect.
+        if (settled) return;
+        try {
+          const store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.writeSnapshot === 'function') {
+            await store.writeSnapshot(sessionId, {
+              task_id: sessionId,
+              status: 'in_progress',
+              started_at: heartbeatStartedAt,
+              last_heartbeat_at: lastHeartbeatAt,
+              originating_mcp_call_id: mcpMsgId,
+              target_tab_id: (session && session.tabId) || null,
+              current_step: (session && session.iterationCount) || 0,
+              ai_cycle_count: (session && session.iterationCount) || 0,
+              last_dom_hash: (session && session.lastDOMHash) || null,
+            });
+          }
+        } catch (_e) { /* best-effort persistence */ }
+      };
 
       const settle = (value, source) => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        clearInterval(heartbeatTimer);  // Phase 239 plan 02 -- paired teardown
         chrome.runtime.onMessage.removeListener(runtimeListener);
         if (lifecycleBus && typeof lifecycleBus.removeEventListener === 'function') {
           lifecycleBus.removeEventListener('automationComplete', busCompleteHandler);
           lifecycleBus.removeEventListener('automationError', busErrorHandler);
         }
+
+        // Phase 239 plan 02 -- D-04 terminal write (state transition to
+        // complete/error/stopped/partial). sw_evicted / partial_outcome
+        // snapshots come from Plan 03's resolve handlers and write 'partial'
+        // BEFORE calling settle; this branch is the happy path.
+        try {
+          const store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.writeSnapshot === 'function') {
+            let terminalStatus = 'complete';
+            if (value && value.status === 'error') terminalStatus = 'error';
+            else if (value && (value.status === 'stopped' || value.stopped)) terminalStatus = 'stopped';
+            else if (value && (value.status === 'partial' || value.partial)) terminalStatus = 'partial';
+            store.writeSnapshot(sessionId, {
+              task_id: sessionId,
+              status: terminalStatus,
+              started_at: heartbeatStartedAt,
+              last_heartbeat_at: Date.now(),
+              originating_mcp_call_id: mcpMsgId,
+              target_tab_id: (value && value.tabId) || null,
+              current_step: heartbeatTickCount,
+              ai_cycle_count: heartbeatTickCount,
+              last_dom_hash: null,
+              final_result: value,
+            }).catch(() => { /* best-effort */ });
+          }
+        } catch (_e) { /* never block resolve on persistence */ }
+
         try {
           const redact = (typeof globalThis !== 'undefined' && typeof globalThis.redactForLog === 'function')
             ? globalThis.redactForLog
@@ -675,9 +971,79 @@ class MCPBridgeClient {
         resolve(value);
       };
 
-      const timeout = setTimeout(() => {
-        settle({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' }, 'timeout');
-      }, 300000);
+      // Phase 239 plan 03 -- raise 300s ceiling to 600s safety net per D-06
+      // and emit partial_outcome resolution shape so MCP host salvages
+      // partial state. The lifecycle bus is now the everyday resolve source
+      // (Plan 01 made it fire reliably from all 5 cleanup paths); this
+      // safety net stays in place as a true backstop until SC#5 UAT proves
+      // zero dropped events.
+      const RUN_TASK_SAFETY_NET_MS = 600_000;
+
+      const timeout = setTimeout(async () => {
+        // Pitfall 5 guard mirror -- if the lifecycle bus already settled,
+        // settle() at the bottom of this callback is a no-op. We still do
+        // the snapshot read because the async work is wrapped in best-effort
+        // try/catches and the cost is bounded.
+        let partial_state = null;
+        try {
+          var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+          if (store && typeof store.readSnapshot === 'function') {
+            partial_state = await store.readSnapshot(sessionId);
+          }
+        } catch (_e) { /* best-effort -- partial_state stays null */ }
+
+        // D-04: pre-settle write of 'partial' status (state transition;
+        // settle's existing terminal write would otherwise mark this as
+        // 'complete'). Write BEFORE settle so the snapshot reflects the
+        // timeout disposition. If the lifecycle bus fires between this
+        // write and the settle call, settle's existing terminal write at
+        // the end will overwrite with 'complete'/'stopped'/'error' -- this
+        // is the correct behavior because the lifecycle event was the
+        // actual outcome.
+        try {
+          if (store && typeof store.writeSnapshot === 'function' && partial_state) {
+            await store.writeSnapshot(sessionId, {
+              ...partial_state,
+              status: 'partial',
+              final_result: { partial_outcome: 'timeout' },
+            });
+          }
+        } catch (_e) { /* best-effort */ }
+
+        // D-06: resolve with partial_outcome -- single-resolve invariant
+        // via settle (which holds the settled-flag guard).
+        settle({
+          sessionId,
+          success: true,
+          partial_outcome: 'timeout',
+          partial_state,
+          hint: 'lifecycle event missing -- audit cleanup paths',
+        }, 'safety_net_600s');
+      }, RUN_TASK_SAFETY_NET_MS);
+
+      // Phase 239 plan 02 -- start the 30s heartbeat ticker. First _sendProgress
+      // fires at t=30s (we deliberately do NOT fire-immediate so the legacy
+      // automationProgress payload shape stays sent[0] for back-compat tests).
+      // We DO write a subscribe-time snapshot to chrome.storage.session so
+      // D-04 "every state transition" is honored: idle -> in_progress is a
+      // state transition.
+      const heartbeatTimer = setInterval(fireHeartbeat, 30_000);
+      try {
+        const _store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+        if (_store && typeof _store.writeSnapshot === 'function') {
+          _store.writeSnapshot(sessionId, {
+            task_id: sessionId,
+            status: 'in_progress',
+            started_at: heartbeatStartedAt,
+            last_heartbeat_at: heartbeatStartedAt,
+            originating_mcp_call_id: mcpMsgId,
+            target_tab_id: null,
+            current_step: 0,
+            ai_cycle_count: 0,
+            last_dom_hash: null,
+          }).catch(() => { /* best-effort */ });
+        }
+      } catch (_e) { /* never block subscribe on persistence */ }
 
       const handleProgress = (message) => {
         const actionSummary = message.actionSummary
@@ -746,6 +1112,63 @@ class MCPBridgeClient {
       client: this
     });
     return response || { stopped: true };
+  }
+
+  /**
+   * Phase 239 plan 03 -- D-05 SW-wake snapshot lookup handler.
+   *
+   * The MCP server's run_task tool catches the bridge disconnect rejection
+   * (mcp/src/bridge.ts disconnect() rejects pendingRequests with
+   * 'Bridge disconnected') and, after the bridge reconnects, sends an
+   * mcp:get-task-snapshot request with payload.agentId so the server can
+   * resolve the originating run_task call with sw_evicted: true +
+   * partial_state from the persisted heartbeat snapshot.
+   *
+   * Correlation key is `agentId` (LOCKED for v0.9.60 single-task semantics).
+   * The extension-side heartbeat snapshots written by Plan 02 are keyed by
+   * `sessionId` (which is the same string identity as `agentId` post-Phase-237
+   * wiring). Phase 240+ may migrate to a per-task ID; documented as a
+   * follow-up.
+   */
+  async _handleGetTaskSnapshot(payload, _mcpMsgId) {
+    const agentId = payload && payload.agentId;
+    let snapshot = null;
+    try {
+      var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+      if (store && typeof store.readSnapshot === 'function' && agentId) {
+        snapshot = await store.readSnapshot(agentId);
+      }
+    } catch (_e) { /* best-effort */ }
+    return { success: true, snapshot };
+  }
+
+  /**
+   * Phase 239 plan 03 -- best-effort SW-wake reconciliation.
+   *
+   * After a bridge reconnect, walk the persisted in-flight snapshots and mark
+   * each as 'partial' with sw_evicted disposition. The originating run_task
+   * tool's sw_evicted catch (server side, in mcp/src/tools/autopilot.ts) is
+   * the AUTHORITATIVE settle path -- this method only updates record-keeping
+   * for diagnostics. Do NOT attempt to RESUME automation from here (that is
+   * D-05 Option B, explicitly out of scope per CONTEXT.md).
+   */
+  async _reconcileInFlightTasksOnConnect() {
+    if (this._inFlightTasksReconciled) return;
+    this._inFlightTasksReconciled = true;
+
+    try {
+      var store = (typeof globalThis !== 'undefined') ? globalThis.FsbMcpTaskStore : null;
+      if (!store || typeof store.listInFlightSnapshots !== 'function') return;
+
+      const inFlight = await store.listInFlightSnapshots();
+      for (const snapshot of inFlight) {
+        await store.writeSnapshot(snapshot.task_id, {
+          ...snapshot,
+          status: 'partial',
+          final_result: { sw_evicted: true, last_heartbeat_at: snapshot.last_heartbeat_at },
+        });
+      }
+    } catch (_e) { /* best-effort reconciliation */ }
   }
 
   async _handleGetStatus() {
@@ -853,15 +1276,31 @@ class MCPBridgeClient {
     return { success: true, credentials };
   }
 
-  async _handleFillCredential() {
-    const tab = await this._getActiveTab();
-    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+  async _handleFillCredential(payload) {
+    // Phase 246 D-13 vault overturn: vault tools join the agent-scoped
+    // surface. Resolver picks the tab; URL still derived from chrome.tabs.get
+    // (we need the URL for domain derivation; resolver returns only tabId).
+    const agentId = (payload && payload.agentId) || null;
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    let tab;
+    try {
+      tab = await chrome.tabs.get(resolved.tabId);
+    } catch (_e) {
+      return { success: false, error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded' };
+    }
+    if (!tab?.url) return { success: false, error: 'No URL on resolved tab' };
 
     let domain;
     try {
       domain = new URL(tab.url).hostname;
     } catch {
-      return { success: false, error: 'Cannot determine domain from active tab URL' };
+      return { success: false, error: 'Cannot determine domain from resolved tab URL' };
     }
 
     // Lookup credential in vault (stays in extension)
@@ -874,7 +1313,7 @@ class MCPBridgeClient {
     }
 
     // Send fill command to content script -- password travels bg->content only (MCP-02)
-    const result = await this._sendToContentScript(tab.id, {
+    const result = await this._sendToContentScript(resolved.tabId, {
       action: 'executeAction',
       tool: 'fillCredentialFields',
       params: {
@@ -906,10 +1345,25 @@ class MCPBridgeClient {
     const { paymentMethodId } = payload;
     if (!paymentMethodId) return { success: false, error: 'paymentMethodId is required' };
 
-    const tab = await this._getActiveTab();
-    if (!tab?.id || !tab?.url) return { success: false, error: 'No active tab' };
+    // Phase 246 D-13 vault overturn: vault tools join the agent-scoped
+    // surface. Resolver picks the tab; URL still derived from chrome.tabs.get.
+    const agentId = (payload && payload.agentId) || null;
+    const params = (payload && payload.params) || payload || {};
+    const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
+      ? globalThis.resolveAgentTabOrError(agentId, params, this)
+      : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
+    if (resolved.success === false) {
+      return resolved;
+    }
+    let tab;
+    try {
+      tab = await chrome.tabs.get(resolved.tabId);
+    } catch (_e) {
+      return { success: false, error: 'Resolved tabId ' + resolved.tabId + ' could not be loaded' };
+    }
+    if (!tab?.url) return { success: false, error: 'No URL on resolved tab' };
 
-    // Derive merchant domain from active tab (MCP-04: not from MCP payload)
+    // Derive merchant domain from resolved tab (MCP-04: not from MCP payload)
     let merchantDomain;
     try {
       merchantDomain = new URL(tab.url).hostname;
@@ -973,8 +1427,8 @@ class MCPBridgeClient {
       return { success: false, error: errorMsg };
     }
 
-    // Fill payment fields on the active tab -- full card data travels bg->content only
-    const result = await this._sendToContentScript(tab.id, {
+    // Fill payment fields on the resolved tab -- full card data travels bg->content only
+    const result = await this._sendToContentScript(resolved.tabId, {
       action: 'executeAction',
       tool: 'fillPaymentFields',
       params: {

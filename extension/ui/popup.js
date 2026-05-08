@@ -1,9 +1,41 @@
 // Modern Chat Interface Script for FSB v0.9.50
 
+// Phase 243 plan 03 (UI-02): the popup's surface id (matches the legacy:popup
+// agent synthesized by ensureLegacyPopupAgent below). When the active tab is
+// owned by THIS surface, the "owned by ..." chip stays hidden -- per CONTEXT
+// D-05, a surface does not announce ownership of its own tab.
+const MY_SURFACE = 'legacy:popup';
+
 let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+
+// Phase 240 D-02: synthesize legacy:popup agentId once per popup load.
+// The popup is short-lived (recreated each time the user clicks the icon),
+// so we cache the agentId in module scope for the lifetime of THIS popup
+// view. Plan 01's getOrRegisterLegacyAgent is idempotent on the 'popup'
+// surface (returns the SAME 'legacy:popup' agentId every time), so the
+// registry never grows. ownershipToken is null until bindTab fires inside
+// handleStartAutomation (D-08 4th site).
+let _legacyPopupAgent = null;
+async function ensureLegacyPopupAgent() {
+  if (_legacyPopupAgent && _legacyPopupAgent.agentId) return _legacyPopupAgent;
+  try {
+    _legacyPopupAgent = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'ensureLegacyAgent', surface: 'popup' },
+        (resp) => resolve(resp || {})
+      );
+    });
+  } catch (_e) {
+    _legacyPopupAgent = null;
+  }
+  if (!_legacyPopupAgent || !_legacyPopupAgent.success) {
+    _legacyPopupAgent = { agentId: null, ownershipToken: null };
+  }
+  return _legacyPopupAgent;
+}
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -68,6 +100,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// Phase 243 plan 03 (UI-02): refresh the read-only "owned by Agent X" chip.
+// Reads the persisted registry envelope from chrome.storage.session (Phase 237
+// D-03 write-through) and the active tab; uses the FSBOwnerChip pure helpers
+// to decide visibility and label format. Bypasses background.js entirely so
+// this plan stays Wave-1 zero-overlap with Plan 02's webNavigation listener.
+async function refreshOwnerChip() {
+  try {
+    const chipEl = document.getElementById('fsb-owner-chip');
+    if (!chipEl) return;
+    if (typeof FSBOwnerChip === 'undefined') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (!tab || typeof tab.id !== 'number') {
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const stored = await chrome.storage.session.get('fsbAgentRegistry');
+    const envelope = stored && stored.fsbAgentRegistry;
+    const ownerAgentId = FSBOwnerChip.findOwnerInEnvelope(envelope, tab.id);
+
+    if (!FSBOwnerChip.shouldShowOwnerChip(ownerAgentId, MY_SURFACE)) {
+      chipEl.textContent = '';
+      chipEl.style.display = 'none';
+      return;
+    }
+
+    const formatter = (typeof FsbAgentRegistry !== 'undefined'
+      && typeof FsbAgentRegistry.formatAgentIdForDisplay === 'function')
+      ? FsbAgentRegistry.formatAgentIdForDisplay
+      : null;
+    const label = FSBOwnerChip.ownerLabelFor(ownerAgentId, formatter);
+    chipEl.textContent = FSBOwnerChip.buildChipText(label);
+    chipEl.style.display = 'inline-flex';
+  } catch (_e) {
+    // Chip is best-effort -- never poison popup boot.
+  }
+}
+
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   // Apply theme first
@@ -124,7 +199,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Add welcome message
   addMessage('Welcome to FSB. How can I help?', 'system');
-  
+
+  // Phase 243 plan 03 (UI-02): render the read-only owner chip on load. The
+  // popup is short-lived; no chrome.tabs.onActivated subscription needed --
+  // the user closes/reopens the popup to "refresh" naturally. Sidepanel does
+  // subscribe (it is persistent across tab switches).
+  refreshOwnerChip();
+
   // Focus the input
   chatInput.focus();
 });
@@ -223,12 +304,22 @@ async function handleSendMessage() {
     
     // Note: Restriction checking is now handled by background script with smart navigation
     
+    // Phase 240 D-02: ensure legacy:popup agentId is synthesized BEFORE
+    // dispatching startAutomation. The agentId + ownershipToken are
+    // threaded into the envelope so handleStartAutomation can bindTab the
+    // target tab under legacy:popup (D-08 4th site). On error we still
+    // dispatch with null fields; handleStartAutomation will fall back to
+    // legacy:autopilot synthesis.
+    const legacy = await ensureLegacyPopupAgent();
+
     // Send start command to background
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      conversationId: conversationId
+      conversationId: conversationId,
+      agentId: legacy && legacy.agentId,
+      ownershipToken: legacy && legacy.ownershipToken
     }, (response) => {
       if (response.success) {
         currentSessionId = response.sessionId;

@@ -19,6 +19,11 @@
         <div class="status-indicator">
           <i class="fa fa-circle status-dot"></i>
           <span class="status-text">Ready</span>
+          <!-- Phase 243 plan 03 (UI-02): read-only "owned by Agent X" chip.
+               Hidden by default; refreshOwnerChip toggles visibility on load
+               and on chrome.tabs.onActivated. NEVER a button (Threat
+               T-243-03-03 mitigation). -->
+          <span id="fsb-owner-chip" class="fsb-owner-chip" style="display:none"></span>
         </div>
       </div>
       <div class="header-actions">
@@ -116,6 +121,8 @@
   <script src="../lib/chart.min.js"></script>
   <script src="markdown-renderer.js"></script>
   <script src="../utils/analytics.js"></script>
+  <script src="../utils/agent-registry.js"></script>
+  <script src="owner-chip.js"></script>
   <script src="speech-to-text.js"></script>
   <script src="sidepanel.js"></script>
 </body>

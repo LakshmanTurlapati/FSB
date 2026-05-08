@@ -36,6 +36,7 @@ const requiredPublicRoutes = [
   'refresh',
   'open_tab',
   'switch_tab',
+  'close_tab',
   'list_tabs',
   'start_visual_session',
   'end_visual_session',
@@ -68,7 +69,8 @@ const requiredMessageRoutes = [
   'mcp:get-session',
   'mcp:get-logs',
   'mcp:search-memory',
-  'mcp:get-memory'
+  'mcp:get-memory',
+  'mcp:go-back'
 ];
 
 // Phase 199 left fill_credential / fill_payment_method out of the route-contract
@@ -86,6 +88,7 @@ const groupDefinitions = {
       'refresh',
       'open_tab',
       'switch_tab',
+      'close_tab',
       'list_tabs',
       'get_site_guide',
       'execute_js',
@@ -96,7 +99,8 @@ const groupDefinitions = {
     ],
     messages: [
       'mcp:get-tabs',
-      'mcp:get-site-guides'
+      'mcp:get-site-guides',
+      'mcp:go-back'
     ]
   },
   visual: {

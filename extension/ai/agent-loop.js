@@ -1034,6 +1034,31 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
 // runAgentLoop
 // ---------------------------------------------------------------------------
 
+// Phase 240 D-02 NOTE: agent-loop.js does NOT dispatch through
+// extension/ws/mcp-tool-dispatcher.js -- it runs inline in the SW after
+// handleStartAutomation has already created the session. The legacy:autopilot
+// agentId synthesis + bindTab happen at handleStartAutomation's D-08 4th site
+// (extension/background.js, just before the success sendResponse). Therefore
+// no synthesis call is needed in agent-loop.js itself; the autopilot fallback
+// is covered upstream. If a future plan moves autopilot dispatch through
+// dispatchMcpToolRoute, the agentId on the session record (sessionData) is
+// the authoritative source for threading agentId + ownershipToken into
+// outgoing MCP tool envelopes.
+//
+// Phase 240 WR-03 CARVE-OUT (documented gap, deferred to Phase 244):
+// Inline tool actions issued by the autopilot loop (click, type, navigate,
+// etc.) execute via direct content-script messaging and CDP, NOT via
+// dispatchMcpToolRoute. Consequently they bypass checkOwnershipGate. The
+// "single chokepoint" claim in CONTEXT.md D-06 holds only for MCP-bridge-
+// originated tools. This is mitigated at session start (handleStartAutomation
+// binds the tab to legacy:autopilot or the caller-supplied agentId), but if
+// an external client force-rebinds the tab mid-session (e.g., via an MCP
+// open_tab from another agent), the autopilot loop will keep acting on a
+// tab it no longer owns -- there is no per-iteration enforcement point.
+// Phase 244 hardening should add a sync isOwnedBy check at iteration setup
+// using sessionData.agentId + sessionData.ownershipToken, and abort with a
+// typed tab_owned_by_other_agent error when the gate would have blocked.
+
 /**
  * Entry point for the agent loop. Called from handleStartAutomation.
  * Initializes session state and kicks off the first iteration.
@@ -1273,14 +1298,22 @@ async function runAgentIteration(sessionId, options) {
     sess.error = terminal.outcome === 'error' ? (terminal.error || terminal.resultText || 'Task failed') : null;
   }
 
-  // Helper: notify sidepanel that automation is done (sidepanel listens for 'automationComplete')
+  /**
+   * Phase 239 plan 01 -- notifySidepanel now feeds fsbAutomationLifecycleBus
+   * (in-SW EventTarget) in addition to the cross-context sendMessage broadcast.
+   * The lifecycle bus is what mcp-bridge-client.js:_handleStartAutomation
+   * subscribes to in order to resolve a run_task call on actual completion.
+   * Without this dispatch, the modern AI loop's 13 terminal exit sites never
+   * resolve the originating MCP call until the 600s safety net fires.
+   * Per CONTEXT.md D-08 + RESEARCH.md Cleanup-Path Audit Path 1/2/3/8.
+   */
   function notifySidepanel(sid, sess, terminal) {
     terminal = terminal || createTerminalOutcome('success', {
       summary: sess.completionMessage || sess.result || 'Task completed.'
     });
     try {
-      chrome.runtime.sendMessage({
-        action: 'automationComplete',
+      var message = {
+        action: terminal && terminal.outcome === 'error' ? 'automationError' : 'automationComplete',
         sessionId: sid,
         conversationId: sess.conversationId || null,
         historySessionId: sess.historySessionId || sid,
@@ -1302,7 +1335,21 @@ async function runAgentIteration(sessionId, options) {
           error: terminal.error || null
         },
         task: sess.task
-      }).catch(function(err) { console.warn('[agent-loop] notifySidepanel delivery failed', { sessionId: sid, error: err && err.message }); });
+      };
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        // fsbBroadcastAutomationLifecycle handles BOTH cross-context sendMessage AND in-SW bus dispatch
+        var result = fsbBroadcastAutomationLifecycle(message);
+        if (result && typeof result.catch === 'function') {
+          result.catch(function(err) { console.warn('[agent-loop] notifySidepanel delivery failed', { sessionId: sid, error: err && err.message }); });
+        }
+      } else {
+        // No-op fallback: helper is exported on globalThis at SW boot
+        // (background.js:2061) before agent-loop.js loads via importScripts,
+        // so this branch is unreachable in production. Logged-only for forensics.
+        // Per RESEARCH.md Pitfall 1.
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- terminal exit not broadcast', { sessionId: sid });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
   }
 
@@ -1376,7 +1423,14 @@ async function runAgentIteration(sessionId, options) {
   if (!session) {
     console.warn('[agent-loop] runAgentIteration: session not found for sessionId=' + sessionId + '. Sending blind automationComplete.');
     try {
-      chrome.runtime.sendMessage({
+      // Phase 239 WR-01 -- route guard terminal events through the lifecycle
+      // bus helper so the in-SW MCP bridge client (mcp-bridge-client.js) sees
+      // them. Raw chrome.runtime.sendMessage does NOT loop back to listeners
+      // in the same SW context, so the bridge client would only resolve via
+      // the 600s safety net. The helper handles BOTH cross-context
+      // sendMessage AND in-SW bus dispatch (background.js:2061).
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      var msg = {
         action: 'automationComplete',
         sessionId: sessionId,
         conversationId: null,
@@ -1399,14 +1453,26 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: null
-      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_found)', { sessionId: sessionId, error: err && err.message }); });
+      };
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        var p = fsbBroadcastAutomationLifecycle(msg);
+        if (p && typeof p.catch === 'function') {
+          p.catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_found)', { sessionId: sessionId, error: err && err.message }); });
+        }
+      } else {
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- guard terminal exit not broadcast (session_not_found)', { sessionId: sessionId });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }
   if (session.status !== 'running') {
     console.warn('[agent-loop] runAgentIteration: session status is "' + session.status + '" (not running) for sessionId=' + sessionId + '. Sending blind automationComplete.');
     try {
-      chrome.runtime.sendMessage({
+      // Phase 239 WR-01 -- route guard terminal events through the lifecycle
+      // bus helper so the in-SW MCP bridge client receives them. See
+      // session_not_found branch above for rationale.
+      var helperHost = (typeof globalThis !== 'undefined') ? globalThis : null;
+      var msg = {
         action: 'automationComplete',
         sessionId: sessionId,
         conversationId: session.conversationId || null,
@@ -1429,7 +1495,15 @@ async function runAgentIteration(sessionId, options) {
           error: null
         },
         task: session.task || null
-      }).catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_running)', { sessionId: sessionId, error: err && err.message }); });
+      };
+      if (helperHost && typeof helperHost.fsbBroadcastAutomationLifecycle === 'function') {
+        var p = fsbBroadcastAutomationLifecycle(msg);
+        if (p && typeof p.catch === 'function') {
+          p.catch(function(err) { console.warn('[agent-loop] guard broadcast delivery failed (session_not_running)', { sessionId: sessionId, error: err && err.message }); });
+        }
+      } else {
+        console.warn('[agent-loop] fsbBroadcastAutomationLifecycle helper missing on globalThis -- guard terminal exit not broadcast (session_not_running)', { sessionId: sessionId });
+      }
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
     return;
   }

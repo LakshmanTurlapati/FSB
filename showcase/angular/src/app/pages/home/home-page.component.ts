@@ -23,12 +23,19 @@ export class HomePageComponent implements OnInit {
   private readonly renderer = inject(Renderer2);
   private readonly doc = inject(DOCUMENT);
 
+  readonly storeUrl = 'https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk?utm_source=item-share-cp';
+  // Prerender-safe default: Chrome is the install target, so a chrome icon is the right SSR fallback.
+  browserIconClass = 'fa-chrome';
+
   ngOnInit(): void {
     const url = HOST; // home canonical: 'https://full-selfbrowsing.com' (no trailing slash, per D-02)
     const t = 'FSB \u2014 Full Self-Browsing';
     const d = 'Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.';
     this.applyMeta(t, d, url);
     this.injectSoftwareApplicationJsonLd();
+    if (typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string') {
+      this.browserIconClass = detectBrowserIconClass(navigator);
+    }
   }
 
   private applyMeta(t: string, d: string, url: string): void {
@@ -103,4 +110,16 @@ export class HomePageComponent implements OnInit {
     this.renderer.appendChild(script, text);
     this.renderer.appendChild(this.doc.head, script);
   }
+}
+
+// Returns a FontAwesome 6.6 brand icon class matching the current browser.
+// Order matters: Edge/Opera UA strings contain "Chrome", and Chrome's UA contains "Safari".
+// Brave is treated as Chrome — FA Free has no fa-brave brand icon, and the Web Store install path is identical.
+function detectBrowserIconClass(nav: Navigator): string {
+  const ua = nav.userAgent;
+  if (/Edg\//.test(ua)) return 'fa-edge';
+  if (/OPR\/|Opera/.test(ua)) return 'fa-opera';
+  if (/Firefox\//.test(ua)) return 'fa-firefox-browser';
+  if (/Safari\//.test(ua) && !/Chrome\/|Chromium\//.test(ua)) return 'fa-safari';
+  return 'fa-chrome';
 }

@@ -204,6 +204,16 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
           const tab = await chrome.tabs.get(tabId);
           fromUrl = tab?.url;
         } catch (_) { /* tab may not be accessible */ }
+        // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.update so the
+        // webNavigation.onCommitted listener suppresses its
+        // agent-tab-user-navigation emission within the 500ms window.
+        try {
+          if (typeof globalThis !== 'undefined'
+              && globalThis.fsbAgentRegistryInstance
+              && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+            globalThis.fsbAgentRegistryInstance.stampAgentNavigation(tabId);
+          }
+        } catch (_e) { /* best-effort */ }
         await chrome.tabs.update(tabId, { url });
         // Brief wait for navigation to initiate
         await new Promise(r => setTimeout(r, 500));
@@ -216,6 +226,16 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
       }
 
       case 'go_back': {
+        // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.goBack so the
+        // webNavigation.onCommitted listener suppresses its
+        // agent-tab-user-navigation emission within the 500ms window.
+        try {
+          if (typeof globalThis !== 'undefined'
+              && globalThis.fsbAgentRegistryInstance
+              && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+            globalThis.fsbAgentRegistryInstance.stampAgentNavigation(tabId);
+          }
+        } catch (_e) { /* best-effort */ }
         await chrome.tabs.goBack(tabId);
         return makeResult({
           success: true,
@@ -226,6 +246,14 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
       }
 
       case 'go_forward': {
+        // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.goForward.
+        try {
+          if (typeof globalThis !== 'undefined'
+              && globalThis.fsbAgentRegistryInstance
+              && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+            globalThis.fsbAgentRegistryInstance.stampAgentNavigation(tabId);
+          }
+        } catch (_e) { /* best-effort */ }
         await chrome.tabs.goForward(tabId);
         return makeResult({
           success: true,
@@ -236,6 +264,14 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
       }
 
       case 'refresh': {
+        // Phase 243 plan 02 (BG-04): stamp BEFORE chrome.tabs.reload.
+        try {
+          if (typeof globalThis !== 'undefined'
+              && globalThis.fsbAgentRegistryInstance
+              && typeof globalThis.fsbAgentRegistryInstance.stampAgentNavigation === 'function') {
+            globalThis.fsbAgentRegistryInstance.stampAgentNavigation(tabId);
+          }
+        } catch (_e) { /* best-effort */ }
         await chrome.tabs.reload(tabId);
         return makeResult({
           success: true,
@@ -247,7 +283,7 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
 
       case 'open_tab': {
         const url = params?.url || 'about:blank';
-        const active = params?.active !== false;
+        const active = params?.active === true;
         const newTab = await chrome.tabs.create({ url, active });
         return makeResult({
           success: true,
@@ -261,14 +297,29 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
         if (!targetTabId) {
           return makeResult({ success: false, error: 'switch_tab requires tabId parameter' });
         }
-        await chrome.tabs.update(targetTabId, { active: true });
-        // Focus the window containing the tab
-        try {
-          const tabWindow = await chrome.tabs.get(targetTabId);
-          if (tabWindow.windowId) {
-            await chrome.windows.update(tabWindow.windowId, { focused: true });
-          }
-        } catch (_) { /* window focus is best-effort */ }
+        // Phase 243 BG-02: gate the foreground transition behind the per-tool
+        // _forceForeground flag from tool-definitions.js. switch_tab is the
+        // only tool with the flag set to true (D-01); every other tool runs
+        // background-only. The autopilot dispatch path mirrors the MCP route
+        // gate in mcp-tool-dispatcher.js handleSwitchTabRoute.
+        const switchTabDef = (typeof _te_getToolByName === 'function')
+          ? _te_getToolByName('switch_tab')
+          : null;
+        const forceForeground = !!(switchTabDef && switchTabDef._forceForeground === true && params?.active === true);
+        if (forceForeground) {
+          await chrome.tabs.update(targetTabId, { active: true });
+          // Focus the window containing the tab
+          try {
+            const tabWindow = await chrome.tabs.get(targetTabId);
+            if (tabWindow.windowId) {
+              await chrome.windows.update(tabWindow.windowId, { focused: true });
+            }
+          } catch (_) { /* window focus is best-effort */ }
+        } else {
+          // Background-safe path: still resolve the target tab to confirm it
+          // exists, but do not steal focus.
+          try { await chrome.tabs.get(targetTabId); } catch (_) { /* best-effort */ }
+        }
         return makeResult({
           success: true,
           hadEffect: true,

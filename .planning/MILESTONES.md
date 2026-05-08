@@ -1,5 +1,32 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) (Shipped: 2026-05-08)
+
+**Phases completed:** 11 phases, 30 plans
+
+**Archive:** `.planning/milestones/v0.9.60-ROADMAP.md` and `.planning/milestones/v0.9.60-REQUIREMENTS.md`
+
+**Audit status:** `passed` with documented caveats -- `.planning/v0.9.60-MILESTONE-AUDIT.md`
+
+**Key accomplishments:**
+
+- Shipped MCP agent identity and tab ownership: each MCP session receives an FSB-minted `agent_id`, owned tabs bind with ownership tokens, and cross-agent access rejects with typed `TAB_NOT_OWNED`.
+- Added concurrency lifecycle controls: configurable cap 1-64, fail-loud `AGENT_CAP_REACHED`, forced-new-tab pooling, reconnect grace by `connection_id`, pool-shrink release, and no idle reaping.
+- Repaired deferred Phase 236 behavior: `run_task` resolves on lifecycle completion, emits 30s progress heartbeats, persists task state across service-worker wake, and keeps a 600s safety net.
+- Added the ownership-gated `back` MCP tool with structured status results and background-tab operation.
+- Audited foreground side effects and added ownership UI signals: trusted-client badge includes agent suffix, popup/sidepanel show owner chips, and Advanced Settings exposes the cap with active-agent context.
+- Prepared `fsb-mcp-server@0.8.0` with SDK `^1.29.0`, version metadata, README, CHANGELOG, and documented multi-agent tool descriptions.
+- Added post-action `change_report` responses so action tools report compact mutation consequences while read tools stay clean.
+- Closed the late protocol bug where active `chrome://newtab/` blocked recovery tools: `open_tab`, zero-owned `navigate`, and truthful restricted-page guidance now work from restricted active tabs.
+
+**Accepted closeout caveats:**
+
+- `fsb-mcp-server@0.8.0` is tag-ready; actual npm publish remains user-gated.
+- Live unowned-target `switch_tab` recovery could not be reproduced in this browser profile because candidate tabs were auto-owned by `legacy:sidepanel`; the dispatcher branch is covered by automated tests.
+- Five long real `run_task` soak runs remain deferred; automated lifecycle coverage is green.
+
+---
+
 ## v0.9.50 Autopilot Refinement (MCP-Parity) (Shipped: 2026-05-03)
 
 **Phases completed:** 7 GSD-tracked (224-230) + 3 opportunistic (231-233 untracked); 54 commits, 91 files changed (+7607 / −362)

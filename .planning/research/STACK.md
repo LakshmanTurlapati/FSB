@@ -1,287 +1,313 @@
-# Stack Research — v0.9.46 Site Discoverability (SEO + GEO)
+# Stack Research -- v0.9.60 Multi-Agent Tab Concurrency
 
-**Domain:** Static prerender + crawler/AI-bot discoverability for an Angular 19 SPA marketing site served behind a custom Express on Fly.io
-**Researched:** 2026-04-30
-**Confidence:** HIGH (Angular configuration verified against angular.dev v19 docs; Express/Fly behaviour verified against current `server/server.js`)
+**Domain:** Chrome MV3 extension + npm-published TypeScript MCP server (`fsb-mcp-server@0.7.4` -> `0.8.0`)
+**Researched:** 2026-05-05
+**Scope:** Stack ADDITIONS for multi-agent tab ownership, hard concurrency cap (8), forced-new-tab pooling, lock release on disconnect/close, new `back` MCP tool, and `run_task` return-on-completion (Phase 236)
+**Confidence:** HIGH on existing-stack assessment and Chrome MV3 / MCP SDK patterns; MEDIUM on specific minor versions (web-verified, not Context7-verified)
+
+> NOTE: This file SUPERSEDES the previous v0.9.46 STACK.md content for the v0.9.60 milestone. The earlier site-discoverability research is preserved in the milestone archive.
 
 ---
 
 ## TL;DR
 
-- Use Angular's first-party prerender path (`@angular/ssr` + `outputMode: "static"`) under the existing `@angular/build:application` builder. No Webpack-era packages, no full SSR runtime, no third-party prerender services.
-- Add ONE devDependency (`@angular/ssr@^19.0.0`) and ONE small Node script in `showcase/angular/scripts/` that emits `sitemap.xml` and `llms.txt` / `llms-full.txt` into `public/` before `ng build`. No new framework, no new runtime.
-- Express needs ONE focused change: stop serving the root `index.html` for routes that now have a real per-route `index.html` on disk (e.g. `dist/.../browser/about/index.html`). The broken piece is the explicit SPA-fallback handler at `server/server.js:111` which currently overrides the prerendered files. Replace it with a route-aware handler that prefers per-route prerendered HTML and falls back to the root `index.html` only for SPA routes (`/dashboard`).
-- Set `Content-Type: text/plain; charset=utf-8` and a short `Cache-Control: public, max-age=3600` on `*.txt` and `Content-Type: application/xml; charset=utf-8` on `sitemap.xml`. No exotic headers needed. AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) read these as plain HTTP files; they do not require auth, CORS, or custom headers.
+For v0.9.60 the FSB stack does NOT need a new build system, transpiler, or heavy concurrency framework. Every NEW capability can be implemented with:
+
+1. Already-installed dependencies (`@modelcontextprotocol/sdk`, `ws`, `zod`, `chrome.*` APIs).
+2. Node built-ins on the MCP-server side (`crypto.randomUUID`, `AbortController`, `Promise`-based primitives).
+3. Hand-rolled in-memory data structures in the extension service worker (Maps + storage rehydrate), mirroring the existing `activeSessions` / `MCP_VISUAL_SESSION_STORAGE_KEY` pattern.
+
+The only real choice is the agent-id format. Recommendation: **`crypto.randomUUID()` everywhere**, prefixed with a short type tag (`agent_<uuidv4>`, `task_<uuidv4>`).
+
+Phase 236 ("`run_task` returns on completion, no 300s ceiling") is a **bridge-level change**, not a tool-schema change -- we keep using MCP `notifications/progress` over the existing stdio transport. The MCP TypeScript SDK already supports unbounded long-running tools; the 300s ceiling in `mcp/src/tools/autopilot.ts:58` (`{ timeout: 300_000 }`) is purely an FSB-internal bridge timeout, not a protocol constraint.
 
 ---
 
-## Recommended Stack
+## Current Stack (Validated, DO NOT Re-Research)
 
-### Core Technologies (additions to existing stack)
+### MCP server (`mcp/package.json`)
 
-| Technology | Version | Purpose | Why Recommended |
-|---|---|---|---|
-| `@angular/ssr` | `^19.0.0` (match existing `@angular/*` major) | Provides the prerender machinery wired into `@angular/build:application` (creates `main.server.ts`, `app.config.server.ts`, optional `server.ts`) | Verified in angular.dev v19 prerender guide as the supported path. The `prerender` build option is non-functional unless `@angular/ssr` is installed via `ng add`. This is the only first-party option for the modern (esbuild-based) `@angular/build:application` builder you already use. |
-| `outputMode: "static"` (angular.json key, no package) | n/a (Angular 19 feature) | Tells the builder to emit pure static HTML per route at build time, with NO Node server entry generated for runtime SSR | Marketing routes (`/`, `/about`, `/privacy`, `/support`) are 100% static. AI crawlers (GPTBot/ClaudeBot/PerplexityBot) do not execute JS, so static HTML is exactly what they need. `static` mode means no runtime SSR cost on Fly, no Express integration churn -- the existing Express server keeps serving files from disk. |
-| `@angular/router` route-aware `Title` + `Meta` services | already installed (`@angular/platform-browser` `^19.0.0`) | Per-route `<title>`, `<meta name="description">`, OG, Twitter, canonical -- captured into prerendered HTML at build time | Native, zero-dependency. `Meta` and `Title` mutations executed during route resolvers / `ngOnInit` are baked into prerendered HTML. No need for `@ngx-meta/core` or similar wrappers. |
-| Build-time generator script (Node, native ESM) | n/a (one local file) | Emits `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt` into the build assets pipeline | Routes are statically known (`app.routes.ts`). A small Node script reading those routes + a hand-curated content map is far simpler than `sitemap-generator-cli` or `angular-prerender`. Fewer deps = fewer supply-chain vectors. |
+| Dep | Current version | Status |
+|-----|-----------------|--------|
+| `@modelcontextprotocol/sdk` | `^1.27.1` | Bump to `^1.29.x` (latest 1.29.0, ~Apr 2026). Compatible upgrade -- progress-notification API unchanged. |
+| `ws` | `^8.19.0` | Keep. |
+| `zod` | `^3.24.0` | Keep on Zod 3 (see "What NOT to Use" below). |
+| `strip-json-comments` | `^5.0.3` | Keep (installer flow). |
+| `smol-toml` | `^1.6.1` | Keep (Codex/Claude TOML configs). |
+| `yaml` | `^2.8.3` | Keep (Continue config). |
+| `typescript` | `^5.9.3` (dev) | Keep. |
+| `tsx` | `^4.19.0` (dev) | Keep. |
+| `@types/node` | `^22.0.0` (dev) | Keep. |
+| `@types/ws` | `^8.18.1` (dev) | Keep. |
 
-### Supporting Libraries
+### Extension (`extension/manifest.json`)
 
-| Library | Version | Purpose | When to Use |
-|---|---|---|---|
-| `jsonld` (npm) | n/a — DO NOT install | Generate JSON-LD | Not needed. JSON-LD is just JSON inside `<script type="application/ld+json">`. Author it as a TypeScript constant in a service (e.g. `src/app/seo/structured-data.ts`) and inject via `Renderer2` or `Meta` at component init. The prerender step bakes the script tag into the HTML. |
-| `xmlbuilder2` | `^3.x` | Build sitemap.xml | Optional. The sitemap is small (4-5 URLs). String templating in the build script is fine. Only reach for `xmlbuilder2` if the sitemap grows past ~20 URLs or needs `<image:image>` / `<news:news>` namespaces. |
-| `schema-dts` | `^1.x` | TypeScript types for Schema.org JSON-LD shapes | Optional, type-safety only. Useful if you want compile-time checking that your `Organization` / `SoftwareApplication` JSON-LD shapes are well-formed. Adds zero runtime weight (types-only package). |
+| Permission | Already granted? | Used for v0.9.60? |
+|------------|------------------|-------------------|
+| `tabs` | YES | Required for `chrome.tabs.create`, `onRemoved`, `onUpdated`. |
+| `windows` | YES | Required for `chrome.windows.onRemoved` (last-tab-of-window edge case). |
+| `storage` | YES | Required for agent-registry rehydrate after SW idle eviction. |
+| `alarms` | YES | Useful for periodic stale-agent reaper. |
+| `webNavigation` | YES | Already used for nav lifecycle observation. |
+| `debugger` | YES | Already used for CDP click/scroll. |
+| `sidePanel`, `scripting`, `activeTab`, `host_permissions: <all_urls>`, `unlimitedStorage`, `clipboardWrite`, `offscreen` | YES | Unchanged. |
 
-### Development Tools
-
-| Tool | Purpose | Notes |
-|---|---|---|
-| `ng add @angular/ssr` | One-time scaffolding command that installs `@angular/ssr`, creates `src/main.server.ts`, `src/app/app.config.server.ts`, and `server.ts`, and edits `angular.json` to add `server`, `ssr`, `prerender` (and optionally `outputMode`) keys | Run this once. Then manually flip `outputMode` to `"static"` and (optionally) delete the generated `server.ts` -- Fly.io serves through the existing custom `server/server.js`, so the Angular-generated server file is unused. |
-| Curl-based prerender smoke check | `curl -A "GPTBot" https://full-selfbrowsing.com/about \| head` to confirm the `<head>` contains real metadata and the `<body>` contains real content (not an empty `<app-root>`) | Add to release smoke checklist. This is the gate that fails today and must pass after the milestone. |
-
----
-
-## Installation
-
-```bash
-# From showcase/angular/
-
-# 1. Scaffold @angular/ssr (installs package, creates server bootstrap files,
-#    edits angular.json to add prerender/server/ssr keys)
-npx ng add @angular/ssr@^19
-
-# 2. After ng add finishes, manually edit angular.json (see snippet below)
-#    to set outputMode: "static" -- this is the lever that switches from
-#    "build a Node SSR server" to "emit pure static HTML per route".
-
-# No other npm installs required. The build-time sitemap/llms.txt generator
-# is a local Node script in scripts/generate-discovery-files.mjs and uses
-# only Node built-ins (fs, path, url).
-```
+**No new manifest permissions required for v0.9.60.** This is a significant constraint check -- adding new permissions would force a Web Store re-review and break the "load unpacked" dev loop the team relies on.
 
 ---
 
-## angular.json keys to add (verified against Angular 19 schema)
+## NEW Capabilities -- What Each Requires
 
-After `ng add @angular/ssr` runs, the `architect.build.options` block under `projects.showcase-angular` will gain server/prerender keys. Adjust them to match the static-only intent:
+### 1. Per-session/task agent identity
 
-```jsonc
-"build": {
-  "builder": "@angular/build:application",
-  "options": {
-    "outputPath": {
-      "base": "../dist/showcase-angular",
-      "browser": "browser"
-      // ng add will also add "server": "server" -- safe to leave; nothing reads it in static mode
-    },
-    "index": "src/index.html",
-    "browser": "src/main.ts",
-    "server": "src/main.server.ts",         // added by ng add
-    "outputMode": "static",                  // KEY: emits pure static HTML, no Node SSR runtime
-    "prerender": {
-      "discoverRoutes": false,               // do NOT auto-discover -- /dashboard must stay SPA
-      "routesFile": "prerender-routes.txt"
-    },
-    "ssr": {
-      "entry": "src/server.ts"               // present after ng add; harmless in static mode (not invoked)
-    },
-    "polyfills": ["zone.js"],
-    // ... existing assets / styles / tsConfig unchanged ...
-  }
-}
-```
+**What:** One MCP client (e.g. Claude) may spawn multiple parallel agents simultaneously. Each gets its own `agent_id` distinct from the trusted client label.
 
-`prerender-routes.txt` (new file at `showcase/angular/prerender-routes.txt`) contains exactly:
+**Recommendation:**
 
-```
-/
-/about
-/privacy
-/support
-```
+| Choice | Recommendation | Rationale |
+|--------|---------------|-----------|
+| ID format | `crypto.randomUUID()` with prefix: `agent_<uuid>`, `task_<uuid>` | Built into Node 18+ AND Chrome MV3 service workers (no polyfill). ~3-12x faster than the `uuid` npm package. Zero new dependencies. Sufficient entropy for an 8-cap registry. |
+| Length | 36 chars (UUID v4) + 6 prefix = 42 chars | Fine for logs/badges; we are not putting these in URLs. |
+| Sortability | NOT required | We have at most 8 entries; lookup is by exact key. |
 
-**Critical detail (verified):** `discoverRoutes: true` enumerates unparameterized `Routes` from `app.routes.ts`. The wildcard route (`path: '**'`) is ignored. But `/dashboard` IS unparameterized, so leaving discovery on would prerender it -- and that route depends on `chrome.storage`, runtime DOM streaming, and `dashboard-runtime-state.js`, which would produce broken HTML. Setting `discoverRoutes: false` + an explicit `routesFile` is the safer posture. PROJECT.md "Target features" line confirms: prerender `/`, `/about`, `/privacy`, `/support`; `/dashboard` stays SPA.
+**Reject:** `ulid`, `nanoid`, `uuid` packages -- pure new deps for a problem `crypto.randomUUID` already solves. ULID's lex-sortability is irrelevant at N=8.
 
-**Output layout (verified Angular 19 behaviour):** With `outputMode: "static"`, the build emits:
+**Reject:** Reusing the MCP client label as the agent id. Multiple agents per client is exactly what this milestone enables.
 
-```
-dist/showcase-angular/browser/
-  index.html                      <- prerendered "/"
-  about/index.html                <- prerendered "/about"
-  privacy/index.html              <- prerendered "/privacy"
-  support/index.html              <- prerendered "/support"
-  main-<hash>.js, styles-<hash>.css, etc.
-  assets/...
-  sitemap.xml, robots.txt, llms.txt, llms-full.txt   <- copied via assets glob from public/
-```
+### 2. Tab ownership table (`tab_id -> agent_id`) + hard cap of 8
 
-This is the layout `express.static` serves correctly without any code changes. The problem is the explicit SPA-fallback handler that currently OVERRIDES it.
+**What:** Any tab that an agent opens gets a single owner. Cross-agent access to that tab is rejected. Total live agents capped at 8.
 
----
-
-## Express integration (`server/server.js` changes — minimal diff)
-
-**Current code (server/server.js:97-117):**
+**Recommendation -- in-memory Map mirroring `activeSessions`:**
 
 ```js
-if (staticPath) {
-  app.use(express.static(staticPath, { maxAge: 0, etag: true, setHeaders: ... }));
-}
+// extension/background.js (vanilla JS, no build step)
+const tabOwnership = new Map();   // tabId (number) -> agentId (string)
+const agentRegistry = new Map();  // agentId -> { mcpClientLabel, taskId, tabIds:Set, createdAt, ... }
 
-// SPA fallback -- serve Angular index.html for all showcase routes (per D-04)
-app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
-  if (!staticPath) { res.status(503).type('text/plain').send(...); return; }
-  res.sendFile(path.join(staticPath, 'index.html'));
+const AGENT_CAP = 8;
+const AGENT_REGISTRY_STORAGE_KEY = 'fsbAgentRegistry'; // chrome.storage.session
+```
+
+**Persistence pattern:** Use `chrome.storage.session` (in-memory, cleared on browser restart) for rehydrate-after-SW-idle, exactly like `MCP_VISUAL_SESSION_STORAGE_KEY` already does (background.js:2053). Do NOT use `chrome.storage.local` -- agent state should not survive a browser restart; the MCP client will be gone anyway.
+
+**Why in-memory Map is sufficient (no Mutex/Semaphore needed):**
+
+The "concurrency" in MV3 service workers is event-handler-level cooperative scheduling, not real OS-level threading. Multiple `chrome.runtime.onMessage` callbacks can be in-flight concurrently in async code, but JavaScript single-threaded execution between awaits means a check-then-set against a `Map` is atomic if you do it within a single synchronous slice. The dangerous case is:
+
+```js
+// BUGGY -- await between read and write
+if (tabOwnership.size >= AGENT_CAP) return error; // read
+await someAsyncCall();                              // YIELD POINT
+tabOwnership.set(tabId, agentId);                   // write -- another handler may have set already
+```
+
+**Mitigation:** Do all cap-check + insert in one synchronous slice before any `await`. This is a pattern, not a library. If we ever need a real lock, the existing `extension/ws/ws-client.js` already uses Promise-chain serialization; we can reuse that idiom (a single `pendingTransition` Promise) without adding a library.
+
+### 3. Lock release on tab close / window close / MCP disconnect
+
+**What:** Tab ownership must release when (a) user closes the tab, (b) user closes the last window containing the tab, (c) MCP client disconnects, (d) task ends, (e) session ends.
+
+**Chrome MV3 APIs (already available, no new permissions):**
+
+| Event | Use For | Caveat |
+|-------|---------|--------|
+| `chrome.tabs.onRemoved(tabId, removeInfo)` | Primary release on user close | Already wired at background.js:2455 -- extend it to clean `tabOwnership` AND notify `agentRegistry`. `removeInfo.isWindowClosing === true` indicates the whole window is going away. |
+| `chrome.windows.onRemoved(windowId)` | Belt-and-suspenders for last-tab-of-window | Fires AFTER `tabs.onRemoved` for each contained tab. Useful for sweeping orphan agent state if a race happens. |
+| `chrome.tabs.onUpdated(tabId, changeInfo)` | NOT for ownership release | `changeInfo.discarded` and `status === 'unloaded'` do NOT mean user closed the tab; do not release ownership on these. |
+| `chrome.tabs.onCreated` | Forced-new-tab pooling | When an owning agent does an action that opens a tab (target=_blank, `window.open`, `noopener` link), the new tab's `openerTabId` resolves to a tab the agent owns -- pool the new tab under the same agent. |
+
+**MCP-disconnect release:** The MCP TypeScript SDK exposes connection lifecycle via the transport. For stdio (`StdioServerTransport`), a parent-process death closes stdin and the SDK emits a transport-close event. Hook `runtime.server.transport.onclose` (or equivalent in 1.29) and broadcast a `mcp:client-disconnected` message to the extension over the WebSocket bridge, which then sweeps every agent owned by that MCP connection.
+
+**For the WebSocket bridge layer (`mcp/src/bridge.ts`):** the existing `WebSocketBridge` already tracks heartbeat / disconnect (background.js heartbeat handling at line ~570). Extend the disconnect handler to send a `bridge:disconnect` payload that triggers agent sweep on the extension side.
+
+### 4. Forced-new-tab pooling
+
+**What:** If an agent's owned tab opens another tab (via JS `window.open`, target=_blank link, etc.), the new tab is automatically pooled under the same agent.
+
+**Recommendation:** `chrome.tabs.onCreated` listener that checks `tab.openerTabId`:
+
+```js
+chrome.tabs.onCreated.addListener((tab) => {
+  const openerOwner = tab.openerTabId ? tabOwnership.get(tab.openerTabId) : null;
+  if (!openerOwner) return; // human-opened or not under an agent
+  // Pool the new tab under the same agent (does NOT count against the 8-agent cap; cap is on agents, not tabs)
+  tabOwnership.set(tab.id, openerOwner);
+  agentRegistry.get(openerOwner)?.tabIds.add(tab.id);
 });
 ```
 
-**The bug after prerender lands:** `app.get('/about', ...)` is registered BEFORE the more-specific path `/about/index.html` would be matched by `express.static` for a bare `/about` request, so the explicit handler always sends the ROOT `index.html` (the prerendered home page) instead of the prerendered about page. (Note: `express.static` does match `/about/` -> `about/index.html` via its directory-index lookup, but the explicit `app.get` handler short-circuits that path.)
+**Caveat:** `openerTabId` is missing for some auto-opens (PDFs, devtools, some service-worker-initiated tabs). Document this in PITFALLS.md as an accepted gap rather than wiring an exotic detection layer.
 
-**Recommended diff (replace lines ~110-117):**
+### 5. New `back` MCP tool
 
-```js
-// Per-route prerendered HTML lookup, with SPA fallback for /dashboard only.
-// /dashboard is intentionally not prerendered -- it's the live runtime surface
-// requiring chrome.storage hydration and dashboard-runtime-state.js.
-const PRERENDERED_ROUTES = new Set(['/', '/about', '/privacy', '/support']);
-const SPA_ONLY_ROUTES = ['/dashboard'];
+**What:** Browser back-button equivalent.
 
-app.get([...PRERENDERED_ROUTES, ...SPA_ONLY_ROUTES], (req, res) => {
-  if (!staticPath) {
-    res.status(503).type('text/plain').send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
-    return;
-  }
-  // Prerendered route: serve the per-route index.html (root for "/", subdir for the rest).
-  if (PRERENDERED_ROUTES.has(req.path)) {
-    const file = req.path === '/'
-      ? path.join(staticPath, 'index.html')
-      : path.join(staticPath, req.path.replace(/^\//, ''), 'index.html');
-    if (fs.existsSync(file)) { res.sendFile(file); return; }
-  }
-  // SPA fallback (dashboard, or prerendered file unexpectedly missing).
-  res.sendFile(path.join(staticPath, 'index.html'));
-});
+**Recommendation:** New MCP tool in `mcp/src/tools/manual.ts` (existing manual-tool registration), implemented on the extension side via `chrome.tabs.goBack(tabId)`. Zero new dependencies.
+
+```ts
+server.tool(
+  'back',
+  'Navigate the active (or specified) tab back one entry in its history.',
+  { tab_id: z.number().int().optional() },
+  async ({ tab_id }) => { /* bridge.sendAndWait('mcp:tab-back', { tabId: tab_id }) */ },
+);
 ```
 
-This stays surgical: same route registration shape, same fallback contract for `/dashboard`, but per-route prerendered HTML now wins for marketing routes. Legacy `.html` redirect block (server.js:86-95) remains untouched.
+`chrome.tabs.goBack` is already available under the existing `tabs` permission.
 
-**Static file headers for crawler artifacts:** Place `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt` under `showcase/angular/public/` (already wired into the `assets` glob in angular.json:36-40). The existing `express.static` block at server.js:98-107 sets `Cache-Control: no-cache, must-revalidate` only for `.js/.css/.html`. For `*.txt` and `*.xml`, `express.static` already maps the right `Content-Type` via `mime-db` (`.txt` -> `text/plain; charset=utf-8`, `.xml` -> `application/xml`).
+### 6. Phase 236: `run_task` returns on completion, no 300s ceiling
 
-Optionally tighten with explicit cache hints (recommended -- AI crawlers re-fetch frequently and a 1h TTL hits a sweet spot):
+**What:** Currently `mcp/src/tools/autopilot.ts:58` hard-codes `{ timeout: 300_000 }` on the bridge call. Long tasks (e.g. multi-step automation, 5+ minute flows) hit this ceiling and the tool returns prematurely while the extension keeps running.
 
-```js
-// Inside the existing express.static setHeaders callback, add:
-if (filePath.endsWith('robots.txt') || filePath.endsWith('llms.txt') || filePath.endsWith('llms-full.txt')) {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-}
-if (filePath.endsWith('sitemap.xml')) {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-}
+**Recommendation:** **No new library.** The fix is a 2-line change.
+
+```ts
+// Before
+const result = await bridge.sendAndWait(
+  { type: 'mcp:start-automation', payload: { task } },
+  { timeout: 300_000, onProgress },
+);
+
+// After
+const result = await bridge.sendAndWait(
+  { type: 'mcp:start-automation', payload: { task } },
+  { timeout: null, onProgress }, // or Number.POSITIVE_INFINITY -- whichever bridge.ts already accepts
+);
 ```
 
-No CORS, no `X-Robots-Tag`, no auth. AI bots make plain GETs from documented user agents.
+The MCP protocol already supports unbounded long-running tools as long as the server keeps the connection alive and (optionally) sends `notifications/progress`. The existing `onProgress -> extra.sendNotification({ method: 'notifications/progress', ... })` plumbing in `autopilot.ts:36-46` already does exactly that, so MCP clients see continuous progress and don't time out at the protocol layer. The 300s ceiling was an internal safety net that's no longer wanted.
+
+**Bridge-side prerequisite:** Audit `mcp/src/bridge.ts` `sendAndWait` to ensure `timeout: null` (or `0`, or omitted) means "wait forever" rather than "use a default". If it currently coerces null to a default, that's the fix. (LOW confidence on the current behavior without reading bridge.ts in full.)
+
+**Cancellation safety:** The `stop_task` tool already exists; combined with MCP `$/cancelRequest`, an unbounded `run_task` is cancelable from the client side. No new cancellation library needed.
+
+### 7. Background-tab execution (no foregrounding required)
+
+**What:** An owning agent's tab does NOT need to be `active: true` (foregrounded) to receive actions.
+
+**Existing capability:** FSB already does this. `chrome.scripting.executeScript` and CDP attach work on any tab the extension has access to under `<all_urls>`. No code change needed beyond making sure FSB never calls `chrome.tabs.update(tabId, { active: true })` as a precondition for action execution. **Audit, don't add.**
 
 ---
 
-## Build-script changes (sitemap.xml + llms.txt regeneration)
+## Library Choices Summary
 
-Add a single Node ESM script `showcase/angular/scripts/generate-discovery-files.mjs` (~80 lines):
+### Add (npm)
 
-- Reads a small hand-authored manifest (JSON or TS-as-data) describing each prerendered route's title, description, summary, and "this page is for AI" excerpt.
-- Emits `public/sitemap.xml` (4 `<url>` entries with `<lastmod>` set to build time).
-- Emits `public/robots.txt` with explicit `Allow:` lines for `GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`, `Bytespider`, `CCBot`, plus the standard `Sitemap:` directive.
-- Emits `public/llms.txt` (short index per the [llmstxt.org](https://llmstxt.org) convention) and `public/llms-full.txt` (concatenated marketing-page content for one-shot AI ingestion).
+| Library | Version | Where | Purpose | Why this and not alternatives |
+|---------|---------|-------|---------|-------------------------------|
+| (none) | -- | -- | -- | -- |
 
-Wire it into `package.json` (`showcase/angular/package.json`):
+**That's intentional.** Every NEW v0.9.60 capability is satisfied by existing dependencies + Chrome/Node built-ins.
 
-```jsonc
-"scripts": {
-  "ng": "ng",
-  "start": "ng serve",
-  "prebuild": "node scripts/generate-discovery-files.mjs",
-  "build": "ng build",
-  "test": "ng test"
-}
-```
+### Bump (npm)
 
-`prebuild` runs automatically before `build`, so every Fly.io image rebuild emits fresh files. No CI/CD changes required.
+| Library | From | To | Where | Reason |
+|---------|------|------|-------|--------|
+| `@modelcontextprotocol/sdk` | `^1.27.1` | `^1.29.x` (latest 1.29.0) | `mcp/package.json` | Active upstream, no breaking changes for our usage (progress notifications, `server.tool`, stdio transport unchanged). Catches bug fixes since Feb 2026. |
+| `fsb-mcp-server` (self) | `0.7.4` | `0.8.0` | `mcp/package.json:version`, `mcp/server.json` | Milestone deliverable. Minor bump because `back` is a NEW tool (additive) and Phase 236 changes return semantics for `run_task` (still backward compatible -- clients that didn't get a value before now do). |
 
-The files land in `public/` -> picked up by the existing `assets` rule in `angular.json:36-40` (`{"glob": "**/*", "input": "public"}`) -> copied into `dist/.../browser/` -> served by `express.static` from `staticPath`.
+### Keep as-is (npm)
+
+`ws@^8.19.0`, `zod@^3.24.0`, `strip-json-comments@^5.0.3`, `smol-toml@^1.6.1`, `yaml@^2.8.3`, all dev deps.
+
+### Chrome / Web Platform APIs (no install)
+
+| API | MV3 status | Use |
+|-----|-----------|-----|
+| `chrome.tabs.{create, goBack, onCreated, onRemoved, onUpdated, query}` | Stable | Tab lifecycle + new `back` tool. |
+| `chrome.windows.onRemoved` | Stable | Window-close sweep. |
+| `chrome.storage.session` | Stable since Chrome 102 | Agent-registry rehydrate (in-memory, browser-lifetime). |
+| `chrome.alarms` | Stable | Optional stale-agent reaper. |
+| `crypto.randomUUID()` | Available in MV3 service workers since Chrome 92 | Agent IDs, task IDs. |
+| `AbortController` | Available everywhere | Cancel in-flight bridge calls on disconnect. |
+
+### Node built-ins (mcp server, no install)
+
+| API | Use |
+|-----|-----|
+| `crypto.randomUUID()` | Same id format as extension side -- consistency. |
+| `AbortController` / `AbortSignal` | If we want to cancel `bridge.sendAndWait` from disconnect handlers. |
+| `process.on('SIGTERM' | 'SIGINT')` | Already wired in `index.ts:262-263` -- extend to broadcast disconnect to extension. |
 
 ---
 
-## Alternatives Considered
+## Integration Points With Existing v0.9.36 / v0.9.50 Surface
 
-| Recommended | Alternative | When to Use Alternative |
-|---|---|---|
-| `@angular/ssr` + `outputMode: "static"` | Full Angular Universal SSR (`outputMode: "server"`) with Node SSR runtime on Fly | Only if routes need per-request data (logged-in user state, A/B variants, geo-localized copy). None of `/`, `/about`, `/privacy`, `/support` need this. PROJECT.md explicitly lists "Angular Universal full SSR" as out of scope. |
-| `@angular/ssr` + `outputMode: "static"` | `@nguniversal/express-engine` (the legacy Webpack-era SSR) | Never for this project. `@nguniversal/*` packages are deprecated in favour of `@angular/ssr` since Angular 17 and are incompatible with the `@angular/build:application` (esbuild) builder you already use. |
-| `@angular/ssr` + `outputMode: "static"` | Third-party static prerender (`prerender.io`, Rendertron, headless-Chrome services) | Only for unmaintained legacy SPAs that can't be rebuilt. You control the build, so doing it at build time is strictly cheaper, faster, and more cacheable. |
-| Native `Title` / `Meta` services | `@ngrx/router-store` + side-effecting selectors for SEO | Overkill. NgRx adds runtime weight for a problem that resolvers + `Meta.updateTag` solves directly. |
-| Native `<script type="application/ld+json">` injection | `schema-dts` + `jsonld` runtime serializer | `schema-dts` only provides TypeScript types; it adds zero runtime weight beyond compile-time checks. Use it only if you want compile-time checking of JSON-LD shapes. Optional, not required. |
-| 80-line Node script for sitemap/llms.txt | `sitemap` (npm), `next-sitemap`, `angular-prerender` | These pull in 5-30 transitive deps each for output that's a few hundred bytes of XML. Net negative. |
+| Existing surface | What v0.9.60 changes |
+|------------------|----------------------|
+| `extension/background.js` `activeSessions` Map | Add parallel `tabOwnership` and `agentRegistry` Maps. Reuse the `chrome.storage.session` rehydrate pattern from `MCP_VISUAL_SESSION_STORAGE_KEY`. Existing `chrome.tabs.onRemoved` listener at line 2455 gains agent-cleanup branch. |
+| `extension/background.js` visual-session ownership | Visual session is per-tab; agent ownership is also per-tab. **One owner per tab** invariant is preserved -- the agent-id and the visual-session client label become two views of the same ownership. Stick to: visual session is the user-facing label; agent-id is the routing key. |
+| `mcp/src/bridge.ts` `sendAndWait({ timeout })` | Allow `timeout: null` for unbounded waits (Phase 236). Add disconnect-listener hooks. |
+| `mcp/src/tools/autopilot.ts` `run_task` | Drop the 300_000 ceiling; keep `onProgress` notifications wiring as-is. |
+| `mcp/src/tools/manual.ts` | Add `back` tool registration. |
+| `mcp/src/runtime.ts` | No structural change. The `createRuntime` factory stays a one-server-instance-per-process model (stdio = one client per server). For HTTP mode (`startHttpServer`), the per-session pattern in `mcp/src/http.ts` already isolates state. |
+| `mcp/server.json` + `mcp/package.json` `version` | Bump to `0.8.0`. |
+| Trusted-client allowlist (`mcp/src/tools/visual-session.ts:8-11`) | Unchanged. Agent identity is finer-grained but does NOT replace client labeling. Each agent record stores `mcpClientLabel` so badges still show "Claude" / "Codex" / etc. |
 
 ---
 
-## What NOT to Use
+## What NOT to Add (Explicit Non-Additions)
 
 | Avoid | Why | Use Instead |
-|---|---|---|
-| `@nguniversal/express-engine`, `@nguniversal/builders` | Deprecated since Angular 17. Tied to the legacy Webpack `@angular-devkit/build-angular:server` builder. Will not work with `@angular/build:application` (your current esbuild-based builder). | `@angular/ssr` -- the official replacement, supported in `@angular/build:application`. |
-| `prerender.io`, headless-Chrome SaaS, Rendertron | Adds an external service in the request path. Wastes the fact that your routes are statically determinable at build time. Costs latency, money, and a SPOF. | Build-time prerender via `@angular/ssr`. |
-| `outputMode: "server"` (full SSR runtime) | Requires running a Node SSR process on Fly.io alongside your existing Express. Cold-start latency, more memory, more crash surfaces, no benefit for static marketing copy. PROJECT.md explicitly defers this as overkill. | `outputMode: "static"`. |
-| Manual `<head>` editing in `src/index.html` for per-route metadata | The bare `index.html` is the SPA shell and only one of N prerendered HTML outputs. Per-route metadata MUST be set via `Title` + `Meta` services in component code so each prerendered file gets the right tags. | `Title.setTitle()` + `Meta.updateTag()` in each page component's `ngOnInit` (or via a route resolver). The current bare `<title>FSB</title>` in `src/index.html:5` should be replaced with sensible defaults that get overridden per-route. |
-| Generic `User-agent: *` + blanket `Disallow:` posture in `robots.txt` | AI crawlers honour `Allow:` and bot-specific user agents. A blanket `Disallow:` -- or worse, no `robots.txt` at all -- means GPTBot/ClaudeBot/PerplexityBot may treat the site as off-limits or skip it for crawl-budget reasons. | Explicit `Allow:` per AI bot user agent + `Sitemap:` directive. |
-| `<meta name="robots" content="noindex">` left in any prerendered output | Easy to leak from a dev/staging build. Hard to detect post-hoc. | Add a smoke check (curl + grep) to release UAT that confirms no `noindex` on `/`, `/about`, `/privacy`, `/support`. |
-| `discoverRoutes: true` (the prerender default) | Will sweep up `/dashboard`, which depends on `chrome.storage` / runtime DOM streaming -- prerender will produce a broken or misleading HTML snapshot. | `discoverRoutes: false` + explicit `routesFile: "prerender-routes.txt"`. |
+|-------|-----|-------------|
+| `async-mutex`, `p-queue`, `p-limit`, `semaphore-async-await` | Real OS-level threading concerns don't apply to MV3 service workers. The TaskQueue in `mcp/src/queue.ts` already serializes mutation tools; the extension's single-threaded JS event loop handles intra-handler atomicity if we structure check-then-set correctly. | Existing `queue.ts` + a documented "no-await-inside-cap-check" rule. |
+| `uuid` npm package | `crypto.randomUUID()` is built-in, faster, zero-deps. | `crypto.randomUUID()` everywhere. |
+| `ulid`, `nanoid` | Time-sortable / shorter IDs solve a problem we don't have at N=8. | `crypto.randomUUID()`. |
+| `lru-cache`, `node-cache` | At 8 entries we don't need eviction; we need explicit lifecycle. | Plain `Map`. |
+| Zod 4 (`zod@^4`) | MCP SDK 1.27-1.29 is built against Zod 3 schemas (`zod/v3`). Zod 4 has breaking changes in error customization, function schemas, and object methods. Upgrading would force MCP-SDK-internal compatibility shims. | Stay on `zod@^3.24.0`. |
+| TypeScript build pipeline for the extension | FSB extension is intentionally vanilla ES2021+. No `tsc`, no `esbuild`, no `vite`. The MCP server's `tsc` is the ONLY build step in the repo and that's where it stays. | Vanilla JS in `extension/`. |
+| MCP "session"-level state via `Streamable HTTP` for stdio clients | Stdio is intentionally one-server-per-client. Adding session multiplexing on stdio would invent a second protocol. | Per-process server instance for stdio (current pattern); existing HTTP-mode session map in `mcp/src/http.ts` for multi-session HTTP. |
+| Persistent agent registry in `chrome.storage.local` or IndexedDB | Agent state is browser-runtime-scoped. Surviving a Chrome restart is a feature only if the MCP client also restarts identically -- which is not guaranteed. | `chrome.storage.session` (cleared on browser restart). |
+| Distributed locks across instances (Redis, etc.) | One Chrome instance + one extension service worker. There IS no distributed surface. | In-process Map. |
+| Cancellation-token library (`abort-controller`, etc. as separate npm) | `AbortController` is global in Node 16+ and Chrome MV3. | Built-in `AbortController`. |
+| Idle-timeout for agent ownership | Milestone explicitly says "no idle timeout". Locks release on task end / disconnect / tab close ONLY. | Don't write the timer. |
 
 ---
 
 ## Stack Patterns by Variant
 
-**If `/dashboard` should be discoverable later:**
-- Move it into the `routesFile` list.
-- Provide a server-rendered "what FSB is" view that doesn't depend on `chrome.storage` -- otherwise prerender will produce broken HTML.
-- Out of scope for v0.9.46 per PROJECT.md.
+**If MCP client is `Claude Code` / `Codex` / `Cursor` (stdio):**
+- One MCP server process per client; the agent registry lives in that one extension service worker; multiple agents from the same client share the registry but have distinct `agent_id`s.
 
-**If you later add comparison pages (`/vs-browser-use`, etc — listed as deferred):**
-- Add the explicit paths to `prerender-routes.txt`. Same pattern; zero new infrastructure.
+**If MCP client is over Streamable HTTP (`fsb-mcp-server serve`):**
+- The HTTP server multiplexes many MCP sessions; each session can spawn many agents. The agent registry is still **single-instance** in the extension SW (one Chrome = one registry). Cap of 8 is global, not per-MCP-session. Document this in PITFALLS.
 
-**If you later add an FAQ page with `FAQPage` JSON-LD (deferred):**
-- Same `<script type="application/ld+json">` injection pattern as `Organization` / `SoftwareApplication`. No new dependencies.
-
-**If you later need parameterized routes (e.g. `/blog/:slug`):**
-- Use the existing `prerender-routes.txt` populated by a script that lists each slug, as documented in the Angular v19 prerendering guide. No SSR runtime required.
+**If extension service worker is evicted mid-task:**
+- Same pattern as `MCP_VISUAL_SESSION_STORAGE_KEY` rehydrate at background.js:565-584. On wakeup, read `chrome.storage.session.fsbAgentRegistry`, rebuild Maps, validate each agent's `tabId`s still exist via `chrome.tabs.get` (drop entries for closed tabs), continue.
 
 ---
 
 ## Version Compatibility
 
-| Package A | Compatible With | Notes |
-|---|---|---|
-| `@angular/ssr@^19.0.0` | `@angular/core@^19.0.0`, `@angular/build@^19.0.0` | Must match the Angular major. Mixing `@angular/ssr@18` with `@angular/build@19` will fail at scaffold time. |
-| `@angular/build:application` builder (already in use, line 22 of angular.json) | `@angular/ssr@^19` | Confirmed compatible. The `prerender` / `outputMode` / `ssr` / `server` keys are first-class options on the application builder in Angular 19. The legacy `@angular-devkit/build-angular:application` builder also supports them but you're already on `@angular/build:application` -- no migration needed. |
-| `zone.js@~0.15.0` (already installed) | `@angular/ssr@^19` | Compatible. `@angular/ssr` uses zone.js for change detection during the prerender pass. No upgrade required. |
-| Node `>=20.11` (existing Fly image baseline) | All of the above | Angular 19 + `@angular/ssr` requires Node 18.19+ or 20.11+; Fly image already satisfies this. |
-| Existing `legacy .html redirects` block (server.js:86-95) | New per-route handler | No interaction. Redirects fire first, hit `res.redirect(301, ...)`, never fall through. |
-| Existing WebSocket / pairing / DOM-stream paths | Per-route prerender handler | Zero overlap. Prerender only changes `GET /`, `/about`, `/privacy`, `/support`. WS endpoints, `/api/*`, and `/dashboard` are untouched. |
+| Package | Compatible with | Notes |
+|---------|-----------------|-------|
+| `@modelcontextprotocol/sdk@^1.29.x` | `zod@^3.24.0` (Zod 3) | The SDK uses `zod` peerDependency `^3.x`. Do NOT bump to Zod 4. |
+| `@modelcontextprotocol/sdk@^1.29.x` | Node `>=18.0.0` | Already pinned in `package.json:engines`. |
+| `crypto.randomUUID()` | Node 14.17+, Chrome 92+ | Both well below MV3 minimum and our `engines.node`. |
+| `chrome.storage.session` | Chrome 102+ | Already in use elsewhere in the extension. |
 
 ---
 
 ## Sources
 
-- [Angular v19 Build-time prerendering guide](https://v19.angular.dev/guide/prerendering) — verified `prerender` accepts `discoverRoutes` (boolean, default true) and `routesFile` (path to newline-separated route list); confirmed `ng add @angular/ssr` is the install path. HIGH confidence.
-- [Angular SSR / hybrid rendering guide](https://angular.dev/guide/ssr) — verified `outputMode: "static"` produces static HTML with no Node server file required, suitable for static hosting. HIGH confidence.
-- [feat(@angular/build): introduce outputMode option (commit 3b00fc9)](https://github.com/angular/angular-cli/commit/3b00fc908d4f07282e89677928e00665c8578ab5) — confirms `outputMode` is a first-class option on `@angular/build:application` and replaces ad-hoc `appShell`/`prerender` toggles in Angular 19. HIGH confidence.
-- [angular-cli issue #28712](https://github.com/angular/angular-cli/issues/28712) — corroborates that `prerender` is wired into the application builder schema in Angular 19. MEDIUM confidence (issue is bug-report context, not docs).
-- [llmstxt.org spec](https://llmstxt.org) — informal but widely-adopted convention for `llms.txt` / `llms-full.txt`. Used by Anthropic, Cloudflare, Hugging Face, etc. MEDIUM confidence (no W3C standard; convention only).
-- Existing repo files (`showcase/angular/angular.json`, `showcase/angular/package.json`, `showcase/angular/src/app/app.routes.ts`, `showcase/angular/src/index.html`, `server/server.js:60-130`) — read directly to ground all integration recommendations. HIGH confidence.
+- [npm: @modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk) -- HIGH (latest 1.29.0 as of ~Apr 2026)
+- [GitHub: typescript-sdk releases](https://github.com/modelcontextprotocol/typescript-sdk/releases) -- HIGH
+- [GitHub: typescript-sdk server.md](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/server.md) -- HIGH (progress notification pattern, `ctx.mcpReq.notify()`)
+- [MCP spec: Progress (2025-03-26)](https://modelcontextprotocol.io/specification/2025-03-26/basic/utilities/progress) -- HIGH (`progressToken` semantics, no protocol timeout)
+- [Chrome for Developers: chrome.tabs](https://developer.chrome.com/docs/extensions/reference/api/tabs) -- HIGH (`onCreated`, `onRemoved`, `goBack`, `openerTabId`)
+- [Chrome for Developers: service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- HIGH (event listeners extend SW lifetime by 30s)
+- [MDN: windows.onRemoved](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/windows/onRemoved) -- HIGH
+- [dev.to: crypto.randomUUID is 3x faster than uuid.v4](https://dev.to/galkin/crypto-randomuuid-vs-uuid-v4-47i5) -- MEDIUM (perf claim, multi-source-confirmed)
+- [Zod v4 release notes](https://zod.dev/v4) and [Zod v4 migration](https://zod.dev/v4/changelog) -- HIGH (breaking changes; reason to stay on Zod 3 with MCP SDK)
+- [GitHub issue: Latest Zod3 now includes Zod4 ... breaking changes](https://github.com/colinhacks/zod/issues/4923) -- MEDIUM (compatibility nuance)
+- Local file: `extension/manifest.json` -- HIGH (permissions audit, no new permissions required)
+- Local file: `mcp/package.json` -- HIGH (current dependency baseline)
+- Local file: `mcp/src/tools/autopilot.ts` -- HIGH (300s ceiling located at line 58, on-progress wiring at lines 36-46)
+- Local file: `mcp/src/runtime.ts` + `mcp/src/queue.ts` -- HIGH (existing serialization model)
+- Local file: `extension/background.js` -- HIGH (existing `activeSessions`, `chrome.tabs.onRemoved`, `MCP_VISUAL_SESSION_STORAGE_KEY` rehydrate at lines 565-584, 2053, 2455)
 
 ---
 
-*Stack research for: Angular 19 SPA static prerender + crawler/AI-bot discoverability behind custom Express on Fly.io*
-*Researched: 2026-04-30*
+*Stack research for: v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0)*
+*Researched: 2026-05-05*

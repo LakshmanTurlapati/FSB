@@ -3,6 +3,7 @@
 const util = require('util');
 const {
   createToolHarness,
+  loadAgentScope,
   loadBuildModule,
 } = require('./mcp-smoke-harness.js');
 
@@ -31,11 +32,13 @@ const requiredSmokeTools = [
   'get_page_snapshot',
   'get_site_guide',
   'click',
+  'close_tab',
   'start_visual_session',
   'end_visual_session',
   'run_task',
   'stop_task',
   'get_logs',
+  'back',
 ];
 
 async function invokeTool(harness, toolName, params = {}, extra = null) {
@@ -45,7 +48,17 @@ async function invokeTool(harness, toolName, params = {}, extra = null) {
 
   const before = harness.bridgeCalls.length;
   const result = await handler(params, extra || harness.createExtra());
-  const call = harness.bridgeCalls[before] || null;
+  // Phase 238: a manual/visual-session/autopilot tool's first invocation
+  // also triggers an 'agent:register' lazy mint via AgentScope.ensure().
+  // The smoke test asserts on the TOOL's own bridge message, so skip past
+  // any agent:register entries inserted into bridgeCalls during this call.
+  let call = null;
+  for (let i = before; i < harness.bridgeCalls.length; i++) {
+    const entry = harness.bridgeCalls[i];
+    if (entry && entry.message && entry.message.type === 'agent:register') continue;
+    call = entry;
+    break;
+  }
 
   assert(result && Array.isArray(result.content), `${toolName} smoke returns MCP content output`);
   return call;
@@ -58,6 +71,11 @@ async function run() {
   const visualSessionModule = await loadBuildModule(pathJoin('tools', 'visual-session.js'));
   const autopilotModule = await loadBuildModule(pathJoin('tools', 'autopilot.js'));
   const observabilityModule = await loadBuildModule(pathJoin('tools', 'observability.js'));
+  // Phase 242 plan 02: agents.ts now exposes the 'back' tool (Plan 01 D-01).
+  // Loading the module here lets the smoke test register the back handler
+  // alongside the other surfaces; without this, 'back' stays in
+  // requiredSmokeTools but its handler never lands in harness.handlers.
+  const agentsModule = await loadBuildModule(pathJoin('tools', 'agents.js'));
 
   console.log('\n--- packaged runtime surface ---');
   assert(typeof runtimeModule.createRuntime === 'function', 'build/runtime.js exports createRuntime');
@@ -66,6 +84,7 @@ async function run() {
   assert(typeof visualSessionModule.registerVisualSessionTools === 'function', 'build/tools/visual-session.js exports registerVisualSessionTools');
   assert(typeof autopilotModule.registerAutopilotTools === 'function', 'build/tools/autopilot.js exports registerAutopilotTools');
   assert(typeof observabilityModule.registerObservabilityTools === 'function', 'build/tools/observability.js exports registerObservabilityTools');
+  assert(typeof agentsModule.registerAgentTools === 'function', 'build/tools/agents.js exports registerAgentTools');
 
   const harness = createToolHarness({
     bridgeResponses: {
@@ -92,11 +111,18 @@ async function run() {
     },
   });
 
-  readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue);
-  manualModule.registerManualTools(harness.server, harness.bridge, harness.queue);
-  visualSessionModule.registerVisualSessionTools(harness.server, harness.bridge, harness.queue);
-  autopilotModule.registerAutopilotTools(harness.server, harness.bridge, harness.queue);
-  observabilityModule.registerObservabilityTools(harness.server, harness.bridge, harness.queue);
+  // Phase 238 D-11: register*Tools accepts AgentScope as the 4th arg.
+  // The harness's bridge.sendAndWait responds to type 'agent:register'
+  // with a deterministic { agentId: 'agent_test_smoke', ... } payload.
+  const agentScope = await loadAgentScope();
+  readOnlyModule.registerReadOnlyTools(harness.server, harness.bridge, harness.queue, agentScope);
+  manualModule.registerManualTools(harness.server, harness.bridge, harness.queue, agentScope);
+  visualSessionModule.registerVisualSessionTools(harness.server, harness.bridge, harness.queue, agentScope);
+  autopilotModule.registerAutopilotTools(harness.server, harness.bridge, harness.queue, agentScope);
+  observabilityModule.registerObservabilityTools(harness.server, harness.bridge, harness.queue, agentScope);
+  // Phase 242 D-01: registerAgentTools registers the 'back' MCP tool. Loaded
+  // last so the smoke test's registered-handlers assertion (line 118) sees it.
+  agentsModule.registerAgentTools(harness.server, harness.bridge, harness.queue, agentScope);
 
   console.log('\n--- registered smoke tools ---');
   for (const toolName of requiredSmokeTools) {
@@ -107,50 +133,50 @@ async function run() {
   const listTabsCall = await invokeTool(harness, 'list_tabs');
   assertDeepEqual(
     listTabsCall && listTabsCall.message,
-    { type: 'mcp:get-tabs', payload: {} },
-    'list_tabs routes through mcp:get-tabs with empty payload',
+    { type: 'mcp:get-tabs', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'list_tabs routes through mcp:get-tabs with agent identity',
   );
 
   const navigateCall = await invokeTool(harness, 'navigate', { url: 'https://example.com' });
   assertDeepEqual(
     navigateCall && navigateCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' } } },
-    'navigate routes through mcp:execute-action with navigate payload',
+    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'navigate routes through mcp:execute-action with navigate payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const readPageCall = await invokeTool(harness, 'read_page', { full: true });
   assertDeepEqual(
     readPageCall && readPageCall.message,
-    { type: 'mcp:read-page', payload: { full: true } },
-    'read_page routes through mcp:read-page with full flag',
+    { type: 'mcp:read-page', payload: { full: true, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'read_page routes through mcp:read-page with full flag and agent identity',
   );
 
   const domSnapshotCall = await invokeTool(harness, 'get_dom_snapshot', { maxElements: 5 });
   assertDeepEqual(
     domSnapshotCall && domSnapshotCall.message,
-    { type: 'mcp:get-dom', payload: { maxElements: 5 } },
-    'get_dom_snapshot routes through mcp:get-dom with maxElements payload',
+    { type: 'mcp:get-dom', payload: { maxElements: 5, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_dom_snapshot routes through mcp:get-dom with maxElements payload and agent identity',
   );
 
   const pageSnapshotCall = await invokeTool(harness, 'get_page_snapshot');
   assertDeepEqual(
     pageSnapshotCall && pageSnapshotCall.message,
-    { type: 'mcp:get-page-snapshot', payload: {} },
-    'get_page_snapshot routes through mcp:get-page-snapshot with empty payload',
+    { type: 'mcp:get-page-snapshot', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_page_snapshot routes through mcp:get-page-snapshot with agent identity',
   );
 
   const siteGuideCall = await invokeTool(harness, 'get_site_guide', { domain: 'example.com' });
   assertDeepEqual(
     siteGuideCall && siteGuideCall.message,
-    { type: 'mcp:get-site-guides', payload: { domain: 'example.com', url: 'example.com' } },
-    'get_site_guide routes through mcp:get-site-guides with domain payload',
+    { type: 'mcp:get-site-guides', payload: { domain: 'example.com', url: 'example.com', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'get_site_guide routes through mcp:get-site-guides with domain payload and agent identity',
   );
 
   const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });
   assertDeepEqual(
     clickCall && clickCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' } } },
-    'click routes through mcp:execute-action with click payload',
+    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'click routes through mcp:execute-action with click payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const startVisualSessionCall = await invokeTool(harness, 'start_visual_session', {
@@ -166,9 +192,11 @@ async function run() {
         clientLabel: 'Codex',
         task: 'Smoke test the visual lifecycle',
         detail: 'Preparing overlay',
+        agentId: 'agent_test_smoke',
+        ownershipToken: 'token_test_smoke',
       },
     },
-    'start_visual_session routes through mcp:start-visual-session with canonical client label',
+    'start_visual_session routes through mcp:start-visual-session with canonical client label (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const endVisualSessionCall = await invokeTool(harness, 'end_visual_session', {
@@ -179,23 +207,23 @@ async function run() {
     endVisualSessionCall && endVisualSessionCall.message,
     {
       type: 'mcp:end-visual-session',
-      payload: { sessionToken: 'visual_token_123', reason: 'ended' },
+      payload: { sessionToken: 'visual_token_123', reason: 'ended', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' },
     },
-    'end_visual_session routes through mcp:end-visual-session with token payload',
+    'end_visual_session routes through mcp:end-visual-session with token payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const runTaskCall = await invokeTool(harness, 'run_task', { task: 'Smoke test the browser bridge' }, harness.createExtra({ progressToken: 'smoke-progress' }));
   assertDeepEqual(
     runTaskCall && runTaskCall.message,
-    { type: 'mcp:start-automation', payload: { task: 'Smoke test the browser bridge' } },
-    'run_task routes through mcp:start-automation with task payload',
+    { type: 'mcp:start-automation', payload: { task: 'Smoke test the browser bridge', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'run_task routes through mcp:start-automation with task payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const stopTaskCall = await invokeTool(harness, 'stop_task');
   assertDeepEqual(
     stopTaskCall && stopTaskCall.message,
-    { type: 'mcp:stop-automation', payload: {} },
-    'stop_task routes through mcp:stop-automation with empty payload',
+    { type: 'mcp:stop-automation', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'stop_task routes through mcp:stop-automation with agentId payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
   );
 
   const getLogsCall = await invokeTool(harness, 'get_logs', { sessionId: 'smoke-session', count: 10 });
@@ -204,6 +232,43 @@ async function run() {
     { type: 'mcp:get-logs', payload: { sessionId: 'smoke-session', count: 10 } },
     'get_logs routes through mcp:get-logs with observability payload',
   );
+
+  // Phase 242 plan 02: 'back' routes through mcp:go-back. Bridge response
+  // surfaces the canonical 5-status envelope; agentScope captures the
+  // (optional) ownershipToken via captureOwnershipToken on success.
+  const backCall = await invokeTool(harness, 'back');
+  assertDeepEqual(
+    backCall && backCall.message,
+    { type: 'mcp:go-back', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
+    'back routes through mcp:go-back with agentId + ownershipToken (Phase 242 D-01)',
+  );
+
+  console.log('\n--- explicit tab_id uses tab-specific ownership token ---');
+  agentScope.captureOwnershipToken(77, 'token_tab_77');
+  const explicitReadPageCall = await invokeTool(harness, 'read_page', { full: true, tab_id: 77 });
+  assertDeepEqual(
+    explicitReadPageCall && explicitReadPageCall.message,
+    { type: 'mcp:read-page', payload: { full: true, tab_id: 77, agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77' } },
+    'read_page with tab_id uses ownershipTokenFor(tab_id)',
+  );
+
+  const explicitBackCall = await invokeTool(harness, 'back', { tab_id: 77 });
+  assertDeepEqual(
+    explicitBackCall && explicitBackCall.message,
+    { type: 'mcp:go-back', payload: { agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77', tabId: 77 } },
+    'back with tab_id uses ownershipTokenFor(tab_id)',
+  );
+
+  const explicitCloseTabCall = await invokeTool(harness, 'close_tab', { tab_id: 77 });
+  assertDeepEqual(
+    explicitCloseTabCall && explicitCloseTabCall.message,
+    { type: 'mcp:execute-action', payload: { tool: 'close_tab', params: { tab_id: 77 }, agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77' } },
+    'close_tab with tab_id uses ownershipTokenFor(tab_id)',
+  );
+
+  console.log('\n--- agent:register lazy-mint invariant (Phase 238 D-13.4) ---');
+  const registerCalls = harness.bridgeCalls.filter((c) => c.message && c.message.type === 'agent:register');
+  assert(registerCalls.length === 1, 'agent:register must fire exactly once across all tool invocations; saw ' + registerCalls.length);
 
   console.log('\n--- queue coverage ---');
   for (const toolName of requiredSmokeTools.filter((name) => name !== 'stop_task')) {
