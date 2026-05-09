@@ -981,10 +981,17 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
         return tool;
       });
 
+      // Anthropic rejects empty `messages`. On the first agent-loop iteration the
+      // task lives in the system prompt and conversationMsgs is []; seed a starter
+      // user turn so the request is valid.
+      const seededAnthropicMsgs = conversationMsgs.length > 0
+        ? conversationMsgs
+        : [{ role: 'user', content: 'Begin.' }];
+
       requestBody = {
         model,
         system: cachedSystem,
-        messages: conversationMsgs,
+        messages: seededAnthropicMsgs,
         tools: cachedTools,
         max_tokens: 4096
       };
@@ -995,8 +1002,16 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
       // Gemini: contents array (no system role), systemInstruction, tools
       const systemMsg = messages.find(m => m.role === 'system');
       const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+      // Gemini rejects empty `contents` with 400 "contents is not specified".
+      // On the first agent-loop iteration the task lives in the system prompt
+      // (mapped to systemInstruction) and nonSystemMsgs is []; seed a starter
+      // user turn so the request is valid. Fixes issue #29.
+      let geminiContents = nonSystemMsgs.map(convertToGeminiFormat);
+      if (geminiContents.length === 0) {
+        geminiContents = [{ role: 'user', parts: [{ text: 'Begin.' }] }];
+      }
       requestBody = {
-        contents: nonSystemMsgs.map(convertToGeminiFormat),
+        contents: geminiContents,
         tools: formattedTools,
         systemInstruction: systemMsg ? { parts: [{ text: systemMsg.content }] } : undefined,
         generationConfig: {
