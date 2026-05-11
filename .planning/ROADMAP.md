@@ -78,7 +78,11 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   3. Calling any action tool with a `client` value not present in the v0.9.36 shared allowlist returns a typed `BADGE_NOT_ALLOWED` error and the underlying action does not execute; the validator is the same source-of-truth shared with v0.9.36 visual sessions (not a per-tool duplicate).
   4. Every read-only MCP tool listed in Phase 254 retains a byte-for-byte unchanged input schema; calling them with the existing pre-v0.9.62 argument shape continues to work without `visual_reason` / `client`, and adding those fields to a read tool call is silently ignored or rejected per the read-tool spec (the schema MUST NOT have grown).
 
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 255-01-PLAN.md -- Declare VISUAL_SESSION_FIELDS fragment + withVisualSessionFields helper in mcp/ai/tool-definitions.cjs, apply the helper to the canonical 36 action tools, flip _readOnly: true on wait_for_element / wait_for_stable, mirror byte-identically to extension/ai/tool-definitions.js (Wave 1; CONTRACT-02 + CONTRACT-05)
+  - [ ] 255-02-PLAN.md -- Add VISUAL_FIELDS_REQUIRED + BADGE_NOT_ALLOWED to CODE_ONLY_ERROR_KEYS and buildLayeredDetail switch arms in mcp/src/errors.ts (Wave 1; CONTRACT-03 + CONTRACT-04 error-name registration)
+  - [ ] 255-03-PLAN.md -- Wire validateVisualSessionFields + stripVisualSessionFields into the dispatch chokepoint in mcp/src/tools/manual.ts; widen exports in mcp/src/tools/visual-session.ts so the shared v0.9.36 allowlist helpers are importable (Wave 2; CONTRACT-03 + CONTRACT-04 runtime enforcement; depends on 01 + 02)
+  - [ ] 255-04-PLAN.md -- Author tests/visual-session-schema-lock.test.js asserting schema-shape invariants for the 36 action tools and 15 read-only tools plus dispatcher-rejection invariants for both typed errors; wire into root npm test chain (Wave 2; CONTRACT-02 + CONTRACT-03 + CONTRACT-04 + CONTRACT-05 CI lock; depends on 01 + 02 + 03)
 
 ---
 
@@ -179,7 +183,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 254. Contract Foundation (action-tool list + field-bundle naming + typed errors) | 0/1 | Not started | -- |
-| 255. Schema Enforcement on Action Tools | 0/TBD | Not started | -- |
+| 255. Schema Enforcement on Action Tools | 0/4 | Not started | -- |
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 0/TBD | Not started | -- |
 | 257. Explicit Completion (`is_final` immediate clear) | 0/TBD | Not started | -- |
 | 258. Removal, Migration Errors, Package 0.9.0 | 0/TBD | Not started | -- |
