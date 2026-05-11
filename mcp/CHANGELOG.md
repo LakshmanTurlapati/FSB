@@ -2,6 +2,74 @@
 
 All notable changes to `fsb-mcp-server` are documented in this file. Each entry corresponds to a published npm release; FSB extension milestones map to MCP package versions in the entry header.
 
+<a id="v0.9.0"></a>
+
+## 0.9.0 (2026-05-11)
+
+Milestone: FSB v0.9.62 -- Implicit Visual Session Contract. BREAKING CHANGE: the explicit `start_visual_session` and `end_visual_session` MCP tools were removed; the visual session is now implicit on every action tool call via a required field bundle (`visual_reason` + `client`, optional `is_final`).
+
+### Breaking changes
+
+- **`start_visual_session` and `end_visual_session` removed.** Both tool names remain registered in the MCP server's `tools/list` response, but their handlers now short-circuit and return the typed `TOOL_REMOVED` error before any browser work is dispatched. The tool descriptions begin with `[REMOVED in v0.9.0]` and point at this CHANGELOG entry for the migration recipe.
+- **Every MCP action tool (~36 tools) now requires `visual_reason` and `client` in its input.** Action tools in scope: `click`, `type_text`, `navigate`, `scroll`, `drag`, `select_option`, `press_key`, `press_enter`, `drag_drop`, `hover`, `focus`, `clear_input`, `check_box`, `drop_file`, `click_and_hold`, `double_click`, `right_click`, `click_at`, `scroll_at`, `double_click_at`, `drag_variable_speed`, `set_attribute`, `insert_text`, `search`, `refresh`, `go_back`, `go_forward`, `open_tab`, `close_tab`, `switch_tab`, `execute_js`, `select_text_range`, `scroll_to_top`, `scroll_to_bottom`, `scroll_to_element`, `fill_sheet`. Read-only tools (`read_page`, `get_dom_snapshot`, `get_text`, `get_attribute`, `read_sheet`, `get_page_snapshot`, `list_tabs`, `get_site_guide`, `search_memory`, `report_progress`, `complete_task`, `partial_task`, `fail_task`, `wait_for_element`, `wait_for_stable`) are UNCHANGED -- they do not carry the new fields.
+- **Visual session lifecycle is implicit and sliding.** The first action tool call on a tab brings up the overlay using the supplied `visual_reason` and `client` (allowlisted badge label). Each subsequent action call on the same tab re-arms a 60-second death timer (sliding window). After 60 seconds of silence the overlay auto-clears without an explicit end call. An action call with `is_final: true` clears the overlay immediately after the action's `change_report` resolves -- no 60-second wait.
+- **MV3 service-worker eviction recovery.** The sliding-window state is persisted in `chrome.storage.session` and replayed on service-worker wake; the death-timer deadline survives eviction. This follows the v0.9.36 visual-session persistence pattern.
+
+### Migration recipe
+
+Before (v0.8.0 / v0.9.36 explicit contract):
+
+```text
+mcp> start_visual_session(client="Codex", task="Complete checkout", detail="Preparing cart")
+-> { session_token: "visual_token_123" }
+
+mcp> navigate(url="https://example.com/cart")
+mcp> click(selector="text=Checkout")
+mcp> type_text(selector="#email", text="user@example.com")
+
+mcp> end_visual_session(session_token="visual_token_123", reason="ended")
+-> { success: true }
+```
+
+After (v0.9.0 implicit contract):
+
+```text
+mcp> navigate(url="https://example.com/cart", visual_reason="Complete checkout", client="Codex")
+mcp> click(selector="text=Checkout", visual_reason="Complete checkout", client="Codex")
+mcp> type_text(selector="#email", text="user@example.com", visual_reason="Complete checkout", client="Codex", is_final=true)
+```
+
+The visual session is created implicitly on the first action call (`navigate`), refreshed on each subsequent action call (sliding 60-second death timer), and cleared by `is_final: true` on the last action of the task (`type_text`). No separate start or end call is required.
+
+Callers may pass `visual_reason` and `client` on every action call (the same values repeated, as in the example above), or vary `visual_reason` per call to surface step-level overlay text to the user. The `client` value MUST stay on the v0.9.36 shared allowlist for the duration of the task (cross-client switching on the same tab still rejects with the existing `TAB_NOT_OWNED` ownership gate from v0.9.60).
+
+### Typed errors
+
+Three new typed-error codes accompany the new contract. Each error's body is structured (code + Detected/Why/Next action) and prints the migration recipe pointer where appropriate:
+
+- `VISUAL_FIELDS_REQUIRED` -- raised when an action tool is called without `visual_reason` or without `client`. The body next-action line names the required fields and points at the v0.9.62 contract recipe. Surfaces at the schema layer BEFORE the underlying action runs (no DOM mutation, no change_report, no overlay change).
+- `BADGE_NOT_ALLOWED` -- raised when `client` is not on the v0.9.36 shared allowlist. The body next-action line enumerates the approved client labels (Claude, Codex, ChatGPT, Perplexity, Windsurf, Cursor, Antigravity, OpenCode, OpenClaw, Grok, Gemini). Surfaces at the schema layer BEFORE the underlying action runs.
+- `TOOL_REMOVED` -- raised when a caller invokes `start_visual_session` or `end_visual_session` by name. The body next-action line names the new contract (required `visual_reason` + `client` on action tools, sliding 60s window, `is_final: true` for early clear) and points at this CHANGELOG entry and the Visual Session Lifecycle section of `mcp/README.md`. Short-circuits BEFORE the WebSocket bridge -- a caller of a removed tool gets the migration recipe even if the extension is offline.
+
+### What's New In v0.9.0
+
+- **Implicit visual session.** First action call brings up the overlay; subsequent calls re-arm a 60-second sliding window; `is_final: true` clears immediately; 60 seconds of silence auto-clears. No explicit start/end calls needed.
+- **Required field bundle on action tools.** `visual_reason` (short human-readable string), `client` (allowlisted badge label), and optional `is_final` (boolean) are required on every action tool. Schemas are enforced at the MCP server's `tools/list` discovery layer and re-validated at the dispatch chokepoint.
+- **Per-tab lifecycle with SW-eviction replay.** Sliding-window state persists in `chrome.storage.session`; the deadline survives MV3 service-worker eviction via chrome.alarms-based replay.
+- **Ownership integration.** The v0.9.60 `TAB_NOT_OWNED` / `AGENT_CAP_REACHED` ownership gates fire BEFORE the visual-session lifecycle; cross-agent action calls reject at the dispatch gate before any session state is touched.
+- **Server-side typed errors.** `VISUAL_FIELDS_REQUIRED`, `BADGE_NOT_ALLOWED`, and `TOOL_REMOVED` carry the layered Detected/Why/Next-action body shape established by v0.9.60.
+
+### Anti-scope (NOT in v0.9.0)
+
+- Adding visual-session fields to read-only MCP tools (reads stay silent by design).
+- Autopilot `run_task` overlay management (still uses its own internal lifecycle; PARITY-FUTURE-01 remains deferred).
+- New badge labels in the allowlist (governed by the v0.9.36 badge policy).
+- Cross-tab / cross-window visual-session coordination (deferred).
+- Freeform `client` strings (allowlist policy from v0.9.36).
+- Deriving `client` automatically from MCP connection metadata (IDENT-FUTURE-01 remains deferred).
+- `expected_duration_ms` duration-hint field on the bundle (PARITY-FUTURE-02 remains deferred).
+- Final `npm publish fsb-mcp-server@0.9.0` is user-gated post-merge per the v0.9.60 / v0.9.61 precedent.
+
 ## 0.8.0 (2026-05-06)
 
 Milestone: FSB v0.9.60 -- multi-agent contract, run_task return-on-completion, back tool, heartbeat, persistence with sw_evicted recovery, post-action change_report (Phase 245), agent-scoped tab resolution + open_tab background-default (Phase 246).
