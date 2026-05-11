@@ -15,6 +15,66 @@
 
 'use strict';
 
+// =========================================================================
+// VISUAL-SESSION FIELD BUNDLE (v0.9.62 Implicit Visual Session Contract)
+//
+// Source-of-truth: .planning/v0.9.62-CONTRACT.md (Field Bundle section).
+// Every action tool in the canonical 36-name list (see contract artifact
+// -- Action Tools section) MUST merge this fragment into its inputSchema
+// via withVisualSessionFields() below. Read-only tools (see contract
+// artifact -- Read-Only Tools section) MUST NOT carry this fragment;
+// their input schemas remain byte-for-byte unchanged.
+//
+// The badge allowlist that validates `client` lives at extension/utils/
+// mcp-visual-session.js (canonical) with an MCP-side mirror at
+// mcp/src/tools/visual-session.ts. The dispatch-chokepoint validator
+// wired in Plan 03 (mcp/src/tools/manual.ts) calls
+// isAllowedMcpVisualClientLabel() from the mirror; this fragment is
+// schema-shape only and does not embed an allowlist.
+// =========================================================================
+
+const VISUAL_SESSION_FIELDS = {
+  visual_reason: {
+    type: 'string',
+    description: 'Short human-readable reason shown in the overlay (for example, "Logging in to GitHub"). Required.'
+  },
+  client: {
+    type: 'string',
+    description: 'Allowlisted client label. Validated against the shared v0.9.36 server/extension allowlist (see mcp/src/tools/visual-session.ts -- MCP_VISUAL_CLIENT_LABELS). Required.'
+  },
+  is_final: {
+    type: 'boolean',
+    description: 'When true, the visual session clears immediately after this tool resolves. Optional (default false).'
+  }
+};
+
+const VISUAL_SESSION_REQUIRED = ['visual_reason', 'client'];
+
+/**
+ * Merge the v0.9.62 visual-session field bundle into a ToolDefinition's
+ * inputSchema. Returns a NEW ToolDefinition; the original is not mutated.
+ * Apply this helper to every action tool in the canonical 36-name list
+ * pinned in .planning/v0.9.62-CONTRACT.md (Action Tools section).
+ *
+ * @param {ToolDefinition} tool - The ToolDefinition to augment.
+ * @returns {ToolDefinition} A new ToolDefinition with visual_reason /
+ *   client / is_final added to inputSchema.properties and visual_reason
+ *   / client appended to inputSchema.required (deduplicated).
+ */
+function withVisualSessionFields(tool) {
+  const existingProps = (tool.inputSchema && tool.inputSchema.properties) || {};
+  const existingRequired = (tool.inputSchema && tool.inputSchema.required) || [];
+  return {
+    ...tool,
+    inputSchema: {
+      ...tool.inputSchema,
+      type: 'object',
+      properties: { ...existingProps, ...VISUAL_SESSION_FIELDS },
+      required: Array.from(new Set([...existingRequired, ...VISUAL_SESSION_REQUIRED]))
+    }
+  };
+}
+
 /**
  * @typedef {Object} ToolDefinition
  * @property {string} name - snake_case tool name (per D-01)
@@ -37,7 +97,7 @@ const TOOL_REGISTRY = [
   // POWER TOOL (1 tool)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'execute_js',
     description: 'Run JavaScript directly in the active page. PRIMARY INTERACTION TOOL: try execute_js FIRST for clicks, scrolls, reads, attribute lookups, and most other DOM work -- it bypasses overlay/obscured-element issues, viewport constraints, and CDP timeouts that block native click/scroll. Typical patterns: `return document.querySelector(\'#add-to-cart-button\').click(), true;` for clicks; `return Array.from(document.querySelectorAll(\'a\')).map(a=>a.href);` for extraction; `window.scrollTo(0, document.body.scrollHeight); return true;` for scroll. After a JS click, verify with read_page or get_page_snapshot (a true click should produce observable DOM change). FALLBACK TO NATIVE TOOLS WHEN: (1) JS click reports success but the page state did not change (framework swallowed the synthetic event -- use native click which fires real CDP events that React/Angular/Vue listen to); (2) typing into controlled text inputs (use native `type` so React onChange fires correctly -- `element.value = ...` will NOT update component state); (3) real drag operations on react-beautiful-dnd / Sortable.js / Trello-style widgets (use drag_drop / drag for real pointer events); (4) form submission that depends on validated input state (use native click on submit). Code runs as a function body -- use `return` to send values back (results are stringified). Async work: Promises are not awaited, so fire-and-forget then poll on `window.__yourKey`. Related: read_page (verify result), get_dom_snapshot (debug after JS click), click / type / drag_drop (fallbacks when JS doesn\'t take effect). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -57,13 +117,13 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // NAVIGATION TOOLS (5 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'navigate',
     description: 'Open a URL in the active browser tab. Returns the final URL after any redirects. When to use: as the first step to reach a target website. Related: read_page (read content after navigating), list_tabs (see what tabs are already open). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -80,9 +140,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'search',
     description: 'Search for content on the current site or web. When to use: to find content on the current site or web. Automatically detects the site\'s search input (Amazon, YouTube, GitHub, etc.) via DOM heuristics -- only falls back to Google when no site search exists. Returns search results status. Related: read_page (read search results after searching), click (click a specific search result). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -99,9 +159,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: false
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'go_back',
     description: 'Navigate back one page in browser history. Returns the new URL. When to use: to return to the previous page after following a link or navigating away. Related: go_forward (undo a go_back), navigate (go to a specific URL instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -117,9 +177,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'go_forward',
     description: 'Navigate forward one page in browser history. Returns the new URL. When to use: after using go_back, to move forward again. Related: go_back (go back in history), navigate (go to a specific URL instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -135,9 +195,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'refresh',
     description: 'Reload the current page. Returns the refreshed URL. When to use: when page content may be stale, after errors, or to reset page state. Related: navigate (go to a different URL), wait_for_stable (wait for page to settle after refresh). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -153,13 +213,13 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // INTERACTION TOOLS (14 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'click',
     description: 'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Supports text-based targeting: pass "text" instead of "selector" to click the first visible element containing that text (useful for dynamic apps like LinkedIn where element IDs change). CUSTOM DROPDOWN PATTERN: custom (non-native) dropdowns require TWO clicks -- (1) `click` the dropdown control to open the listbox, (2) `click` the option element. Example: react-select / Material-UI Select / Headless UI -- `click e5` opens, `click e23` picks "Green". `select_option` only works on native <select> elements. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click), select_option (for native <select> only). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -177,9 +237,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'type_text',
     description: 'Type text into an input field by selector. When to use: to fill text inputs, search boxes, or text areas. Use clear_input first if the field already has text. Returns confirmation of typed text. Related: clear_input (clear field before typing), press_enter (submit after typing), get_dom_snapshot (find input selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -197,9 +257,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'press_enter',
     description: 'Press the Enter key to submit a form or confirm input. When to use: after typing into a search box or form field. Automatically falls back to clicking the submit button if Enter has no effect. Returns key press confirmation. Related: type_text (type before pressing Enter), click (click submit button directly). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -216,9 +276,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'press_key',
     description: 'Press a keyboard key with optional modifiers (ctrl, shift, alt). Returns key press confirmation. When to use: for keyboard shortcuts (Ctrl+C, Ctrl+V), special keys (Escape, Tab, ArrowDown), or key combinations. Related: press_enter (dedicated Enter key tool), type_text (type full strings), focus (focus element before sending keys). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -238,9 +298,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'select_option',
     description: 'Select an option from a NATIVE <select> dropdown by value or visible text. NATIVE-ONLY: this tool only works on real <select> elements -- it has no effect on custom (div-based) dropdowns like react-select, Material-UI Select, Headless UI Listbox, or any non-<select> picker. For CUSTOM DROPDOWNS, use the two-click pattern instead: (1) `click` the dropdown control to open the listbox, (2) `click` the desired option element. Example: react-select on react-select.com -- `click e5` to open, then `click e23` on the "Green" option. If `select_option` returns no error but the dropdown value does not change, you are on a custom dropdown -- switch to the two-click pattern. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (the correct tool for custom non-native dropdowns). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -258,9 +318,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'check_box',
     description: 'Toggle a checkbox element. Returns the new checked state. When to use: to check or uncheck form checkboxes or toggle switches. Related: get_dom_snapshot (find checkbox selectors), click (alternative for custom checkbox UI components). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -277,9 +337,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'hover',
     description: 'Move the mouse over an element. Returns hover confirmation. When to use: to reveal dropdown menus, tooltips, or hover-activated content before clicking. Related: click (click revealed menu item after hover), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -296,9 +356,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: false
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'right_click',
     description: 'Open context menu on an element. Returns context menu confirmation. When to use: to access right-click context menu options on an element. Related: click (standard left-click), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -315,9 +375,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'double_click',
     description: 'Double-click an element. Returns click confirmation. When to use: for actions requiring double-click such as selecting a word, opening items in file managers, or activating edit mode. Related: click (single click), select_text_range (precise text selection by offsets), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -334,9 +394,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'select_text_range',
     description: 'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead. Related: double_click (select entire word/element text), get_text (read element text to determine offsets), get_dom_snapshot (find container selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -355,9 +415,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'drag_drop',
     description: 'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead. Related: drag (coordinate-based drag for canvas/map), drop_file (drop files onto upload zones), get_dom_snapshot (find source and target element refs). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -378,9 +438,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'drop_file',
     description: 'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead. Related: drag_drop (drag DOM elements between containers), get_dom_snapshot (find dropzone selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -400,9 +460,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'focus',
     description: 'Move keyboard focus to an element. Returns focus confirmation. When to use: to prepare an element for keyboard input, or to bring an element into the accessibility focus ring. Related: type_text (type into a focused input), press_key (send keystrokes to focused element), click (also focuses the clicked element). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -419,9 +479,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: false
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'clear_input',
     description: 'Clear the contents of an input field. Returns clear confirmation. When to use: before typing new text into an already-filled field to remove existing content. Related: type_text (type new text after clearing), get_dom_snapshot (find input selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -438,13 +498,13 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // SCROLLING TOOLS (4 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'scroll',
     description: 'Scroll the page up or down by a specified amount. Returns new scroll position. When to use: to bring off-screen content into view, load lazy-loaded content, or navigate long pages. Related: scroll_to_top, scroll_to_bottom (quick jumps), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -462,9 +522,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: false
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'scroll_to_top',
     description: 'Scroll to the top of the page. Returns confirmation. When to use: to return to the beginning of the page or reset scroll position. Related: scroll_to_bottom (jump to end), scroll (scroll by specific amount), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -480,9 +540,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'scroll_to_bottom',
     description: 'Scroll to the bottom of the page. Returns confirmation. When to use: to reach the end of the page, load lazy content, or trigger infinite scroll. Related: scroll_to_top (jump to beginning), scroll (scroll by specific amount), read_page (read content after scrolling). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -498,9 +558,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'scroll_to_element',
     description: 'Scroll a specific element into the visible viewport. Returns confirmation with element position. When to use: when you need to bring a particular element into view before interacting with it, especially on long pages where the element is off-screen. Related: scroll (scroll by pixel amount), click (interact after scrolling into view), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -517,7 +577,7 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // WAITING TOOLS (2 tools)
@@ -535,7 +595,7 @@ const TOOL_REGISTRY = [
       required: ['selector']
     },
     _route: 'content',
-    _readOnly: false,
+    _readOnly: true,
     _contentVerb: 'waitForElement',
     _cdpVerb: null,
     _forceForeground: false,
@@ -553,7 +613,7 @@ const TOOL_REGISTRY = [
       required: []
     },
     _route: 'content',
-    _readOnly: false,
+    _readOnly: true,
     _contentVerb: 'waitForDOMStable',
     _cdpVerb: null,
     _forceForeground: false,
@@ -564,7 +624,7 @@ const TOOL_REGISTRY = [
   // TAB TOOLS (3 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'open_tab',
     description: 'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Active behavior: defaults to background (active=false); pass active:true to steal focus.',
     inputSchema: {
@@ -585,9 +645,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'switch_tab',
     description: 'Select an agent-owned browser tab by tab ID without changing the foreground tab by default. Returns confirmation with the selected tab info. When to use: to move between tabs for multi-tab workflows while keeping the user foreground undisturbed. Pass active:true only when the user explicitly wants this tab foregrounded. Related: list_tabs (get available tab IDs first), open_tab (open a new tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64).',
     inputSchema: {
@@ -609,9 +669,9 @@ const TOOL_REGISTRY = [
     // switch_tab can foreground only when params.active === true.
     _forceForeground: true,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'close_tab',
     description: 'Close an agent-owned browser tab without changing the foreground tab. When to use: clean up background tabs opened by this agent after work is complete. By default, refuses to close the current active foreground tab; pass allow_active:true only when the user explicitly wants the active tab closed. Related: open_tab (create a new tab), list_tabs (find tab IDs), switch_tab (select an agent tab). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -635,13 +695,13 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // DATA TOOLS (2 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'fill_sheet',
     description: 'Fill cells in a spreadsheet starting from a given cell with CSV data. Returns fill confirmation. When to use: for bulk data entry into Google Sheets. Related: read_sheet (read existing data before filling), navigate (go to the spreadsheet first). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -660,7 +720,7 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   {
     name: 'read_sheet',
@@ -688,7 +748,7 @@ const TOOL_REGISTRY = [
   // CDP COORDINATE TOOLS (7 tools)
   // =========================================================================
 
-  {
+  withVisualSessionFields({
     name: 'click_at',
     description: 'Click at specific viewport coordinates using CDP trusted events. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used. When to use: for canvas elements, SVG graphics, overlays, or any element where DOM-based click (click tool) does not work. Fallback for click failures. Related: click (preferred for DOM elements -- use click_at only when click fails), get_dom_snapshot (check element coordinates via position data), drag (for click-and-drag interactions). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -709,9 +769,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpClickAt',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'click_and_hold',
     description: 'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Coordinates are CSS pixels relative to the browser viewport. When to use: for record buttons, long-press menus, or any UI that requires sustained mouse press. Related: click_at (simple click without hold), drag (click, move, and release for dragging interactions). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -730,9 +790,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpClickAndHold',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'drag',
     description: 'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport. Related: drag_drop (DOM element-to-element drag using selectors), drag_variable_speed (human-like variable-speed drag for CAPTCHAs), click_at (simple click at coordinates), click_and_hold (press and hold without moving). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -757,9 +817,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpDrag',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'drag_variable_speed',
     description: 'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead. Related: drag (uniform-speed drag for canvas/maps), drag_drop (DOM element-to-element drag). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -782,9 +842,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpDragVariableSpeed',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'scroll_at',
     description: 'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport. When to use: for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Related: scroll (page-level scroll up/down), scroll_to_top/scroll_to_bottom (quick page jumps). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -804,9 +864,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpScrollAt',
     _forceForeground: false,
     _emitChangeReport: false
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'insert_text',
     description: 'Insert text at the current cursor position via CDP Input.insertText. Bypasses DOM event dispatch and directly inserts into the focused element. When to use: for canvas-based editors (Excalidraw, Google Docs, Slack) where type_text does not work because there is no real input element. The element must already be focused or in edit mode (use double_click_at or click_at first). Related: type_text (for real DOM input fields), double_click_at (enter edit mode in canvas editors before inserting text), click_at (focus canvas element before inserting). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -823,9 +883,9 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpInsertText',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
-  {
+  withVisualSessionFields({
     name: 'double_click_at',
     description: 'Double-click at specific viewport coordinates using CDP trusted events. Dispatches two rapid mousePressed/mouseReleased cycles with clickCount=2 on the second pair. Supports modifier keys. Coordinates are CSS pixels relative to the browser viewport. When to use: for entering edit mode in canvas-based editors (Excalidraw text boxes, Google Sheets cells), selecting words in contenteditable elements, or any double-click on coordinate-targeted elements. Related: click_at (single click at coordinates), double_click (double-click DOM elements by selector), insert_text (type text after entering edit mode via double-click). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -846,7 +906,7 @@ const TOOL_REGISTRY = [
     _cdpVerb: 'cdpDoubleClickAt',
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   // =========================================================================
   // READ-ONLY / INFORMATION TOOLS (6 tools)
@@ -919,7 +979,7 @@ const TOOL_REGISTRY = [
     _emitChangeReport: false
   },
 
-  {
+  withVisualSessionFields({
     name: 'set_attribute',
     description: 'Set an HTML attribute value on an element. Returns confirmation. When to use: to modify element attributes for form manipulation, changing hidden field values, toggling ARIA states, or setting data attributes. Related: get_attribute (read attribute value first), get_dom_snapshot (find element selectors). Multi-agent: agent-scoped tabs; cross-agent reject with TAB_NOT_OWNED; cap configurable (default 8, 1-64). Pass tab_id only when this agent owns multiple tabs; auto-resolves otherwise.',
     inputSchema: {
@@ -938,7 +998,7 @@ const TOOL_REGISTRY = [
     _cdpVerb: null,
     _forceForeground: false,
     _emitChangeReport: true
-  },
+  }),
 
   {
     name: 'get_dom_snapshot',
@@ -1190,5 +1250,13 @@ function getToolsByRoute(route) {
 
 // CommonJS for Chrome extension context and Node.js require()
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TOOL_REGISTRY, getToolByName, getReadOnlyTools, getToolsByRoute };
+  module.exports = {
+    TOOL_REGISTRY,
+    getToolByName,
+    getReadOnlyTools,
+    getToolsByRoute,
+    VISUAL_SESSION_FIELDS,
+    VISUAL_SESSION_REQUIRED,
+    withVisualSessionFields
+  };
 }
