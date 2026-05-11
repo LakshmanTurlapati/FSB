@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: ""
-status: milestone_complete
-last_updated: "2026-05-08T15:00:00.000Z"
-last_activity: 2026-05-08
+milestone: 0.9.62
+milestone_name: "Implicit Visual Session Contract"
+status: defining_requirements
+last_updated: "2026-05-11T00:00:00.000Z"
+last_activity: 2026-05-11
 progress:
   total_phases: 0
   completed_phases: 0
@@ -17,19 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-08 -- v0.9.61 closed)
+See: .planning/PROJECT.md (updated 2026-05-11 -- v0.9.62 opened)
 See: .planning/MILESTONES.md (v0.9.61 archive entry added 2026-05-08)
-See: .planning/ROADMAP.md (collapsed; awaiting new milestone)
+See: .planning/ROADMAP.md (awaiting v0.9.62 roadmap generation)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
-**Current focus:** No active milestone. Last shipped: v0.9.61 FSB Skill (OpenClaw) on 2026-05-08.
+**Current focus:** v0.9.62 Implicit Visual Session Contract -- make MCP visual-session signal implicit on action tool calls, replace explicit start/end tools, sliding 60s timeout + explicit task-complete signal. MCP manual tools only; autopilot run_task untouched.
 
 ## Current Position
 
-Phase: -- (no active milestone)
+Phase: Not started (defining requirements)
 Plan: --
-Status: Milestone v0.9.61 archived; ready for `/gsd-new-milestone`.
-Last activity: 2026-05-08 -- v0.9.61 milestone archived; audit `passed` (29/29 requirements).
+Status: Defining requirements
+Last activity: 2026-05-11 -- Milestone v0.9.62 Implicit Visual Session Contract started
 Progress: --
 
 ## Performance Metrics

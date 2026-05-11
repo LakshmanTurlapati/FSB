@@ -25,9 +25,21 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone
+## Current Milestone: v0.9.62 Implicit Visual Session Contract
 
-No active milestone -- v0.9.61 FSB Skill (OpenClaw) shipped 2026-05-08; next milestone TBD. Run `/gsd-new-milestone` to scope the next cycle.
+**Goal:** Make the MCP visual-session signal implicit on every action tool call so external agents stop missing it, replacing the explicit start/end tools with a required field + sliding-window timeout + explicit task-complete signal.
+
+**Target features:**
+- Required visual-session field bundle (reason / client / badge) on the MCP action-tool surface (click, type_text, navigate, scroll, drag, select_option, press_key, drag_drop, etc.; ~25-30 tools)
+- Sliding 60s death timer driven by tool ticks: each carrying call re-arms the timer; overlay auto-clears after prolonged silence (crash / abandonment)
+- Explicit task-complete / end-session signal preserved alongside the implicit timeout so callers can clear the overlay immediately rather than wait 60s
+- Removal of the existing explicit visual_session start/end MCP tools (breaking change for current OpenClaw / Claude-Routines callers)
+- Rewrite of `tests/mcp-visual-tick-contract.test.js` (landed in v0.9.0) to assert the new implicit contract end-to-end
+- Migration docs: `skills/FSB Skill/USAGE.md` plus relevant `skills/FSB Skill/references/` files updated; CHANGELOG and `mcp/README.md` capture the breaking change
+
+**Scope boundary:**
+- MCP manual tools only. Autopilot `run_task` overlay management is untouched (it already manages its own lifecycle internally).
+- Read-only tools (`get_text`, `read_page`, `list_tabs`, `get_dom_snapshot`, etc.) do not carry the new field bundle. Schema for read tools stays clean.
 
 ## Previous Milestone: v0.9.61 FSB Skill (OpenClaw) (shipped 2026-05-08)
 
@@ -252,7 +264,7 @@ Carry-forward backlog candidates:
 
 ### Active
 
-(Milestone v0.9.61 FSB Skill in scoping -- requirements pending REQUIREMENTS.md generation.)
+(Milestone v0.9.62 Implicit Visual Session Contract in scoping -- requirements pending REQUIREMENTS.md generation.)
 
 ### Validated (v0.9.60)
 
@@ -503,4 +515,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 -- milestone v0.9.61 FSB Skill (OpenClaw) opened on branch Claw*
+*Last updated: 2026-05-11 -- milestone v0.9.62 Implicit Visual Session Contract opened on branch refinements*
