@@ -1,5 +1,7 @@
 # FSB Skill -- Usage
 
+> **v0.9.0 breaking change** -- The explicit `start_visual_session` / `end_visual_session` tools were REMOVED in fsb-mcp-server v0.9.0 (FSB milestone v0.9.62). Action tools now require `visual_reason` + `client` fields in every call (validated against the v0.9.36 badge allowlist). The visual session is created implicitly on the first action call, refreshed on a sliding 60-second window, and cleared by `is_final: true` (immediate) or 60 seconds of silence (auto-clear). Calling the removed tools returns the typed `TOOL_REMOVED` error. See [`mcp/CHANGELOG.md`](../../mcp/CHANGELOG.md#v0.9.0) and [`mcp/README.md`](../../mcp/README.md#visual-session-lifecycle) for the migration recipe with concrete before/after code.
+
 FSB drives the user's real Chrome via the FSB extension and a local MCP bridge so OpenClaw can run live web tasks (clicks, typing, multi-tab flows, auth-gated reads).
 
 ## Who FSB is for
@@ -82,34 +84,47 @@ When the user does explicitly delegate, autopilot hands the full plan and execut
 
 Autopilot is NOT the default entry point. Read the user's message again before reaching for `run_task`. If delegation language is missing, stay in manual mode.
 
-## Visual session handling
+## v0.9.62 visual-session contract
 
-FSB shows a trusted client badge and an orange element targeting overlay on the user's tab while a tool sequence is running, so the user can see what is being driven. OpenClaw is a trusted client. Wrap any sequence driven by an external AI in an explicit visual session.
+FSB shows a trusted client badge and an orange element targeting overlay on the user's tab while a tool sequence is running, so the user can see what is being driven. OpenClaw is a trusted client. As of fsb-mcp-server v0.9.0 (milestone v0.9.62) the visual session is IMPLICIT: every action tool call carries the field bundle (`visual_reason`, `client`, optional `is_final`), and the lifecycle is driven by those fields alone. There is no `start_visual_session` / `end_visual_session` pairing to write.
 
-Open the session before the first action and close it on every termination path: success, error, abort, user cancel. The pairing rule:
+Three rules govern the bundle:
+
+- **`visual_reason`** -- short human-readable string shown in the overlay (for example, `"Completing checkout"`). Required on every action tool call.
+- **`client`** -- allowlisted badge label. Required on every action tool call. The shared v0.9.36 allowlist accepts: `Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Windsurf`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`. Freeform strings reject with `BADGE_NOT_ALLOWED`. The skill ships as part of OpenClaw, so the canonical `client` value for this surface is `OpenClaw`.
+- **`is_final`** -- optional boolean. Set `true` on the LAST action of a task to clear the overlay immediately after that action's `change_report` resolves. Default `false`.
+
+Read-only tools (`read_page`, `get_dom_snapshot`, `get_text`, `get_attribute`, `read_sheet`, `get_page_snapshot`, `list_tabs`, `get_site_guide`, `search_memory`, `report_progress`, `complete_task`, `partial_task`, `fail_task`, `wait_for_element`, `wait_for_stable`) do NOT carry the bundle and do NOT re-arm the sliding window. Reads stay silent by design.
+
+### Example 1 -- action call with the implicit visual session
 
 ```
-const { session_token } = await start_visual_session({
-  client: "OpenClaw",
-  task: "<short label of what you are about to do>",
-});
-
-try {
-  // FSB tool calls go here. The orange glow is live for the user.
-} finally {
-  await end_visual_session({ session_token, reason: "ended" });
-}
+mcp> click({ selector: "#submit", visual_reason: "Completing checkout", client: "OpenClaw" })
 ```
 
-Cleanup rules (must hold on every termination path, not just success):
+The overlay glow appears on the active tab with the supplied reason. Subsequent action calls within 60 seconds re-arm the death timer (sliding window). After 60 seconds of silence, the overlay clears automatically.
 
-- Always close the session in a `finally` block (or equivalent error path handling). The orange glow stays on the user's tab until `end_visual_session` is called. If the agent crashes or returns without closing, the user sees a stuck overlay.
-- `reason` is `ended` (normal completion) or `cancelled` (any non-normal termination: error, abort, user cancel, bridge disconnect). The MCP schema accepts only those two values.
-- If `start_visual_session` fails with `NO_OWNED_TAB`, the agent does not own a tab yet. Call `open_tab({ url, active: false })` first, then retry `start_visual_session`.
-- Close exactly once per session. Do NOT call `end_visual_session` twice with the same `session_token`.
-- If `run_task` (autopilot) is being used, autopilot manages its own visual session lifecycle. Do NOT wrap a `run_task` call in your own `start_visual_session` / `end_visual_session`.
+### Example 2 -- final action of a task (is_final clear)
 
-For lifecycle details, the full try/finally pattern, error path coverage, and `[BAD]` / `[GOOD]` anti pattern callouts, see `references/visual-session-lifecycle.md`.
+```
+mcp> click({ selector: "#confirm-order", visual_reason: "Confirming order", client: "OpenClaw", is_final: true })
+```
+
+The overlay clears immediately after the underlying click completes -- no 60-second wait.
+
+### Typed errors
+
+Three typed errors guard the contract; match on the name, not the human-readable body:
+
+- **`VISUAL_FIELDS_REQUIRED`** -- raised when an action call is missing `visual_reason` or `client`. Schema-layer reject; no DOM mutation occurs.
+- **`BADGE_NOT_ALLOWED`** -- raised when `client` is not on the v0.9.36 allowlist. Use one of the labels above.
+- **`TOOL_REMOVED`** -- raised when a caller invokes `start_visual_session` or `end_visual_session` by name. The body names the new contract; do not retry with the removed tool names.
+
+### Autopilot exception
+
+If `run_task` (autopilot) is being used, autopilot manages its own internal visual-session lifecycle and is NOT affected by the v0.9.0 implicit-contract change. Do NOT wrap a `run_task` call in your own field-bundle plumbing.
+
+For lifecycle details, the sliding-window mechanics, the read-tool vs action-tool split, and the `NO_OWNED_TAB` bootstrap, see `references/visual-session-lifecycle.md`. The canonical action-tool list (36 tools), the read-only list (15 tools), and the typed-error catalogue live in `.planning/v0.9.62-CONTRACT.md`.
 
 ## Recover when the doctor fails
 
