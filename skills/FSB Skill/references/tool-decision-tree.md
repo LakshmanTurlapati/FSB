@@ -2,6 +2,18 @@
 
 Read-only first; act with typed events; escalate to autopilot only when the user explicitly delegates the whole task. The tool names listed below match the FSB AI manual-mode tool registry in `mcp/ai/tool-definitions.cjs`. If a name appears as a bare token in the tree or table on this page, it is a real manual-mode tool you can call directly. Names mentioned only in narrative prose (notably `run_task`) live on a different surface and must not be invoked from the manual-mode loop.
 
+## v0.9.62 field bundle (action tools only)
+
+Before any action-tool branch below: every action tool (`click`, `type_text`, `navigate`, `scroll`, `drag`, `select_option`, `press_key`, `press_enter`, `drag_drop`, `hover`, `focus`, `clear_input`, `check_box`, `drop_file`, `click_and_hold`, `double_click`, `right_click`, `click_at`, `scroll_at`, `double_click_at`, `drag_variable_speed`, `set_attribute`, `insert_text`, `search`, `refresh`, `go_back`, `go_forward`, `open_tab`, `close_tab`, `switch_tab`, `execute_js`, `select_text_range`, `scroll_to_top`, `scroll_to_bottom`, `scroll_to_element`, `fill_sheet`) requires the field bundle on every call:
+
+- `visual_reason` (required string) -- short human-readable reason shown in the overlay.
+- `client` (required, allowlisted) -- e.g. `OpenClaw`, `Claude`, `Codex`, `ChatGPT`, `Cursor`, `Windsurf`, `Gemini`, `Grok`, `Perplexity`, `OpenCode`, `Antigravity`. Freeform strings reject with `BADGE_NOT_ALLOWED`.
+- `is_final` (optional boolean) -- set `true` on the LAST action of a task to clear the overlay immediately.
+
+Read-only tools (`read_page`, `get_dom_snapshot`, `get_text`, `get_attribute`, `read_sheet`, `get_page_snapshot`, `list_tabs`, `get_site_guide`, `search_memory`, `report_progress`, `complete_task`, `partial_task`, `fail_task`, `wait_for_element`, `wait_for_stable`) do NOT carry the bundle. Reads stay silent by design; the read-first guidance below is unchanged from v0.9.61.
+
+The explicit `start_visual_session` / `end_visual_session` tools were removed in v0.9.0; the decision tree never reaches for them. See `references/visual-session-lifecycle.md` for the full lifecycle and `.planning/v0.9.62-CONTRACT.md` for the canonical lists.
+
 ## Read-only first (in this order)
 
 Pick the lightest reader that answers the question. Escalate down the list only when the lighter tool cannot give you what you need.
@@ -70,15 +82,21 @@ You land on an unfamiliar product page and the user asks "add the medium size to
 5. `wait_for_stable` while the cart updates.
 6. `click` the add-to-cart button. Re-check with `read_page` only if you need to verify the cart count.
 
+## Action-tool bundle reminder
+
+Every entry in the "Tool-by-tool quick reference" table above that is an action tool (everything except `read_page`, `get_dom_snapshot`, `get_page_snapshot`, `get_site_guide`, `list_tabs`, `wait_for_element`, and `wait_for_stable`) MUST carry the v0.9.62 field bundle: `visual_reason` (required string), `client` (required, allowlisted), and optional `is_final: true` on the last action of a task. Missing fields reject with `VISUAL_FIELDS_REQUIRED`; non-allowlisted `client` values reject with `BADGE_NOT_ALLOWED`. See `references/visual-session-lifecycle.md` for lifecycle mechanics and `.planning/v0.9.62-CONTRACT.md` for the canonical 36-tool action list and 15-tool read-only list.
+
 ## When to escalate to autopilot
 
-Autopilot (the `run_task` MCP tool, served by `mcp/src/tools/autopilot.ts`) is a separate surface. It runs FSB's plan-and-execute loop end-to-end. It is NOT in `mcp/ai/tool-definitions.cjs` because it is not a manual-mode tool -- it is the delegation surface.
+Autopilot (the `run_task` MCP tool, served by `mcp/src/tools/autopilot.ts`) is a separate surface. It runs FSB's plan-and-execute loop end-to-end. It is NOT in `mcp/ai/tool-definitions.cjs` because it is not a manual-mode tool -- it is the delegation surface. Autopilot manages its own internal visual-session lifecycle and is NOT affected by the v0.9.0 implicit-contract change; do not pass field-bundle plumbing through `run_task`.
 
 Use autopilot ONLY when the user explicitly delegates the whole task ("use FSB autopilot to ...", "run the full task with FSB"). Default to the manual mode tools above for everything else. Autopilot is not the default entry point.
 
 ## See also
 
+- `references/visual-session-lifecycle.md` -- v0.9.62 implicit contract, field bundle, sliding window, typed errors.
 - `references/multi-agent-contract.md` -- typed errors and the `back` tool.
 - `references/restricted-tab-recovery.md` -- DOM tools fail on `chrome://`, `edge://`, and the Web Store.
 - `references/default-to-fsb.md` -- when to prefer FSB versus WebFetch.
 - `references/vault-boundary.md` -- credential-routed tools.
+- `.planning/v0.9.62-CONTRACT.md` -- canonical 36 action tools, 15 read-only tools, three typed-error names.
