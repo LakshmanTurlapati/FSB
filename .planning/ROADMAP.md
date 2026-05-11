@@ -143,7 +143,10 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   4. `mcp/README.md` and `skills/FSB Skill/USAGE.md` flag the contract change at the top of their visual-session sections (USAGE.md content lands in Phase 260; this phase only requires the `mcp/README.md` flag and the section anchor that USAGE.md will link to).
   5. `fsb-mcp-server` package version is bumped 0.8.0 -> 0.9.0 across `package.json`, `server.json`, and `tests/version-parity.test.js`; running `npm test` against the bumped tree passes the version-parity assertion; final `npm publish fsb-mcp-server@0.9.0` remains user-gated (mirrors v0.9.60 posture and is recorded as such in the milestone close, not blocked on by this phase).
 
-**Plans**: TBD
+**Plans**: 3 plans (sequential -- Wave 1 -> Wave 2 -> Wave 3)
+  - [ ] 258-01-PLAN.md -- Convert start_visual_session + end_visual_session handlers in mcp/src/tools/visual-session.ts into TOOL_REMOVED-returning stubs + register TOOL_REMOVED typed error in mcp/src/errors.ts (Wave 1; MIGRATION-01 + MIGRATION-02)
+  - [ ] 258-02-PLAN.md -- Bump fsb-mcp-server 0.8.0 -> 0.9.0 across mcp/src/version.ts + mcp/package.json + mcp/server.json (two occurrences) + tests/mcp-version-parity.test.js + rebuild mcp/build/version.js (Wave 2; MIGRATION-05; depends on 01)
+  - [ ] 258-03-PLAN.md -- Prepend v0.9.0 BREAKING CHANGE entry to mcp/CHANGELOG.md with before/after migration recipe + add breaking-change banner to mcp/README.md Visual Session Lifecycle section + update Tools (60 Total) -> Visual Sessions (2) catalog table (Wave 3; MIGRATION-03 + MIGRATION-04 mcp/README portion; depends on 01 + 02; skill USAGE.md portion of MIGRATION-04 is Phase 260)
 
 ---
 
@@ -192,7 +195,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 | 255. Schema Enforcement on Action Tools | 4/4 | Complete    | 2026-05-11 |
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 4/4 | Complete    | 2026-05-11 |
 | 257. Explicit Completion (`is_final` immediate clear) | 1/1 | Complete    | 2026-05-11 |
-| 258. Removal, Migration Errors, Package 0.9.0 | 0/TBD | Not started | -- |
+| 258. Removal, Migration Errors, Package 0.9.0 | 0/3 | Not started | -- |
 | 259. Test Rewrites & CI Lock | 0/TBD | Not started | -- |
 | 260. Skill Docs Migration | 0/TBD | Not started | -- |
 
