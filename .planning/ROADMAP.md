@@ -38,7 +38,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 - [x] **Phase 256: Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay)** -- Make the first action call implicitly start a visual session per-tab, re-arm the 60s timer on every carrying call, auto-clear after silence, and survive MV3 service-worker eviction. (completed 2026-05-11)
 - [x] **Phase 257: Explicit Completion (`is_final` immediate clear)** -- Honour `is_final: true` as an immediate post-change-report clear; keep redundant final signals idempotent. (completed 2026-05-11)
 - [x] **Phase 258: Removal, Migration Errors, Package 0.9.0** -- Remove the old explicit `visual_session` start/end tools, return `TOOL_REMOVED` with migration pointer, bump `fsb-mcp-server` 0.8.0 -> 0.9.0 (server.json + version-parity test), and write the CHANGELOG/mcp-README breaking-change recipe. (completed 2026-05-11)
-- [ ] **Phase 259: Test Rewrites & CI Lock** -- Rewrite `tests/mcp-visual-tick-contract.test.js` for the new implicit contract end-to-end, add `TOOL_REMOVED` + required-field + read-tool no-op tests, and wire everything into `npm test` so `ci / all-green` gates the contract.
+- [x] **Phase 259: Test Rewrites & CI Lock** -- Rewrite `tests/mcp-visual-tick-contract.test.js` for the new implicit contract end-to-end, add `TOOL_REMOVED` + required-field + read-tool no-op tests, and wire everything into `npm test` so `ci / all-green` gates the contract. (completed 2026-05-11)
 - [ ] **Phase 260: Skill Docs Migration** -- Update `skills/FSB Skill/USAGE.md`, `references/visual-session-lifecycle.md`, `references/tool-decision-tree.md`, and the SKILL.md body so callers see the new contract on the surfaces they read first; canonical action-tool list referenced.
 
 ---
@@ -196,7 +196,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 4/4 | Complete    | 2026-05-11 |
 | 257. Explicit Completion (`is_final` immediate clear) | 1/1 | Complete    | 2026-05-11 |
 | 258. Removal, Migration Errors, Package 0.9.0 | 3/3 | Complete    | 2026-05-11 |
-| 259. Test Rewrites & CI Lock | 0/TBD | Not started | -- |
+| 259. Test Rewrites & CI Lock | 1/1 | Complete    | 2026-05-11 |
 | 260. Skill Docs Migration | 0/TBD | Not started | -- |
 
 ---
