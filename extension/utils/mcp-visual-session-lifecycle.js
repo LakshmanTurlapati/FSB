@@ -458,6 +458,168 @@
     return clearVisualSession(tabId, { reason: 'tab_closed', skipBroadcast: true });
   }
 
+  /**
+   * Handle a chrome.alarms.onAlarm event for an mcpVisualDeath:<tabId> alarm.
+   *
+   * Satisfies TIMEOUT-03 (auto-clear after the 60s sliding window). The handler
+   * is the SOLE deletion path for the auto-clear case; explicit clears and tab
+   * removals route through clearVisualSession / handleVisualSessionLifecycleTabRemoved.
+   *
+   * Behaviour:
+   *   - Returns { ok: false, reason: 'not_our_alarm' } if alarm.name does not
+   *     match MCP_VISUAL_LIFECYCLE_ALARM_PREFIX. Plan 03's onAlarm fan-out
+   *     should pre-filter, but this is defense-in-depth.
+   *   - Returns { ok: false, reason: 'malformed_alarm_name' } if the tabId
+   *     suffix cannot be parsed as a finite positive integer.
+   *   - Returns { ok: true, action: 'noop_no_entry' } if the storage entry has
+   *     already been cleared by another path (tab close, explicit clear, or
+   *     Phase 257 is_final immediate-clear).
+   *   - If Date.now() >= entry.deadlineAt, clears the session via
+   *     clearVisualSession(tabId, { reason: 'timeout' }). Auto-clear path.
+   *   - If Date.now() < entry.deadlineAt (Chrome alarm fired early or clock
+   *     skew, T-256-01-06), reschedules a fresh alarm with when=entry.deadlineAt
+   *     and DOES NOT delete the storage entry. Returns { ok: true, action:
+   *     'rescheduled', entry, remainingMs }.
+   *
+   * @param {{ name: string }} alarm Chrome alarm object.
+   * @returns {Promise<object>} Outcome descriptor (see Behaviour above).
+   */
+  async function handleVisualSessionLifecycleAlarm(alarm) {
+    if (!alarm || typeof alarm !== 'object' || typeof alarm.name !== 'string') {
+      return { ok: false, reason: 'not_our_alarm' };
+    }
+    if (alarm.name.indexOf(MCP_VISUAL_LIFECYCLE_ALARM_PREFIX) !== 0) {
+      return { ok: false, reason: 'not_our_alarm' };
+    }
+
+    var suffix = alarm.name.slice(MCP_VISUAL_LIFECYCLE_ALARM_PREFIX.length);
+    var tabId = Number(suffix);
+    if (!Number.isFinite(tabId) || tabId <= 0) {
+      return { ok: false, reason: 'malformed_alarm_name' };
+    }
+
+    var storageKey = storageKeyForTab(tabId);
+    if (!storageKey) {
+      return { ok: false, reason: 'malformed_alarm_name' };
+    }
+
+    var entry = await readStorageEntry(storageKey);
+    if (!entry) {
+      // T-256-01-05: stale alarm with no backing storage entry. The clear path
+      // ran via another route; do not broadcast a spurious clear payload.
+      return { ok: true, action: 'noop_no_entry' };
+    }
+
+    var now = Date.now();
+    var deadlineAt = Number(entry.deadlineAt);
+    if (!Number.isFinite(deadlineAt)) {
+      // Malformed entry: best-effort clear so the SW does not loop.
+      await clearVisualSession(tabId, { reason: 'malformed_entry' });
+      return { ok: true, action: 'cleared', entry: entry, reason: 'malformed_entry' };
+    }
+
+    if (now >= deadlineAt) {
+      // TIMEOUT-03 auto-clear path.
+      await clearVisualSession(tabId, { reason: 'timeout' });
+      return { ok: true, action: 'cleared', entry: entry };
+    }
+
+    // T-256-01-06 clock-skew defense: alarm fired before the deadline. Reschedule
+    // a fresh alarm with the original deadline and leave the storage entry intact.
+    var alarmName = alarmNameForTab(tabId);
+    await createAlarm(alarmName, { when: deadlineAt });
+    return { ok: true, action: 'rescheduled', entry: entry, remainingMs: deadlineAt - now };
+  }
+
+  /**
+   * Replay every persisted lifecycle entry on SW startup.
+   *
+   * Satisfies TIMEOUT-04 (MV3 SW-eviction replay): the death-timer arithmetic
+   * does NOT silently reset on SW wake -- alarms are re-armed with the ORIGINAL
+   * deadlineAt so the sliding window survives SW eviction transparently.
+   *
+   * Behaviour:
+   *   - Reads all keys from chrome.storage.session.
+   *   - Filters to those matching MCP_VISUAL_LIFECYCLE_STORAGE_KEY_PREFIX.
+   *   - Drops malformed entries (missing tabId / agentId / client / deadlineAt
+   *     or wrong types) via chrome.storage.session.remove.
+   *   - For each well-formed entry:
+   *       * If Date.now() >= entry.deadlineAt, calls clearVisualSession(tabId,
+   *         { reason: 'timeout' }). The clear broadcast fails silently for closed
+   *         tabs via the existing sendSessionStatus delivery-retry path.
+   *       * Otherwise calls chrome.alarms.create with when=entry.deadlineAt.
+   *
+   * Plan 03 calls this once at SW startup. Subsequent SW wakes from the alarm
+   * fire route through handleVisualSessionLifecycleAlarm.
+   *
+   * @returns {Promise<object>} { ok: true, restored: number, cleared: number, dropped: number }.
+   */
+  async function restoreVisualSessionLifecyclesFromStorage() {
+    var counters = { restored: 0, cleared: 0, dropped: 0 };
+
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.session) {
+      return Object.assign({ ok: true }, counters);
+    }
+
+    var bag = null;
+    try {
+      bag = await chrome.storage.session.get(null);
+    } catch (_error) {
+      return Object.assign({ ok: false, reason: 'storage_read_failed' }, counters);
+    }
+    if (!bag || typeof bag !== 'object') {
+      return Object.assign({ ok: true }, counters);
+    }
+
+    var now = Date.now();
+    var keys = Object.keys(bag);
+
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (key.indexOf(MCP_VISUAL_LIFECYCLE_STORAGE_KEY_PREFIX) !== 0) continue;
+
+      var entry = bag[key];
+      var tabIdFromKey = Number(key.slice(MCP_VISUAL_LIFECYCLE_STORAGE_KEY_PREFIX.length));
+      var malformed = false;
+
+      if (!entry || typeof entry !== 'object') {
+        malformed = true;
+      } else {
+        var entryTabId = Number(entry.tabId);
+        var entryDeadline = Number(entry.deadlineAt);
+        if (!Number.isFinite(entryTabId) || entryTabId <= 0) malformed = true;
+        else if (typeof entry.agentId !== 'string' || entry.agentId.trim().length === 0) malformed = true;
+        else if (typeof entry.client !== 'string' || entry.client.trim().length === 0) malformed = true;
+        else if (!Number.isFinite(entryDeadline)) malformed = true;
+        else if (Number.isFinite(tabIdFromKey) && tabIdFromKey > 0 && tabIdFromKey !== entryTabId) malformed = true;
+      }
+
+      if (malformed) {
+        await deleteStorageEntry(key);
+        counters.dropped += 1;
+        continue;
+      }
+
+      var entryDeadlineAt = Number(entry.deadlineAt);
+      var entryTabIdNumber = Number(entry.tabId);
+
+      if (now >= entryDeadlineAt) {
+        // Auto-clear path. Fires the v0.9.36 clear payload to the content
+        // script if the tab is still alive; sendSessionStatus' delivery-retry
+        // path swallows errors for closed tabs.
+        await clearVisualSession(entryTabIdNumber, { reason: 'timeout' });
+        counters.cleared += 1;
+      } else {
+        // TIMEOUT-04: re-arm with the ORIGINAL deadlineAt.
+        var alarmNameRestore = alarmNameForTab(entryTabIdNumber);
+        await createAlarm(alarmNameRestore, { when: entryDeadlineAt });
+        counters.restored += 1;
+      }
+    }
+
+    return Object.assign({ ok: true }, counters);
+  }
+
   // --- Module exports (mirrors v0.9.36 utils export pattern at mcp-visual-session.js:553-575) ---
 
   var exportsObj = {
@@ -466,7 +628,9 @@
     MCP_VISUAL_LIFECYCLE_DEATH_MS: MCP_VISUAL_LIFECYCLE_DEATH_MS,
     recordVisualSessionTick: recordVisualSessionTick,
     clearVisualSession: clearVisualSession,
-    handleVisualSessionLifecycleTabRemoved: handleVisualSessionLifecycleTabRemoved
+    handleVisualSessionLifecycleTabRemoved: handleVisualSessionLifecycleTabRemoved,
+    handleVisualSessionLifecycleAlarm: handleVisualSessionLifecycleAlarm,
+    restoreVisualSessionLifecyclesFromStorage: restoreVisualSessionLifecyclesFromStorage
   };
 
   global.MCPVisualSessionLifecycleUtils = exportsObj;
