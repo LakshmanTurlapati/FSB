@@ -580,6 +580,46 @@ class MCPBridgeClient {
     return response || {};
   }
 
+  /**
+   * Phase 256 Plan 03 -- fire the implicit visual-session lifecycle tick on
+   * an action-tool call. The hook runs AFTER the v0.9.60 ownership gate
+   * (resolveAgentTabOrError) passes AND AFTER a concrete tabId is known,
+   * BEFORE the underlying action executes. See .planning/v0.9.62-CONTRACT.md
+   * Field Bundle section and .planning/phases/256-.../256-CONTEXT.md ordering.
+   *
+   * Sidecar field SHAPE (per Phase 256 Plan 02):
+   *   payload.visualSession = { visualReason, client, isFinal }
+   *
+   * Tabs where the sidecar is absent (no visualSession on payload) get a
+   * no-op -- zero-overhead path for any caller that bypasses the server-side
+   * Phase 255 schema layer. Read-only MCP tools never reach this code path
+   * (they route through different methods like _handleGetDOM / _handleReadPage).
+   *
+   * Requirements satisfied: TIMEOUT-01 (implicit start) + TIMEOUT-02 (sliding
+   * re-arm) + TIMEOUT-05 (ownership-gating wins, by virtue of being called
+   * AFTER resolved.success === true).
+   */
+  async _recordVisualSessionTickIfPresent(tabId, agentId, payload) {
+    if (typeof MCPVisualSessionLifecycleUtils === 'undefined') return;
+    if (typeof MCPVisualSessionLifecycleUtils.recordVisualSessionTick !== 'function') return;
+    const sidecar = payload && payload.visualSession;
+    if (!sidecar || typeof sidecar !== 'object') return;
+    if (!Number.isFinite(tabId) || tabId <= 0) return;
+    if (typeof agentId !== 'string' || !agentId) return;
+    try {
+      await MCPVisualSessionLifecycleUtils.recordVisualSessionTick(tabId, agentId, {
+        visualReason: typeof sidecar.visualReason === 'string' ? sidecar.visualReason : '',
+        client: typeof sidecar.client === 'string' ? sidecar.client : '',
+        isFinal: sidecar.isFinal === true
+      });
+    } catch (err) {
+      // Non-blocking: lifecycle failures must not break the underlying action.
+      // The overlay simply does not light up. The action still executes per
+      // the Phase 256 design (lifecycle is informational, not gating).
+      console.warn('[FSB MCP] recordVisualSessionTick failed (non-blocking):', err && err.message);
+    }
+  }
+
   async _handleExecuteAction(payload) {
     // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
     // through to active-tab via the resolver's first-line branch.
@@ -622,7 +662,24 @@ class MCPBridgeClient {
     };
 
     if (toolName === 'open_tab' || toolName === 'switch_tab') {
-      return dispatchWithoutResolvedTab(buildRouteParams());
+      // Phase 256 Plan 03 -- bootstrap branch lifecycle tick.
+      // open_tab / switch_tab create or claim the destination tab; the tabId
+      // is known only AFTER the dispatch returns. Fire the lifecycle tick
+      // POST-dispatch on success; ownership has been established by the
+      // dispatcher itself (open_tab mints the agent's first owned tab;
+      // switch_tab passes through checkOwnershipGate's CLAIMABLE recovery
+      // arm in mcp-tool-dispatcher.js line 258).
+      const dispatched = await dispatchWithoutResolvedTab(buildRouteParams());
+      // Conservative success check: dispatched.success === true AND a tabId
+      // on the response. open_tab returns `tabId`; switch_tab returns `tabId`.
+      // Skip the tick if the dispatch failed (no overlay for a failed action).
+      if (dispatched && dispatched.success === true) {
+        const resolvedTabId = Number.isFinite(dispatched && dispatched.tabId) ? dispatched.tabId : null;
+        if (resolvedTabId !== null) {
+          await this._recordVisualSessionTickIfPresent(resolvedTabId, agentId, payload);
+        }
+      }
+      return dispatched;
     }
 
     const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
@@ -643,6 +700,13 @@ class MCPBridgeClient {
     // surfaces (Phase 240's D-02 carve-out preserved). See Pitfall 3.
     const tabId = resolved.tabId;
     const tab = { id: tabId };
+
+    // Phase 256 Plan 03 -- implicit visual-session lifecycle tick.
+    // Runs AFTER resolveAgentTabOrError approves the tab + agent pairing
+    // (v0.9.60 ownership gate) and BEFORE the underlying executeFn fires.
+    // TIMEOUT-05 ownership-gating-wins: this line is unreachable when
+    // resolved.success === false above.
+    await this._recordVisualSessionTickIfPresent(tabId, agentId, payload);
 
     const routeParams = {
       ...params,
