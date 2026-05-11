@@ -280,23 +280,27 @@ Move to a normal `http` or `https` page before calling DOM tools such as `read_p
 
 ## Visual Session Lifecycle
 
-Use visual sessions when your MCP client controls the browser but you still want FSB's visible trusted overlay.
+> **v0.9.0 breaking change** -- The explicit `start_visual_session` and `end_visual_session` tools were REMOVED in v0.9.0. Action tools now require `visual_reason` + `client` fields; the visual session is created implicitly on the first action call, refreshed on a sliding 60-second window, and cleared by `is_final: true` (immediate) or 60 seconds of silence (auto-clear). Calling the removed tools returns the typed `TOOL_REMOVED` error. See [CHANGELOG.md](./CHANGELOG.md#v0.9.0) for the migration recipe with concrete before/after code.
 
-1. Call `start_visual_session` with a trusted client label such as `Codex`, `Claude`, `ChatGPT`, `Gemini`, `Cursor`, `Windsurf`, `OpenCode`, `OpenClaw`, `Grok`, `Perplexity`, or `Antigravity`.
-2. Drive the page with manual tools.
-3. Call `end_visual_session` with the returned `session_token`.
+Use the implicit visual session when your MCP client controls the browser and you still want FSB's visible trusted overlay. The session is per-tab and per-agent; the v0.9.60 ownership gate (`TAB_NOT_OWNED`) fires before any session state is touched.
+
+1. Call any action tool (`click`, `type_text`, `navigate`, ...) with the required field bundle: `visual_reason` (short human-readable string for the overlay) and `client` (allowlisted badge label such as `Codex`, `Claude`, `ChatGPT`, `Gemini`, `Cursor`, `Windsurf`, `OpenCode`, `OpenClaw`, `Grok`, `Perplexity`, or `Antigravity`).
+2. Drive the page with subsequent action tools. Each call re-arms the 60-second sliding window so the overlay stays alive as long as actions keep arriving.
+3. On the LAST action of the task, set `is_final: true`. The overlay clears immediately after the action's `change_report` resolves -- no 60-second wait.
 
 Example:
 
 ```text
-start_visual_session(client="Codex", task="Complete checkout", detail="Preparing cart")
-navigate(url="https://example.com/cart")
-click(selector="text=Checkout")
-type_text(selector="#email", text="user@example.com")
-end_visual_session(session_token="visual_token_123", reason="ended")
+navigate(url="https://example.com/cart", visual_reason="Complete checkout", client="Codex")
+click(selector="text=Checkout", visual_reason="Complete checkout", client="Codex")
+type_text(selector="#email", text="user@example.com", visual_reason="Complete checkout", client="Codex", is_final=true)
 ```
 
-Use `run_task` only when the user explicitly wants FSB autopilot to decide and execute the steps.
+If the task ends without an explicit `is_final: true` signal, the overlay auto-clears after 60 seconds of no further carrying action calls. Read-only tools (`read_page`, `get_dom_snapshot`, `get_text`, ...) do NOT carry the field bundle and do NOT re-arm the sliding window -- reads stay silent by design.
+
+Calling the removed `start_visual_session` or `end_visual_session` tools by name returns the typed `TOOL_REMOVED` error whose body names the new contract and points at this CHANGELOG entry. See `mcp/CHANGELOG.md` v0.9.0 for the full migration recipe and the typed-error catalogue (`VISUAL_FIELDS_REQUIRED`, `BADGE_NOT_ALLOWED`, `TOOL_REMOVED`).
+
+Use `run_task` only when the user explicitly wants FSB autopilot to decide and execute the steps -- autopilot manages its own overlay lifecycle internally and is NOT affected by the v0.9.0 implicit-contract change.
 
 ### Manual Tool Selection
 
@@ -385,8 +389,8 @@ Most tools execute on background tabs without stealing focus. Tools that genuine
 
 | Tool | Purpose |
 |------|---------|
-| `start_visual_session` | Show the trusted glow/overlay and return a session token. |
-| `end_visual_session` | Clear a client-owned visual session. |
+| `start_visual_session` | Removed in v0.9.0 -- see Visual Session Lifecycle section. Calling returns `TOOL_REMOVED`. |
+| `end_visual_session` | Removed in v0.9.0 -- see Visual Session Lifecycle section. Calling returns `TOOL_REMOVED`. |
 
 ### Autopilot (4)
 
