@@ -2332,6 +2332,19 @@ async function restoreSessionsFromStorage() {
     await bootstrapAgentRegistry().catch(() => {});
     await restorePersistedMcpVisualSessions();
 
+    // Phase 256 Plan 03 -- restore implicit visual-session lifecycles after
+    // MV3 SW eviction. Reads per-tab entries from chrome.storage.session
+    // under mcpVisualSession:<tabId> and either fires immediate-clear for
+    // elapsed deadlines or re-arms chrome.alarms with the original when.
+    // Requirements satisfied: TIMEOUT-04 (SW-eviction replay).
+    if (typeof MCPVisualSessionLifecycleUtils !== 'undefined'
+        && typeof MCPVisualSessionLifecycleUtils.restoreVisualSessionLifecyclesFromStorage === 'function') {
+      MCPVisualSessionLifecycleUtils.restoreVisualSessionLifecyclesFromStorage()
+        .catch((err) => {
+          console.warn('[FSB MCP] restoreVisualSessionLifecyclesFromStorage failed (non-blocking):', err && err.message);
+        });
+    }
+
     automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size, conversationSessions: conversationSessions.size });
   } catch (error) {
     automationLogger.warn('Failed to restore sessions from storage', { error: error.message });
@@ -12834,6 +12847,21 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
+// Phase 256 Plan 03 -- visual-session lifecycle cleanup on tab close.
+// Deletes any mcpVisualSession:<tabId> storage entry and clears the
+// matching mcpVisualDeath:<tabId> alarm to prevent stale state from
+// accumulating in chrome.storage.session. Mirrors the existing tab-close
+// cleanup pattern (lines 2526, 2584, 12826 -- multiple independent
+// listeners per concern, all firing on the same tab-removed event).
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (typeof MCPVisualSessionLifecycleUtils === 'undefined') return;
+  if (typeof MCPVisualSessionLifecycleUtils.handleVisualSessionLifecycleTabRemoved !== 'function') return;
+  Promise.resolve(MCPVisualSessionLifecycleUtils.handleVisualSessionLifecycleTabRemoved(tabId))
+    .catch((err) => {
+      console.warn('[FSB MCP] handleVisualSessionLifecycleTabRemoved failed (non-blocking):', err && err.message);
+    });
+});
+
 /**
  * Clean up keyboard emulator when extension is suspended/unloaded
  */
@@ -12879,6 +12907,24 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // --- chrome.alarms.onAlarm Listener (MCP reconnect + dom-stream watchdog; agent branch DEPRECATED) ---
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  // Phase 256 Plan 03 -- visual-session sliding-window death-timer alarm.
+  // Alarm names of the form 'mcpVisualDeath:<tabId>' route to the lifecycle
+  // helper which deletes the storage entry and sends the v0.9.36 clear
+  // payload to the tab's content script. Survives MV3 SW eviction because
+  // chrome.alarms persists across SW lifetime.
+  // Requirements satisfied: TIMEOUT-03 (auto-clear) + TIMEOUT-04 (SW-eviction restore).
+  if (typeof MCPVisualSessionLifecycleUtils !== 'undefined'
+      && alarm
+      && typeof alarm.name === 'string'
+      && alarm.name.startsWith(MCPVisualSessionLifecycleUtils.MCP_VISUAL_LIFECYCLE_ALARM_PREFIX)) {
+    try {
+      await MCPVisualSessionLifecycleUtils.handleVisualSessionLifecycleAlarm(alarm);
+    } catch (err) {
+      console.warn('[FSB MCP] handleVisualSessionLifecycleAlarm failed (non-blocking):', err && err.message);
+    }
+    return;
+  }
+
   const isMcpReconnectAlarm =
     typeof MCP_RECONNECT_ALARM !== 'undefined' &&
     alarm.name === MCP_RECONNECT_ALARM;
