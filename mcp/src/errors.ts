@@ -63,6 +63,8 @@ const CODE_ONLY_ERROR_KEYS = new Set([
   // v0.9.62 implicit visual session contract (Phase 255 Plan 02)
   'VISUAL_FIELDS_REQUIRED',
   'BADGE_NOT_ALLOWED',
+  // v0.9.62 removal of explicit visual-session tools (Phase 258 Plan 01)
+  'TOOL_REMOVED',
 ]);
 
 type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
@@ -175,6 +177,8 @@ function buildLayeredDetail(
     : [];
   const cap = typeof fsbResult?.cap === 'number' ? fsbResult.cap : undefined;
   const active = typeof fsbResult?.active === 'number' ? fsbResult.active : undefined;
+  const removedTool = typeof fsbResult?.removed_tool === 'string' ? fsbResult.removed_tool : '';
+  const removedInVersion = typeof fsbResult?.removed_in_version === 'string' ? fsbResult.removed_in_version : '0.9.0';
 
   switch (errorKey) {
     case 'package_version_mismatch':
@@ -314,6 +318,14 @@ function buildLayeredDetail(
         nextAction: allowedClients.length > 0
           ? `Retry with one of the approved client labels: ${allowedClients.join(', ')}.`
           : 'Retry with one of the approved client labels enumerated by getAllowedMcpVisualClientLabels() in mcp/src/tools/visual-session.ts.',
+      };
+    case 'TOOL_REMOVED':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: removedTool
+          ? `The ${removedTool} tool was removed in v${removedInVersion} of fsb-mcp-server (v0.9.62 implicit visual-session contract).`
+          : `The explicit visual_session start/end tools were removed in v${removedInVersion} of fsb-mcp-server (v0.9.62 implicit visual-session contract).`,
+        nextAction: 'Use the implicit contract: every action tool (click, type_text, navigate, ...) now requires visual_reason (string) and client (allowlisted label) in its input, the visual session is created implicitly on the first action call and refreshed on a sliding 60-second window, and is_final: true on the last action of a task clears the overlay immediately. See CHANGELOG.md#v0.9.0 and the Visual Session Lifecycle section of mcp/README.md for the migration recipe.',
       };
     case 'visual_session_not_found':
       return {
