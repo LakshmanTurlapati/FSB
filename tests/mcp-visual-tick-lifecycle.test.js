@@ -2,11 +2,12 @@
 
 /**
  * Phase 256 Plan 04 -- lifecycle unit tests for the v0.9.62 implicit
- * visual-session contract.
+ * visual-session contract. Extended in Phase 257 with cases J/K/L for
+ * the explicit-completion (is_final) immediate-clear path.
  *
  * Source-of-truth: .planning/v0.9.62-CONTRACT.md (Field Bundle section,
- * Badge Allowlist citation) and .planning/phases/256-.../256-CONTEXT.md
- * (Persistence + Timer + Ordering at the chokepoint sections).
+ * Badge Allowlist citation), .planning/phases/256-.../256-CONTEXT.md, and
+ * .planning/phases/257-.../257-CONTEXT.md.
  *
  * What this test locks:
  *   A. recordVisualSessionTick on a fresh tab writes the documented shape
@@ -25,6 +26,14 @@
  *      (defense-in-depth dual of Phase 255 BADGE_NOT_ALLOWED).
  *   I. Module structurally exposes no read-only API surface (read-tool
  *      no-op is contract-shape, not behaviour).
+ *   J. clearVisualSession on an active session deletes storage, clears
+ *      the alarm, and broadcasts the clear payload IMMEDIATELY (COMPLETE-01,
+ *      COMPLETE-02 -- the helper Phase 257's _clearVisualSessionIfFinal
+ *      invokes).
+ *   K. clearVisualSession on a tab with no active session is a no-op
+ *      (COMPLETE-03 -- idempotent on confused / redundant final signals).
+ *   L. clearVisualSession cancels the death timer (does NOT re-arm),
+ *      reinforcing COMPLETE-02.
  *
  * Run: node tests/mcp-visual-tick-lifecycle.test.js
  */
@@ -86,11 +95,18 @@ function createChromeMock() {
   const session = createStorageArea();
   const alarms = new Map();
   const cleared = [];
+  // Phase 257 -- track create-call history (not just live state) so Case L
+  // can assert "no new alarm re-armed under the same name during the clear".
+  // The existing _created() returns the LIVE map for back-compat with cases
+  // A-I; _createHistory() returns the append-only history.
+  const createHistory = [];
   return {
     storage: { session },
     alarms: {
       async create(name, options) {
-        alarms.set(name, Object.assign({ name }, options || {}));
+        const record = Object.assign({ name }, options || {});
+        alarms.set(name, record);
+        createHistory.push(record);
       },
       async clear(name) {
         cleared.push(name);
@@ -101,6 +117,7 @@ function createChromeMock() {
         return Array.from(alarms.values());
       },
       _created() { return Array.from(alarms.values()); },
+      _createHistory() { return createHistory.slice(); },
       _cleared() { return cleared.slice(); }
     }
   };
@@ -388,6 +405,83 @@ function caseI() {
 }
 
 // ------------------------------------------------------------------
+// Cases J / K / L -- Phase 257 explicit-completion (is_final) coverage
+// ------------------------------------------------------------------
+
+async function caseJ() {
+  console.log('\n--- Case J: clearVisualSession immediate clear on active session (COMPLETE-01, COMPLETE-02) ---');
+  const { chromeMock, lc, capturedStatusBroadcasts } = setupHarness();
+
+  await lc.recordVisualSessionTick(88, 'agent_complete', { visualReason: 'Final task step', client: 'Claude', isFinal: false });
+  const tickStored = (await chromeMock.storage.session.get(['mcpVisualSession:88']))['mcpVisualSession:88'];
+  check(tickStored && tickStored.tabId === 88, 'J.0 precondition: active session entry exists at mcpVisualSession:88');
+  const tickAlarm = chromeMock.alarms._created().find((a) => a.name === 'mcpVisualDeath:88');
+  check(!!tickAlarm, 'J.0b precondition: mcpVisualDeath:88 alarm armed');
+
+  capturedStatusBroadcasts.length = 0;
+  const clearedBefore = chromeMock.alarms._cleared().slice();
+
+  const r = await lc.clearVisualSession(88, { reason: 'is_final' });
+
+  check(r && r.ok === true && r.action === 'cleared', 'J.1 clearVisualSession returned ok=true action=cleared (COMPLETE-01)');
+  const post = (await chromeMock.storage.session.get(['mcpVisualSession:88']))['mcpVisualSession:88'];
+  check(post === undefined, 'J.2 storage entry removed immediately (COMPLETE-02 -- no 60s wait)');
+  check(capturedStatusBroadcasts.length === 1, 'J.3 exactly one clear-broadcast fired (renderer clear hook invoked)');
+  check(capturedStatusBroadcasts[0] && capturedStatusBroadcasts[0].statusData && capturedStatusBroadcasts[0].statusData.phase === 'ended', 'J.4 clear broadcast carries phase=ended (v0.9.36 renderer-compatible)');
+  check(capturedStatusBroadcasts[0] && capturedStatusBroadcasts[0].tabId === 88, 'J.5 broadcast targeted the correct tab');
+  const clearedAfter = chromeMock.alarms._cleared();
+  const newlyCleared = clearedAfter.slice(clearedBefore.length);
+  check(newlyCleared.includes('mcpVisualDeath:88'), 'J.6 mcpVisualDeath:88 alarm cancelled (death timer cancelled, not merely re-armed)');
+}
+
+async function caseK() {
+  console.log('\n--- Case K: clearVisualSession on no-active-session is a no-op (COMPLETE-03) ---');
+  const { chromeMock, lc, capturedStatusBroadcasts } = setupHarness();
+
+  const pre = (await chromeMock.storage.session.get(['mcpVisualSession:89']))['mcpVisualSession:89'];
+  check(pre === undefined, 'K.0 precondition: no active session at mcpVisualSession:89');
+  capturedStatusBroadcasts.length = 0;
+
+  const r = await lc.clearVisualSession(89, { reason: 'is_final' });
+
+  check(r && r.ok === true && r.action === 'noop', 'K.1 clearVisualSession returned ok=true action=noop (COMPLETE-03 idempotent)');
+  const post = (await chromeMock.storage.session.get(['mcpVisualSession:89']))['mcpVisualSession:89'];
+  check(post === undefined, 'K.2 storage remains empty (no write on no-op)');
+  check(capturedStatusBroadcasts.length === 0, 'K.3 no broadcast fired on no-op (no overlay flash)');
+  // Note: the Phase 256 helper still calls chrome.alarms.clear as a safety
+  // measure on the no-entry branch (extension/utils/mcp-visual-session-lifecycle.js
+  // line 434). That call is a no-op for a non-existent alarm and is NOT a
+  // Phase 257 regression -- it is documented Phase 256 defense-in-depth.
+  // Case K asserts the OBSERVABLE no-op invariants: no storage mutation
+  // and no broadcast.
+  // No typed error / exception should have been thrown:
+  check(r && !r.error && r.ok !== false, 'K.4 no error or rejection envelope (COMPLETE-03 -- confused final signals do not pollute logs)');
+}
+
+async function caseL() {
+  console.log('\n--- Case L: clearVisualSession cancels the death timer (COMPLETE-02 reinforcement) ---');
+  const { chromeMock, lc } = setupHarness();
+
+  await lc.recordVisualSessionTick(91, 'agent_l', { visualReason: 'final', client: 'Codex', isFinal: false });
+  const tickHistoryBefore = chromeMock.alarms._createHistory().filter((a) => a.name === 'mcpVisualDeath:91');
+  check(tickHistoryBefore.length === 1, 'L.0 precondition: exactly one mcpVisualDeath:91 alarm armed');
+
+  await lc.clearVisualSession(91, { reason: 'is_final' });
+
+  // After clear, the alarm must be gone from getAll() AND no new alarm
+  // re-armed under the same name. The 60s death timer is cancelled, not
+  // refreshed.
+  const remaining = await chromeMock.alarms.getAll();
+  const stillArmed = remaining.find((a) => a.name === 'mcpVisualDeath:91');
+  check(!stillArmed, 'L.1 mcpVisualDeath:91 alarm not present after clear (death timer cancelled)');
+
+  const allCreatedForTab = chromeMock.alarms._createHistory().filter((a) => a.name === 'mcpVisualDeath:91');
+  check(allCreatedForTab.length === 1, 'L.2 no new alarm re-armed after clear (created count remains at 1 -- the original tick)');
+
+  check(chromeMock.alarms._cleared().filter((name) => name === 'mcpVisualDeath:91').length >= 1, 'L.3 chrome.alarms.clear called for mcpVisualDeath:91 at least once during the clear path');
+}
+
+// ------------------------------------------------------------------
 // Driver
 // ------------------------------------------------------------------
 
@@ -401,6 +495,9 @@ function caseI() {
   await caseG();
   await caseH();
   caseI();
+  await caseJ();
+  await caseK();
+  await caseL();
 
   console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
   process.exit(failed > 0 ? 1 : 0);
