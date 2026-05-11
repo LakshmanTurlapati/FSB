@@ -620,6 +620,47 @@ class MCPBridgeClient {
     }
   }
 
+  /**
+   * Phase 257 -- explicit completion via is_final: true.
+   *
+   * Companion to _recordVisualSessionTickIfPresent. Fires AFTER the
+   * action's change_report resolves successfully, in BOTH the resolved-tab
+   * branch and the bootstrap (open_tab / switch_tab) branch of
+   * _handleExecuteAction.
+   *
+   * Behaviour:
+   *   - No-op when MCPVisualSessionLifecycleUtils is not loaded.
+   *   - No-op when payload.visualSession sidecar is absent.
+   *   - No-op when sidecar.isFinal !== true (existing Phase 256 60s sliding
+   *     window remains the clear path in that case).
+   *   - On is_final === true: invokes clearVisualSession(tabId, { reason:
+   *     'is_final' }) which deletes the storage entry, cancels the
+   *     mcpVisualDeath:<tabId> alarm, and broadcasts the v0.9.36 clear
+   *     payload to the content script. Idempotent on no-entry per
+   *     Phase 256 helper semantics.
+   *   - Errors are swallowed (non-blocking): the underlying action's return
+   *     value is unaffected. console.warn carries the message for diagnostics.
+   *
+   * Requirements satisfied: COMPLETE-01 (caller signals via is_final),
+   * COMPLETE-02 (immediate clear post-change_report), COMPLETE-03
+   * (idempotent on no active session -- delegated to clearVisualSession).
+   */
+  async _clearVisualSessionIfFinal(tabId, agentId, payload) {
+    if (typeof MCPVisualSessionLifecycleUtils === 'undefined') return;
+    if (typeof MCPVisualSessionLifecycleUtils.clearVisualSession !== 'function') return;
+    const sidecar = payload && payload.visualSession;
+    if (!sidecar || typeof sidecar !== 'object') return;
+    if (sidecar.isFinal !== true) return;
+    if (!Number.isFinite(tabId) || tabId <= 0) return;
+    if (typeof agentId !== 'string' || !agentId) return;
+    try {
+      await MCPVisualSessionLifecycleUtils.clearVisualSession(tabId, { reason: 'is_final' });
+    } catch (err) {
+      // Non-blocking: lifecycle failures must not break the underlying action.
+      console.warn('[FSB MCP] clearVisualSession (is_final) failed (non-blocking):', err && err.message);
+    }
+  }
+
   async _handleExecuteAction(payload) {
     // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
     // through to active-tab via the resolver's first-line branch.
@@ -677,6 +718,11 @@ class MCPBridgeClient {
         const resolvedTabId = Number.isFinite(dispatched && dispatched.tabId) ? dispatched.tabId : null;
         if (resolvedTabId !== null) {
           await this._recordVisualSessionTickIfPresent(resolvedTabId, agentId, payload);
+          // Phase 257 -- explicit completion. When the caller marks this
+          // bootstrap call as the final action of the task, clear the visual
+          // session immediately rather than waiting for the 60s sliding-window
+          // timer. Gated by sidecar.isFinal === true inside the helper.
+          await this._clearVisualSessionIfFinal(resolvedTabId, agentId, payload);
         }
       }
       return dispatched;
@@ -734,15 +780,27 @@ class MCPBridgeClient {
       });
     };
 
+    let actionResult;
     if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
-      return wrapWithChangeReport({
+      actionResult = await wrapWithChangeReport({
         toolName: payload.tool,
         tabId,
         params,
         execute: executeFn
       });
+    } else {
+      actionResult = await executeFn();
     }
-    return executeFn();
+
+    // Phase 257 -- explicit completion. When the caller marks this action as
+    // the final action of the task, clear the visual session immediately
+    // rather than waiting for the 60s sliding-window timer. Fires AFTER
+    // change_report resolves (wrapWithChangeReport awaits the report before
+    // returning) so the user sees the action's effect land first, then the
+    // overlay vanishes. Gated by sidecar.isFinal === true inside the helper.
+    await this._clearVisualSessionIfFinal(tabId, agentId, payload);
+
+    return actionResult;
   }
 
   /**
