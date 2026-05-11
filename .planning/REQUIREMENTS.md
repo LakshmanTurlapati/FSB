@@ -91,23 +91,44 @@
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Filled in by `/gsd-roadmap` on 2026-05-11.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONTRACT-01..05 | TBD | Pending |
-| TIMEOUT-01..05 | TBD | Pending |
-| COMPLETE-01..03 | TBD | Pending |
-| MIGRATION-01..05 | TBD | Pending |
-| TEST-01..05 | TBD | Pending |
-| DOCS-01..04 | TBD | Pending |
+| CONTRACT-01 | Phase 254 | Pending |
+| CONTRACT-02 | Phase 255 | Pending |
+| CONTRACT-03 | Phase 255 | Pending |
+| CONTRACT-04 | Phase 255 | Pending |
+| CONTRACT-05 | Phase 255 | Pending |
+| TIMEOUT-01 | Phase 256 | Pending |
+| TIMEOUT-02 | Phase 256 | Pending |
+| TIMEOUT-03 | Phase 256 | Pending |
+| TIMEOUT-04 | Phase 256 | Pending |
+| TIMEOUT-05 | Phase 256 | Pending |
+| COMPLETE-01 | Phase 257 | Pending |
+| COMPLETE-02 | Phase 257 | Pending |
+| COMPLETE-03 | Phase 257 | Pending |
+| MIGRATION-01 | Phase 258 | Pending |
+| MIGRATION-02 | Phase 258 | Pending |
+| MIGRATION-03 | Phase 258 | Pending |
+| MIGRATION-04 | Phase 258 (mcp/README.md) + Phase 260 (USAGE.md) | Pending |
+| MIGRATION-05 | Phase 258 | Pending |
+| TEST-01 | Phase 259 | Pending |
+| TEST-02 | Phase 259 | Pending |
+| TEST-03 | Phase 259 | Pending |
+| TEST-04 | Phase 259 | Pending |
+| TEST-05 | Phase 259 | Pending |
+| DOCS-01 | Phase 260 | Pending |
+| DOCS-02 | Phase 260 | Pending |
+| DOCS-03 | Phase 260 | Pending |
+| DOCS-04 | Phase 260 | Pending |
 
 **Coverage:**
 - v1 requirements: 27 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 27 (will be 0 after roadmap)
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 
 *Requirements defined: 2026-05-11*
-*Last updated: 2026-05-11 -- initial definition for milestone v0.9.62*
+*Last updated: 2026-05-11 -- traceability filled in by /gsd-roadmap (7 phases 254-260; 27/27 mapped).*
