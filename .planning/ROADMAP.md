@@ -34,7 +34,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 ## Phases
 
 - [ ] **Phase 254: Contract Foundation (action-tool list + field-bundle naming + typed errors)** -- Pin the canonical action-tool list, field-bundle key names, badge-allowlist reuse decision, and typed-error names before any code or doc work.
-- [ ] **Phase 255: Schema Enforcement on Action Tools** -- Apply the required field bundle to every action tool in the canonical list and enforce typed validation; leave read-only tool schemas untouched.
+- [x] **Phase 255: Schema Enforcement on Action Tools** -- Apply the required field bundle to every action tool in the canonical list and enforce typed validation; leave read-only tool schemas untouched. (completed 2026-05-11)
 - [ ] **Phase 256: Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay)** -- Make the first action call implicitly start a visual session per-tab, re-arm the 60s timer on every carrying call, auto-clear after silence, and survive MV3 service-worker eviction.
 - [ ] **Phase 257: Explicit Completion (`is_final` immediate clear)** -- Honour `is_final: true` as an immediate post-change-report clear; keep redundant final signals idempotent.
 - [ ] **Phase 258: Removal, Migration Errors, Package 0.9.0** -- Remove the old explicit `visual_session` start/end tools, return `TOOL_REMOVED` with migration pointer, bump `fsb-mcp-server` 0.8.0 -> 0.9.0 (server.json + version-parity test), and write the CHANGELOG/mcp-README breaking-change recipe.
@@ -79,10 +79,10 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   4. Every read-only MCP tool listed in Phase 254 retains a byte-for-byte unchanged input schema; calling them with the existing pre-v0.9.62 argument shape continues to work without `visual_reason` / `client`, and adding those fields to a read tool call is silently ignored or rejected per the read-tool spec (the schema MUST NOT have grown).
 
 **Plans**: 4 plans
-  - [ ] 255-01-PLAN.md -- Declare VISUAL_SESSION_FIELDS fragment + withVisualSessionFields helper in mcp/ai/tool-definitions.cjs, apply the helper to the canonical 36 action tools, flip _readOnly: true on wait_for_element / wait_for_stable, mirror byte-identically to extension/ai/tool-definitions.js (Wave 1; CONTRACT-02 + CONTRACT-05)
-  - [ ] 255-02-PLAN.md -- Add VISUAL_FIELDS_REQUIRED + BADGE_NOT_ALLOWED to CODE_ONLY_ERROR_KEYS and buildLayeredDetail switch arms in mcp/src/errors.ts (Wave 1; CONTRACT-03 + CONTRACT-04 error-name registration)
-  - [ ] 255-03-PLAN.md -- Wire validateVisualSessionFields + stripVisualSessionFields into the dispatch chokepoint in mcp/src/tools/manual.ts; widen exports in mcp/src/tools/visual-session.ts so the shared v0.9.36 allowlist helpers are importable (Wave 2; CONTRACT-03 + CONTRACT-04 runtime enforcement; depends on 01 + 02)
-  - [ ] 255-04-PLAN.md -- Author tests/visual-session-schema-lock.test.js asserting schema-shape invariants for the 36 action tools and 15 read-only tools plus dispatcher-rejection invariants for both typed errors; wire into root npm test chain (Wave 2; CONTRACT-02 + CONTRACT-03 + CONTRACT-04 + CONTRACT-05 CI lock; depends on 01 + 02 + 03)
+  - [x] 255-01-PLAN.md -- Declare VISUAL_SESSION_FIELDS fragment + withVisualSessionFields helper in mcp/ai/tool-definitions.cjs, apply the helper to the canonical 36 action tools, flip _readOnly: true on wait_for_element / wait_for_stable, mirror byte-identically to extension/ai/tool-definitions.js (Wave 1; CONTRACT-02 + CONTRACT-05)
+  - [x] 255-02-PLAN.md -- Add VISUAL_FIELDS_REQUIRED + BADGE_NOT_ALLOWED to CODE_ONLY_ERROR_KEYS and buildLayeredDetail switch arms in mcp/src/errors.ts (Wave 1; CONTRACT-03 + CONTRACT-04 error-name registration)
+  - [x] 255-03-PLAN.md -- Wire validateVisualSessionFields + stripVisualSessionFields into the dispatch chokepoint in mcp/src/tools/manual.ts; widen exports in mcp/src/tools/visual-session.ts so the shared v0.9.36 allowlist helpers are importable (Wave 2; CONTRACT-03 + CONTRACT-04 runtime enforcement; depends on 01 + 02)
+  - [x] 255-04-PLAN.md -- Author tests/visual-session-schema-lock.test.js asserting schema-shape invariants for the 36 action tools and 15 read-only tools plus dispatcher-rejection invariants for both typed errors; wire into root npm test chain (Wave 2; CONTRACT-02 + CONTRACT-03 + CONTRACT-04 + CONTRACT-05 CI lock; depends on 01 + 02 + 03)
 
 ---
 
@@ -183,7 +183,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 254. Contract Foundation (action-tool list + field-bundle naming + typed errors) | 0/1 | Not started | -- |
-| 255. Schema Enforcement on Action Tools | 0/4 | Not started | -- |
+| 255. Schema Enforcement on Action Tools | 4/4 | Complete    | 2026-05-11 |
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 0/TBD | Not started | -- |
 | 257. Explicit Completion (`is_final` immediate clear) | 0/TBD | Not started | -- |
 | 258. Removal, Migration Errors, Package 0.9.0 | 0/TBD | Not started | -- |
