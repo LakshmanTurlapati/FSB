@@ -10,6 +10,7 @@ import {
   PARAM_TRANSFORMS,
   type ToolDefinition,
 } from './schema-bridge.js';
+import { isAllowedMcpVisualClientLabel, getAllowedMcpVisualClientLabels } from './visual-session.js';
 
 type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -24,6 +25,72 @@ type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?
 // revert to pre-Phase-245 response shape with zero observer overhead.
 const CHANGE_REPORT_DESCRIPTION_SUFFIX =
   ' RETURNS change_report: when this tool runs, the response includes a `change_report` field with a compact diff of what the action mutated (URL, dialogs_opened, nodes_added, nodes_removed, attrs_changed, inputs_changed, focus_shift). Use this to learn the consequence without calling read_page next. If the report exceeds the size cap, `change_report.truncated:true` and `change_report_hint` are set; call read_page for the full state.';
+
+/**
+ * Phase 255 Plan 03: visual-session field-bundle validator.
+ *
+ * Runs at the dispatch chokepoint for every action tool (registered by
+ * registerManualTools below). Read-only tools bypass this validator
+ * entirely because they are registered through registerReadOnlyTools
+ * (mcp/src/tools/read-only.ts), which does not import this function.
+ *
+ * Validation steps (matches .planning/phases/255-schema-enforcement-on-
+ * action-tools/255-CONTEXT.md Validator location section, steps 3-4):
+ *   1. visual_reason MUST be a non-empty string. Empty / missing -> reject
+ *      with VISUAL_FIELDS_REQUIRED.
+ *   2. client MUST be a non-empty string. Empty / missing -> reject with
+ *      VISUAL_FIELDS_REQUIRED.
+ *   3. client MUST pass isAllowedMcpVisualClientLabel(). Failed -> reject
+ *      with BADGE_NOT_ALLOWED.
+ *
+ * On success returns null (caller proceeds to execAction). On rejection
+ * returns the ToolCallResult the MCP SDK should serialize back to the
+ * caller; the underlying FSB action does NOT run.
+ *
+ * Source-of-truth for field names and error codes: .planning/v0.9.62-
+ * CONTRACT.md (Field Bundle + Typed Errors sections).
+ */
+function validateVisualSessionFields(
+  toolName: string,
+  params: Record<string, unknown>,
+): ToolCallResult | null {
+  const visualReason = params.visual_reason;
+  const client = params.client;
+
+  const visualReasonOk = typeof visualReason === 'string' && visualReason.trim().length > 0;
+  const clientOk = typeof client === 'string' && client.trim().length > 0;
+
+  if (!visualReasonOk || !clientOk) {
+    return mapFSBError({
+      success: false,
+      errorCode: 'VISUAL_FIELDS_REQUIRED',
+      tool: toolName,
+    });
+  }
+
+  if (!isAllowedMcpVisualClientLabel(client)) {
+    return mapFSBError({
+      success: false,
+      errorCode: 'BADGE_NOT_ALLOWED',
+      tool: toolName,
+      clientLabel: client,
+      allowedClients: getAllowedMcpVisualClientLabels(),
+    });
+  }
+
+  return null;
+}
+
+/**
+ * Phase 255 Plan 03: strip the visual-session field bundle from caller
+ * params before forwarding to the FSB extension. The extension protocol
+ * does not yet consume these fields (lifecycle code lands in Phase 256);
+ * leaving them in the payload would noise up the bridge wire.
+ */
+function stripVisualSessionFields(params: Record<string, unknown>): Record<string, unknown> {
+  const { visual_reason: _vr, client: _cl, is_final: _if, ...rest } = params;
+  return rest;
+}
 
 /**
  * Execute a single browser action through the FSB extension.
@@ -101,7 +168,15 @@ export function registerManualTools(
       description,
       zodShape,
       async (params: Record<string, unknown>) => {
-        const finalParams = transform ? transform(params) : params;
+        // Phase 255 Plan 03: visual-session field-bundle gate runs
+        // BEFORE the param transform + execAction. Rejections do not
+        // proceed to queue.enqueue or sendAgentScopedBridgeMessage, so
+        // no DOM mutation, no change_report, no overlay change.
+        const rejection = validateVisualSessionFields(tool.name, params);
+        if (rejection) return rejection;
+
+        const cleanedParams = stripVisualSessionFields(params);
+        const finalParams = transform ? transform(cleanedParams) : cleanedParams;
         return execAction(bridge, queue, agentScope, tool.name, fsbVerb, finalParams);
       },
     );

@@ -17,12 +17,21 @@ for (const label of MCP_VISUAL_CLIENT_LABELS) {
   CLIENT_LABEL_MAP[label.toLowerCase().replace(/[\s_-]+/g, '')] = label;
 }
 
-function normalizeMcpVisualClientLabel(raw: unknown): string | null {
+export function normalizeMcpVisualClientLabel(raw: unknown): string | null {
   const key = String(raw ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
   return key ? (CLIENT_LABEL_MAP[key] ?? null) : null;
 }
 
-function getAllowedMcpVisualClientLabels(): string[] {
+/**
+ * Phase 255 Plan 03: boolean-returning wrapper consumed by the
+ * action-tool dispatch validator in mcp/src/tools/manual.ts. Returns
+ * true iff `raw` normalises to a label on the v0.9.36 shared allowlist.
+ */
+export function isAllowedMcpVisualClientLabel(raw: unknown): boolean {
+  return normalizeMcpVisualClientLabel(raw) !== null;
+}
+
+export function getAllowedMcpVisualClientLabels(): string[] {
   return MCP_VISUAL_CLIENT_LABELS.slice();
 }
 
