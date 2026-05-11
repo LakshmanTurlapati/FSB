@@ -8,6 +8,7 @@ importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('utils/mcp-visual-session.js');
+importScripts('utils/mcp-visual-session-lifecycle.js');
 try { importScripts('utils/agent-registry.js'); } catch (e) { console.error('[FSB] Failed to load agent-registry.js:', e.message); }
 // Phase 246 plan 01: agent-scoped tab resolver. Pure helper; consumes
 // globalThis.fsbAgentRegistryInstance via getAgentTabs(agentId). Loaded
