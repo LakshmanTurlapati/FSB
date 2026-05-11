@@ -35,7 +35,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 
 - [ ] **Phase 254: Contract Foundation (action-tool list + field-bundle naming + typed errors)** -- Pin the canonical action-tool list, field-bundle key names, badge-allowlist reuse decision, and typed-error names before any code or doc work.
 - [x] **Phase 255: Schema Enforcement on Action Tools** -- Apply the required field bundle to every action tool in the canonical list and enforce typed validation; leave read-only tool schemas untouched. (completed 2026-05-11)
-- [ ] **Phase 256: Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay)** -- Make the first action call implicitly start a visual session per-tab, re-arm the 60s timer on every carrying call, auto-clear after silence, and survive MV3 service-worker eviction.
+- [x] **Phase 256: Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay)** -- Make the first action call implicitly start a visual session per-tab, re-arm the 60s timer on every carrying call, auto-clear after silence, and survive MV3 service-worker eviction. (completed 2026-05-11)
 - [ ] **Phase 257: Explicit Completion (`is_final` immediate clear)** -- Honour `is_final: true` as an immediate post-change-report clear; keep redundant final signals idempotent.
 - [ ] **Phase 258: Removal, Migration Errors, Package 0.9.0** -- Remove the old explicit `visual_session` start/end tools, return `TOOL_REMOVED` with migration pointer, bump `fsb-mcp-server` 0.8.0 -> 0.9.0 (server.json + version-parity test), and write the CHANGELOG/mcp-README breaking-change recipe.
 - [ ] **Phase 259: Test Rewrites & CI Lock** -- Rewrite `tests/mcp-visual-tick-contract.test.js` for the new implicit contract end-to-end, add `TOOL_REMOVED` + required-field + read-tool no-op tests, and wire everything into `npm test` so `ci / all-green` gates the contract.
@@ -101,7 +101,12 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   4. Killing and restarting the MV3 service worker mid-session (cold/warm boot or 30s eviction) restores the same owner, badge, and remaining-deadline state by replaying from `chrome.storage.session`; the overlay either resumes seamlessly or correctly times out by the original deadline -- the death-timer arithmetic does not silently reset on SW wake.
   5. An action call from a different MCP agent on a tab already owned by another agent rejects with the existing v0.9.60 `TAB_NOT_OWNED` typed error at the dispatch gate before any visual-session state is read or written; the previous agent's overlay/badge is not silently merged or hijacked.
 
-**Plans**: TBD
+**Plans**: 4 plans
+  - [x] 256-01-PLAN.md -- Author the new lifecycle module (extension/utils/mcp-visual-session-lifecycle.js) with recordVisualSessionTick / clearVisualSession / handleVisualSessionLifecycleAlarm / handleVisualSessionLifecycleTabRemoved / restoreVisualSessionLifecyclesFromStorage + import into background.js (Wave 1; TIMEOUT-01 + TIMEOUT-02 + TIMEOUT-03 + TIMEOUT-04 helper layer)
+  - [x] 256-02-PLAN.md -- Forward the validated visual-session bundle to the extension as a sidecar visualSession object on the mcp:execute-action bridge payload in mcp/src/tools/manual.ts; preserve the Phase 255 validate-then-strip pattern verbatim (Wave 1; TIMEOUT-01 server-side plumbing)
+  - [x] 256-03-PLAN.md -- Wire the lifecycle hook into _handleExecuteAction (extension/ws/mcp-bridge-client.js) AFTER the v0.9.60 ownership resolver passes + register chrome.alarms.onAlarm + chrome.tabs.onRemoved listeners + SW-startup restore in extension/background.js (Wave 2; TIMEOUT-01..05 integration; depends on 01 + 02)
+  - [x] 256-04-PLAN.md -- Author tests/mcp-visual-tick-lifecycle.test.js with cases A-I covering all 5 TIMEOUT REQ-IDs at the unit level + wire into npm test chain (Wave 2; TIMEOUT-01..05 CI lock; depends on 01 + 02 + 03)
+
 
 ---
 
@@ -184,7 +189,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 |-------|----------------|--------|-----------|
 | 254. Contract Foundation (action-tool list + field-bundle naming + typed errors) | 0/1 | Not started | -- |
 | 255. Schema Enforcement on Action Tools | 4/4 | Complete    | 2026-05-11 |
-| 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 0/TBD | Not started | -- |
+| 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 4/4 | Complete    | 2026-05-11 |
 | 257. Explicit Completion (`is_final` immediate clear) | 0/TBD | Not started | -- |
 | 258. Removal, Migration Errors, Package 0.9.0 | 0/TBD | Not started | -- |
 | 259. Test Rewrites & CI Lock | 0/TBD | Not started | -- |
