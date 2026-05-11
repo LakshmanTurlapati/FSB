@@ -37,7 +37,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 - [x] **Phase 255: Schema Enforcement on Action Tools** -- Apply the required field bundle to every action tool in the canonical list and enforce typed validation; leave read-only tool schemas untouched. (completed 2026-05-11)
 - [x] **Phase 256: Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay)** -- Make the first action call implicitly start a visual session per-tab, re-arm the 60s timer on every carrying call, auto-clear after silence, and survive MV3 service-worker eviction. (completed 2026-05-11)
 - [x] **Phase 257: Explicit Completion (`is_final` immediate clear)** -- Honour `is_final: true` as an immediate post-change-report clear; keep redundant final signals idempotent. (completed 2026-05-11)
-- [ ] **Phase 258: Removal, Migration Errors, Package 0.9.0** -- Remove the old explicit `visual_session` start/end tools, return `TOOL_REMOVED` with migration pointer, bump `fsb-mcp-server` 0.8.0 -> 0.9.0 (server.json + version-parity test), and write the CHANGELOG/mcp-README breaking-change recipe.
+- [x] **Phase 258: Removal, Migration Errors, Package 0.9.0** -- Remove the old explicit `visual_session` start/end tools, return `TOOL_REMOVED` with migration pointer, bump `fsb-mcp-server` 0.8.0 -> 0.9.0 (server.json + version-parity test), and write the CHANGELOG/mcp-README breaking-change recipe. (completed 2026-05-11)
 - [ ] **Phase 259: Test Rewrites & CI Lock** -- Rewrite `tests/mcp-visual-tick-contract.test.js` for the new implicit contract end-to-end, add `TOOL_REMOVED` + required-field + read-tool no-op tests, and wire everything into `npm test` so `ci / all-green` gates the contract.
 - [ ] **Phase 260: Skill Docs Migration** -- Update `skills/FSB Skill/USAGE.md`, `references/visual-session-lifecycle.md`, `references/tool-decision-tree.md`, and the SKILL.md body so callers see the new contract on the surfaces they read first; canonical action-tool list referenced.
 
@@ -144,9 +144,9 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   5. `fsb-mcp-server` package version is bumped 0.8.0 -> 0.9.0 across `package.json`, `server.json`, and `tests/version-parity.test.js`; running `npm test` against the bumped tree passes the version-parity assertion; final `npm publish fsb-mcp-server@0.9.0` remains user-gated (mirrors v0.9.60 posture and is recorded as such in the milestone close, not blocked on by this phase).
 
 **Plans**: 3 plans (sequential -- Wave 1 -> Wave 2 -> Wave 3)
-  - [ ] 258-01-PLAN.md -- Convert start_visual_session + end_visual_session handlers in mcp/src/tools/visual-session.ts into TOOL_REMOVED-returning stubs + register TOOL_REMOVED typed error in mcp/src/errors.ts (Wave 1; MIGRATION-01 + MIGRATION-02)
-  - [ ] 258-02-PLAN.md -- Bump fsb-mcp-server 0.8.0 -> 0.9.0 across mcp/src/version.ts + mcp/package.json + mcp/server.json (two occurrences) + tests/mcp-version-parity.test.js + rebuild mcp/build/version.js (Wave 2; MIGRATION-05; depends on 01)
-  - [ ] 258-03-PLAN.md -- Prepend v0.9.0 BREAKING CHANGE entry to mcp/CHANGELOG.md with before/after migration recipe + add breaking-change banner to mcp/README.md Visual Session Lifecycle section + update Tools (60 Total) -> Visual Sessions (2) catalog table (Wave 3; MIGRATION-03 + MIGRATION-04 mcp/README portion; depends on 01 + 02; skill USAGE.md portion of MIGRATION-04 is Phase 260)
+  - [x] 258-01-PLAN.md -- Convert start_visual_session + end_visual_session handlers in mcp/src/tools/visual-session.ts into TOOL_REMOVED-returning stubs + register TOOL_REMOVED typed error in mcp/src/errors.ts (Wave 1; MIGRATION-01 + MIGRATION-02)
+  - [x] 258-02-PLAN.md -- Bump fsb-mcp-server 0.8.0 -> 0.9.0 across mcp/src/version.ts + mcp/package.json + mcp/server.json (two occurrences) + tests/mcp-version-parity.test.js + rebuild mcp/build/version.js (Wave 2; MIGRATION-05; depends on 01)
+  - [x] 258-03-PLAN.md -- Prepend v0.9.0 BREAKING CHANGE entry to mcp/CHANGELOG.md with before/after migration recipe + add breaking-change banner to mcp/README.md Visual Session Lifecycle section + update Tools (60 Total) -> Visual Sessions (2) catalog table (Wave 3; MIGRATION-03 + MIGRATION-04 mcp/README portion; depends on 01 + 02; skill USAGE.md portion of MIGRATION-04 is Phase 260)
 
 ---
 
@@ -195,7 +195,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 | 255. Schema Enforcement on Action Tools | 4/4 | Complete    | 2026-05-11 |
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 4/4 | Complete    | 2026-05-11 |
 | 257. Explicit Completion (`is_final` immediate clear) | 1/1 | Complete    | 2026-05-11 |
-| 258. Removal, Migration Errors, Package 0.9.0 | 0/3 | Not started | -- |
+| 258. Removal, Migration Errors, Package 0.9.0 | 3/3 | Complete    | 2026-05-11 |
 | 259. Test Rewrites & CI Lock | 0/TBD | Not started | -- |
 | 260. Skill Docs Migration | 0/TBD | Not started | -- |
 
