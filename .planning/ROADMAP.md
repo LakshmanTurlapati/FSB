@@ -59,7 +59,8 @@ Make the MCP visual-session signal implicit on every action tool call so externa
   3. The list of read-only MCP tools whose schemas MUST remain unchanged is enumerated alongside the canonical action-tool list, so Phase 255 has a "do not touch" allowlist to assert against in tests.
   4. The artifact is closed with an explicit "contract pinned" sign-off so Phases 255-260 can start without re-deriving names; every downstream phase that references field names or typed errors cites this document.
 
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 254-01-PLAN.md -- Write `.planning/v0.9.62-CONTRACT.md` (all six locked decisions, verification diff, sign-off) and commit on branch `refinements`
 
 ---
 
@@ -177,7 +178,7 @@ Make the MCP visual-session signal implicit on every action tool call so externa
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 254. Contract Foundation (action-tool list + field-bundle naming + typed errors) | 0/TBD | Not started | -- |
+| 254. Contract Foundation (action-tool list + field-bundle naming + typed errors) | 0/1 | Not started | -- |
 | 255. Schema Enforcement on Action Tools | 0/TBD | Not started | -- |
 | 256. Sliding-Window Lifecycle (implicit start + 60s death timer + SW-eviction replay) | 0/TBD | Not started | -- |
 | 257. Explicit Completion (`is_final` immediate clear) | 0/TBD | Not started | -- |
