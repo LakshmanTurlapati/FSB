@@ -60,6 +60,9 @@ const CODE_ONLY_ERROR_KEYS = new Set([
   'TAB_OUT_OF_SCOPE',
   'AGENT_CAP_REACHED',
   'AGENT_REGISTRY_UNAVAILABLE',
+  // v0.9.62 implicit visual session contract (Phase 255 Plan 02)
+  'VISUAL_FIELDS_REQUIRED',
+  'BADGE_NOT_ALLOWED',
 ]);
 
 type LayerLabel = typeof LAYER_LABELS[keyof typeof LAYER_LABELS];
@@ -293,6 +296,24 @@ function buildLayeredDetail(
         nextAction: allowedClients.length > 0
           ? `Retry with one of the approved client labels: ${allowedClients.join(', ')}.`
           : 'Retry with one of the approved client labels documented for visual sessions.',
+      };
+    case 'VISUAL_FIELDS_REQUIRED':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: tool
+          ? `Action tool ${tool} was called without the required visual-session field bundle (visual_reason and client).`
+          : 'An action tool was called without the required visual-session field bundle (visual_reason and client).',
+        nextAction: 'Resend the call with visual_reason (short human-readable string) and client (allowlisted label). See .planning/v0.9.62-CONTRACT.md Field Bundle section.',
+      };
+    case 'BADGE_NOT_ALLOWED':
+      return {
+        detected: LAYER_LABELS.visualSession,
+        why: clientLabel
+          ? `Client label "${clientLabel}" is not on the trusted v0.9.36 badge allowlist.`
+          : 'The client label is not on the trusted v0.9.36 badge allowlist.',
+        nextAction: allowedClients.length > 0
+          ? `Retry with one of the approved client labels: ${allowedClients.join(', ')}.`
+          : 'Retry with one of the approved client labels enumerated by getAllowedMcpVisualClientLabels() in mcp/src/tools/visual-session.ts.',
       };
     case 'visual_session_not_found':
       return {
