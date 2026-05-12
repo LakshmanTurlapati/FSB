@@ -9,7 +9,8 @@
     "build": "ng build",
     "test": "ng test",
     "smoke:crawler": "node scripts/smoke-crawler.mjs",
-    "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs"
+    "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs",
+    "lint:i18n": "eslint \"src/**/*.html\""
   },
   "dependencies": {
     "@angular/animations": "^20.3.19",
