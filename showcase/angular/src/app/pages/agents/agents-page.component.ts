@@ -4,7 +4,7 @@ import { Title, Meta } from '@angular/platform-browser';
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
-const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
+const SITE_NAME = 'FSB - Full Self-Browsing';
 
 @Component({
   selector: 'app-agents-page',
@@ -20,7 +20,7 @@ export class AgentsPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/agents`;
-    const t = 'FSB \u2014 Agents (OpenClaw Skill + MCP)';
+    const t = 'FSB - Agents (OpenClaw Skill + MCP)';
     const d = 'Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.';
     this.applyMeta(t, d, url);
     this.injectAgentsPageJsonLd();
