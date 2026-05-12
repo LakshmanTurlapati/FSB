@@ -5,6 +5,7 @@
 !showcase/server/
 !showcase/angular/
 !showcase/assets/
+!showcase/js/
 
 # Re-ignore things inside those dirs we don't need
 showcase/server/node_modules
