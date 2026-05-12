@@ -385,11 +385,15 @@ export function getSetupSections(httpEndpoint, cursorDeeplink) {
         {
             title: 'OpenClaw',
             lines: [
-                'Status: manual / unsupported for now.',
+                'Canonical install: load the FSB skill from skills/FSB Skill/ in this repo.',
+                '  The skill runs the doctor flow, prints the OpenClaw stdio config block,',
+                '  and offers consent-gated install for other detected MCP hosts.',
+                'Status of the --openclaw install flag: still manual / unsupported.',
                 'Why:',
-                '  Official MCP config and HTTP behavior are still unstable across current OpenClaw builds.',
-                'Fallback:',
-                '  Use the stdio command manually only if your OpenClaw build documents a stable MCP format.',
+                '  OpenClaw MCP config schema is unstable across builds; the skill prints',
+                '  and asks the user to paste, never auto-writes the OpenClaw config.',
+                'Manual stdio fallback (if you cannot use the skill):',
+                '  ' + STDIO_COMMAND,
             ],
         },
         {
