@@ -82,8 +82,11 @@ export class SupportPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/support`;
-    const t = 'FSB - Support';
-    const d = 'Get help with FSB: setup guides, MCP configuration, troubleshooting, GitHub issues, and direct contact for the open-source Chrome extension.';
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand
+    // tokens (FSB, MCP, GitHub, Chrome) are preserved verbatim by translators per
+    // DO-NOT-TRANSLATE.md.
+    const t = $localize`:@@support.meta.title:FSB - Support`;
+    const d = $localize`:@@support.meta.description:Get help with FSB: setup guides, MCP configuration, troubleshooting, GitHub issues, and direct contact for the open-source Chrome extension.`;
     this.applyMeta(t, d, url);
     this.injectSupportFaqJsonLd();
   }

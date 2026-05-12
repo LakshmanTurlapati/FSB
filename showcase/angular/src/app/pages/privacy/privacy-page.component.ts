@@ -21,8 +21,10 @@ export class PrivacyPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/privacy`;
-    const t = 'FSB - Privacy';
-    const d = 'How FSB handles your data: API keys encrypted in Chrome local storage, no telemetry, automation runs locally in your browser. BYO key, BYO browser.';
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand
+    // tokens (FSB, Chrome) are preserved verbatim by translators per DO-NOT-TRANSLATE.md.
+    const t = $localize`:@@privacy.meta.title:FSB - Privacy`;
+    const d = $localize`:@@privacy.meta.description:How FSB handles your data: API keys encrypted in Chrome local storage, no telemetry, automation runs locally in your browser. BYO key, BYO browser.`;
     this.applyMeta(t, d, url);
   }
 

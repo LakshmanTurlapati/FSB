@@ -20,8 +20,11 @@ export class AgentsPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/agents`;
-    const t = 'FSB - Agents (OpenClaw Skill + MCP)';
-    const d = 'Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.';
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand
+    // tokens (FSB, OpenClaw, Claude, Codex, Cursor, MCP, Chrome) are preserved verbatim
+    // by translators per showcase/angular/src/locale/DO-NOT-TRANSLATE.md.
+    const t = $localize`:@@agents.meta.title:FSB - Agents (OpenClaw Skill + MCP)`;
+    const d = $localize`:@@agents.meta.description:Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.`;
     this.applyMeta(t, d, url);
     this.injectAgentsPageJsonLd();
     this.injectInstallHowToJsonLd();
