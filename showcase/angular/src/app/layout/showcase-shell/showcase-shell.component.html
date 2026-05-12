@@ -1,7 +1,7 @@
 <nav class="nav" [class.scrolled]="navScrolled">
   <div class="nav-inner">
     <a routerLink="/" class="nav-brand" (click)="closeMobileMenu()">
-      <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+       
       <img src="assets/icon128.png" i18n-alt="@@shell.nav.brand.logo.alt" alt="FSB Logo" width="32" height="32" decoding="async">
       <span i18n="@@shell.nav.brand.text" [attr.translate]="'no'">FSB</span>
     </a>
@@ -14,7 +14,7 @@
       <a routerLink="/support" routerLinkActive="active" i18n="@@shell.nav.desktop.support">Support</a>
     </div>
     <div class="nav-actions">
-      <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+       
       <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github" i18n="@@shell.nav.desktop.github" [attr.translate]="'no'">
         <i class="fa-brands fa-github"></i> GitHub
       </a>
@@ -34,7 +34,7 @@
   <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.dashboard">Dashboard</a>
   <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.privacy">Privacy</a>
   <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.support">Support</a>
-  <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+   
   <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.github" [attr.translate]="'no'"><i class="fa-brands fa-github"></i> GitHub</a>
   <app-language-picker [mode]="'text'"></app-language-picker>
 </div>
@@ -47,7 +47,7 @@
   <div class="container">
     <div class="footer-inner">
       <div class="footer-brand">
-        <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+         
         <img src="assets/icon48.png" i18n-alt="@@shell.footer.brand.logo.alt" alt="FSB" width="28" height="28" loading="lazy" decoding="async">
         <span i18n="@@shell.footer.brand.text" [attr.translate]="'no'">FSB</span>
       </div>
@@ -63,11 +63,11 @@
         </div>
         <div class="footer-column">
           <h4 i18n="@@shell.footer.col.project.title">Project</h4>
-          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+           
           <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" i18n="@@shell.footer.project.github" [attr.translate]="'no'">GitHub</a>
-          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+           
           <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" i18n="@@shell.footer.project.issues" [attr.translate]="'no'">Issues</a>
-          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+           
           <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener" i18n="@@shell.footer.project.license">BSL 1.1 License</a>
         </div>
       </div>

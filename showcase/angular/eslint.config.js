@@ -24,12 +24,28 @@ module.exports = tseslint.config(
     files: ['**/*.html'],
     extends: [...angular.configs.templateRecommended],
     rules: {
-      // CONTEXT lock + CI-03: enforce marked strings + custom IDs (@@) + attribute coverage.
-      // Defaults are already true; explicit for self-documentation.
+      // Phase 262 (CI-03 promoted) -- enforce marked strings + custom @@id markers
+      // + attribute coverage, with a documented exemption list for machine tokens
+      // and routing attributes that are never user-visible.
       '@angular-eslint/template/i18n': ['error', {
         checkId: true,
         checkText: true,
-        checkAttributes: true
+        checkAttributes: true,
+        ignoreAttributes: [
+          // Machine tokens -- never visible to end users
+          'rel', 'href', 'src', 'srcset', 'loading', 'decoding', 'referrerpolicy',
+          'allow', 'allowfullscreen', 'sandbox',
+          // SVG geometry / class hooks
+          'd', 'stroke-linejoin', 'stroke-linecap', 'fill', 'viewBox',
+          // Data attributes (test ids, internal hooks)
+          'data-testid', 'data-tab', 'data-type', 'data-ld',
+          // Routing (Angular router takes literal strings, not translations)
+          'routerLink', 'routerLinkActive',
+          // ARIA structural attributes (not user-facing text)
+          'aria-controls', 'aria-expanded', 'aria-hidden',
+          // Image / element MIME-style flags
+          'type', 'role'
+        ]
       }]
     }
   }
