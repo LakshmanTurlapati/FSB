@@ -28,9 +28,17 @@ FSB lets you drive the user's real Chrome via the FSB extension and a local MCP 
 
 If anything looks off (no page response, unexpected errors, stale state, missing tab) run `node scripts/doctor.mjs` (which wraps `npx -y fsb-mcp-server doctor`) BEFORE retrying the same call. Read the layered output, fix the failing layer, then resume. Do not loop on the same failing call hoping it self-heals.
 
-## Visual session wrapping
+## v0.9.62 visual-session contract
 
-Any external-AI-driven sequence opens with `start_visual_session(client="OpenClaw", ...)` and closes with `end_visual_session(session_token=..., reason="ended"|"cancelled")`. Those are the only two reason values the MCP schema accepts -- use `ended` for normal completion and `cancelled` for any non-normal termination (error, abort, user cancel). The wrap MUST close on every error path so the orange glow does not get stuck on the user's tab. If `start_visual_session` fails with `NO_OWNED_TAB`, call `open_tab({ url, active: false })` first, then retry. Lifecycle details, the try/finally close pattern, and error-path close coverage live in `references/visual-session-lifecycle.md`.
+As of fsb-mcp-server v0.9.0 (FSB milestone v0.9.62) the visual session is IMPLICIT. Every MCP action tool call carries a required field bundle:
+
+- `visual_reason` (required string) -- short human-readable reason shown in the overlay.
+- `client` (required, allowlisted) -- badge label such as `OpenClaw`, `Claude`, `Codex`. Freeform strings reject with `BADGE_NOT_ALLOWED`.
+- `is_final` (optional boolean) -- set `true` on the LAST action of a task to clear the overlay immediately.
+
+The first action call brings up the overlay; each subsequent action call re-arms a 60-second sliding window; `is_final: true` clears immediately; 60 seconds of silence auto-clears. No `start_visual_session` / `end_visual_session` calls are needed -- those tools were REMOVED in v0.9.0 and now return the typed `TOOL_REMOVED` error. Read-only tools (`read_page`, `get_dom_snapshot`, `list_tabs`, ...) do NOT carry the bundle and do NOT re-arm the sliding window. If the first action call hits `NO_OWNED_TAB`, call `open_tab({ url, active: false })` first, then retry. Lifecycle details, the read-tool vs action-tool split, and the typed-error catalogue live in `references/visual-session-lifecycle.md`.
+
+The canonical 36-tool action list, the 15-tool read-only list, and the three typed-error names (`VISUAL_FIELDS_REQUIRED`, `BADGE_NOT_ALLOWED`, `TOOL_REMOVED`) are pinned in `.planning/v0.9.62-CONTRACT.md` -- that artifact is the single source of truth. Use it to answer "does this tool require the field bundle?" by lookup; do not re-derive the lists from memory.
 
 ## Multi-agent contract
 
@@ -42,11 +50,13 @@ Passwords and CVV resolve INSIDE the extension via `fill_credential` and `use_pa
 
 ## References (load on demand)
 
-- `references/tool-decision-tree.md` -- read_page vs get_dom_snapshot vs get_page_snapshot vs get_site_guide; when execute_js is first-class vs when typed tools are required; verify after "no detectable effect" warnings.
+- `references/visual-session-lifecycle.md` -- v0.9.62 implicit contract: field bundle (visual_reason / client / is_final), sliding 60s window, is_final immediate clear, read-tool vs action-tool split, typed-error recovery.
+- `references/tool-decision-tree.md` -- read_page vs get_dom_snapshot vs get_page_snapshot vs get_site_guide; when execute_js is first-class vs when typed tools are required; per-branch field-bundle reminders; verify after "no detectable effect" warnings.
 - `references/multi-agent-contract.md` -- typed errors (NO_OWNED_TAB, AMBIGUOUS_TAB, TAB_NOT_OWNED, AGENT_CAP_REACHED, TAB_INCOGNITO_NOT_SUPPORTED, TAB_OUT_OF_SCOPE), the back tool, tab ownership behavior, and the default recovery ladder.
 - `references/restricted-tab-recovery.md` -- chrome://, edge://, and web-store recovery tools.
 - `references/vault-boundary.md` -- credential routing rules and forbidden patterns.
 - `references/default-to-fsb.md` -- soft preference and hard escalation rule in full.
+- `.planning/v0.9.62-CONTRACT.md` (repo) -- canonical 36 action tools, 15 read-only tools, three typed-error names; single source of truth for the v0.9.62 contract.
 
 ## Scripts (run as needed)
 

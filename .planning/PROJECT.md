@@ -10,24 +10,37 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.61 FSB Skill (OpenClaw) -- 2026-05-08. Phases 248-253 delivered an OpenClaw skill at `skills/FSB Skill/` with verified frontmatter, SKILL.md body with progressive-disclosure pointers, three Node `.mjs` scripts (six-layer doctor dispatcher, canonical stdio printer, consent-gated multi-host installer), seven reference files, a static-content test wired into `npm test` / `ci / all-green`, repo-wide discoverability edits (root README + mcp README + install.ts CLI + showcase llms.txt), and a reproducible `npm run package:skill` build artifact. Audit status `passed` (29/29 requirements). Live OpenClaw runtime validation and `clawhub publish` remain user-gated.
+**Last shipped:** v0.9.62 Implicit Visual Session Contract -- 2026-05-11. Phases 254-260 made the MCP visual-session signal implicit on every action tool call: required `visual_reason` + `client` field bundle on 36 canonical action tools (`mcp/ai/tool-definitions.cjs` + byte-identical mirror in `extension/ai/tool-definitions.js`); sliding 60-second death timer with MV3 SW-eviction replay via `chrome.storage.session` + `chrome.alarms`; `is_final: true` immediate clear; old explicit `start_visual_session` / `end_visual_session` MCP tools removed (converted to typed `TOOL_REMOVED` stubs with migration recipe); `fsb-mcp-server` bumped 0.8.0 -> 0.9.0; v0.9.0 CHANGELOG entry; mcp/README + FSB Skill USAGE banners; 314 schema-lock + 79 lifecycle + 116 contract + 10 version-parity test assertions all wired into `npm test`. Audit status `passed` (27/27 requirements, 7/7 phases, 13/13 integration points). Final `npm publish fsb-mcp-server@0.9.0` remains user-gated.
 
 **Recent shipping cadence:**
+- v0.9.62 Implicit Visual Session Contract -- shipped 2026-05-11
 - v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
 - v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- shipped 2026-05-08
-- v0.9.50 Autopilot Refinement (MCP-Parity) — shipped 2026-05-03
-- v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up — shipped 2026-05-02
-- v0.9.48 Angular 20 Migration — shipped 2026-05-02
-- v0.9.47 Workspace Reorganization — shipped 2026-05-02
-- v0.9.46 Site Discoverability (SEO + GEO) — shipped 2026-05-02
+- v0.9.50 Autopilot Refinement (MCP-Parity) -- shipped 2026-05-03
+- v0.9.49 Remote Control Rebrand & Showcase Metrics Wire-up -- shipped 2026-05-02
+- v0.9.48 Angular 20 Migration -- shipped 2026-05-02
+- v0.9.47 Workspace Reorganization -- shipped 2026-05-02
+- v0.9.46 Site Discoverability (SEO + GEO) -- shipped 2026-05-02
 
-**Version:** MCP server package prepared at `fsb-mcp-server@0.8.0`; final npm publish is user-gated. Extension/showcase version bump remains outside this milestone unless separately requested.
+**Version:** MCP server package prepared at `fsb-mcp-server@0.9.0`; final npm publish is user-gated. Extension/showcase version bump remains outside this milestone unless separately requested.
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
 ## Current Milestone
 
-No active milestone -- v0.9.61 FSB Skill (OpenClaw) shipped 2026-05-08; next milestone TBD. Run `/gsd-new-milestone` to scope the next cycle.
+No active milestone -- v0.9.62 Implicit Visual Session Contract shipped 2026-05-11. Run `/gsd-new-milestone` to scope the next cycle.
+
+## Previous Milestone: v0.9.62 Implicit Visual Session Contract (shipped 2026-05-11)
+
+**Goal:** Make the MCP visual-session signal implicit on every action tool call so external agents stop missing it, replacing the explicit start/end tools with a required field + sliding-window timeout + explicit task-complete signal.
+
+**Shipped:** 7 phases (254-260), 15 plans, 27/27 v1 requirements satisfied, audit `passed`. Implicit field bundle on 36 action tools; 15 read-only tool schemas locked; sliding 60s lifecycle with SW-eviction replay; `is_final` immediate clear; `TOOL_REMOVED` typed-rejection stubs for the old explicit tools; `fsb-mcp-server@0.9.0` in-tree; CHANGELOG + mcp/README + FSB Skill USAGE banners; contract / schema-lock / lifecycle tests wired into `ci / all-green`.
+
+**Archive:** [.planning/milestones/v0.9.62-ROADMAP.md](milestones/v0.9.62-ROADMAP.md), [.planning/milestones/v0.9.62-REQUIREMENTS.md](milestones/v0.9.62-REQUIREMENTS.md), [.planning/milestones/v0.9.62-MILESTONE-AUDIT.md](milestones/v0.9.62-MILESTONE-AUDIT.md).
+
+**Accepted closeout caveats:** `npm publish fsb-mcp-server@0.9.0` user-gated post-merge. `skills/FSB Skill/references/multi-agent-contract.md` line 29 carries an in-passing contextual reference to `start_visual_session` in a NO_OWNED_TAB recovery example (not instructional; flagged for v0.9.63 polish). `mcp/build/install.js` carries pre-existing local modifications unrelated to v0.9.62 (logged in Phase 258 deferred-items).
+
+**Branch:** `refinements`
 
 ## Previous Milestone: v0.9.61 FSB Skill (OpenClaw) (shipped 2026-05-08)
 
@@ -252,7 +265,7 @@ Carry-forward backlog candidates:
 
 ### Active
 
-(Milestone v0.9.61 FSB Skill in scoping -- requirements pending REQUIREMENTS.md generation.)
+(Milestone v0.9.62 Implicit Visual Session Contract in scoping -- requirements pending REQUIREMENTS.md generation.)
 
 ### Validated (v0.9.60)
 
@@ -503,4 +516,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 -- milestone v0.9.61 FSB Skill (OpenClaw) opened on branch Claw*
+*Last updated: 2026-05-11 -- milestone v0.9.62 Implicit Visual Session Contract shipped on branch refinements*

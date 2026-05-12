@@ -137,11 +137,27 @@ async function run() {
     'list_tabs routes through mcp:get-tabs with agent identity',
   );
 
-  const navigateCall = await invokeTool(harness, 'navigate', { url: 'https://example.com' });
+  // v0.9.62 implicit visual session contract: action tools require visual_reason + client.
+  // The fields are STRIPPED from params before dispatch and travel as a top-level
+  // visualSession sidecar (camelCase wire form) sibling to agentId/ownershipToken.
+  const navigateCall = await invokeTool(harness, 'navigate', {
+    url: 'https://example.com',
+    visual_reason: 'smoke test',
+    client: 'Codex',
+  });
   assertDeepEqual(
     navigateCall && navigateCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'navigate', params: { url: 'https://example.com' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
-    'navigate routes through mcp:execute-action with navigate payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
+    {
+      type: 'mcp:execute-action',
+      payload: {
+        tool: 'navigate',
+        params: { url: 'https://example.com' },
+        visualSession: { visualReason: 'smoke test', client: 'Codex', isFinal: false },
+        agentId: 'agent_test_smoke',
+        ownershipToken: 'token_test_smoke',
+      },
+    },
+    'navigate routes through mcp:execute-action with navigate payload + v0.9.62 visualSession sidecar',
   );
 
   const readPageCall = await invokeTool(harness, 'read_page', { full: true });
@@ -172,44 +188,48 @@ async function run() {
     'get_site_guide routes through mcp:get-site-guides with domain payload and agent identity',
   );
 
-  const clickCall = await invokeTool(harness, 'click', { selector: 'e5' });
+  const clickCall = await invokeTool(harness, 'click', {
+    selector: 'e5',
+    visual_reason: 'smoke test',
+    client: 'Codex',
+  });
   assertDeepEqual(
     clickCall && clickCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'click', params: { selector: 'e5' }, agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' } },
-    'click routes through mcp:execute-action with click payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
+    {
+      type: 'mcp:execute-action',
+      payload: {
+        tool: 'click',
+        params: { selector: 'e5' },
+        visualSession: { visualReason: 'smoke test', client: 'Codex', isFinal: false },
+        agentId: 'agent_test_smoke',
+        ownershipToken: 'token_test_smoke',
+      },
+    },
+    'click routes through mcp:execute-action with click payload + v0.9.62 visualSession sidecar',
   );
 
+  // v0.9.62 (fsb-mcp-server 0.9.0): start_visual_session + end_visual_session
+  // are TOOL_REMOVED stubs. Handlers stay registered (for the migration recipe
+  // surface) but they short-circuit BEFORE the task queue and BEFORE the bridge
+  // connectivity check -- no bridge dispatch happens. See
+  // mcp/src/tools/visual-session.ts and .planning/v0.9.62-CONTRACT.md.
   const startVisualSessionCall = await invokeTool(harness, 'start_visual_session', {
     client: ' codex ',
     task: 'Smoke test the visual lifecycle',
     detail: 'Preparing overlay',
   });
-  assertDeepEqual(
-    startVisualSessionCall && startVisualSessionCall.message,
-    {
-      type: 'mcp:start-visual-session',
-      payload: {
-        clientLabel: 'Codex',
-        task: 'Smoke test the visual lifecycle',
-        detail: 'Preparing overlay',
-        agentId: 'agent_test_smoke',
-        ownershipToken: 'token_test_smoke',
-      },
-    },
-    'start_visual_session routes through mcp:start-visual-session with canonical client label (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
+  assert(
+    startVisualSessionCall === null,
+    'start_visual_session is a TOOL_REMOVED stub and does not dispatch a bridge message',
   );
 
   const endVisualSessionCall = await invokeTool(harness, 'end_visual_session', {
     session_token: 'visual_token_123',
     reason: 'ended',
   });
-  assertDeepEqual(
-    endVisualSessionCall && endVisualSessionCall.message,
-    {
-      type: 'mcp:end-visual-session',
-      payload: { sessionToken: 'visual_token_123', reason: 'ended', agentId: 'agent_test_smoke', ownershipToken: 'token_test_smoke' },
-    },
-    'end_visual_session routes through mcp:end-visual-session with token payload (Phase 238 includes agentId; Phase 240 strengthens with ownershipToken)',
+  assert(
+    endVisualSessionCall === null,
+    'end_visual_session is a TOOL_REMOVED stub and does not dispatch a bridge message',
   );
 
   const runTaskCall = await invokeTool(harness, 'run_task', { task: 'Smoke test the browser bridge' }, harness.createExtra({ progressToken: 'smoke-progress' }));
@@ -259,11 +279,24 @@ async function run() {
     'back with tab_id uses ownershipTokenFor(tab_id)',
   );
 
-  const explicitCloseTabCall = await invokeTool(harness, 'close_tab', { tab_id: 77 });
+  const explicitCloseTabCall = await invokeTool(harness, 'close_tab', {
+    tab_id: 77,
+    visual_reason: 'smoke test',
+    client: 'Codex',
+  });
   assertDeepEqual(
     explicitCloseTabCall && explicitCloseTabCall.message,
-    { type: 'mcp:execute-action', payload: { tool: 'close_tab', params: { tab_id: 77 }, agentId: 'agent_test_smoke', ownershipToken: 'token_tab_77' } },
-    'close_tab with tab_id uses ownershipTokenFor(tab_id)',
+    {
+      type: 'mcp:execute-action',
+      payload: {
+        tool: 'close_tab',
+        params: { tab_id: 77 },
+        visualSession: { visualReason: 'smoke test', client: 'Codex', isFinal: false },
+        agentId: 'agent_test_smoke',
+        ownershipToken: 'token_tab_77',
+      },
+    },
+    'close_tab with tab_id uses ownershipTokenFor(tab_id) + v0.9.62 visualSession sidecar',
   );
 
   console.log('\n--- agent:register lazy-mint invariant (Phase 238 D-13.4) ---');
@@ -271,10 +304,18 @@ async function run() {
   assert(registerCalls.length === 1, 'agent:register must fire exactly once across all tool invocations; saw ' + registerCalls.length);
 
   console.log('\n--- queue coverage ---');
-  for (const toolName of requiredSmokeTools.filter((name) => name !== 'stop_task')) {
+  // v0.9.62 (fsb-mcp-server 0.9.0): start_visual_session + end_visual_session
+  // are TOOL_REMOVED stubs that short-circuit BEFORE queue.enqueue (see
+  // mcp/src/tools/visual-session.ts). They are excluded from queue coverage
+  // alongside stop_task (which stays direct so cancellation does not wait
+  // behind queued work).
+  const DIRECT_TOOLS = new Set(['stop_task', 'start_visual_session', 'end_visual_session']);
+  for (const toolName of requiredSmokeTools.filter((name) => !DIRECT_TOOLS.has(name))) {
     assert(harness.queueCalls.includes(toolName), `${toolName} passes through the shared queue surface`);
   }
   assert(!harness.queueCalls.includes('stop_task'), 'stop_task stays direct so cancellation does not wait behind queued work');
+  assert(!harness.queueCalls.includes('start_visual_session'), 'start_visual_session is a TOOL_REMOVED stub and does not enqueue');
+  assert(!harness.queueCalls.includes('end_visual_session'), 'end_visual_session is a TOOL_REMOVED stub and does not enqueue');
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);

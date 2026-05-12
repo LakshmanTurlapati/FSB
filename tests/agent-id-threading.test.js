@@ -56,7 +56,14 @@ async function testManualNavigateAgentIdThreading() {
   const N = 5;
   const promises = [];
   for (let i = 0; i < N; i++) {
-    promises.push(navigate({ url: 'https://example.test/page' + i }, harness.createExtra()));
+    // Phase 255 Plan 03: action-tool dispatcher validates the v0.9.62 visual-session
+    // field bundle (visual_reason + client) before forwarding to the bridge. The
+    // agent-id-threading test exercises the post-validator path, so the bundle is
+    // supplied here. See .planning/v0.9.62-CONTRACT.md.
+    promises.push(navigate(
+      { url: 'https://example.test/page' + i, visual_reason: 'test', client: 'Claude' },
+      harness.createExtra(),
+    ));
   }
   const results = await Promise.all(promises);
   assert(results.length === N, 'all ' + N + ' parallel navigate invocations resolved');

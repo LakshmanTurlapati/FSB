@@ -1,5 +1,24 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.62 v0.9.62 (Shipped: 2026-05-11)
+
+**Phases completed:** 7 phases, 15 plans, 15 tasks
+
+**Key accomplishments:**
+
+- COMPLETE -- hard gate cleared.
+- Action-tool dispatch chokepoint in mcp/src/tools/manual.ts now rejects calls missing visual_reason / client (VISUAL_FIELDS_REQUIRED) or carrying a non-allowlisted client (BADGE_NOT_ALLOWED) BEFORE any bridge / queue / extension side effect; allowlist helpers exported from mcp/src/tools/visual-session.ts as the shared v0.9.36 source-of-truth.
+- 1. [Rule 3 - Blocking] Updated tests/agent-id-threading.test.js navigate call to pass the v0.9.62 field bundle
+- Per-tab sliding-window lifecycle helpers landed as a pure module wired into the SW import chain. No caller-facing behaviour yet -- Plan 03 turns them on.
+- The Phase 255 validate-then-strip chokepoint now also forwards the validated field bundle to the extension as a top-level `visualSession` sidecar on every mcp:execute-action bridge payload, preserving the strip pattern verbatim.
+- Implicit v0.9.62 visual-session lifecycle is now live -- action-tool calls implicitly start a session, repeats re-arm the sliding 60s window, prolonged silence auto-clears, MV3 SW eviction is survived, and v0.9.60 ownership gating still wins.
+- Helper-layer CI lock for every TIMEOUT REQ-ID (01-05) is live: 62 assertions across 9 cases cover implicit start, sliding re-arm, auto-clear, SW-eviction replay, ownership-gate defense-in-depth, allowlist defense-in-depth, tab-close cleanup, and module surface shape -- all running on every PR via the root npm test chain.
+- Exactly 2 files modified.
+- Discovered during:
+- 1. [Rule 3 - Blocking] Test allowlist needed v0.9.62 field-bundle keys
+
+---
+
 ## v0.9.61 FSB Skill (OpenClaw) (Shipped: 2026-05-08)
 
 **Phases completed:** 6 phases (248-253), 14 plans

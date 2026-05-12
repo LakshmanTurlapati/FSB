@@ -580,6 +580,87 @@ class MCPBridgeClient {
     return response || {};
   }
 
+  /**
+   * Phase 256 Plan 03 -- fire the implicit visual-session lifecycle tick on
+   * an action-tool call. The hook runs AFTER the v0.9.60 ownership gate
+   * (resolveAgentTabOrError) passes AND AFTER a concrete tabId is known,
+   * BEFORE the underlying action executes. See .planning/v0.9.62-CONTRACT.md
+   * Field Bundle section and .planning/phases/256-.../256-CONTEXT.md ordering.
+   *
+   * Sidecar field SHAPE (per Phase 256 Plan 02):
+   *   payload.visualSession = { visualReason, client, isFinal }
+   *
+   * Tabs where the sidecar is absent (no visualSession on payload) get a
+   * no-op -- zero-overhead path for any caller that bypasses the server-side
+   * Phase 255 schema layer. Read-only MCP tools never reach this code path
+   * (they route through different methods like _handleGetDOM / _handleReadPage).
+   *
+   * Requirements satisfied: TIMEOUT-01 (implicit start) + TIMEOUT-02 (sliding
+   * re-arm) + TIMEOUT-05 (ownership-gating wins, by virtue of being called
+   * AFTER resolved.success === true).
+   */
+  async _recordVisualSessionTickIfPresent(tabId, agentId, payload) {
+    if (typeof MCPVisualSessionLifecycleUtils === 'undefined') return;
+    if (typeof MCPVisualSessionLifecycleUtils.recordVisualSessionTick !== 'function') return;
+    const sidecar = payload && payload.visualSession;
+    if (!sidecar || typeof sidecar !== 'object') return;
+    if (!Number.isFinite(tabId) || tabId <= 0) return;
+    if (typeof agentId !== 'string' || !agentId) return;
+    try {
+      await MCPVisualSessionLifecycleUtils.recordVisualSessionTick(tabId, agentId, {
+        visualReason: typeof sidecar.visualReason === 'string' ? sidecar.visualReason : '',
+        client: typeof sidecar.client === 'string' ? sidecar.client : '',
+        isFinal: sidecar.isFinal === true
+      });
+    } catch (err) {
+      // Non-blocking: lifecycle failures must not break the underlying action.
+      // The overlay simply does not light up. The action still executes per
+      // the Phase 256 design (lifecycle is informational, not gating).
+      console.warn('[FSB MCP] recordVisualSessionTick failed (non-blocking):', err && err.message);
+    }
+  }
+
+  /**
+   * Phase 257 -- explicit completion via is_final: true.
+   *
+   * Companion to _recordVisualSessionTickIfPresent. Fires AFTER the
+   * action's change_report resolves successfully, in BOTH the resolved-tab
+   * branch and the bootstrap (open_tab / switch_tab) branch of
+   * _handleExecuteAction.
+   *
+   * Behaviour:
+   *   - No-op when MCPVisualSessionLifecycleUtils is not loaded.
+   *   - No-op when payload.visualSession sidecar is absent.
+   *   - No-op when sidecar.isFinal !== true (existing Phase 256 60s sliding
+   *     window remains the clear path in that case).
+   *   - On is_final === true: invokes clearVisualSession(tabId, { reason:
+   *     'is_final' }) which deletes the storage entry, cancels the
+   *     mcpVisualDeath:<tabId> alarm, and broadcasts the v0.9.36 clear
+   *     payload to the content script. Idempotent on no-entry per
+   *     Phase 256 helper semantics.
+   *   - Errors are swallowed (non-blocking): the underlying action's return
+   *     value is unaffected. console.warn carries the message for diagnostics.
+   *
+   * Requirements satisfied: COMPLETE-01 (caller signals via is_final),
+   * COMPLETE-02 (immediate clear post-change_report), COMPLETE-03
+   * (idempotent on no active session -- delegated to clearVisualSession).
+   */
+  async _clearVisualSessionIfFinal(tabId, agentId, payload) {
+    if (typeof MCPVisualSessionLifecycleUtils === 'undefined') return;
+    if (typeof MCPVisualSessionLifecycleUtils.clearVisualSession !== 'function') return;
+    const sidecar = payload && payload.visualSession;
+    if (!sidecar || typeof sidecar !== 'object') return;
+    if (sidecar.isFinal !== true) return;
+    if (!Number.isFinite(tabId) || tabId <= 0) return;
+    if (typeof agentId !== 'string' || !agentId) return;
+    try {
+      await MCPVisualSessionLifecycleUtils.clearVisualSession(tabId, { reason: 'is_final' });
+    } catch (err) {
+      // Non-blocking: lifecycle failures must not break the underlying action.
+      console.warn('[FSB MCP] clearVisualSession (is_final) failed (non-blocking):', err && err.message);
+    }
+  }
+
   async _handleExecuteAction(payload) {
     // Phase 246 D-13: resolver replaces _getActiveTab; legacy:* surfaces fall
     // through to active-tab via the resolver's first-line branch.
@@ -622,7 +703,29 @@ class MCPBridgeClient {
     };
 
     if (toolName === 'open_tab' || toolName === 'switch_tab') {
-      return dispatchWithoutResolvedTab(buildRouteParams());
+      // Phase 256 Plan 03 -- bootstrap branch lifecycle tick.
+      // open_tab / switch_tab create or claim the destination tab; the tabId
+      // is known only AFTER the dispatch returns. Fire the lifecycle tick
+      // POST-dispatch on success; ownership has been established by the
+      // dispatcher itself (open_tab mints the agent's first owned tab;
+      // switch_tab passes through checkOwnershipGate's CLAIMABLE recovery
+      // arm in mcp-tool-dispatcher.js line 258).
+      const dispatched = await dispatchWithoutResolvedTab(buildRouteParams());
+      // Conservative success check: dispatched.success === true AND a tabId
+      // on the response. open_tab returns `tabId`; switch_tab returns `tabId`.
+      // Skip the tick if the dispatch failed (no overlay for a failed action).
+      if (dispatched && dispatched.success === true) {
+        const resolvedTabId = Number.isFinite(dispatched && dispatched.tabId) ? dispatched.tabId : null;
+        if (resolvedTabId !== null) {
+          await this._recordVisualSessionTickIfPresent(resolvedTabId, agentId, payload);
+          // Phase 257 -- explicit completion. When the caller marks this
+          // bootstrap call as the final action of the task, clear the visual
+          // session immediately rather than waiting for the 60s sliding-window
+          // timer. Gated by sidecar.isFinal === true inside the helper.
+          await this._clearVisualSessionIfFinal(resolvedTabId, agentId, payload);
+        }
+      }
+      return dispatched;
     }
 
     const resolved = await (typeof globalThis !== 'undefined' && typeof globalThis.resolveAgentTabOrError === 'function'
@@ -643,6 +746,13 @@ class MCPBridgeClient {
     // surfaces (Phase 240's D-02 carve-out preserved). See Pitfall 3.
     const tabId = resolved.tabId;
     const tab = { id: tabId };
+
+    // Phase 256 Plan 03 -- implicit visual-session lifecycle tick.
+    // Runs AFTER resolveAgentTabOrError approves the tab + agent pairing
+    // (v0.9.60 ownership gate) and BEFORE the underlying executeFn fires.
+    // TIMEOUT-05 ownership-gating-wins: this line is unreachable when
+    // resolved.success === false above.
+    await this._recordVisualSessionTickIfPresent(tabId, agentId, payload);
 
     const routeParams = {
       ...params,
@@ -670,15 +780,27 @@ class MCPBridgeClient {
       });
     };
 
+    let actionResult;
     if (typeof wrapWithChangeReport === 'function' && !usesDispatcherSyntheticChangeReport) {
-      return wrapWithChangeReport({
+      actionResult = await wrapWithChangeReport({
         toolName: payload.tool,
         tabId,
         params,
         execute: executeFn
       });
+    } else {
+      actionResult = await executeFn();
     }
-    return executeFn();
+
+    // Phase 257 -- explicit completion. When the caller marks this action as
+    // the final action of the task, clear the visual session immediately
+    // rather than waiting for the 60s sliding-window timer. Fires AFTER
+    // change_report resolves (wrapWithChangeReport awaits the report before
+    // returning) so the user sees the action's effect land first, then the
+    // overlay vanishes. Gated by sidecar.isFinal === true inside the helper.
+    await this._clearVisualSessionIfFinal(tabId, agentId, payload);
+
+    return actionResult;
   }
 
   /**

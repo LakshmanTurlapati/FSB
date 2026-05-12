@@ -10,6 +10,7 @@ import {
   PARAM_TRANSFORMS,
   type ToolDefinition,
 } from './schema-bridge.js';
+import { isAllowedMcpVisualClientLabel, getAllowedMcpVisualClientLabels, normalizeMcpVisualClientLabel } from './visual-session.js';
 
 type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -26,6 +27,121 @@ const CHANGE_REPORT_DESCRIPTION_SUFFIX =
   ' RETURNS change_report: when this tool runs, the response includes a `change_report` field with a compact diff of what the action mutated (URL, dialogs_opened, nodes_added, nodes_removed, attrs_changed, inputs_changed, focus_shift). Use this to learn the consequence without calling read_page next. If the report exceeds the size cap, `change_report.truncated:true` and `change_report_hint` are set; call read_page for the full state.';
 
 /**
+ * Phase 255 Plan 03: visual-session field-bundle validator.
+ *
+ * Runs at the dispatch chokepoint for every action tool (registered by
+ * registerManualTools below). Read-only tools bypass this validator
+ * entirely because they are registered through registerReadOnlyTools
+ * (mcp/src/tools/read-only.ts), which does not import this function.
+ *
+ * Validation steps (matches .planning/phases/255-schema-enforcement-on-
+ * action-tools/255-CONTEXT.md Validator location section, steps 3-4):
+ *   1. visual_reason MUST be a non-empty string. Empty / missing -> reject
+ *      with VISUAL_FIELDS_REQUIRED.
+ *   2. client MUST be a non-empty string. Empty / missing -> reject with
+ *      VISUAL_FIELDS_REQUIRED.
+ *   3. client MUST pass isAllowedMcpVisualClientLabel(). Failed -> reject
+ *      with BADGE_NOT_ALLOWED.
+ *
+ * On success returns null (caller proceeds to execAction). On rejection
+ * returns the ToolCallResult the MCP SDK should serialize back to the
+ * caller; the underlying FSB action does NOT run.
+ *
+ * Source-of-truth for field names and error codes: .planning/v0.9.62-
+ * CONTRACT.md (Field Bundle + Typed Errors sections).
+ */
+function validateVisualSessionFields(
+  toolName: string,
+  params: Record<string, unknown>,
+): ToolCallResult | null {
+  const visualReason = params.visual_reason;
+  const client = params.client;
+
+  const visualReasonOk = typeof visualReason === 'string' && visualReason.trim().length > 0;
+  const clientOk = typeof client === 'string' && client.trim().length > 0;
+
+  if (!visualReasonOk || !clientOk) {
+    return mapFSBError({
+      success: false,
+      errorCode: 'VISUAL_FIELDS_REQUIRED',
+      tool: toolName,
+    });
+  }
+
+  if (!isAllowedMcpVisualClientLabel(client)) {
+    return mapFSBError({
+      success: false,
+      errorCode: 'BADGE_NOT_ALLOWED',
+      tool: toolName,
+      clientLabel: client,
+      allowedClients: getAllowedMcpVisualClientLabels(),
+    });
+  }
+
+  return null;
+}
+
+/**
+ * Phase 255 Plan 03: strip the visual-session field bundle from caller
+ * params before forwarding to the FSB extension. The extension protocol
+ * does not yet consume these fields (lifecycle code lands in Phase 256);
+ * leaving them in the payload would noise up the bridge wire.
+ */
+function stripVisualSessionFields(params: Record<string, unknown>): Record<string, unknown> {
+  const { visual_reason: _vr, client: _cl, is_final: _if, ...rest } = params;
+  return rest;
+}
+
+/**
+ * Phase 256 Plan 02: visual-session SIDECAR builder.
+ *
+ * After validateVisualSessionFields passes, this helper extracts the
+ * validated field bundle from the ORIGINAL caller params (before the
+ * Phase 255 strip helper runs) and returns it as a sibling sidecar
+ * object that the bridge payload carries alongside the agentId /
+ * ownershipToken / connectionId top-level fields (see
+ * mcp/src/agent-bridge.ts buildAgentPayload).
+ *
+ * Source-of-truth for the field names is .planning/v0.9.62-CONTRACT.md
+ * lines 70-86 (Field Bundle section): the schema-side keys remain
+ * snake_case (visual_reason / client / is_final), and this helper
+ * converts them to the wire-side camelCase (visualReason / client /
+ * isFinal) so the sidecar matches the existing agent-bridge.ts wire
+ * conventions (agentId, ownershipToken, connectionId).
+ *
+ * Preconditions (enforced by validateVisualSessionFields, which MUST
+ * have returned null before this helper runs):
+ *   - params.visual_reason is a non-empty trimmed string.
+ *   - params.client normalises to an allowlisted label.
+ *
+ * The client value is RE-NORMALISED here via
+ * normalizeMcpVisualClientLabel so the sidecar carries the CANONICAL
+ * casing (not whatever casing the caller sent); this is a tampering
+ * mitigation per the Phase 256 Plan 02 threat register (T-256-02-01)
+ * and protects the extension-side lifecycle code (Phase 256 Plan 03)
+ * from caller-supplied label drift.
+ */
+type VisualSessionSidecar = {
+  visualReason: string;
+  client: string;
+  isFinal: boolean;
+};
+
+function buildVisualSessionSidecar(params: Record<string, unknown>): VisualSessionSidecar {
+  const reasonRaw = params.visual_reason;
+  const clientRaw = params.client;
+  const isFinalRaw = params.is_final;
+  const visualReason = typeof reasonRaw === 'string' ? reasonRaw.trim() : '';
+  const clientNormalised = normalizeMcpVisualClientLabel(clientRaw);
+  // After the validator passes, clientNormalised MUST be a non-null
+  // string. The `?? ''` is belt-and-suspenders against a future
+  // refactor that drops the validator gate by accident.
+  const client = clientNormalised ?? '';
+  const isFinal = isFinalRaw === true;
+  return { visualReason, client, isFinal };
+}
+
+/**
  * Execute a single browser action through the FSB extension.
  * All manual tools funnel through this helper which checks connectivity,
  * enqueues via TaskQueue (mutation serialization), and maps the result.
@@ -37,6 +153,7 @@ async function execAction(
   toolName: string,
   fsbVerb: string,
   params: Record<string, unknown>,
+  visualSession: VisualSessionSidecar | null,
 ): Promise<ToolCallResult> {
   if (!bridge.isConnected) {
     console.error(`[FSB Manual] ${toolName}: bridge not connected`);
@@ -50,11 +167,23 @@ async function execAction(
 
   return queue.enqueue(toolName, async () => {
     try {
+      // Phase 256 Plan 02: when the visual-session sidecar is present, attach
+      // it as a TOP-LEVEL field on the bridge payload base object (not inside
+      // `params`). sendAgentScopedBridgeMessage merges agentId, ownershipToken,
+      // and connectionId at the same top level; `visualSession` becomes a
+      // sibling of those existing fields and is what the extension-side
+      // lifecycle code (Phase 256 Plan 03) reads after the v0.9.60 ownership
+      // gate fires. The action params shipped under `params` stay scrubbed
+      // (Phase 255 strip preserved verbatim).
+      const basePayload: Record<string, unknown> = { tool: fsbVerb, params };
+      if (visualSession) {
+        basePayload.visualSession = visualSession;
+      }
       const result = await sendAgentScopedBridgeMessage(
         bridge,
         agentScope,
         'mcp:execute-action',
-        { tool: fsbVerb, params },
+        basePayload,
         { timeout, targetTabId: targetTabIdFromParams(params) },
       );
       if (!result?.success) {
@@ -101,8 +230,25 @@ export function registerManualTools(
       description,
       zodShape,
       async (params: Record<string, unknown>) => {
-        const finalParams = transform ? transform(params) : params;
-        return execAction(bridge, queue, agentScope, tool.name, fsbVerb, finalParams);
+        // Phase 255 Plan 03: visual-session field-bundle gate runs
+        // BEFORE the param transform + execAction. Rejections do not
+        // proceed to queue.enqueue or sendAgentScopedBridgeMessage, so
+        // no DOM mutation, no change_report, no overlay change.
+        const rejection = validateVisualSessionFields(tool.name, params);
+        if (rejection) return rejection;
+
+        // Phase 256 Plan 02: capture the validated field bundle as a
+        // SIDECAR from the ORIGINAL caller params, BEFORE the Phase 255
+        // strip helper runs. The sidecar travels as a top-level field
+        // on the bridge payload (sibling of agentId / ownershipToken /
+        // connectionId in agent-bridge.ts buildAgentPayload), so the
+        // extension-side lifecycle code (Phase 256 Plan 03) can record
+        // a tick after the v0.9.60 ownership gate fires.
+        const visualSession = buildVisualSessionSidecar(params);
+
+        const cleanedParams = stripVisualSessionFields(params);
+        const finalParams = transform ? transform(cleanedParams) : cleanedParams;
+        return execAction(bridge, queue, agentScope, tool.name, fsbVerb, finalParams, visualSession);
       },
     );
   }

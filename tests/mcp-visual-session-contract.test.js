@@ -1,16 +1,74 @@
 'use strict';
 
+/*
+ * Phase 259 Plan 01 -- end-to-end contract test for the v0.9.62 IMPLICIT
+ * visual-session contract.
+ *
+ * Source-of-truth references:
+ *   - .planning/v0.9.62-CONTRACT.md       (Field Bundle, Badge Allowlist citation,
+ *                                          Typed Error names)
+ *   - .planning/phases/259-test-rewrites-ci-lock/259-01-PLAN.md
+ *                                         (the five cases this file enumerates)
+ *   - tests/visual-session-schema-lock.test.js   (Phase 255 dispatcher rejection pattern)
+ *   - tests/mcp-visual-tick-lifecycle.test.js    (Phase 256/257 lifecycle pattern)
+ *
+ * What this test locks:
+ *   1. runAllowlistAndManagerCase
+ *        - The shared v0.9.36 badge allowlist module (extension/utils/mcp-visual-session.js)
+ *          still exposes the canonical labels + normalization helpers + manager-lifecycle
+ *          token plumbing that the v0.9.62 contract continues to reuse. Read-only assertions
+ *          against MCP_VISUAL_CLIENT_LABELS, normalizeMcpVisualClientLabel,
+ *          isAllowedMcpVisualClientLabel, getAllowedMcpVisualClientLabels.
+ *
+ *   2. runPersistenceReplayCase
+ *        - The v0.9.62 lifecycle module (extension/utils/mcp-visual-session-lifecycle.js)
+ *          persists per-tab entries under key 'mcpVisualSession:<tabId>' in
+ *          chrome.storage.session and replays them on SW startup. Live entries
+ *          (deadlineAt > now) re-arm the death alarm with the ORIGINAL deadlineAt;
+ *          stale entries (deadlineAt <= now) immediate-clear (storage removed,
+ *          no alarm). Replaces the v0.9.36 'fsbMcpVisualSessions' single-key flow.
+ *
+ *   3. runImplicitDispatcherValidationCase
+ *        - The MCP server's registerManualTools dispatcher (mcp/build/tools/manual.js)
+ *          rejects action-tool calls missing visual_reason or client with
+ *          VISUAL_FIELDS_REQUIRED (no bridge / queue call). Rejects calls with
+ *          a non-allowlisted client with BADGE_NOT_ALLOWED (no bridge / queue
+ *          call). Forwards valid calls through to bridge.sendAndWait with the
+ *          visual fields stripped from the action params and present as a
+ *          sidecar visualSession field on the bridge payload.
+ *
+ *   4. runOwnershipPrecedenceCase
+ *        - The lifecycle module's recordVisualSessionTick rejects a cross-agent
+ *          tick on an already-owned tab with { ok: false, reason: 'agent_mismatch' }.
+ *          The owning agent's storage entry is left untouched: no version bump,
+ *          no agentId rotation, no visualReason / client overwrite. This is the
+ *          defense-in-depth dual of the v0.9.60 TAB_NOT_OWNED gate that fires
+ *          BEFORE the lifecycle hook in extension/ws/mcp-bridge-client.js
+ *          _handleExecuteAction; the lifecycle-layer assertion locks the second
+ *          layer that protects state if a future caller-bypass surface emerges.
+ *          (Per Phase 259 Plan 01 downscope clause -- direct unit test against
+ *          recordVisualSessionTick is the practical seam; the dispatcher path
+ *          would require a full _handleExecuteAction harness with
+ *          resolveAgentTabOrError, dispatchMcpToolRoute, wrapWithChangeReport,
+ *          and the agent-registry instance, which is out of scope here.)
+ *
+ *   5. runToolRemovedCase
+ *        - Calling either removed tool name (start_visual_session,
+ *          end_visual_session) through the MCP server's registerVisualSessionTools
+ *          dispatcher (mcp/build/tools/visual-session.js) returns the typed
+ *          TOOL_REMOVED error envelope. The response body references the
+ *          CHANGELOG anchor and the README migration recipe. No bridge call,
+ *          no queue call.
+ *
+ * Run: node tests/mcp-visual-session-contract.test.js
+ */
+
 const path = require('path');
+const fs = require('fs');
 const util = require('util');
 
 const visualSessionUtils = require('../extension/utils/mcp-visual-session.js');
 const overlayStateUtils = require('../extension/utils/overlay-state.js');
-const dispatcher = require('../extension/ws/mcp-tool-dispatcher.js');
-const {
-  MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
-  MCP_VISUAL_SESSION_DEGRADE_AFTER_MS,
-  MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS,
-} = visualSessionUtils;
 
 let passed = 0;
 let failed = 0;
@@ -33,658 +91,594 @@ function assertDeepEqual(actual, expected, msg) {
   assert(util.isDeepStrictEqual(actual, expected), `${msg} (expected: ${JSON.stringify(expected)}, got: ${JSON.stringify(actual)})`);
 }
 
-function toPlainObject(value) {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
-}
+// ------------------------------------------------------------------
+// Case 1: allowlist + manager lifecycle (KEPT from pre-v0.9.62)
+// ------------------------------------------------------------------
 
 async function runAllowlistAndManagerCase() {
-  console.log('\n--- allowlist normalization and manager lifecycle ---');
+  console.log('\n--- Case 1: allowlist normalization + manager lifecycle (v0.9.36 surface still alive) ---');
 
   const {
+    MCP_VISUAL_CLIENT_LABELS,
     McpVisualSessionManager,
     normalizeMcpVisualClientLabel,
+    isAllowedMcpVisualClientLabel,
     getAllowedMcpVisualClientLabels,
     buildMcpVisualSessionStatus,
     buildMcpVisualSessionClearStatus,
   } = visualSessionUtils;
 
-  assertEqual(normalizeMcpVisualClientLabel(' codex '), 'Codex', 'normalizes case/whitespace to Codex');
-  assertEqual(normalizeMcpVisualClientLabel('chat gpt'), 'ChatGPT', 'normalizes benign spacing to ChatGPT');
-  assertEqual(normalizeMcpVisualClientLabel('unknown-client'), null, 'rejects unknown client labels');
-  assert(getAllowedMcpVisualClientLabels().includes('Gemini'), 'allowlist includes Gemini');
-  assertEqual(MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS, 3200, 'final clear delay stays aligned with overlay freeze');
+  // The constant is a non-empty array exposing the canonical 12 labels.
+  assert(Array.isArray(MCP_VISUAL_CLIENT_LABELS), 'MCP_VISUAL_CLIENT_LABELS is an array');
+  assert(MCP_VISUAL_CLIENT_LABELS.length >= 12, 'MCP_VISUAL_CLIENT_LABELS contains at least 12 canonical labels');
+  assert(MCP_VISUAL_CLIENT_LABELS.includes('Claude'), 'allowlist contains canonical label Claude');
+  assert(MCP_VISUAL_CLIENT_LABELS.includes('Codex'), 'allowlist contains canonical label Codex');
+  assert(MCP_VISUAL_CLIENT_LABELS.includes('Gemini'), 'allowlist contains canonical label Gemini');
+  assert(MCP_VISUAL_CLIENT_LABELS.includes('ChatGPT'), 'allowlist contains canonical label ChatGPT');
 
-  const lifecycleManager = new McpVisualSessionManager();
-  const started = lifecycleManager.startSession({
-    clientLabel: 'codex',
-    tabId: 55,
-    task: 'Complete checkout',
-    detail: 'Preparing overlay',
-  });
+  // Normalization: case folding, whitespace folding, embedded-space tolerance.
+  assertEqual(normalizeMcpVisualClientLabel('claude'), 'Claude', 'normalize lowercase claude to Claude');
+  assertEqual(normalizeMcpVisualClientLabel('CLAUDE'), 'Claude', 'normalize uppercase CLAUDE to Claude');
+  assertEqual(normalizeMcpVisualClientLabel(' codex '), 'Codex', 'normalize whitespace-padded codex to Codex');
+  assertEqual(normalizeMcpVisualClientLabel('chat gpt'), 'ChatGPT', 'normalize spaced chat gpt to ChatGPT');
+  assertEqual(normalizeMcpVisualClientLabel('NotARealClient'), null, 'reject unknown client label');
+  assertEqual(normalizeMcpVisualClientLabel(''), null, 'reject empty string');
+  assertEqual(normalizeMcpVisualClientLabel(null), null, 'reject null');
+  assertEqual(normalizeMcpVisualClientLabel(undefined), null, 'reject undefined');
 
-  assert(started && started.session && typeof started.session.sessionToken === 'string', 'startSession returns a session token');
-  assertEqual(started.session.clientLabel, 'Codex', 'startSession stores the canonical client label');
-  assertEqual(lifecycleManager.getTokenForTab(55), started.session.sessionToken, 'tab owner maps to the issued token');
+  // Boolean predicate wraps the normalizer.
+  assertEqual(isAllowedMcpVisualClientLabel('Claude'), true, 'isAllowedMcpVisualClientLabel returns true for Claude');
+  assertEqual(isAllowedMcpVisualClientLabel('codex'), true, 'isAllowedMcpVisualClientLabel returns true for codex (case-insensitive)');
+  assertEqual(isAllowedMcpVisualClientLabel('NotARealClient'), false, 'isAllowedMcpVisualClientLabel returns false for unknown label');
+  assertEqual(isAllowedMcpVisualClientLabel(''), false, 'isAllowedMcpVisualClientLabel returns false for empty string');
 
-  const runningState = overlayStateUtils.buildOverlayState(
-    buildMcpVisualSessionStatus(started.session, { statusText: 'Preparing overlay' }),
-    null,
-  );
-  assertEqual(runningState.sessionToken, started.session.sessionToken, 'overlay state preserves sessionToken');
-  assertEqual(runningState.version, 1, 'overlay state preserves version');
-  assertEqual(runningState.clientLabel, 'Codex', 'overlay state preserves clientLabel');
+  // getAllowedMcpVisualClientLabels returns a defensive copy.
+  const copyA = getAllowedMcpVisualClientLabels();
+  const copyB = getAllowedMcpVisualClientLabels();
+  assert(Array.isArray(copyA), 'getAllowedMcpVisualClientLabels returns an array');
+  assert(copyA !== copyB, 'getAllowedMcpVisualClientLabels returns a fresh array each call (different reference)');
+  copyA.push('PoisonedLabel');
+  const copyC = getAllowedMcpVisualClientLabels();
+  assert(!copyC.includes('PoisonedLabel'), 'mutating the returned array does NOT poison the module internal state');
 
-  const progressed = lifecycleManager.updateSession(started.session.sessionToken, {
-    detail: 'Clicking checkout',
-  });
-  assert(progressed && progressed.version === 2, 'progress update increments version on the same session');
-  assertEqual(lifecycleManager.getTokenForTab(55), started.session.sessionToken, 'progress update does not create a duplicate same-tab session');
-
-  const progressedState = overlayStateUtils.buildOverlayState(
-    buildMcpVisualSessionStatus(progressed, {
-      phase: 'acting',
-      lifecycle: 'running',
-      statusText: 'Clicking checkout',
-    }),
-    null,
-  );
-  assertEqual(progressedState.lifecycle, 'running', 'progress update keeps lifecycle running');
-  assertEqual(progressedState.version, 2, 'progress update preserves incremented version');
-  assertEqual(progressedState.sessionToken, started.session.sessionToken, 'progress update stays on the same token');
-
-  const finalized = lifecycleManager.updateSession(started.session.sessionToken, {
-    detail: 'Task completed',
-  });
-  const finalSuccessState = overlayStateUtils.buildOverlayState(
-    buildMcpVisualSessionStatus(finalized, {
-      phase: 'complete',
-      lifecycle: 'final',
-      result: 'success',
-      taskSummary: 'Order submitted',
-      statusText: 'Task completed',
-      animatedHighlights: false,
-    }),
-    null,
-  );
-  assertEqual(finalSuccessState.lifecycle, 'final', 'final success state preserves final lifecycle');
-  assertEqual(finalSuccessState.result, 'success', 'final success state preserves success result');
-  assertEqual(finalSuccessState.progress.label, 'Done', 'final success state shows done label');
-
-  const clearedAfterFinal = lifecycleManager.endSession(started.session.sessionToken, { reason: 'complete' });
-  const clearedAfterFinalState = overlayStateUtils.buildOverlayState(
-    buildMcpVisualSessionClearStatus(clearedAfterFinal, { reason: 'complete' }),
-    null,
-  );
-  assertEqual(clearedAfterFinalState.lifecycle, 'cleared', 'final success lifecycle ends with a clear state');
-
+  // Manager startSession + getTokenForTab still works for the kept surface.
   const manager = new McpVisualSessionManager();
-  const original = manager.startSession({
+  const started = manager.startSession({
     clientLabel: 'codex',
     tabId: 55,
     task: 'Complete checkout',
     detail: 'Preparing overlay',
   });
+  assert(started && started.session && typeof started.session.sessionToken === 'string', 'manager.startSession returns a session token');
+  assertEqual(started.session.clientLabel, 'Codex', 'manager.startSession canonicalises the client label');
+  assertEqual(manager.getTokenForTab(55), started.session.sessionToken, 'manager.getTokenForTab returns the issued token');
 
-  const replacement = manager.startSession({
-    clientLabel: 'ChatGPT',
-    tabId: 55,
-    task: 'Retry checkout',
-  });
-  assert(replacement.replacedSession && replacement.replacedSession.sessionToken === original.session.sessionToken, 'starting a new same-tab session replaces the old token');
-  assertEqual(manager.getSession(original.session.sessionToken), null, 'replaced token is removed from the manager');
-  assertEqual(manager.getTokenForTab(55), replacement.session.sessionToken, 'tab owner switches to the latest token');
+  // The status / clear-status overlay helpers still produce a coherent payload.
+  const runningStatus = buildMcpVisualSessionStatus(started.session, { statusText: 'Preparing overlay' });
+  assert(runningStatus && typeof runningStatus.sessionToken === 'string', 'buildMcpVisualSessionStatus returns a status payload');
+  assertEqual(runningStatus.clientLabel, 'Codex', 'status payload preserves canonical clientLabel');
+  const runningState = overlayStateUtils.buildOverlayState(runningStatus, null);
+  assertEqual(runningState.lifecycle, 'running', 'overlay state derived from running status is lifecycle=running');
 
-  const ended = manager.endSession(replacement.session.sessionToken, { reason: 'ended' });
-  assert(ended && ended.version === 2, 'endSession increments version for the clear payload');
-  assertEqual(
-    manager.endSession(replacement.session.sessionToken, { reason: 'ended' }),
-    null,
-    'repeating endSession on an already-cleared token is a safe no-op',
-  );
-
+  const ended = manager.endSession(started.session.sessionToken, { reason: 'ended' });
+  assert(ended && ended.reason === 'ended', 'manager.endSession returns the clear payload with the supplied reason');
   const clearState = overlayStateUtils.buildOverlayState(
     buildMcpVisualSessionClearStatus(ended, { reason: 'ended' }),
     null,
   );
-  assertEqual(clearState.lifecycle, 'cleared', 'clear payload normalizes to cleared lifecycle');
-  assertEqual(clearState.sessionToken, replacement.session.sessionToken, 'clear payload keeps the matching session token');
-  assertEqual(manager.endSession(original.session.sessionToken, { reason: 'ended' }), null, 'stale token end is ignored');
+  assertEqual(clearState.lifecycle, 'cleared', 'overlay state derived from clear status is lifecycle=cleared');
+}
+
+// ------------------------------------------------------------------
+// Case 2: persistence replay against the v0.9.62 'mcpVisualSession:<tabId>'
+// namespace (Phase 256 lifecycle module). Replaces the v0.9.36
+// 'fsbMcpVisualSessions' single-key replay flow.
+// ------------------------------------------------------------------
+
+function createPersistenceStorageArea(initial) {
+  const store = Object.assign({}, initial || {});
+  return {
+    async get(keys) {
+      if (keys == null) return Object.assign({}, store);
+      if (Array.isArray(keys)) {
+        const out = {};
+        keys.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(store, key)) out[key] = store[key];
+        });
+        return out;
+      }
+      if (typeof keys === 'string') {
+        return Object.prototype.hasOwnProperty.call(store, keys) ? { [keys]: store[keys] } : {};
+      }
+      return Object.assign({}, store);
+    },
+    async set(values) {
+      Object.assign(store, values);
+    },
+    async remove(keys) {
+      const list = Array.isArray(keys) ? keys : [keys];
+      list.forEach((key) => { delete store[key]; });
+    },
+    _dump() { return Object.assign({}, store); }
+  };
+}
+
+function createPersistenceChromeMock() {
+  const session = createPersistenceStorageArea();
+  const alarms = new Map();
+  const cleared = [];
+  return {
+    storage: { session },
+    alarms: {
+      async create(name, options) {
+        alarms.set(name, Object.assign({ name }, options || {}));
+      },
+      async clear(name) {
+        cleared.push(name);
+        alarms.delete(name);
+        return true;
+      },
+      async getAll() {
+        return Array.from(alarms.values());
+      },
+      _created() { return Array.from(alarms.values()); },
+      _cleared() { return cleared.slice(); }
+    }
+  };
 }
 
 async function runPersistenceReplayCase() {
-  console.log('\n--- persisted visual session replay planning ---');
+  console.log('\n--- Case 2: SW-eviction persistence replay against mcpVisualSession:<tabId> namespace ---');
 
-  const {
-    McpVisualSessionManager,
-    serializeMcpVisualSessionRecord,
-    restoreMcpVisualSessionRecord,
-    planMcpVisualSessionReplay,
-  } = visualSessionUtils;
+  const LIFECYCLE_MODULE_PATH = require.resolve('../extension/utils/mcp-visual-session-lifecycle.js');
 
-  const now = 1_700_000_000_000;
-  const manager = new McpVisualSessionManager();
-  const started = manager.startSession({
-    clientLabel: 'Codex',
-    tabId: 77,
-    task: 'Submit order',
-    detail: 'Opening cart',
-    now: now - 10_000,
-  });
+  // Fresh chrome mock + sendSessionStatus stub on the global, then re-require
+  // the lifecycle module so its IIFE binds to this iteration's globals.
+  const chromeMock = createPersistenceChromeMock();
+  const broadcasts = [];
+  const priorChrome = global.chrome;
+  const priorUtils = global.MCPVisualSessionUtils;
+  const priorSender = global.sendSessionStatus;
 
-  const runningSession = manager.updateSession(started.session.sessionToken, {
-    detail: 'Clicking checkout',
-    lastUpdateAt: now - 10_000,
-    phase: 'acting',
-    lifecycle: 'running',
-    statusText: 'Clicking checkout',
-  });
-  const runningRecord = serializeMcpVisualSessionRecord(runningSession);
-
-  assertEqual(runningRecord.lastUpdateAt, now - 10_000, 'serialized record preserves lastUpdateAt');
-  assertEqual(runningRecord.statusText, 'Clicking checkout', 'serialized record preserves statusText');
-  assertEqual(runningRecord.phase, 'acting', 'serialized record preserves phase');
-
-  const restoredRunning = restoreMcpVisualSessionRecord(runningRecord);
-  assertDeepEqual(restoredRunning, runningRecord, 'restore helper preserves serialized running record');
-
-  const runningReplay = planMcpVisualSessionReplay(runningRecord, { now });
-  assertEqual(runningReplay.action, 'replay', 'fresh running record is replayed');
-  assertEqual(runningReplay.mode, 'running', 'fresh running record replays in running mode');
-  assertEqual(runningReplay.status.sessionToken, runningRecord.sessionToken, 'running replay keeps the same token');
-  assertEqual(runningReplay.status.clientLabel, 'Codex', 'running replay keeps the trusted client label');
-  assertEqual(runningReplay.status.statusText, 'Clicking checkout', 'running replay keeps the latest status text');
-
-  const degradedReplay = planMcpVisualSessionReplay({
-    ...runningRecord,
-    lastUpdateAt: now - (MCP_VISUAL_SESSION_DEGRADE_AFTER_MS + 1000),
-  }, { now });
-  assertEqual(degradedReplay.action, 'replay', 'stale-but-not-orphaned session still replays');
-  assertEqual(degradedReplay.mode, 'degraded', 'stale session replays in degraded mode');
-  assertEqual(degradedReplay.status.phase, 'waiting', 'degraded replay switches to waiting phase');
-  assertEqual(degradedReplay.status.progress.label, 'Waiting', 'degraded replay shows waiting progress label');
-  assertEqual(degradedReplay.status.clientLabel, 'Codex', 'degraded replay preserves trusted client badge');
-
-  const orphanReplay = planMcpVisualSessionReplay({
-    ...runningRecord,
-    lastUpdateAt: now - (MCP_VISUAL_SESSION_ORPHAN_CLEAR_AFTER_MS + 1000),
-  }, { now });
-  assertEqual(orphanReplay.action, 'clear', 'orphaned running session is cleared');
-  assertEqual(orphanReplay.reason, 'timeout', 'orphaned running session clears with timeout reason');
-
-  const finalSession = manager.updateSession(started.session.sessionToken, {
-    detail: 'Task completed',
-    lastUpdateAt: now - 1000,
-    phase: 'complete',
-    lifecycle: 'final',
-    result: 'success',
-    statusText: 'Task completed',
-    taskSummary: 'Order submitted',
-    display: {
-      title: 'Order submitted',
-      subtitle: 'Completed',
-      detail: 'Task completed',
-    },
-    animatedHighlights: false,
-    finalClearAt: now + 2200,
-    finalClearReason: 'complete',
-  });
-  const finalRecord = serializeMcpVisualSessionRecord(finalSession);
-  const finalReplay = planMcpVisualSessionReplay(finalRecord, { now });
-
-  assertEqual(finalReplay.action, 'replay', 'final record with remaining freeze time replays');
-  assertEqual(finalReplay.mode, 'final', 'final record replays in final mode');
-  assertEqual(finalReplay.status.lifecycle, 'final', 'final replay preserves final lifecycle');
-  assertEqual(finalReplay.status.result, 'success', 'final replay preserves final result');
-  assertEqual(finalReplay.clearAfterMs, 2200, 'final replay preserves remaining freeze time');
-
-  const expiredFinalReplay = planMcpVisualSessionReplay({
-    ...finalRecord,
-    finalClearAt: now - 1,
-  }, { now });
-  assertEqual(expiredFinalReplay.action, 'clear', 'expired final record clears immediately');
-  assertEqual(expiredFinalReplay.reason, 'complete', 'expired final record clears with stored final reason');
-
-  const restoreManager = new McpVisualSessionManager();
-  const restoredOriginal = restoreManager.restoreSession(runningRecord);
-  assert(restoredOriginal?.session, 'restoreSession accepts a persisted running record');
-
-  const replacementRecord = {
-    ...runningRecord,
-    sessionToken: 'replacement_token_456',
-    clientLabel: 'ChatGPT',
-    task: 'Retry order',
-    detail: 'Retrying checkout',
-    statusText: 'Retrying checkout',
-    version: runningRecord.version + 3,
-    lastUpdateAt: now,
+  global.chrome = chromeMock;
+  global.MCPVisualSessionUtils = visualSessionUtils;
+  global.sendSessionStatus = async (tabId, statusData) => {
+    broadcasts.push({ tabId, statusData });
   };
-  const restoredReplacement = restoreManager.restoreSession(replacementRecord);
-  assert(
-    restoredReplacement.replacedSession && restoredReplacement.replacedSession.sessionToken === runningRecord.sessionToken,
-    'restoreSession replaces stale persisted token when a newer same-tab record exists',
+  delete require.cache[LIFECYCLE_MODULE_PATH];
+  const lc = require(LIFECYCLE_MODULE_PATH);
+
+  try {
+    const now = Date.now();
+
+    // Confirm the storage key prefix the lifecycle module owns is the v0.9.62
+    // namespace (not the v0.9.36 single-key 'fsbMcpVisualSessions' bag).
+    assertEqual(lc.MCP_VISUAL_LIFECYCLE_STORAGE_KEY_PREFIX, 'mcpVisualSession:', 'lifecycle module persists under mcpVisualSession:<tabId> namespace (v0.9.62)');
+    assertEqual(lc.MCP_VISUAL_LIFECYCLE_ALARM_PREFIX, 'mcpVisualDeath:', 'lifecycle module names alarms under mcpVisualDeath:<tabId> namespace (v0.9.62)');
+    assertEqual(lc.MCP_VISUAL_LIFECYCLE_DEATH_MS, 60000, 'lifecycle TTL is the 60s sliding window (v0.9.62)');
+
+    // Seed two per-tab entries: one live, one stale.
+    await chromeMock.storage.session.set({
+      'mcpVisualSession:201': {
+        tabId: 201,
+        agentId: 'agent_live',
+        client: 'Claude',
+        visualReason: 'Logging in',
+        startedAt: now - 5000,
+        lastTickAt: now - 5000,
+        deadlineAt: now + 55000,
+        isFinal: false
+      },
+      'mcpVisualSession:202': {
+        tabId: 202,
+        agentId: 'agent_stale',
+        client: 'Codex',
+        visualReason: 'Stale entry',
+        startedAt: now - 120000,
+        lastTickAt: now - 120000,
+        deadlineAt: now - 60000,
+        isFinal: false
+      }
+    });
+
+    const result = await lc.restoreVisualSessionLifecyclesFromStorage();
+    assert(result && result.ok === true, 'restoreVisualSessionLifecyclesFromStorage returns ok=true');
+    assertEqual(result.restored, 1, 'one live entry restored');
+    assertEqual(result.cleared, 1, 'one stale entry immediate-cleared');
+
+    // Live entry: storage preserved, alarm re-armed at the ORIGINAL deadlineAt.
+    const liveStored = (await chromeMock.storage.session.get(['mcpVisualSession:201']))['mcpVisualSession:201'];
+    assert(liveStored, 'live entry still in storage after restore');
+    assertEqual(liveStored.deadlineAt, now + 55000, 'live entry deadlineAt preserved (NOT silently reset on SW wake -- TIMEOUT-04)');
+    const liveAlarm = chromeMock.alarms._created().find((a) => a.name === 'mcpVisualDeath:201');
+    assert(liveAlarm, 'live entry alarm re-armed under mcpVisualDeath:201');
+    assertEqual(liveAlarm.when, now + 55000, 'live entry alarm when matches original deadlineAt');
+
+    // Stale entry: storage removed, no alarm armed.
+    const staleStored = (await chromeMock.storage.session.get(['mcpVisualSession:202']))['mcpVisualSession:202'];
+    assertEqual(staleStored, undefined, 'stale entry removed from storage on restore');
+    const staleAlarm = chromeMock.alarms._created().find((a) => a.name === 'mcpVisualDeath:202');
+    assertEqual(staleAlarm, undefined, 'stale entry NOT re-armed (auto-cleared, not rearmed)');
+  } finally {
+    if (priorChrome === undefined) delete global.chrome; else global.chrome = priorChrome;
+    if (priorUtils === undefined) delete global.MCPVisualSessionUtils; else global.MCPVisualSessionUtils = priorUtils;
+    if (priorSender === undefined) delete global.sendSessionStatus; else global.sendSessionStatus = priorSender;
+  }
+}
+
+// ------------------------------------------------------------------
+// Case 3: implicit dispatcher validation -- the MCP server's
+// registerManualTools chokepoint rejects action calls missing the
+// v0.9.62 field bundle BEFORE bridge / queue invocation, and forwards
+// valid calls with the visual fields stripped + present as a sidecar.
+// ------------------------------------------------------------------
+
+function makeRecordingBridge() {
+  const calls = [];
+  return {
+    calls,
+    bridge: {
+      isConnected: true,
+      // Production signature (see mcp/build/agent-bridge.js sendAgentScopedBridgeMessage):
+      //   bridge.sendAndWait({ type, payload }, sendOptions)
+      // The envelope's `type` is the MCP message kind ('mcp:execute-action'),
+      // and `payload` is the merged base + agent scope (agentId, sidecar, ...).
+      sendAndWait: async (envelope, _sendOptions) => {
+        calls.push(envelope);
+        const payload = envelope && envelope.payload;
+        return { success: true, tool: payload && payload.tool };
+      }
+    }
+  };
+}
+
+function makeRecordingQueue() {
+  const calls = [];
+  return {
+    calls,
+    queue: {
+      enqueue: async (name, fn) => {
+        calls.push(name);
+        return await fn();
+      }
+    }
+  };
+}
+
+function makeStubAgentScope() {
+  return {
+    ensure: async () => 'agent-test',
+    ownershipTokenFor: () => null,
+    currentOwnershipToken: () => null,
+    currentConnectionId: () => null,
+    captureOwnershipToken: () => {},
+    reset: () => {}
+  };
+}
+
+function makeRecordingServer() {
+  const tools = new Map();
+  return {
+    tools,
+    server: {
+      tool: (name, _desc, _zod, handler) => {
+        tools.set(name, handler);
+      }
+    }
+  };
+}
+
+async function runImplicitDispatcherValidationCase() {
+  console.log('\n--- Case 3: implicit dispatcher validation -- VISUAL_FIELDS_REQUIRED + BADGE_NOT_ALLOWED ---');
+
+  const BUILD_PATH = path.resolve(__dirname, '..', 'mcp', 'build', 'tools', 'manual.js');
+  if (!fs.existsSync(BUILD_PATH)) {
+    console.error('  FAIL: mcp/build/tools/manual.js missing -- run `cd mcp && npm run build` before this test');
+    failed++;
+    return;
+  }
+
+  const manualModule = await import(BUILD_PATH);
+  const recordingServer = makeRecordingServer();
+  const mockBridge = makeRecordingBridge();
+  const mockQueue = makeRecordingQueue();
+  const mockAgentScope = makeStubAgentScope();
+
+  manualModule.registerManualTools(
+    recordingServer.server,
+    mockBridge.bridge,
+    mockQueue.queue,
+    mockAgentScope,
   );
-  assertEqual(restoreManager.getSession(runningRecord.sessionToken), null, 'stale restored token is removed after same-tab replacement');
-  assertEqual(restoreManager.getTokenForTab(77), 'replacement_token_456', 'same-tab restore keeps the newest token as owner');
+
+  assert(recordingServer.tools.has('click'), 'registerManualTools registers the click handler');
+  const clickHandler = recordingServer.tools.get('click');
+
+  // Sub-case A: missing visual_reason AND client -- VISUAL_FIELDS_REQUIRED.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resA = await clickHandler({ selector: '#submit' });
+  assertEqual(resA.isError, true, '3.A click without visual_reason+client returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '3.A no bridge.sendAndWait call on missing visual_reason+client');
+  assertEqual(mockQueue.calls.length, 0, '3.A no queue.enqueue call on missing visual_reason+client');
+  assert(typeof resA.content[0].text === 'string', '3.A rejection envelope has a text body');
+  assert(resA.content[0].text.toLowerCase().includes('visual'), '3.A rejection envelope mentions visual (VISUAL_FIELDS_REQUIRED routing)');
+
+  // Sub-case B: visual_reason present, client missing -- VISUAL_FIELDS_REQUIRED.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resB = await clickHandler({ selector: '#submit', visual_reason: 'Submitting form' });
+  assertEqual(resB.isError, true, '3.B click with visual_reason but no client returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '3.B no bridge call on missing client');
+  assertEqual(mockQueue.calls.length, 0, '3.B no queue call on missing client');
+  assert(resB.content[0].text.toLowerCase().includes('visual'), '3.B rejection envelope mentions visual (VISUAL_FIELDS_REQUIRED routing)');
+
+  // Sub-case C: empty-string visual_reason -- VISUAL_FIELDS_REQUIRED.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resC = await clickHandler({ selector: '#submit', visual_reason: '', client: 'Claude' });
+  assertEqual(resC.isError, true, '3.C click with empty visual_reason returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '3.C no bridge call on empty visual_reason');
+  assertEqual(mockQueue.calls.length, 0, '3.C no queue call on empty visual_reason');
+
+  // Sub-case D: non-allowlisted client -- BADGE_NOT_ALLOWED.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resD = await clickHandler({
+    selector: '#submit',
+    visual_reason: 'Submitting form',
+    client: 'NotARealClient',
+  });
+  assertEqual(resD.isError, true, '3.D click with non-allowlisted client returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '3.D no bridge call on non-allowlisted client (BADGE_NOT_ALLOWED)');
+  assertEqual(mockQueue.calls.length, 0, '3.D no queue call on non-allowlisted client');
+  assert(resD.content[0].text.includes('NotARealClient'), '3.D rejection envelope echoes offending client label (BADGE_NOT_ALLOWED routing)');
+
+  // Sub-case E: valid call -- proceeds to bridge + queue with sidecar.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resE = await clickHandler({
+    selector: '#submit',
+    visual_reason: 'Submitting form',
+    client: 'Claude',
+  });
+  assert(resE.isError !== true, '3.E valid click does NOT set isError');
+  assertEqual(mockBridge.calls.length, 1, '3.E valid click triggers exactly one bridge.sendAndWait call');
+  assertEqual(mockQueue.calls.length, 1, '3.E valid click triggers exactly one queue.enqueue call');
+  assertEqual(mockQueue.calls[0], 'click', '3.E queue.enqueue called under the tool name click');
+
+  // Sidecar contract: the bridge payload carries visualSession at top level,
+  // and the visual fields are stripped from the action params.
+  const bridgeCall = mockBridge.calls[0];
+  assertEqual(bridgeCall.type, 'mcp:execute-action', '3.E bridge.sendAndWait called with type mcp:execute-action');
+  assert(bridgeCall.payload && bridgeCall.payload.visualSession, '3.E bridge payload carries the visualSession sidecar at top level');
+  assertEqual(bridgeCall.payload.visualSession.visualReason, 'Submitting form', '3.E sidecar.visualReason matches caller input');
+  assertEqual(bridgeCall.payload.visualSession.client, 'Claude', '3.E sidecar.client is the canonical allowlist label');
+  assertEqual(bridgeCall.payload.visualSession.isFinal, false, '3.E sidecar.isFinal defaults to false when omitted');
+  assert(bridgeCall.payload.params, '3.E bridge payload has an action-params block');
+  assertEqual(bridgeCall.payload.params.visual_reason, undefined, '3.E visual_reason stripped from forwarded action params');
+  assertEqual(bridgeCall.payload.params.client, undefined, '3.E client stripped from forwarded action params');
+  assertEqual(bridgeCall.payload.params.is_final, undefined, '3.E is_final stripped from forwarded action params');
+
+  // Sub-case F: is_final: true accepted (validator passes; Phase 257 wires semantics).
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const resF = await clickHandler({
+    selector: '#submit',
+    visual_reason: 'Final action of the task',
+    client: 'Claude',
+    is_final: true,
+  });
+  assert(resF.isError !== true, '3.F click with is_final: true is accepted by the validator');
+  assertEqual(mockBridge.calls.length, 1, '3.F valid is_final call proceeds to bridge');
+  const finalBridgeCall = mockBridge.calls[0];
+  assertEqual(finalBridgeCall.payload.visualSession.isFinal, true, '3.F sidecar.isFinal forwarded as true');
 }
 
-async function runDispatcherValidationCases() {
-  console.log('\n--- dispatcher validation and routing ---');
+// ------------------------------------------------------------------
+// Case 4: ownership precedence -- cross-agent recordVisualSessionTick
+// rejection at the lifecycle layer (defense-in-depth dual of the
+// v0.9.60 dispatcher-level TAB_NOT_OWNED gate). DOWNSCOPED per plan's
+// "if the dispatcher seam requires excessive boilerplate" clause:
+// _handleExecuteAction depends on resolveAgentTabOrError,
+// dispatchMcpToolRoute, wrapWithChangeReport, and a live AgentRegistry
+// instance -- harnessing those for a unit test would multiply the
+// surface area. The lifecycle module's recordVisualSessionTick is the
+// SECOND layer of the dual-layer defense (extension/utils/mcp-visual-
+// session-lifecycle.js lines 343-349) -- the OWN unit test for the
+// FIRST layer lives in extension/ws/mcp-bridge-client.js's caller
+// (resolveAgentTabOrError test fixtures); this test locks the second
+// layer that protects state if a future caller-bypass surface emerges.
+// ------------------------------------------------------------------
 
-  const originalStartHandler = global.handleStartMcpVisualSession;
-  const originalEndHandler = global.handleEndMcpVisualSession;
-  const originalTaskStatusHandler = global.handleMcpVisualSessionTaskStatus;
-  const originalActiveSessions = global.activeSessions;
+async function runOwnershipPrecedenceCase() {
+  console.log('\n--- Case 4: ownership precedence -- cross-agent lifecycle tick rejected (defense-in-depth) ---');
 
-  let startHandlerCalled = false;
-  let endHandlerCalled = false;
-  let taskStatusHandlerCalled = false;
-  let capturedStart = null;
-  let capturedEnd = null;
-  let capturedTaskStatus = [];
-  const clearedTokens = new Set();
+  const LIFECYCLE_MODULE_PATH = require.resolve('../extension/utils/mcp-visual-session-lifecycle.js');
 
-  global.handleStartMcpVisualSession = (request, sender, sendResponse) => {
-    startHandlerCalled = true;
-    capturedStart = { request, sender };
-    sendResponse({
-      success: true,
-      sessionToken: 'visual_token_123',
-      clientLabel: request.clientLabel,
-      tabId: request.tabId,
-    });
-    return true;
+  const chromeMock = createPersistenceChromeMock();
+  const broadcasts = [];
+  const priorChrome = global.chrome;
+  const priorUtils = global.MCPVisualSessionUtils;
+  const priorSender = global.sendSessionStatus;
+
+  global.chrome = chromeMock;
+  global.MCPVisualSessionUtils = visualSessionUtils;
+  global.sendSessionStatus = async (tabId, statusData) => {
+    broadcasts.push({ tabId, statusData });
   };
-
-  global.handleEndMcpVisualSession = (request, sender, sendResponse) => {
-    endHandlerCalled = true;
-    capturedEnd = { request, sender };
-
-    if (clearedTokens.has(request.sessionToken)) {
-      sendResponse({
-        success: false,
-        errorCode: 'visual_session_not_found',
-        error: 'No active client-owned visual session found for token',
-        sessionToken: request.sessionToken,
-      });
-      return true;
-    }
-
-    clearedTokens.add(request.sessionToken);
-    sendResponse({
-      success: true,
-      sessionToken: request.sessionToken,
-      cleared: true,
-    });
-    return true;
-  };
-
-  global.handleMcpVisualSessionTaskStatus = (request, sender, sendResponse) => {
-    taskStatusHandlerCalled = true;
-    capturedTaskStatus.push({ request, sender });
-
-    if (request.sessionToken === 'stale_token') {
-      sendResponse({
-        success: false,
-        errorCode: 'visual_session_not_found',
-        error: 'No active client-owned visual session found for token',
-        sessionToken: request.sessionToken,
-      });
-      return true;
-    }
-
-    if (request.tool === 'report_progress') {
-      sendResponse({
-        success: true,
-        tool: 'report_progress',
-        hadEffect: true,
-        message: request.message,
-        sessionToken: request.sessionToken,
-        version: 2,
-      });
-      return true;
-    }
-
-    if (request.tool === 'complete_task') {
-      sendResponse({
-        success: true,
-        tool: 'complete_task',
-        status: 'completed',
-        hadEffect: true,
-        summary: request.summary,
-        sessionToken: request.sessionToken,
-        version: 3,
-        clearsAfterMs: MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
-      });
-      return true;
-    }
-
-    if (request.tool === 'partial_task') {
-      sendResponse({
-        success: true,
-        tool: 'partial_task',
-        status: 'partial',
-        hadEffect: true,
-        summary: request.summary,
-        blocker: request.blocker,
-        nextStep: request.nextStep,
-        reason: request.reason,
-        sessionToken: request.sessionToken,
-        version: 3,
-        clearsAfterMs: MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
-      });
-      return true;
-    }
-
-    if (request.tool === 'fail_task') {
-      sendResponse({
-        success: false,
-        tool: 'fail_task',
-        status: 'failed',
-        hadEffect: true,
-        error: request.reason,
-        reason: request.reason,
-        sessionToken: request.sessionToken,
-        version: 3,
-        clearsAfterMs: MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS,
-      });
-      return true;
-    }
-
-    sendResponse({ success: false, error: 'Unexpected task status tool' });
-    return true;
-  };
+  delete require.cache[LIFECYCLE_MODULE_PATH];
+  const lc = require(LIFECYCLE_MODULE_PATH);
 
   try {
-    startHandlerCalled = false;
-    const invalidLabel = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:start-visual-session',
-      payload: { client: 'NotARealClient', task: 'Drive checkout' },
-      client: { _getActiveTab: async () => ({ id: 44, url: 'https://example.com' }) },
+    // Agent A claims tab 300 with a valid visual-session bundle.
+    const firstTick = await lc.recordVisualSessionTick(300, 'agent_A', {
+      visualReason: 'Logging in',
+      client: 'Claude',
+      isFinal: false,
     });
-    assertEqual(invalidLabel.errorCode, 'invalid_client_label', 'invalid client label is rejected before background callback');
-    assertEqual(startHandlerCalled, false, 'invalid client label does not reach the background callback');
+    assert(firstTick && firstTick.ok === true, '4.1 agent A first tick on tab 300 returns ok=true');
+    assertEqual(firstTick.action, 'created', '4.2 agent A first tick creates the lifecycle entry');
 
-    startHandlerCalled = false;
-    const restricted = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:start-visual-session',
-      payload: { client: 'Codex', task: 'Drive checkout' },
-      client: { _getActiveTab: async () => ({ id: 45, url: 'chrome://settings/' }) },
-    });
-    assertEqual(restricted.errorCode, 'restricted_active_tab', 'restricted tabs are rejected');
-    assertDeepEqual(
-      restricted.validRecoveryTools,
-      ['navigate', 'open_tab', 'switch_tab', 'list_tabs'],
-      'restricted visual sessions preserve the navigation-only recovery tools',
-    );
-    assertEqual(startHandlerCalled, false, 'restricted tab rejection does not reach the background callback');
+    const beforeIntruder = (await chromeMock.storage.session.get(['mcpVisualSession:300']))['mcpVisualSession:300'];
+    assertEqual(beforeIntruder.agentId, 'agent_A', '4.3 storage entry agentId is agent_A pre-intrusion');
+    assertEqual(beforeIntruder.client, 'Claude', '4.4 storage entry client is Claude pre-intrusion');
+    assertEqual(beforeIntruder.visualReason, 'Logging in', '4.5 storage entry visualReason is the original pre-intrusion');
 
-    global.activeSessions = new Map([
-      ['run-1', { tabId: 46, status: 'running' }],
-    ]);
-    startHandlerCalled = false;
-    const busy = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:start-visual-session',
-      payload: { client: 'Codex', task: 'Drive checkout' },
-      client: { _getActiveTab: async () => ({ id: 46, url: 'https://example.com/cart' }) },
-    });
-    assertEqual(busy.errorCode, 'visual_surface_busy', 'same-tab autopilot ownership blocks a client-owned visual session');
-    assertEqual(startHandlerCalled, false, 'busy surface rejection does not reach the background callback');
+    // Reset broadcasts so we can detect whether the intruder triggered any.
+    broadcasts.length = 0;
 
-    global.activeSessions = new Map();
-    startHandlerCalled = false;
-    capturedStart = null;
-    const started = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:start-visual-session',
-      payload: { client: ' codex ', task: 'Drive checkout', detail: 'Preparing checkout' },
-      client: { _getActiveTab: async () => ({ id: 47, url: 'https://example.com/cart' }) },
+    // Agent B (different agentId) attempts an action on the SAME tab with a
+    // valid bundle. The lifecycle layer must reject before mutating state.
+    // This is the defense-in-depth assertion: the v0.9.60 TAB_NOT_OWNED gate
+    // in extension/ws/mcp-bridge-client.js _handleExecuteAction is the
+    // primary gate (rejects BEFORE reaching this code path); the lifecycle
+    // layer here is the second layer that prevents state mutation if a
+    // future caller-bypass surface emerges.
+    const intruder = await lc.recordVisualSessionTick(300, 'agent_B', {
+      visualReason: 'Hijack attempt',
+      client: 'Codex',
+      isFinal: false,
     });
-    assertEqual(started.success, true, 'start visual-session route succeeds on a normal page');
-    assert(startHandlerCalled, 'start visual-session route reaches the background callback');
-    assertEqual(capturedStart.request.clientLabel, 'Codex', 'start visual-session route canonicalizes the client label before dispatch');
-    assertEqual(capturedStart.request.tabId, 47, 'start visual-session route dispatches the active tab id');
-    assertEqual(started.sessionToken, 'visual_token_123', 'start visual-session route returns the issued session token');
 
-    endHandlerCalled = false;
-    capturedEnd = null;
-    const ended = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:end-visual-session',
-      payload: { sessionToken: 'visual_token_123', reason: 'ended' },
-      client: {},
-    });
-    assertEqual(ended.success, true, 'end visual-session route succeeds');
-    assert(endHandlerCalled, 'end visual-session route reaches the background callback');
-    assertEqual(capturedEnd.request.sessionToken, 'visual_token_123', 'end visual-session route forwards the session token');
+    assert(intruder && intruder.ok === false, '4.6 cross-agent tick on owned tab returns ok=false');
+    assertEqual(intruder.reason, 'agent_mismatch', '4.7 cross-agent tick reason is agent_mismatch (TAB_NOT_OWNED dual at lifecycle layer)');
 
-    endHandlerCalled = false;
-    const endedTwice = await dispatcher.dispatchMcpMessageRoute({
-      type: 'mcp:end-visual-session',
-      payload: { sessionToken: 'visual_token_123', reason: 'ended' },
-      client: {},
-    });
-    assertEqual(endedTwice.errorCode, 'visual_session_not_found', 'repeating end visual-session returns a safe structured stale-token error');
-    assert(endHandlerCalled, 'repeat end visual-session still routes through the background callback for idempotent cleanup handling');
+    // Storage entry MUST be untouched: agentId unchanged, visualReason
+    // unchanged, client unchanged. No bump of lastTickAt; no version rotation.
+    const afterIntruder = (await chromeMock.storage.session.get(['mcpVisualSession:300']))['mcpVisualSession:300'];
+    assertEqual(afterIntruder.agentId, 'agent_A', '4.8 storage entry agentId still agent_A post-intrusion');
+    assertEqual(afterIntruder.client, 'Claude', '4.9 storage entry client still Claude post-intrusion');
+    assertEqual(afterIntruder.visualReason, 'Logging in', '4.10 storage entry visualReason still the original post-intrusion');
+    assertEqual(afterIntruder.lastTickAt, beforeIntruder.lastTickAt, '4.11 storage entry lastTickAt NOT advanced by intruder');
+    assertEqual(afterIntruder.deadlineAt, beforeIntruder.deadlineAt, '4.12 storage entry deadlineAt NOT advanced by intruder');
 
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const narrationOnly = await dispatcher.dispatchMcpToolRoute({
-      tool: 'report_progress',
-      params: { message: 'Planning the next step' },
-    });
-    assertEqual(narrationOnly.hadEffect, false, 'report_progress without session token stays narration-only');
-    assertEqual(taskStatusHandlerCalled, false, 'narration-only progress does not reach the visual-session background callback');
+    // No broadcast for the rejected intruder tick (the lifecycle module's
+    // broadcastRunningStatus only fires on the success path).
+    assertEqual(broadcasts.length, 0, '4.13 no overlay broadcast for the rejected cross-agent tick');
 
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const progressed = await dispatcher.dispatchMcpToolRoute({
-      tool: 'report_progress',
-      params: { message: 'Clicking checkout', session_token: 'visual_token_123' },
+    // Agent A can still record a follow-up tick on its own tab (the rejection
+    // did not silently lock the entry).
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const followup = await lc.recordVisualSessionTick(300, 'agent_A', {
+      visualReason: 'Clicking submit',
+      client: 'Claude',
+      isFinal: false,
     });
-    assertEqual(progressed.success, true, 'report_progress with token succeeds');
-    assertEqual(progressed.hadEffect, true, 'report_progress with token reports an overlay effect');
-    assert(taskStatusHandlerCalled, 'token-aware progress reaches the visual-session background callback');
-    assertEqual(capturedTaskStatus[0].request.tool, 'report_progress', 'progress callback receives report_progress tool name');
-    assertEqual(capturedTaskStatus[0].request.sessionToken, 'visual_token_123', 'progress callback receives the matching token');
-
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const staleProgress = await dispatcher.dispatchMcpToolRoute({
-      tool: 'report_progress',
-      params: { message: 'Still working', session_token: 'stale_token' },
-    });
-    assertEqual(staleProgress.errorCode, 'visual_session_not_found', 'stale token progress is rejected safely');
-    assert(taskStatusHandlerCalled, 'stale token progress still reaches the visual-session callback for ownership validation');
-
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const completed = await dispatcher.dispatchMcpToolRoute({
-      tool: 'complete_task',
-      params: { summary: 'Order submitted', session_token: 'visual_token_123' },
-    });
-    assertEqual(completed.success, true, 'complete_task with token succeeds');
-    assertEqual(completed.hadEffect, true, 'complete_task with token finalizes the visual session');
-    assertEqual(completed.clearsAfterMs, MCP_VISUAL_SESSION_FINAL_CLEAR_DELAY_MS, 'complete_task preserves deterministic clear delay');
-
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const partial = await dispatcher.dispatchMcpToolRoute({
-      tool: 'partial_task',
-      params: {
-        summary: 'Saved draft',
-        blocker: 'Login required',
-        next_step: 'Sign in and send the message',
-        reason: 'auth_required',
-        session_token: 'visual_token_123',
-      },
-    });
-    assertEqual(partial.success, true, 'partial_task with token succeeds');
-    assertEqual(partial.hadEffect, true, 'partial_task with token finalizes the visual session');
-    assertEqual(partial.summary, 'Saved draft', 'partial_task keeps summary in final response');
-    assertEqual(partial.blocker, 'Login required', 'partial_task keeps blocker in final response');
-    assertEqual(partial.nextStep, 'Sign in and send the message', 'partial_task keeps nextStep in final response');
-    assertEqual(partial.reason, 'auth_required', 'partial_task keeps reason in final response');
-
-    taskStatusHandlerCalled = false;
-    capturedTaskStatus = [];
-    const failed = await dispatcher.dispatchMcpToolRoute({
-      tool: 'fail_task',
-      params: { reason: 'Checkout button never appeared', session_token: 'visual_token_123' },
-    });
-    assertEqual(failed.success, false, 'fail_task with token preserves failure semantics');
-    assertEqual(failed.hadEffect, true, 'fail_task with token still finalizes the visual session');
-    assertEqual(failed.reason, 'Checkout button never appeared', 'fail_task preserves the failure reason');
+    assert(followup && followup.ok === true, '4.14 agent A follow-up tick after intrusion still succeeds');
+    assertEqual(followup.action, 'updated', '4.15 agent A follow-up tick is an update, not a fresh create');
+    const afterFollowup = (await chromeMock.storage.session.get(['mcpVisualSession:300']))['mcpVisualSession:300'];
+    assertEqual(afterFollowup.visualReason, 'Clicking submit', '4.16 agent A follow-up tick updates the visualReason');
+    assert(afterFollowup.lastTickAt > beforeIntruder.lastTickAt, '4.17 agent A follow-up tick advances lastTickAt (sliding re-arm works)');
   } finally {
-    if (originalStartHandler === undefined) {
-      delete global.handleStartMcpVisualSession;
-    } else {
-      global.handleStartMcpVisualSession = originalStartHandler;
-    }
-
-    if (originalEndHandler === undefined) {
-      delete global.handleEndMcpVisualSession;
-    } else {
-      global.handleEndMcpVisualSession = originalEndHandler;
-    }
-
-    if (originalTaskStatusHandler === undefined) {
-      delete global.handleMcpVisualSessionTaskStatus;
-    } else {
-      global.handleMcpVisualSessionTaskStatus = originalTaskStatusHandler;
-    }
-
-    if (originalActiveSessions === undefined) {
-      delete global.activeSessions;
-    } else {
-      global.activeSessions = originalActiveSessions;
-    }
+    if (priorChrome === undefined) delete global.chrome; else global.chrome = priorChrome;
+    if (priorUtils === undefined) delete global.MCPVisualSessionUtils; else global.MCPVisualSessionUtils = priorUtils;
+    if (priorSender === undefined) delete global.sendSessionStatus; else global.sendSessionStatus = priorSender;
   }
 }
 
-async function runPhase240OwnershipAwareStartSessionCases() {
-  console.log('\n--- Phase 240 ownership-aware startSession ---');
+// ------------------------------------------------------------------
+// Case 5: TOOL_REMOVED -- both removed tool names return the typed
+// error envelope with the migration recipe pointer (CHANGELOG anchor
+// + README anchor); no bridge call, no queue call.
+// ------------------------------------------------------------------
 
-  const { McpVisualSessionManager } = visualSessionUtils;
-  const REGISTRY_MODULE_PATH = require.resolve('../extension/utils/agent-registry.js');
+async function runToolRemovedCase() {
+  console.log('\n--- Case 5: TOOL_REMOVED for start_visual_session and end_visual_session ---');
 
-  function makeStorage() {
-    const store = {};
-    return {
-      async get(keys) {
-        if (keys == null) return Object.assign({}, store);
-        if (Array.isArray(keys)) {
-          const out = {};
-          keys.forEach((k) => {
-            if (Object.prototype.hasOwnProperty.call(store, k)) out[k] = store[k];
-          });
-          return out;
-        }
-        if (typeof keys === 'string') {
-          return Object.prototype.hasOwnProperty.call(store, keys) ? { [keys]: store[keys] } : {};
-        }
-        return Object.assign({}, store);
-      },
-      async set(values) { Object.assign(store, values); },
-      async remove(keys) {
-        const list = Array.isArray(keys) ? keys : [keys];
-        list.forEach((k) => { delete store[k]; });
-      }
-    };
-  }
-  function makeTabs() {
-    const tabs = [
-      { id: 700, incognito: false, windowId: 1 },
-      { id: 800, incognito: false, windowId: 1 }
-    ];
-    return {
-      async query() { return tabs.slice(); },
-      async get(tabId) {
-        const found = tabs.find((t) => t.id === tabId);
-        if (!found) throw new Error('No tab with id: ' + tabId);
-        return found;
-      }
-    };
+  const BUILD_PATH = path.resolve(__dirname, '..', 'mcp', 'build', 'tools', 'visual-session.js');
+  if (!fs.existsSync(BUILD_PATH)) {
+    console.error('  FAIL: mcp/build/tools/visual-session.js missing -- run `cd mcp && npm run build` before this test');
+    failed++;
+    return;
   }
 
-  const priorChrome = globalThis.chrome;
-  const priorRegistry = globalThis.fsbAgentRegistryInstance;
-  globalThis.chrome = {
-    runtime: { id: 'phase-240-vs-test', lastError: null },
-    storage: { session: makeStorage() },
-    tabs: makeTabs()
-  };
-  delete require.cache[REGISTRY_MODULE_PATH];
-  const regMod = require(REGISTRY_MODULE_PATH);
-  const registry = new regMod.AgentRegistry();
-  globalThis.fsbAgentRegistryInstance = registry;
+  const visualSessionModule = await import(BUILD_PATH);
+  const recordingServer = makeRecordingServer();
+  const mockBridge = makeRecordingBridge();
+  const mockQueue = makeRecordingQueue();
+  const mockAgentScope = makeStubAgentScope();
 
-  try {
-    // ----- Same-agent resume -----
-    const a = await registry.registerAgent();
-    await registry.bindTab(a.agentId, 700);
-    const m1 = new McpVisualSessionManager();
-    const first = m1.startSession({
-      clientLabel: 'codex', tabId: 700, agentId: a.agentId, task: 'phase 240 task', now: 100
-    });
-    assert(first.session && first.session.version === 1,
-      'Phase 240: first startSession returns version 1 for owned tab');
-    const initialToken = first.session.sessionToken;
+  visualSessionModule.registerVisualSessionTools(
+    recordingServer.server,
+    mockBridge.bridge,
+    mockQueue.queue,
+    mockAgentScope,
+  );
 
-    const resumed = m1.startSession({
-      clientLabel: 'codex', tabId: 700, agentId: a.agentId, task: 'phase 240 task v2', now: 200
-    });
-    assert(resumed.resumed === true,
-      'Phase 240: same-agent re-entry returns resumed: true');
-    assertEqual(resumed.session.sessionToken, initialToken,
-      'Phase 240: same-agent resume preserves sessionToken');
-    assertEqual(resumed.session.version, 2,
-      'Phase 240: same-agent resume bumps version monotonically');
+  // Both removed tools must be registered (so the MCP tools/list surface
+  // still advertises them with the [REMOVED in v0.9.0] banner).
+  assert(recordingServer.tools.has('start_visual_session'), '5.0a start_visual_session handler registered (stub for tools/list visibility)');
+  assert(recordingServer.tools.has('end_visual_session'), '5.0b end_visual_session handler registered (stub for tools/list visibility)');
 
-    // ----- Cross-agent reject -----
-    const b = await registry.registerAgent();
-    const rejected = m1.startSession({
-      clientLabel: 'claude', tabId: 700, agentId: b.agentId, task: 'invasion', now: 300
-    });
-    assertEqual(rejected.errorCode, 'tab_owned_by_other_agent',
-      'Phase 240: cross-agent re-entry returns errorCode tab_owned_by_other_agent');
-    assertEqual(rejected.ownerAgentId, a.agentId,
-      'Phase 240: reject payload echoes the owner agentId');
+  // Sub-case A: start_visual_session returns TOOL_REMOVED with migration recipe.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const startHandler = recordingServer.tools.get('start_visual_session');
+  const startRes = await startHandler({
+    client: 'Claude',
+    task: 'Drive checkout',
+    detail: 'should be ignored',
+  });
+  assertEqual(startRes.isError, true, '5.A start_visual_session returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '5.A no bridge.sendAndWait call on removed tool');
+  assertEqual(mockQueue.calls.length, 0, '5.A no queue.enqueue call on removed tool');
+  assert(typeof startRes.content[0].text === 'string', '5.A response has a text body');
 
-    // ----- Unowned-tab displacement preserved (regression guard) -----
-    const m2 = new McpVisualSessionManager();
-    const ufirst = m2.startSession({
-      clientLabel: 'codex', tabId: 800, task: 'unowned a', now: 100
-    });
-    assert(ufirst.session && !ufirst.errorCode,
-      'Phase 240 regression: unowned tab first startSession succeeds');
-    const usecond = m2.startSession({
-      clientLabel: 'codex', tabId: 800, task: 'unowned b', now: 200
-    });
-    assert(usecond.session && usecond.replacedSession,
-      'Phase 240 regression: unowned tab second startSession displaces (legacy v0.9.36 contract)');
-    assertEqual(
-      usecond.replacedSession.sessionToken,
-      ufirst.session.sessionToken,
-      'Phase 240 regression: unowned tab replacedSession matches old token'
-    );
-  } finally {
-    if (priorChrome === undefined) delete globalThis.chrome; else globalThis.chrome = priorChrome;
-    if (priorRegistry === undefined) delete globalThis.fsbAgentRegistryInstance;
-    else globalThis.fsbAgentRegistryInstance = priorRegistry;
-  }
+  const startText = startRes.content[0].text;
+  assert(startText.includes('start_visual_session'), '5.A response body names the removed tool start_visual_session');
+  assert(startText.includes('0.9.0'), '5.A response body cites the removed_in_version 0.9.0');
+  assert(startText.includes('visual_reason'), '5.A migration recipe references visual_reason field');
+  assert(startText.includes('client'), '5.A migration recipe references client field');
+  assert(startText.includes('is_final'), '5.A migration recipe references is_final field');
+  // The TOOL_REMOVED migration recipe in mcp/src/errors.ts cites CHANGELOG.md
+  // and mcp/README.md as the migration recipe anchors.
+  assert(startText.includes('CHANGELOG'), '5.A response references CHANGELOG anchor');
+  assert(startText.includes('README'), '5.A response references README anchor');
+
+  // Sub-case B: end_visual_session returns TOOL_REMOVED with migration recipe.
+  mockBridge.calls.length = 0;
+  mockQueue.calls.length = 0;
+  const endHandler = recordingServer.tools.get('end_visual_session');
+  const endRes = await endHandler({
+    session_token: 'visual_token_irrelevant',
+    reason: 'ended',
+  });
+  assertEqual(endRes.isError, true, '5.B end_visual_session returns isError: true');
+  assertEqual(mockBridge.calls.length, 0, '5.B no bridge.sendAndWait call on removed tool');
+  assertEqual(mockQueue.calls.length, 0, '5.B no queue.enqueue call on removed tool');
+  const endText = endRes.content[0].text;
+  assert(endText.includes('end_visual_session'), '5.B response body names the removed tool end_visual_session');
+  assert(endText.includes('0.9.0'), '5.B response body cites the removed_in_version 0.9.0');
+  assert(endText.includes('visual_reason'), '5.B migration recipe references visual_reason field');
+  assert(endText.includes('client'), '5.B migration recipe references client field');
+  assert(endText.includes('is_final'), '5.B migration recipe references is_final field');
+  assert(endText.includes('CHANGELOG'), '5.B response references CHANGELOG anchor');
+  assert(endText.includes('README'), '5.B response references README anchor');
+
+  // Both responses must route through the same TOOL_REMOVED layered detail
+  // (rather than a generic "tool not found" surface). Loose match: the
+  // response carries the "Visual session contract" layer label.
+  assert(startText.includes('Visual session contract'), '5.A response detected layer is Visual session contract');
+  assert(endText.includes('Visual session contract'), '5.B response detected layer is Visual session contract');
 }
 
-async function run() {
+// ------------------------------------------------------------------
+// Driver
+// ------------------------------------------------------------------
+
+(async () => {
   await runAllowlistAndManagerCase();
   await runPersistenceReplayCase();
-  await runDispatcherValidationCases();
-  await runPhase240OwnershipAwareStartSessionCases();
+  await runImplicitDispatcherValidationCase();
+  await runOwnershipPrecedenceCase();
+  await runToolRemovedCase();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
-  process.exit(failed > 0 ? 1 : 0);
-}
-
-run().catch((error) => {
+  process.exit(failed === 0 ? 0 : 1);
+})().catch((err) => {
   failed++;
-  console.error('  FAIL: Test harness failed:', error);
+  console.error('FATAL:', err && err.stack ? err.stack : err);
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(1);
 });

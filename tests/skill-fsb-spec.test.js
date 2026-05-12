@@ -158,6 +158,8 @@ const nonToolAllowlist = new Set([
   'value', 'autopilot', 'true', 'false', 'undefined', 'null',
   'browser', 'fsb', 'extension', 'mcp', 'openclaw', 'chrome',
   'agent_id', 'session_token', 'client', 'reason',
+  // v0.9.62 implicit visual-session field-bundle keys (action-tool inputs, not tools):
+  'visual_reason', 'is_final',
   // Real MCP tools served from mcp/src/tools/*.ts (not in mcp/ai/tool-definitions.cjs):
   'run_task', 'stop_task', 'get_task_status',
   'start_visual_session', 'end_visual_session', 'progress_visual_session',
