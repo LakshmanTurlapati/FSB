@@ -1,6 +1,6 @@
 {
   "name": "fsb-full-self-browsing",
-  "version": "0.9.60",
+  "version": "0.9.62",
   "description": "FSB - Full Self-Browsing: An intelligent, open-source Chrome extension for AI-powered browser automation using natural language instructions",
   "main": "background.js",
   "homepage": "https://github.com/lakshmanturlapati/FSB",
