@@ -12,6 +12,8 @@ on:
       - 'package-lock.json'
       - 'mcp/**'
       - '.github/workflows/chrome-extension.yml'
+    tags:
+      - 'extension-v*'
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +24,8 @@ jobs:
   package:
     name: validate, test, package
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -55,3 +59,13 @@ jobs:
           name: fsb-extension-v${{ steps.extension_version.outputs.version }}
           path: dist/fsb-extension-v*.zip
           if-no-files-found: error
+
+      # On extension-v* tag pushes, also attach the zip to the matching
+      # GitHub Release. Mirrors the pattern in .github/workflows/npm-publish.yml.
+      # The if-guard keeps main-branch pushes artifact-only (no Release touch).
+      - name: Attach zip to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/extension-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/fsb-extension-v*.zip
+          fail_on_unmatched_files: true
