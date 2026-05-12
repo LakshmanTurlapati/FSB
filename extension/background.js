@@ -11515,24 +11515,28 @@ async function handleOpenNewTab(request, sender, sendResponse) {
 async function handleSwitchToTab(request, sender, sendResponse) {
   try {
     const { tabId } = request;
-    automationLogger.debug('Switching to tab', { tabId });
-    
-    // Get current active tab first
+    // Background-safe by default. Explicit active:true is the only foreground
+    // escape hatch — mirrors the MCP switch_tab gate (mcp-tool-dispatcher.js
+    // handleSwitchTabRoute) so the in-extension agent-loop cannot steal the
+    // user's active tab without an explicit opt-in.
+    const forceForeground = request && request.active === true;
+    automationLogger.debug('Switching to tab', { tabId, forceForeground });
+
     const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // Switch to the target tab
-    await chrome.tabs.update(tabId, { active: true });
-    
-    // Also bring the window to front
-    const tab = await chrome.tabs.get(tabId);
-    await chrome.windows.update(tab.windowId, { focused: true });
-    
+
+    if (forceForeground) {
+      await chrome.tabs.update(tabId, { active: true });
+      const tab = await chrome.tabs.get(tabId);
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+
     sendResponse({
       success: true,
       tabId: tabId,
-      previousTab: currentTab ? currentTab.id : null
+      previousTab: currentTab ? currentTab.id : null,
+      foregrounded: forceForeground
     });
-    
+
   } catch (error) {
     automationLogger.error('Error switching to tab', { error: error.message });
     sendResponse({

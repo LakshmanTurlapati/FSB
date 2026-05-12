@@ -4654,7 +4654,8 @@ const tools = {
   switchToTab: async (params) => {
     const tabId = params.tabId;
     if (!tabId) { return { success: false, error: 'Tab ID is required' }; }
-    try { const response = await chrome.runtime.sendMessage({ action: 'switchToTab', tabId: tabId }); if (response.success) { return { success: true, tabId: tabId, previousTab: response.previousTab }; } else { return { success: false, error: response.error || 'Failed to switch to tab' }; } } catch (error) { return { success: false, error: `Failed to communicate with background script: ${error.message}` }; }
+    const active = params.active === true;
+    try { const response = await chrome.runtime.sendMessage({ action: 'switchToTab', tabId: tabId, active: active }); if (response.success) { return { success: true, tabId: tabId, previousTab: response.previousTab, foregrounded: response.foregrounded === true }; } else { return { success: false, error: response.error || 'Failed to switch to tab' }; } } catch (error) { return { success: false, error: `Failed to communicate with background script: ${error.message}` }; }
   },
 
   closeTab: async (params) => {
