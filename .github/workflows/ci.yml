@@ -56,10 +56,19 @@ jobs:
           node-version: '20'
       - name: Install showcase deps
         run: npm --prefix showcase/angular install --no-audit --no-fund
+      - name: Verify locale registry parity (Angular vs Express)
+        run: node showcase/angular/scripts/verify-locale-sync.mjs
       - name: Build Angular showcase (prerender + SSR)
         run: npm --prefix showcase/angular run build
+      - name: Verify per-locale gzipped bundle budget (CI-05)
+        run: node showcase/angular/scripts/verify-bundle-budgets.mjs
       # Crawler smoke (smoke:crawler) hits production by default; it lives in
       # 216-HUMAN-UAT.md and runs post-deploy, not in CI.
+      # NOTE (Phase 261 / CI-03 / two-step activation):
+      # Plan 03's i18n template-lint npm script is NOT invoked here in 261.
+      # Phase 262 promotes the lint step to a CI hard-fail once all visible
+      # strings in the shell + 5 marketing pages have been marked with i18n="@@id".
+      # Adding it now would block 262's PR before string-marking is complete.
 
   all-green:
     name: all-green
