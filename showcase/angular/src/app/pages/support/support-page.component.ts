@@ -5,7 +5,7 @@ import { Title, Meta } from '@angular/platform-browser';
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
-const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
+const SITE_NAME = 'FSB - Full Self-Browsing';
 
 // Plain-text mirror of the Support FAQ for Schema.org FAQPage JSON-LD.
 // Keep in sync with support-page.component.html.
@@ -82,7 +82,7 @@ export class SupportPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/support`;
-    const t = 'FSB \u2014 Support';
+    const t = 'FSB - Support';
     const d = 'Get help with FSB: setup guides, MCP configuration, troubleshooting, GitHub issues, and direct contact for the open-source Chrome extension.';
     this.applyMeta(t, d, url);
     this.injectSupportFaqJsonLd();

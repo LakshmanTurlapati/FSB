@@ -7,7 +7,7 @@ import { APP_VERSION } from '../../core/seo/version';
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
-const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
+const SITE_NAME = 'FSB - Full Self-Browsing';
 const YOUTUBE_CHANNEL = 'https://www.youtube.com/@parzival5707';
 
 @Component({
@@ -29,7 +29,7 @@ export class HomePageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = HOST; // home canonical: 'https://full-selfbrowsing.com' (no trailing slash, per D-02)
-    const t = 'FSB \u2014 Full Self-Browsing';
+    const t = 'FSB - Full Self-Browsing';
     const d = 'Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.';
     this.applyMeta(t, d, url);
     this.injectSoftwareApplicationJsonLd();

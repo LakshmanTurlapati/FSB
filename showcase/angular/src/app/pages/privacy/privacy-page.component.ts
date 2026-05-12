@@ -5,7 +5,7 @@ import { Title, Meta } from '@angular/platform-browser';
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
-const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
+const SITE_NAME = 'FSB - Full Self-Browsing';
 
 @Component({
   selector: 'app-privacy-page',
@@ -21,7 +21,7 @@ export class PrivacyPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/privacy`;
-    const t = 'FSB \u2014 Privacy';
+    const t = 'FSB - Privacy';
     const d = 'How FSB handles your data: API keys encrypted in Chrome local storage, no telemetry, automation runs locally in your browser. BYO key, BYO browser.';
     this.applyMeta(t, d, url);
   }

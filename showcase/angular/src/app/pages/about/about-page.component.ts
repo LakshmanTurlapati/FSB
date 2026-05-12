@@ -4,7 +4,7 @@ import { Title, Meta } from '@angular/platform-browser';
 const HOST = 'https://full-selfbrowsing.com';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
-const SITE_NAME = 'FSB \u2014 Full Self-Browsing';
+const SITE_NAME = 'FSB - Full Self-Browsing';
 const YOUTUBE_CHANNEL = 'https://www.youtube.com/@parzival5707';
 
 const DEMO_VIDEOS = [
@@ -52,7 +52,7 @@ export class AboutPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/about`;
-    const t = 'FSB \u2014 About';
+    const t = 'FSB - About';
     const d = 'Watch real FSB demos: Grok 4.1 e-commerce autopilot, Codex MCP flight booking, OpenClaw monitoring, and Claude-powered browser iteration.';
     this.applyMeta(t, d, url);
     this.injectDemoVideoJsonLd();
