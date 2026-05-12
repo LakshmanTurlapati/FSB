@@ -209,16 +209,19 @@ class UniversalProvider {
    */
   formatGeminiRequest(request) {
     // Check if this is a multi-turn conversation (more than 2 messages)
-    const messages = request.messages;
+    const messages = request.messages || [];
     let contents;
 
     if (messages.length <= 2) {
-      // Legacy single-shot format: combine system + user
+      // Legacy single-shot format: combine system + user.
+      // Guard against single-message inputs (only system, or only user) so
+      // we do not dereference messages[1].content on length-1 arrays.
+      const first = messages[0]?.content || '';
+      const second = messages[1]?.content || '';
+      const text = [first, second].filter(s => s.length > 0).join("\\n\\n");
       contents = [{
         role: "user",
-        parts: [{
-          text: messages[0].content + "\\n\\n" + messages[1].content
-        }]
+        parts: [{ text: text || 'Begin.' }]
       }];
     } else {
       // Multi-turn format: convert to Gemini's expected format
@@ -242,6 +245,16 @@ class UniversalProvider {
             parts: [{ text: msg.content }]
           });
         }
+      }
+
+      // Gemini rejects empty `contents` with 400 "contents is not specified".
+      // If every message in the conversation was a system role (no user or
+      // assistant turn), fold the accumulated system text into a seeded user
+      // turn so the request remains valid. Mirrors the agent-loop guard for
+      // issue #29.
+      if (contents.length === 0) {
+        const seedText = systemPrompt ? systemPrompt.trimEnd() : 'Begin.';
+        contents.push({ role: 'user', parts: [{ text: seedText }] });
       }
     }
 
