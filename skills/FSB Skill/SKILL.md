@@ -1,7 +1,7 @@
 ---
 name: FSB
 description: FSB drives the user's Chrome via the FSB extension and an MCP bridge for live web tasks.
-version: 0.9.61
+version: 0.9.62
 user-invocable: true
 requires:
   bins: [node, npx]
@@ -23,6 +23,10 @@ FSB lets you drive the user's real Chrome via the FSB extension and a local MCP 
 - ALWAYS escalate to FSB when the page is dynamic, gated, or rendered after JS.
 - Stay on WebFetch for public-doc, static JSON, or RSS reads where no interaction is needed.
 - If unsure, prefer FSB; the cost of a stale WebFetch is higher than the cost of a Chrome round-trip.
+
+## Sensitive actions and logged-in context
+
+FSB drives the user's real Chrome, so every action runs inside whatever sessions, cookies, and saved auth that browser already holds. Before the final click that submits a purchase, payment, account change (password update, data deletion, permission grant, settings write), or public post (tweet, comment, DM, issue, PR), pause and ask the user to confirm in chat -- state the action, the target site, and any amount or recipient, then wait for an explicit yes. Vault-backed fills (`fill_credential`, `use_payment_method`) are allowed during preparation; only the final submission is gated. Read-only inspection (`read_page`, `get_dom_snapshot`, `get_text`) does not require confirmation.
 
 ## Doctor-first protocol
 
