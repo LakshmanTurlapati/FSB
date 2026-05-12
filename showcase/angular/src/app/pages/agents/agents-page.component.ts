@@ -24,6 +24,7 @@ export class AgentsPageComponent implements OnInit {
     const d = 'Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.';
     this.applyMeta(t, d, url);
     this.injectAgentsPageJsonLd();
+    this.injectInstallHowToJsonLd();
   }
 
   private applyMeta(t: string, d: string, url: string): void {
@@ -77,6 +78,48 @@ export class AgentsPageComponent implements OnInit {
     const script = this.renderer.createElement('script') as HTMLScriptElement;
     this.renderer.setAttribute(script, 'type', 'application/ld+json');
     this.renderer.setAttribute(script, 'data-ld', 'agents-page');
+    const text = this.renderer.createText(json);
+    this.renderer.appendChild(script, text);
+    this.renderer.appendChild(this.doc.head, script);
+  }
+
+  private injectInstallHowToJsonLd(): void {
+    if (this.doc.head.querySelector('script[data-ld="agents-howto"]')) {
+      return;
+    }
+    const payload = {
+      '@context': 'https://schema.org',
+      '@type': 'HowTo',
+      '@id': `${HOST}/agents#install-howto`,
+      name: 'Install FSB for OpenClaw and MCP clients',
+      description: 'Three-step install: Chrome extension, FSB MCP server config, doctor verification.',
+      totalTime: 'PT5M',
+      url: `${HOST}/agents`,
+      step: [
+        {
+          '@type': 'HowToStep',
+          position: 1,
+          name: 'Install the FSB Chrome extension',
+          text: 'Primary path: paste the Chrome Web Store URL into Chrome\u2019s address bar (chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk). Fallback: download the latest .zip from GitHub Releases and load unpacked at chrome://extensions with Developer mode on.',
+        },
+        {
+          '@type': 'HowToStep',
+          position: 2,
+          name: 'Install the FSB MCP server config',
+          text: 'Print the canonical OpenClaw stdio block with `node scripts/print-stdio.mjs` and paste it into your MCP host config. Or use the FSB CLI: `npx -y fsb-mcp-server install --list` to discover supported hosts, then `npx -y fsb-mcp-server install --claude-desktop` (or your host).',
+        },
+        {
+          '@type': 'HowToStep',
+          position: 3,
+          name: 'Verify with the doctor',
+          text: 'Run the six-layer diagnostic: `node scripts/doctor.mjs`. Expect [OK] on every layer. If any layer fails, the doctor prints a one-line next step; the full recovery table is in USAGE.md inside the skill.',
+        },
+      ],
+    };
+    const json = JSON.stringify(payload).replace(/</g, '\\u003c');
+    const script = this.renderer.createElement('script') as HTMLScriptElement;
+    this.renderer.setAttribute(script, 'type', 'application/ld+json');
+    this.renderer.setAttribute(script, 'data-ld', 'agents-howto');
     const text = this.renderer.createText(json);
     this.renderer.appendChild(script, text);
     this.renderer.appendChild(this.doc.head, script);

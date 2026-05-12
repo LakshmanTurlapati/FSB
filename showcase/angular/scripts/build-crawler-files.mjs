@@ -17,7 +17,15 @@ const PUBLIC_DIR = join(ANGULAR_ROOT, 'public');
 const SCRIPTS_DIR = __dirname;
 
 const HOST = 'https://full-selfbrowsing.com';
-const ROUTES = ['/', '/about', '/agents', '/privacy', '/support']; // PRE-03 locked, /dashboard excluded
+// PRE-03 locked, /dashboard excluded. changefreq/priority hint relative importance
+// to crawlers; lastmod is regenerated per build (see generateSitemap).
+const ROUTES = [
+  { path: '/',        changefreq: 'weekly',  priority: '1.0' },
+  { path: '/about',   changefreq: 'weekly',  priority: '0.9' },
+  { path: '/agents',  changefreq: 'weekly',  priority: '0.9' },
+  { path: '/support', changefreq: 'monthly', priority: '0.7' },
+  { path: '/privacy', changefreq: 'yearly',  priority: '0.5' },
+];
 const MAX_LLMS_FULL_BYTES = 256000;
 
 function todayIsoDate() {
@@ -35,10 +43,12 @@ function generateSitemap() {
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
   for (const route of ROUTES) {
-    const loc = route === '/' ? HOST : `${HOST}${route}`;
+    const loc = route.path === '/' ? HOST : `${HOST}${route.path}`;
     lines.push('  <url>');
     lines.push(`    <loc>${loc}</loc>`);
     lines.push(`    <lastmod>${lastmod}</lastmod>`);
+    lines.push(`    <changefreq>${route.changefreq}</changefreq>`);
+    lines.push(`    <priority>${route.priority}</priority>`);
     lines.push('  </url>');
   }
   lines.push('</urlset>');
