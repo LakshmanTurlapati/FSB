@@ -51,9 +51,12 @@ const SHOWCASE_CSP = [
   "script-src 'self' 'unsafe-inline' https://unpkg.com",
   "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com",
   "font-src 'self' data: https://cdnjs.cloudflare.com https://unpkg.com",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://i.ytimg.com",
   "media-src 'self' blob:",
   "connect-src 'self'",
+  // YouTube embeds on the /about page require frame-src; without this it falls
+  // back to default-src 'self' and the demo videos render as a blocked iframe.
+  "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
