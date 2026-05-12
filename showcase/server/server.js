@@ -29,6 +29,42 @@ const queries = new Queries(db);
 // Express app
 const app = express();
 
+// Drop the default x-powered-by: Express header (information disclosure).
+app.disable('x-powered-by');
+
+// Security headers (Lighthouse Best Practices: HSTS, COOP, XFO, CSP, etc.).
+// CSP keeps 'unsafe-inline' for scripts/styles because the showcase ships
+// inline JSON-LD scripts (per page), an inline theme-bootstrap script in
+// index.html, and Angular's component-scoped <style> emissions. Nonces are
+// not viable without per-request server rendering. CDN allowlist covers
+// Font Awesome (cdnjs) + Phosphor (unpkg) icon CSS and the dashboard's
+// lazy-loaded html5-qrcode/lz-string from unpkg.
+const SHOWCASE_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://unpkg.com",
+  "script-src-attr 'none'",
+  "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com",
+  "font-src 'self' data: https://cdnjs.cloudflare.com https://unpkg.com",
+  "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+].join('; ');
+app.use((req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), interest-cohort=()');
+  res.setHeader('Content-Security-Policy', SHOWCASE_CSP);
+  next();
+});
+
 // Middleware
 app.use(cors({
   origin: true,
