@@ -1,23 +1,26 @@
 <nav class="nav" [class.scrolled]="navScrolled">
   <div class="nav-inner">
     <a routerLink="/" class="nav-brand" (click)="closeMobileMenu()">
-      <img src="assets/icon128.png" alt="FSB Logo" width="32" height="32" decoding="async">
-      <span>FSB</span>
+      <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+      <img src="assets/icon128.png" i18n-alt="@@shell.nav.brand.logo.alt" alt="FSB Logo" width="32" height="32" decoding="async">
+      <span i18n="@@shell.nav.brand.text" [attr.translate]="'no'">FSB</span>
     </a>
     <div class="nav-links">
-      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a>
-      <a routerLink="/about" routerLinkActive="active">About</a>
-      <a routerLink="/agents" routerLinkActive="active">Agents</a>
-      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-      <a routerLink="/privacy" routerLinkActive="active">Privacy</a>
-      <a routerLink="/support" routerLinkActive="active">Support</a>
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" i18n="@@shell.nav.desktop.home">Home</a>
+      <a routerLink="/about" routerLinkActive="active" i18n="@@shell.nav.desktop.about">About</a>
+      <a routerLink="/agents" routerLinkActive="active" i18n="@@shell.nav.desktop.agents">Agents</a>
+      <a routerLink="/dashboard" routerLinkActive="active" i18n="@@shell.nav.desktop.dashboard">Dashboard</a>
+      <a routerLink="/privacy" routerLinkActive="active" i18n="@@shell.nav.desktop.privacy">Privacy</a>
+      <a routerLink="/support" routerLinkActive="active" i18n="@@shell.nav.desktop.support">Support</a>
     </div>
     <div class="nav-actions">
-      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+      <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github" i18n="@@shell.nav.desktop.github" [attr.translate]="'no'">
         <i class="fa-brands fa-github"></i> GitHub
       </a>
+      <app-language-picker [mode]="'icon'"></app-language-picker>
     </div>
-    <button class="nav-toggle" [class.active]="mobileMenuOpen" aria-label="Toggle navigation" (click)="toggleMobileMenu()">
+    <button class="nav-toggle" [class.active]="mobileMenuOpen" i18n-aria-label="@@shell.nav.toggle.aria" aria-label="Toggle navigation" (click)="toggleMobileMenu()">
       <span></span>
       <span></span>
       <span></span>
@@ -25,13 +28,15 @@
   </div>
 </nav>
 <div class="nav-mobile" [class.active]="mobileMenuOpen">
-  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" (click)="closeMobileMenu()">Home</a>
-  <a routerLink="/about" routerLinkActive="active" (click)="closeMobileMenu()">About</a>
-  <a routerLink="/agents" routerLinkActive="active" (click)="closeMobileMenu()">Agents</a>
-  <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
-  <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()">Privacy</a>
-  <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()">Support</a>
-  <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()"><i class="fa-brands fa-github"></i> GitHub</a>
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.home">Home</a>
+  <a routerLink="/about" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.about">About</a>
+  <a routerLink="/agents" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.agents">Agents</a>
+  <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.dashboard">Dashboard</a>
+  <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.privacy">Privacy</a>
+  <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.support">Support</a>
+  <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+  <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.github" [attr.translate]="'no'"><i class="fa-brands fa-github"></i> GitHub</a>
+  <app-language-picker [mode]="'text'"></app-language-picker>
 </div>
 
 <main>
@@ -42,34 +47,39 @@
   <div class="container">
     <div class="footer-inner">
       <div class="footer-brand">
-        <img src="assets/icon48.png" alt="FSB" width="28" height="28" loading="lazy" decoding="async">
-        <span>FSB</span>
+        <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+        <img src="assets/icon48.png" i18n-alt="@@shell.footer.brand.logo.alt" alt="FSB" width="28" height="28" loading="lazy" decoding="async">
+        <span i18n="@@shell.footer.brand.text" [attr.translate]="'no'">FSB</span>
       </div>
       <div class="footer-links">
         <div class="footer-column">
-          <h4>Pages</h4>
-          <a routerLink="/">Home</a>
-          <a routerLink="/about">About</a>
-          <a routerLink="/dashboard">Dashboard</a>
-          <a routerLink="/agents">Agents</a>
-          <a routerLink="/privacy">Privacy</a>
-          <a routerLink="/support">Support</a>
+          <h4 i18n="@@shell.footer.col.pages.title">Pages</h4>
+          <a routerLink="/" i18n="@@shell.footer.col.pages.home">Home</a>
+          <a routerLink="/about" i18n="@@shell.footer.col.pages.about">About</a>
+          <a routerLink="/dashboard" i18n="@@shell.footer.col.pages.dashboard">Dashboard</a>
+          <a routerLink="/agents" i18n="@@shell.footer.col.pages.agents">Agents</a>
+          <a routerLink="/privacy" i18n="@@shell.footer.col.pages.privacy">Privacy</a>
+          <a routerLink="/support" i18n="@@shell.footer.col.pages.support">Support</a>
         </div>
         <div class="footer-column">
-          <h4>Project</h4>
-          <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
-          <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">BSL 1.1 License</a>
+          <h4 i18n="@@shell.footer.col.project.title">Project</h4>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" i18n="@@shell.footer.project.github" [attr.translate]="'no'">GitHub</a>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" i18n="@@shell.footer.project.issues" [attr.translate]="'no'">Issues</a>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener" i18n="@@shell.footer.project.license">BSL 1.1 License</a>
         </div>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>Made by Lakshman Turlapati</p>
-      <p>FSB v{{ appVersion }}</p>
+      <p i18n="@@shell.footer.bottom.credit">Made by <span [attr.translate]="'no'">Lakshman Turlapati</span></p>
+      <p i18n="@@shell.footer.bottom.version"><span [attr.translate]="'no'">FSB</span> v{{ appVersion }}</p>
+      <app-language-picker [mode]="'text'"></app-language-picker>
     </div>
   </div>
 </footer>
 
-<button class="theme-toggle-btn" aria-label="Toggle theme" (click)="toggleTheme()">
+<button class="theme-toggle-btn" i18n-aria-label="@@shell.theme.toggle.aria" aria-label="Toggle theme" (click)="toggleTheme()">
   <i [class]="isDark ? 'ph ph-sun' : 'ph ph-moon'"></i>
 </button>
