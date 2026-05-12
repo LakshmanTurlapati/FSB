@@ -52,8 +52,11 @@ export class AboutPageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = `${HOST}/about`;
-    const t = 'FSB - About';
-    const d = 'Watch real FSB demos: Grok 4.1 e-commerce autopilot, Codex MCP flight booking, OpenClaw monitoring, and Claude-powered browser iteration.';
+    // Title and description carry user-facing copy (browser tab + meta description / social cards).
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand tokens
+    // (FSB, Grok 4.1, Codex MCP, OpenClaw, Claude) are listed in DO-NOT-TRANSLATE.md for translators.
+    const t = $localize`:@@about.meta.title:FSB - About`;
+    const d = $localize`:@@about.meta.description:Watch real FSB demos: Grok 4.1 e-commerce autopilot, Codex MCP flight booking, OpenClaw monitoring, and Claude-powered browser iteration.`;
     this.applyMeta(t, d, url);
     this.injectDemoVideoJsonLd();
   }
