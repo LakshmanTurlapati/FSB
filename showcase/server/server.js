@@ -39,10 +39,16 @@ app.disable('x-powered-by');
 // not viable without per-request server rendering. CDN allowlist covers
 // Font Awesome (cdnjs) + Phosphor (unpkg) icon CSS and the dashboard's
 // lazy-loaded html5-qrcode/lz-string from unpkg.
+// NOTE: script-src-attr is intentionally NOT set to 'none' here. Angular 20
+// emits the lazy-CSS pattern `<link rel="stylesheet" media="print"
+// onload="this.media='all'">` for the global styles bundle; setting
+// script-src-attr to 'none' blocks that onload handler, leaving the bundle
+// stuck at media="print" so its @import for Font Awesome / Phosphor never
+// applies to screen rendering -- icons disappear. Without an explicit
+// script-src-attr, it falls back to script-src which permits 'unsafe-inline'.
 const SHOWCASE_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://unpkg.com",
-  "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com",
   "font-src 'self' data: https://cdnjs.cloudflare.com https://unpkg.com",
   "img-src 'self' data: blob:",
