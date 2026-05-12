@@ -1,7 +1,7 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, inject } from '@angular/core';
+import { AfterViewInit, Component, DOCUMENT, ElementRef, NgZone, OnDestroy, OnInit, Renderer2, inject } from '@angular/core';
 import { Meta } from '@angular/platform-browser';
 
-/* Global CDN libraries loaded via script tags in index.html */
+/* CDN libraries loaded lazily on /dashboard only (see loadDashboardCdnScripts). */
 declare const Html5Qrcode: any;
 declare const LZString: any;
 
@@ -81,9 +81,27 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly zone = inject(NgZone);
   private readonly meta = inject(Meta);
+  private readonly renderer = inject(Renderer2);
+  private readonly doc = inject(DOCUMENT);
 
   ngOnInit(): void {
     this.meta.updateTag({ name: 'robots', content: 'noindex, nofollow' });
+    this.loadDashboardCdnScripts();
+  }
+
+  private loadDashboardCdnScripts(): void {
+    const libs: ReadonlyArray<readonly [string, string]> = [
+      ['dash-html5-qrcode', 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'],
+      ['dash-lz-string',    'https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js'],
+    ];
+    for (const [id, src] of libs) {
+      if (this.doc.head.querySelector(`script[data-cdn="${id}"]`)) continue;
+      const s = this.renderer.createElement('script') as HTMLScriptElement;
+      this.renderer.setAttribute(s, 'src', src);
+      this.renderer.setAttribute(s, 'data-cdn', id);
+      this.renderer.setAttribute(s, 'defer', '');
+      this.renderer.appendChild(this.doc.body, s);
+    }
   }
 
   // ---- Constants ----

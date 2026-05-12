@@ -1,6 +1,26 @@
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css');
 @import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css');
 
+/* PERF: font-display swap overrides. CDN icon CSS omits font-display, leaving browsers in the
+   default "block" period (300 ms invisible-icon flash). These declarations merge with the
+   upstream @font-face by font-family name and only update font-display. */
+@font-face { font-family: 'Font Awesome 6 Free';   font-display: swap; }
+@font-face { font-family: 'Font Awesome 6 Brands'; font-display: swap; }
+@font-face { font-family: 'Phosphor';              font-display: swap; }
+
+/* PERF: CLS mitigation. Reserve 1em inline slot for icon-font glyphs so late icon-stylesheet
+   load does not shift surrounding inline content. Icons already render at 1em width once their
+   font loads; this just claims the slot earlier. Steady-state visual is identical. */
+i[class^="ph "], i[class*=" ph "],
+i.fa-solid, i.fa-regular, i.fa-brands, i[class^="fa-"], i[class*=" fa-"] {
+  display: inline-block;
+  width: 1em;
+  min-width: 1em;
+  line-height: 1;
+  text-align: center;
+  font-style: normal;
+}
+
 /* Shared showcase foundation: tokens, reset, typography, and utilities only. */
 :root {
   --primary: #ff6b35;

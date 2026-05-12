@@ -6,6 +6,18 @@ FSB also works as an MCP browser layer for AI agents. Claude Code, Codex, Cursor
 
 OpenClaw users get a dedicated FSB skill at `skills/FSB Skill/` in the FSB repo. The skill is the canonical OpenClaw onboarding path: it runs the doctor flow against `fsb-mcp-server`, prints the OpenClaw stdio config block for the user to paste, and offers consent-gated install for any other detected MCP hosts.
 
+## How FSB compares
+
+Unlike cloud browser agents that run in a headless container without your cookies, FSB is local-first: it drives the user's real Chrome session, uses keys stored encrypted in Chrome local storage (BYO API key, never relayed through a vendor backend), and inherits any logged-in state, MFA, and saved extensions already on the machine.
+
+## Use cases
+
+- Inbox triage: open Gmail, label billing threads, draft replies in the user's tone, flag urgent items.
+- Support replies: in Zendesk, draft answers to open tickets about pricing, order status, and shipping using the help center as ground truth.
+- Logged-in dashboards: pull yesterday's revenue, signups, and refund count from analytics dashboards and post a one-paragraph summary.
+- Lead monitoring: score new LinkedIn connection requests against an ICP, draft outreach for the top three, skip the rest.
+- Small-business ops: categorize today's POS invoices as supplies vs. retail, extract shipping line items, and flag any vendor over last month's average.
+
 ## Docs
 
 - [About](https://full-selfbrowsing.com/about): Watch FSB drive Google, search Amazon, and book travel autonomously.

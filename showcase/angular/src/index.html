@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>FSB</title>
+  <meta name="description" content="FSB (Full Self-Browsing) is an open-source Chrome extension that automates the browser via natural language. Multi-model AI, 50+ browser actions, MCP-compatible for Claude Code, Codex, Cursor, and OpenClaw.">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Prerender-safe theme bootstrap: guard requires `typeof localStorage !== 'undefined'` (PITFALLS.md P1, D-20) -->
@@ -22,9 +23,9 @@
 </head>
 <body>
   <app-root></app-root>
-  <!-- CDN libraries for dashboard: QR code scanning and LZ-string decompression -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
+  <!-- Dashboard CDN libraries (html5-qrcode + lz-string) load lazily on /dashboard
+       via DashboardPageComponent.loadDashboardCdnScripts() — they were previously
+       global, costing ~105 KB unused JS on every non-dashboard route. -->
   <!-- Dashboard runtime state helpers (preview surface, remote control, task recovery derivation) -->
   <script src="assets/dashboard-runtime-state.js"></script>
 </body>
