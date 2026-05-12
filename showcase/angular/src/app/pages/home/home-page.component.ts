@@ -29,8 +29,10 @@ export class HomePageComponent implements OnInit {
 
   ngOnInit(): void {
     const url = HOST; // home canonical: 'https://full-selfbrowsing.com' (no trailing slash, per D-02)
-    const t = 'FSB - Full Self-Browsing';
-    const d = 'Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.';
+    // Brand-only title; preserved verbatim via $localize so per-locale builds emit identical text
+    // (translators see the @@id but the source contains only brand tokens listed in DO-NOT-TRANSLATE.md).
+    const t = $localize`:@@home.meta.title:FSB - Full Self-Browsing`;
+    const d = $localize`:@@home.meta.description:Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.`;
     this.applyMeta(t, d, url);
     this.injectSoftwareApplicationJsonLd();
     if (typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string') {
