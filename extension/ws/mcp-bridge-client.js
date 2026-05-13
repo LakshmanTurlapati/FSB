@@ -733,7 +733,20 @@ class MCPBridgeClient {
       : { success: false, code: 'AGENT_REGISTRY_UNAVAILABLE', agentId });
     if (resolved.success === false) {
       if (toolName === 'navigate' && resolved.code === 'NO_OWNED_TAB') {
-        return dispatchWithoutResolvedTab(buildRouteParams());
+        // Codex PR #33 P2 -- navigate bootstrap parity with open_tab/switch_tab.
+        // The NO_OWNED_TAB branch creates the agent's first owned tab via
+        // navigate's dispatcher path; mirror the post-dispatch visual-session
+        // lifecycle from lines 705-728 so the implicit visual session is
+        // started/refreshed on success and final-cleared when sidecar.isFinal.
+        const dispatched = await dispatchWithoutResolvedTab(buildRouteParams());
+        if (dispatched && dispatched.success === true) {
+          const resolvedTabId = Number.isFinite(dispatched && dispatched.tabId) ? dispatched.tabId : null;
+          if (resolvedTabId !== null) {
+            await this._recordVisualSessionTickIfPresent(resolvedTabId, agentId, payload);
+            await this._clearVisualSessionIfFinal(resolvedTabId, agentId, payload);
+          }
+        }
+        return dispatched;
       }
       // Surface plain-object error envelope; bridge serializes to MCP shape.
       return resolved;
