@@ -132,8 +132,15 @@ check(getReadOnlyTools().length === 15,
 // -------------------------------------------------------------------
 
 const BUILD_PATH = path.resolve(__dirname, '..', 'mcp', 'build', 'tools', 'manual.js');
+const SRC_PATH = path.resolve(__dirname, '..', 'mcp', 'src', 'tools', 'manual.ts');
 if (!fs.existsSync(BUILD_PATH)) {
-  console.error('  FAIL: mcp/build/tools/manual.js missing -- run `cd mcp && npm run build` before this test (root npm test chain does this automatically).');
+  console.error('  FAIL: mcp/build/tools/manual.js missing -- run `npm --prefix mcp run build` before this test (root npm test chain does this automatically).');
+  process.exit(1);
+}
+// Staleness guard: a build older than the source has caused phantom contract
+// failures. Fail loud with remediation rather than importing stale code.
+if (fs.existsSync(SRC_PATH) && fs.statSync(SRC_PATH).mtimeMs > fs.statSync(BUILD_PATH).mtimeMs) {
+  console.error('  FAIL: mcp/build/tools/manual.js is older than mcp/src/tools/manual.ts -- run `npm --prefix mcp run build` to refresh');
   process.exit(1);
 }
 
