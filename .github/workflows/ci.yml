@@ -67,6 +67,8 @@ jobs:
           diff -u showcase/angular/src/locale/messages.xlf /tmp/extract-check/messages.xlf
       - name: Build Angular showcase (prerender + SSR)
         run: npm --prefix showcase/angular run build
+      - name: Verify hreflang + canonical + html lang on prerendered HTML (SEO-01)
+        run: npm --prefix showcase/angular run verify:hreflang
       - name: Verify per-locale gzipped bundle budget (CI-05)
         run: node showcase/angular/scripts/verify-bundle-budgets.mjs
       # Crawler smoke (smoke:crawler) hits production by default; it lives in
