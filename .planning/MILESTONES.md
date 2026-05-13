@@ -1,5 +1,32 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.63 Showcase i18n (Shipped: 2026-05-13)
+
+**Phases completed:** 7 phases (261, 262, 264, 265, 266, 267, 268), 15 plans, 14/14 requirements satisfied.
+
+**Archive:** `.planning/milestones/v0.9.63-ROADMAP.md` and `.planning/milestones/v0.9.63-REQUIREMENTS.md`
+
+**Audit status:** `passed` -- `.planning/milestones/v0.9.63-MILESTONE-AUDIT.md` (post-Phase-268 re-audit: WARNING-01 and WARNING-03 resolved; WARNING-02 deferred).
+
+**Key accomplishments:**
+
+- Translated the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN / zh-TW. English remains source-of-truth; 420 trans-units across 7 namespaces in `messages.xlf`, AI-filled target XLIFFs for all 5 non-en locales, `i18nMissingTranslation: error` enforced at build.
+- Established the i18n scaffold: `LocaleService` + locale-constants registry mirrored across Angular ESM and Express CJS with `verify-locale-sync.mjs` CI parity invariant; standalone `LanguagePickerComponent` mounted in header + mobile nav + footer; CJK `:lang()` system-font stacks.
+- Promoted `lint:i18n` and `extract-i18n-clean` to hard-fail CI gates (website job); marketing site CI chain runs install -> verify-locale-sync -> lint:i18n -> extract-i18n-clean -> ng build -> verify:hreflang -> verify-bundle-budgets, all green.
+- Per-locale prerendered HTML emits 30 `index.html` files (6 marketing routes x 5 locale subpaths + en root) with correct `<link rel="alternate" hreflang>` + canonical fan-out and `<html lang>` reflecting the served locale; `verify:hreflang` post-build assertion gates the count.
+- Server-side Accept-Language auto-detection middleware (Phase 267) on `/` parses BCP-47 q-values, 302-redirects first-visit users to the best supported locale subpath, respects existing `fsb-locale` cookie, and is bot-safe (no header -> no redirect).
+- Post-audit Phase 268 closed two non-blocking warnings: server.js now derives the supported-locale list from the CJS registry (no more hardcoded literal, inherits CI parity guard) and six per-phase `VERIFICATION.md` artifacts were backfilled for 261/262/264/265/266/267.
+
+**Accepted closeout caveats:**
+
+- **WARNING-02 (deferred):** picker-set `fsb-locale` cookie short-circuits the bare-`/` Accept-Language redirect on returning fresh-tab / shared-link visits (currently surfaces EN prerender at root). Locked per 267-CONTEXT D-02 / T-267-03; UX revisit candidate for v0.9.64+.
+- **Dashboard surface deferred to v0.9.65:** `--ignore-pattern src/app/pages/dashboard/**` in `package.json:lint:i18n` carries forward; not translated.
+- **Branch merge user-gated:** `feat/showcase-i18n` not yet merged to `main`; final merge and `v0.9.63` tag push remain user-gated.
+- **Carry-forward from prior milestones:** `npm publish fsb-mcp-server@0.9.0` (v0.9.62), `git push origin refinements` + `v0.9.62` tag, `clawhub publish "skills/FSB Skill"` (v0.9.61), 4 live-OpenClaw runtime UAT items (v0.9.61).
+- **Known deferred artifacts at close: 11** (10 debug sessions + 1 quick task) -- see STATE.md `## Deferred Items`. All predate v0.9.63.
+
+---
+
 ## v0.9.62 v0.9.62 (Shipped: 2026-05-11)
 
 **Phases completed:** 7 phases, 15 plans, 15 tasks

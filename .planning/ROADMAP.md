@@ -1,152 +1,30 @@
-# Roadmap -- v0.9.63 Showcase i18n
+# Roadmap
 
-**Milestone:** v0.9.63 Showcase i18n
-**Branch:** `feat/showcase-i18n`
-**Granularity:** fine
-**Phases:** 5 (numbered 261, 262, 264, 265, 266; 263 skipped -- dashboard deferred to v0.9.65)
-**Coverage:** 13/13 v0.9.63 requirements mapped (see REQUIREMENTS.md)
-**Created:** 2026-05-12 (retroactively registered after Phases 261+262 shipped)
+**Status:** v0.9.63 Showcase i18n shipped 2026-05-13. No active milestone. Run `/gsd-new-milestone` to start the next cycle.
 
 ---
 
-## Goal
+## Latest milestone archive
 
-Translate the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN / zh-TW. English stays source-of-truth; copy-drift is locked by CI gates; every marketing route renders per-locale with correct hreflang + canonical fan-out; target XLIFFs are filled by an AI translator and verified end-to-end before merge. Dashboard surface is explicitly out of scope (deferred to v0.9.65).
-
-## Hard Constraints (apply to every phase)
-
-- Source XLIFF `showcase/angular/src/locale/messages.xlf` is regenerated only by `ng extract-i18n`. Never hand-edited.
-- Sibling target XLIFFs (`messages.{es,de,ja,zh-CN,zh-TW}.xlf`) are owned by Phase 265; earlier phases must not touch them.
-- Dashboard surface (`src/app/pages/dashboard/**`) is out of scope. The `--ignore-pattern` in `package.json:lint:i18n` stays put; deferred to v0.9.65.
-- `lint:i18n` and `extract-i18n-clean` CI gates must stay green on every commit (no temporary skips).
-- ASCII-only diagnostics and migration messages; no emojis in code, tests, docs, or logs.
-- Branch `feat/showcase-i18n` is the milestone branch; merge to `main` user-gated at milestone close.
-
----
-
-## Phases
-
-- [x] **Phase 261: i18n Scaffold** -- LocaleService, language picker mount, DO-NOT-TRANSLATE policy, ESLint i18n rule + `ng extract-i18n` builder. (completed 2026-05-12)
-- [x] **Phase 262: Marketing Strings** -- Mark every visible marketing string + TS-side SEO Title/Meta with `$localize` / `i18n`; regenerate `messages.xlf` (420 trans-units across 7 namespaces); promote `lint:i18n` + `extract-i18n-clean` to hard-fail CI gates. (completed 2026-05-12)
-- [x] **Phase 264: Per-Locale Bootstrap** -- Emit a per-locale `index.html` for every supported locale at prerender time with correct `<link rel="alternate" hreflang>` fan-out and canonical URL pointing at the locale-specific path; keep the `en` root canonical the way SEO crawlers expect it.
-- [x] **Phase 265: Translator Fill** -- Run an AI translator over `messages.xlf` to populate target XLIFFs (es/de/ja/zh-CN/zh-TW), preserve `[attr.translate]="'no'"` markers and brand/CLI tokens verbatim, then flip `i18nMissingTranslation: warning -> error` in `angular.json` so the build fails on any unfilled trans-unit.
-- [x] **Phase 266: Verification Baseline** -- End-to-end verification: `lint:i18n` exits 0, `extract-i18n-clean` exits 0, `ng build` emits 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + `en` root), every target XLIFF has zero untranslated trans-units, hreflang + canonical fan-out is correct on every emitted HTML. **Done 2026-05-13.**
-- [x] **Phase 267: Accept-Language Auto-Detection** -- Express middleware on `/` parses Accept-Language, picks best supported locale (BCP-47 q-value parsing), 302-redirects first-visit users to matching locale subpath. Cookie-respecting (existing `fsb-locale` cookie wins). Bot-safe (no Accept-Language header -> no redirect; preserves Googlebot crawl path).
-
----
-
-## Phase Details
-
-### Phase 264: Per-Locale Bootstrap
-
-**Goal:** A per-locale `index.html` rendered at prerender time for every supported locale, with correct `<link rel="alternate" hreflang="...">` fan-out across all 6 locales (including `x-default`), `<link rel="canonical">` set to the locale-specific URL, and `<html lang="...">` reflecting the served locale. The `en` root canonical stays at the bare path; non-`en` locales canonical at `/{locale}/...`.
-
-**Depends on:** Phase 262 (marked strings + 420-trans-unit `messages.xlf` extracted).
-
-**Requirements:** SEO-01.
-
-**Success Criteria (what must be TRUE):**
-  1. Every prerendered `index.html` carries `<link rel="alternate" hreflang="en" href="https://full-selfbrowsing.com{route}">` plus one alternate per `es`/`de`/`ja`/`zh-CN`/`zh-TW`, plus `<link rel="alternate" hreflang="x-default" href="https://full-selfbrowsing.com{route}">` (pointing at the `en` URL).
-  2. Every prerendered `index.html` carries exactly one `<link rel="canonical">` pointing at its own locale-specific absolute URL; `en` root canonical stays at the bare path.
-  3. `<html lang="...">` matches the served locale on every prerendered HTML.
-  4. Sibling target XLIFFs untouched by this phase (verified by `git diff --stat` on `messages.{es,de,ja,zh-CN,zh-TW}.xlf` returning empty).
-  5. `lint:i18n` and `extract-i18n-clean` CI gates continue to exit 0 after this phase.
-
-**Plans:** TBD during `/gsd-plan-phase`.
-
----
-
-### Phase 265: Translator Fill
-
-**Goal:** Every target XLIFF (`messages.es.xlf`, `messages.de.xlf`, `messages.ja.xlf`, `messages.zh-CN.xlf`, `messages.zh-TW.xlf`) is filled by an AI translator from the source `messages.xlf` such that every `<trans-unit>` has a populated `<target>` element matching its `<source>` semantically while preserving brand/CLI/machine tokens verbatim. After fill, `i18nMissingTranslation` flips from `warning` to `error` in `angular.json` so unfilled trans-units fail the build.
-
-**Depends on:** Phase 264 (per-locale bootstrap landed; build emits per-locale HTMLs).
-
-**Requirements:** TRANS-01, CI-04.
-
-**Success Criteria (what must be TRUE):**
-  1. All 5 target XLIFFs have a populated `<target>` for every `<trans-unit>` present in `messages.xlf`; zero trans-units with empty or missing `<target>`.
-  2. Brand identifiers and CLI commands marked with `[attr.translate]="'no'"` or wrapped in `<code [attr.translate]="'no'">` in the source templates appear verbatim (byte-for-byte) in every target XLIFF's `<target>`.
-  3. `i18nMissingTranslation: error` set in `angular.json`; `ng build` exits 0 with that setting (proves no missing translations remain).
-  4. `messages.xlf` source XLIFF unchanged by this phase (`git diff messages.xlf` empty).
-  5. At least one locale (user-selected during discuss) has been spot-reviewed for translation quality before merge.
-
-**Plans:** TBD during `/gsd-plan-phase`. *(User checkpoint: stop after PLAN.md write for review before execution.)*
-
----
-
-### Phase 266: Verification Baseline
-
-**Goal:** End-to-end verification that the milestone delivers what it promised. Lint passes, source XLIFF is byte-equal to a fresh extract, build emits 30 prerendered HTMLs, every target XLIFF is fully populated, hreflang + canonical fan-out is correct on every emitted HTML. Failures here block milestone merge.
-
-**Depends on:** Phase 265 (target XLIFFs filled; `i18nMissingTranslation: error` flipped).
-
-**Requirements:** BUILD-01, VERIFY-01.
-
-**Success Criteria (what must be TRUE):**
-  1. `npm run lint:i18n` exits 0 with zero errors across `showcase/angular/src/` (minus dashboard ignore-pattern).
-  2. `npm run extract-i18n-clean` exits 0 (committed `messages.xlf` byte-equal to fresh `ng extract-i18n`).
-  3. `ng build` emits exactly 30 prerendered `index.html` files: `en` root + 5 locale subpaths x 6 marketing routes (`/`, `/about`, `/agents`, `/privacy`, `/support`, `/`).
-  4. Every prerendered HTML has correct hreflang + canonical per Phase 264 success criteria (regression test).
-  5. Every target XLIFF has zero `state="new"` or empty `<target>` trans-units (regression test).
-  6. CI website job runs all 6 steps green: install -> verify-locale-sync -> lint:i18n -> extract-i18n-clean -> build -> verify-bundle-budgets.
-
-**Plans:** TBD during `/gsd-plan-phase`.
-
----
-
-### Phase 267: Accept-Language Auto-Detection
-
-**Goal:** First-visit users landing on bare `/` are 302-redirected to the locale subpath best matching their browser's `Accept-Language` header. Users who have an `fsb-locale` cookie (i.e. have used the picker) keep their explicit choice. Bots (typically no Accept-Language) get EN.
-
-**Depends on:** Phase 266 complete (full verification baseline green; per-locale subpaths exist).
-
-**Requirements:** ROUTE-03.
-
-**Success Criteria (what must be TRUE):**
-  1. GET `/` with `Accept-Language: ja,en;q=0.8` -> 302 `/ja/` (no `fsb-locale` cookie).
-  2. GET `/` with `Accept-Language: zh-Hant-TW,en;q=0.8` -> 302 `/zh-TW/` (BCP-47 alias resolution).
-  3. GET `/` with `Accept-Language: en-US,en;q=0.9` -> 200 (EN root, no redirect needed).
-  4. GET `/` with NO `Accept-Language` header -> 200 (EN; bot-safe default).
-  5. GET `/` with `Accept-Language: ja` AND `Cookie: fsb-locale=de` -> 200 (cookie wins).
-  6. GET `/` with unsupported `Accept-Language: ko,en;q=0.5` -> falls through to EN fallback rule.
-  7. GET `/about`, `/agents`, `/es/about`, `/zh-TW/`, etc. -> never redirected (only bare `/` is gated).
-  8. Non-GET (HEAD, POST) -> never redirected.
-
-**Plans:** TBD during `/gsd-plan-phase`.
-
----
-
-## Completed Phase Details (archived from execution)
-
-### Phase 261: i18n Scaffold (DONE -- 4 plans, 2026-05-12)
-
-Established the i18n infrastructure: `LocaleService` + locale-constants module (6 locales), language picker mounted in layout shell, `DO-NOT-TRANSLATE.md` policy doc, `@angular-eslint/template/i18n` ESLint rule, `ng extract-i18n` builder in `angular.json`, `verify-locale-sync.mjs` script. Requirements satisfied: ROUTE-02, CI-05, CI-03.
-
-### Phase 262: Marketing Strings (DONE -- 5 plans, 2026-05-12)
-
-Marked every visible marketing string across shell, picker, home, about, agents, privacy, support pages plus TS-side SEO Title + Meta markers via `$localize`. Regenerated `messages.xlf` with 420 trans-units across 7 namespaces, byte-equal to fresh extract. Promoted `lint:i18n` + `extract-i18n-clean` to hard-fail CI gates in the website job; extended ESLint `ignoreAttributes` for 23 machine tokens. Requirements satisfied: COPY-01, COPY-02, COPY-03, CI-01, CI-02. See `262-05-SUMMARY.md` for the full closeout.
-
-### Phase 268: Address v0.9.63 tech debt: locale-list dedup in server.js + emit VERIFICATION.md artifacts retroactively
-
-**Goal:** Close the two tech-debt items surfaced by .planning/v0.9.63-MILESTONE-AUDIT.md: (WARNING-01) replace the hardcoded supported-locale literal in showcase/server/server.js with a derivation from the canonical CJS locale registry; (WARNING-03) backfill the six per-phase VERIFICATION.md artifacts the milestone template expects, and flip the three remaining open ROADMAP checkboxes (264, 265, 267). No new requirement IDs introduced; closes audit warnings against ROUTE-03 (267) and cross-cutting process across 261-267.
-**Requirements**: none new (closes audit warnings against ROUTE-03 and the cross-cutting process gap across phases 261-267)
-**Depends on:** Phase 267
-**Plans:** 2 plans
-
-Plans:
-- [ ] 268-01-PLAN.md -- server.js locale-list dedup against the canonical CJS registry (closes WARNING-01)
-- [ ] 268-02-PLAN.md -- retroactive VERIFICATION.md backfill for phases 261/262/264/265/266/267 + ROADMAP checkbox sync (closes WARNING-03; preserves WARNING-02 audit trail)
-
----
-
-## Latest milestone archive (previous milestone)
-
-[v0.9.62 -- Implicit Visual Session Contract](milestones/v0.9.62-ROADMAP.md) -- 7 phases (254-260), 15 plans, 27/27 v1 requirements satisfied, audit `passed`. Branch: `refinements`. Final `npm publish fsb-mcp-server@0.9.0` remains user-gated.
+[v0.9.63 -- Showcase i18n](milestones/v0.9.63-ROADMAP.md) -- 7 phases (261, 262, 264, 265, 266, 267, 268), 15 plans, 14/14 requirements satisfied, audit `passed`. Branch: `feat/showcase-i18n`. Marketing site (`showcase/angular`) now ships in en/es/de/ja/zh-CN/zh-TW with hreflang + canonical fan-out, AI-filled XLIFFs, hard-fail CI gates, and Accept-Language auto-detection. WARNING-02 (picker-cookie short-circuits bare-`/` redirect on fresh tabs) carried forward as deferred.
 
 ## Previous archives
 
-- [v0.9.61 -- FSB Skill (OpenClaw)](milestones/v0.9.61-ROADMAP.md) -- 6 phases, 29/29 requirements, shipped 2026-05-08
-- [v0.9.60 -- Multi-Agent Tab Concurrency (MCP 0.8.0)](milestones/v0.9.60-ROADMAP.md) -- 11 phases, 42/42 requirements, shipped 2026-05-08
+- [v0.9.62 -- Implicit Visual Session Contract](milestones/v0.9.62-ROADMAP.md) -- 7 phases (254-260), 15 plans, 27/27 v1 requirements satisfied, audit `passed`. Branch: `refinements`. Final `npm publish fsb-mcp-server@0.9.0` remains user-gated.
+- [v0.9.61 -- FSB Skill (OpenClaw)](milestones/v0.9.61-ROADMAP.md) -- 6 phases, 29/29 requirements, shipped 2026-05-08.
+- [v0.9.60 -- Multi-Agent Tab Concurrency (MCP 0.8.0)](milestones/v0.9.60-ROADMAP.md) -- 11 phases, 42/42 requirements, shipped 2026-05-08.
 
 See `.planning/MILESTONES.md` for the full milestone history.
+
+---
+
+## Backlog (carry-forward candidates for future milestones)
+
+- **v0.9.64 (UX):** revisit WARNING-02 -- picker-set `fsb-locale` cookie short-circuits the bare-`/` Accept-Language redirect on returning fresh-tab / shared-link visits; currently surfaces EN prerender at root. Locked per 267-CONTEXT D-02; flag for UX revisit.
+- **v0.9.65 (dashboard i18n):** translate `showcase/angular/src/app/pages/dashboard/**`; remove the `--ignore-pattern` in `package.json:lint:i18n`.
+- **Future CI hardening:** static-analysis pass flagging ad-hoc locale-list literals anywhere in `showcase/` outside `locale-constants.{ts,js}` to generalize the registry-parity invariant.
+- **Carry-forward from prior milestones:**
+  - `git push origin refinements && git push origin v0.9.62` -- branch + tag not pushed.
+  - `npm publish fsb-mcp-server@0.9.0` -- in-tree at 0.9.0; final publish user-gated.
+  - `clawhub publish "skills/FSB Skill"` -- carry-forward from v0.9.61.
+  - 4 live-OpenClaw runtime UAT items carried from v0.9.61.
