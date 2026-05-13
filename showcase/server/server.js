@@ -141,6 +141,16 @@ app.get(Object.keys(htmlRedirects), (req, res) => {
   res.redirect(301, htmlRedirects[req.path]);
 });
 
+// Phase 267 / ROUTE-03: Accept-Language auto-detection on bare `/`.
+// Cookie-respecting (fsb-locale wins), bot-safe (no header => no redirect),
+// 302 (caches must not pin the decision). Must run BEFORE express.static so
+// a redirect short-circuits the prerendered index.html send for `/`.
+app.use(createAcceptLanguageMiddleware({
+  supported: LOCALES.filter(l => l !== SOURCE_LOCALE),
+  defaultLocale: 'en',
+  cookieName: 'fsb-locale',
+}));
+
 if (staticPath) {
   app.use(express.static(staticPath, {
     maxAge: 0,
@@ -164,16 +174,6 @@ if (staticPath) {
     }
   }));
 }
-
-// Phase 267 / ROUTE-03: Accept-Language auto-detection on bare `/`.
-// Cookie-respecting (fsb-locale wins), bot-safe (no header => no redirect),
-// 302 (caches must not pin the decision). Runs BEFORE marketing-routes block so
-// a redirect short-circuits the static-file send.
-app.use(createAcceptLanguageMiddleware({
-  supported: LOCALES.filter(l => l !== SOURCE_LOCALE),
-  defaultLocale: 'en',
-  cookieName: 'fsb-locale',
-}));
 
 // Phase 216 SRV-01 / SRV-02 / D-09 / D-10:
 // Prefer per-route prerendered HTML for marketing routes; whitelist /dashboard
