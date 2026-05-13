@@ -17,6 +17,7 @@ const createAgentsRouter = require('./src/routes/agents');
 const createPairRouter = require('./src/routes/pair');
 const { setupWSHandler } = require('./src/ws/handler');
 const { createAcceptLanguageMiddleware } = require('./src/middleware/accept-language');
+const { LOCALES, SOURCE_LOCALE } = require('./src/utils/locale-constants');
 
 // Configuration
 const PORT = parseInt(process.env.PORT) || 3847;
@@ -169,7 +170,7 @@ if (staticPath) {
 // 302 (caches must not pin the decision). Runs BEFORE marketing-routes block so
 // a redirect short-circuits the static-file send.
 app.use(createAcceptLanguageMiddleware({
-  supported: ['es', 'de', 'ja', 'zh-CN', 'zh-TW'],
+  supported: LOCALES.filter(l => l !== SOURCE_LOCALE),
   defaultLocale: 'en',
   cookieName: 'fsb-locale',
 }));
