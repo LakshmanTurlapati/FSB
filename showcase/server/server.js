@@ -16,6 +16,7 @@ const createAuthRouter = require('./src/routes/auth');
 const createAgentsRouter = require('./src/routes/agents');
 const createPairRouter = require('./src/routes/pair');
 const { setupWSHandler } = require('./src/ws/handler');
+const { createAcceptLanguageMiddleware } = require('./src/middleware/accept-language');
 
 // Configuration
 const PORT = parseInt(process.env.PORT) || 3847;
@@ -162,6 +163,16 @@ if (staticPath) {
     }
   }));
 }
+
+// Phase 267 / ROUTE-03: Accept-Language auto-detection on bare `/`.
+// Cookie-respecting (fsb-locale wins), bot-safe (no header => no redirect),
+// 302 (caches must not pin the decision). Runs BEFORE marketing-routes block so
+// a redirect short-circuits the static-file send.
+app.use(createAcceptLanguageMiddleware({
+  supported: ['es', 'de', 'ja', 'zh-CN', 'zh-TW'],
+  defaultLocale: 'en',
+  cookieName: 'fsb-locale',
+}));
 
 // Phase 216 SRV-01 / SRV-02 / D-09 / D-10:
 // Prefer per-route prerendered HTML for marketing routes; whitelist /dashboard

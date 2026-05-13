@@ -8,7 +8,7 @@
 // Read priority at boot: URL prefix ONLY (= LOCALE_ID compiled into this
 // per-locale bundle). Cookie + localStorage are write-only at this phase --
 // reading them at boot would risk an NG0500 hydration mismatch (P3) because
-// the server-prerendered HTML is already locale-pinned via the URL. Phase 263
+// the server-prerendered HTML is already locale-pinned via the URL. Phase 267
 // will set the cookie server-side BEFORE the prerendered HTML reaches the
 // client, so the URL the user receives is already the right one.
 
@@ -53,7 +53,7 @@ export class LocaleService {
 
   /**
    * Cookie read -- browser only. Phase 262 does not consume this output beyond
-   * picker UX; Phase 263 server middleware sets/reads the cookie indirectly.
+   * picker UX; Phase 267 server middleware sets/reads the cookie indirectly.
    */
   readCookie(): LocaleCode | null {
     if (!isPlatformBrowser(this.platformId) || !hasDocument()) return null;
