@@ -28,7 +28,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current Milestone
 
-No active milestone -- v0.9.62 Implicit Visual Session Contract shipped 2026-05-11. Run `/gsd-new-milestone` to scope the next cycle.
+**v0.9.63 Showcase i18n** -- in progress on branch `feat/showcase-i18n` (retroactively registered 2026-05-12).
+
+Translate the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN / zh-TW. English remains source-of-truth; copy-drift is locked via CI gates (`lint:i18n`, `extract-i18n-clean`); per-locale prerendered HTML emits with hreflang + canonical fan-out.
+
+**Phases:** 261 i18n-scaffold (DONE), 262 marketing-strings (DONE), 264 per-locale-bootstrap, 265 translator-fill, 266 verification-baseline. Dashboard surface deferred to v0.9.65. See `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`.
 
 ## Previous Milestone: v0.9.62 Implicit Visual Session Contract (shipped 2026-05-11)
 
