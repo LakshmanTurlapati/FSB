@@ -1,10 +1,11 @@
-import { Component, OnInit, Renderer2, inject, DOCUMENT } from '@angular/core';
+import { Component, OnInit, Renderer2, inject, DOCUMENT, LOCALE_ID } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Title, Meta } from '@angular/platform-browser';
 
 import { APP_VERSION } from '../../core/seo/version';
+import { HOST, buildLocaleUrl, emitLocaleHead } from '../../core/seo/locale-seo';
 
-const HOST = 'https://full-selfbrowsing.com';
+const ROUTE_PATH = '';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
 const SITE_NAME = 'FSB - Full Self-Browsing';
@@ -22,15 +23,19 @@ export class HomePageComponent implements OnInit {
   private readonly meta = inject(Meta);
   private readonly renderer = inject(Renderer2);
   private readonly doc = inject(DOCUMENT);
+  private readonly localeId = inject(LOCALE_ID);
 
   readonly storeUrl = 'https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk?utm_source=item-share-cp';
   // Prerender-safe default: Chrome is the install target, so a chrome icon is the right SSR fallback.
   browserIconClass = 'fa-chrome';
 
   ngOnInit(): void {
-    const url = HOST; // home canonical: 'https://full-selfbrowsing.com' (no trailing slash, per D-02)
-    const t = 'FSB - Full Self-Browsing';
-    const d = 'Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.';
+    // Locale-aware canonical: en bare HOST, non-en HOST/{subpath}. No trailing slash on home.
+    const url = buildLocaleUrl(this.localeId, ROUTE_PATH);
+    // Brand-only title; preserved verbatim via $localize so per-locale builds emit identical text
+    // (translators see the @@id but the source contains only brand tokens listed in DO-NOT-TRANSLATE.md).
+    const t = $localize`:@@home.meta.title:FSB - Full Self-Browsing`;
+    const d = $localize`:@@home.meta.description:Open-source Chrome extension for AI-powered browser automation through natural language, with an MCP server for Claude Code, Codex, Cursor, and other agents.`;
     this.applyMeta(t, d, url);
     this.injectSoftwareApplicationJsonLd();
     if (typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string') {
@@ -55,17 +60,7 @@ export class HomePageComponent implements OnInit {
     this.meta.updateTag({ name: 'twitter:description', content: d });
     this.meta.updateTag({ name: 'twitter:image', content: OG_IMAGE });
     this.meta.updateTag({ name: 'twitter:image:alt', content: OG_IMAGE_ALT });
-    this.upsertCanonical(url);
-  }
-
-  private upsertCanonical(href: string): void {
-    let link = this.doc.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!link) {
-      link = this.renderer.createElement('link') as HTMLLinkElement;
-      this.renderer.setAttribute(link, 'rel', 'canonical');
-      this.renderer.appendChild(this.doc.head, link);
-    }
-    this.renderer.setAttribute(link, 'href', href);
+    emitLocaleHead(this.renderer, this.doc, this.localeId, ROUTE_PATH);
   }
 
   /**

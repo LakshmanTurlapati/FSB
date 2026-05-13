@@ -17,6 +17,19 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
+      "i18n": {
+        "sourceLocale": {
+          "code": "en",
+          "subPath": ""
+        },
+        "locales": {
+          "es":    { "translation": "src/locale/messages.es.xlf",    "subPath": "es" },
+          "de":    { "translation": "src/locale/messages.de.xlf",    "subPath": "de" },
+          "ja":    { "translation": "src/locale/messages.ja.xlf",    "subPath": "ja" },
+          "zh-CN": { "translation": "src/locale/messages.zh-CN.xlf", "subPath": "zh-CN" },
+          "zh-TW": { "translation": "src/locale/messages.zh-TW.xlf", "subPath": "zh-TW" }
+        }
+      },
       "architect": {
         "build": {
           "builder": "@angular/build:application",
@@ -28,7 +41,8 @@
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
-              "zone.js"
+              "zone.js",
+              "@angular/localize/init"
             ],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
@@ -62,7 +76,10 @@
             },
             "ssr": {
               "entry": "src/server.ts"
-            }
+            },
+            "localize": true,
+            "i18nMissingTranslation": "error",
+            "i18nDuplicateTranslation": "error"
           },
           "configurations": {
             "production": {
@@ -108,7 +125,8 @@
           "options": {
             "polyfills": [
               "zone.js",
-              "zone.js/testing"
+              "zone.js/testing",
+              "@angular/localize/init"
             ],
             "tsConfig": "tsconfig.spec.json",
             "inlineStyleLanguage": "scss",

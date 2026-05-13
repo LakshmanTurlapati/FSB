@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: none
 milestone_name: ""
-status: milestone_complete
-last_updated: "2026-05-11T21:00:00.000Z"
-last_activity: 2026-05-11
+status: between_milestones
+last_updated: "2026-05-13T07:00:00.000Z"
+last_activity: 2026-05-13 -- v0.9.63 Showcase i18n shipped (7 phases, 15 plans, 14/14 requirements, audit passed). Phase 268 closed audit WARNING-01 + WARNING-03. WARNING-02 deferred. Branch `feat/showcase-i18n` and `v0.9.63` tag user-gated.
 progress:
   total_phases: 0
   completed_phases: 0
@@ -17,47 +17,61 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-11 -- v0.9.62 closed)
-See: .planning/MILESTONES.md (v0.9.62 archive entry added 2026-05-11)
-See: .planning/ROADMAP.md (collapsed; awaiting new milestone)
+See: .planning/PROJECT.md (updated 2026-05-13 -- v0.9.63 archived)
+See: .planning/MILESTONES.md (v0.9.63 entry prepended 2026-05-13)
+See: .planning/ROADMAP.md (collapsed; no active milestone)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
-**Current focus:** No active milestone. Last shipped: v0.9.62 Implicit Visual Session Contract on 2026-05-11.
+**Current focus:** Between milestones. Run `/gsd-new-milestone` to scope the next cycle.
 
 ## Current Position
 
-Phase: -- (no active milestone)
+Phase: --
 Plan: --
-Status: Milestone v0.9.62 archived; ready for `/gsd-new-milestone`.
-Last activity: 2026-05-11 -- v0.9.62 milestone archived; audit `passed` (27/27 requirements, 7/7 phases, 13/13 integration points).
-Progress: --
+Status: v0.9.63 shipped; no active milestone.
+Last activity: 2026-05-13 -- `/gsd-complete-milestone v0.9.63` archived ROADMAP + REQUIREMENTS + audit; tag `v0.9.63` created (push user-gated).
 
 ## Performance Metrics
 
-- Last milestone: v0.9.62 (7 phases, 15 plans, 27/27 requirements traced, audit passed).
+- Last milestone: v0.9.63 (7 phases, 15 plans, 14/14 requirements traced, audit passed).
+- Milestone before: v0.9.62 (7 phases, 15 plans, 27/27 requirements traced, audit passed).
 - Milestone before: v0.9.61 (6 phases, 14 plans, 29/29 requirements traced, audit passed).
-- Tag: `v0.9.62` created locally. Push remains user-gated (per session instruction).
+- Tag: `v0.9.63` created locally. Push remains user-gated.
 
-## Accumulated Context
+## Deferred Items
 
-### Pending User-Gated Actions
+Items acknowledged and deferred at v0.9.63 milestone close on 2026-05-13. None are v0.9.63 work; all predate this milestone.
 
-- `git push origin refinements && git push origin v0.9.62` -- branch + tag NOT pushed per session instruction.
-- `npm publish fsb-mcp-server@0.9.0` -- in-tree at 0.9.0; final publish user-gated (mirrors v0.9.60 / v0.9.61 posture).
-- `clawhub publish "skills/FSB Skill"` -- carry-forward from v0.9.61, still user-gated.
+| Category | Slug | Status |
+|----------|------|--------|
+| debug_session | angular-showcase-empty-pages | awaiting_human_verify |
+| debug_session | auth-blocked-partial-outcome-lifecycle | diagnosed |
+| debug_session | content-script-injection-failure | verifying |
+| debug_session | e2e-career-session2 | diagnosed |
+| debug_session | fsb-core-not-executing | verifying |
+| debug_session | fsb-reliability | verifying |
+| debug_session | gdocs-editor-typing | verifying |
+| debug_session | gdocs-formatted-text | verifying |
+| debug_session | overlay-lifecycle-rehydration-gap | diagnosed |
+| debug_session | sheets-blindness-post-fix | diagnosed |
+| quick_task | 260508-gu8-add-agents-nav-page-to-showcase-fsb-skil | missing |
+
+Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future milestone cycle.
+
+## Pending User-Gated Actions (carry-forward)
+
+- `git push origin feat/showcase-i18n && git push origin v0.9.63` -- branch + tag NOT pushed (v0.9.63).
+- `git push origin refinements && git push origin v0.9.62` -- branch + tag NOT pushed (v0.9.62).
+- `npm publish fsb-mcp-server@0.9.0` -- in-tree at 0.9.0; final publish user-gated (carry-forward from v0.9.62).
+- `clawhub publish "skills/FSB Skill"` -- carry-forward from v0.9.61.
 - 4 live-OpenClaw runtime UAT items carried from v0.9.61.
 
-### Blockers/Concerns
+## Next Milestone Candidates
 
-- None blocking. Next step is `/gsd-new-milestone` whenever the user is ready.
-
-### Carry-Forward Caveats
-
-- See `.planning/milestones/v0.9.62-MILESTONE-AUDIT.md` for v0.9.62 closeout caveats.
-- `skills/FSB Skill/references/multi-agent-contract.md` line 29 carries an in-passing contextual reference to `start_visual_session` (not instructional; flagged for v0.9.63 polish pass).
-- `mcp/build/install.js` carries pre-existing local modifications unrelated to v0.9.62 (logged in Phase 258 deferred-items).
-- See `.planning/milestones/v0.9.61-MILESTONE-AUDIT.md` for v0.9.61 closeout caveats.
+- **v0.9.64 (UX)** -- revisit WARNING-02 (picker-cookie short-circuits bare-`/` Accept-Language redirect on returning fresh-tab visits).
+- **v0.9.65 (dashboard i18n)** -- translate `showcase/angular/src/app/pages/dashboard/**`; remove `--ignore-pattern src/app/pages/dashboard/**` from `package.json:lint:i18n`.
+- **Future CI hardening** -- static-analysis pass flagging ad-hoc locale-list literals anywhere in `showcase/` outside `locale-constants.{ts,js}`.
 
 ## Session Continuity
 
-Last session ended with: v0.9.62 archived; ROADMAP.md collapsed; REQUIREMENTS.md retired (fresh one created at next `/gsd-new-milestone`); v0.9.62 phase directories moved under `.planning/milestones/v0.9.62-phases/`; tag `v0.9.62` created locally (not pushed).
+Last session ended with: `/gsd-complete-milestone v0.9.63` on `feat/showcase-i18n`. Working tree should contain only the close-commit (archive + ROADMAP/PROJECT/STATE/MILESTONES updates + REQUIREMENTS.md deletion + v0.9.63 git tag).

@@ -1,7 +1,9 @@
-import { Component, OnInit, Renderer2, inject, DOCUMENT } from '@angular/core';
+import { Component, OnInit, Renderer2, inject, DOCUMENT, LOCALE_ID } from '@angular/core';
 import { Title, Meta } from '@angular/platform-browser';
 
-const HOST = 'https://full-selfbrowsing.com';
+import { HOST, buildLocaleUrl, emitLocaleHead } from '../../core/seo/locale-seo';
+
+const ROUTE_PATH = '/agents';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
 const SITE_NAME = 'FSB - Full Self-Browsing';
@@ -17,11 +19,15 @@ export class AgentsPageComponent implements OnInit {
   private readonly meta = inject(Meta);
   private readonly renderer = inject(Renderer2);
   private readonly doc = inject(DOCUMENT);
+  private readonly localeId = inject(LOCALE_ID);
 
   ngOnInit(): void {
-    const url = `${HOST}/agents`;
-    const t = 'FSB - Agents (OpenClaw Skill + MCP)';
-    const d = 'Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.';
+    const url = buildLocaleUrl(this.localeId, ROUTE_PATH);
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand
+    // tokens (FSB, OpenClaw, Claude, Codex, Cursor, MCP, Chrome) are preserved verbatim
+    // by translators per showcase/angular/src/locale/DO-NOT-TRANSLATE.md.
+    const t = $localize`:@@agents.meta.title:FSB - Agents (OpenClaw Skill + MCP)`;
+    const d = $localize`:@@agents.meta.description:Drive your real Chrome from OpenClaw, Claude, Codex, Cursor, and more. Install the FSB OpenClaw skill in 3 steps and use 50+ MCP tools to act, observe, verify.`;
     this.applyMeta(t, d, url);
     this.injectAgentsPageJsonLd();
     this.injectInstallHowToJsonLd();
@@ -44,17 +50,7 @@ export class AgentsPageComponent implements OnInit {
     this.meta.updateTag({ name: 'twitter:description', content: d });
     this.meta.updateTag({ name: 'twitter:image', content: OG_IMAGE });
     this.meta.updateTag({ name: 'twitter:image:alt', content: OG_IMAGE_ALT });
-    this.upsertCanonical(url);
-  }
-
-  private upsertCanonical(href: string): void {
-    let link = this.doc.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!link) {
-      link = this.renderer.createElement('link') as HTMLLinkElement;
-      this.renderer.setAttribute(link, 'rel', 'canonical');
-      this.renderer.appendChild(this.doc.head, link);
-    }
-    this.renderer.setAttribute(link, 'href', href);
+    emitLocaleHead(this.renderer, this.doc, this.localeId, ROUTE_PATH);
   }
 
   private injectAgentsPageJsonLd(): void {

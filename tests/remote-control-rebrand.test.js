@@ -113,7 +113,7 @@ assert(
 console.log('\n--- Showcase mirror reflects Sync consolidation ---');
 
 assert(
-  /<h4>Sync<\/h4>\s*<p>Live extension control surface, paired via QR<\/p>/.test(ABOUT),
+  /<h4[^>]*>Sync<\/h4>\s*<p[^>]*>Live extension control surface, paired via QR<\/p>/.test(ABOUT),
   '[SYNC-05] about-page architecture names Sync as the paired extension control surface'
 );
 assert(
@@ -125,11 +125,11 @@ assert(
   '[SYNC-05] about-page does not reintroduce the removed decorative control-surface preview'
 );
 assert(
-  !/<h4>Remote Control<\/h4>/.test(ABOUT),
+  !/<h4[^>]*>Remote Control<\/h4>/.test(ABOUT),
   '[SYNC-05] about-page arch-box no longer reads "Remote Control"'
 );
 assert(
-  /<h4>Sync<\/h4>/.test(ABOUT),
+  /<h4[^>]*>Sync<\/h4>/.test(ABOUT),
   '[SYNC-05] about-page arch-box renamed to "Sync"'
 );
 // SYNC-05 originally required a "What is Sync?" FAQ entry to enforce the

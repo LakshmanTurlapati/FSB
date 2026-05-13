@@ -9,7 +9,9 @@
     "build": "ng build",
     "test": "ng test",
     "smoke:crawler": "node scripts/smoke-crawler.mjs",
-    "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs"
+    "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs",
+    "lint:i18n": "eslint \"src/**/*.html\" --ignore-pattern \"src/app/pages/dashboard/**\"",
+    "verify:hreflang": "node scripts/verify-hreflang.mjs"
   },
   "dependencies": {
     "@angular/animations": "^20.3.19",
@@ -31,8 +33,12 @@
     "@angular/build": "^20.3.25",
     "@angular/cli": "^20.3.25",
     "@angular/compiler-cli": "^20.3.19",
+    "@angular/localize": "^20.3.19",
     "@types/express": "^4.17.17",
     "@types/node": "^18.18.0",
-    "typescript": "~5.9.3"
+    "angular-eslint": "^20.7.0",
+    "eslint": "^9.39.4",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.59.3"
   }
 }

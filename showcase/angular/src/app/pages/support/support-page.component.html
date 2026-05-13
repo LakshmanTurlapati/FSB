@@ -1,178 +1,183 @@
 <section class="support-page">
   <div class="container">
     <div class="support-header reveal">
-      <h1>Support</h1>
-      <p>Find answers to common questions, troubleshoot issues, or reach out for help.</p>
+      <h1 i18n="@@support.hero.title">Support</h1>
+      <p i18n="@@support.hero.subtitle">Find answers to common questions, troubleshoot issues, or reach out for help.</p>
     </div>
 
     <!-- FAQ -->
     <div class="faq-section">
-      <h2 class="reveal">Frequently Asked Questions</h2>
+      <h2 class="reveal" i18n="@@support.faq.title">Frequently Asked Questions</h2>
       <div class="faq-list">
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How do I install FSB?</h3>
+            <h3 i18n="@@support.faq.q.install.q">How do I install <span [attr.translate]="'no'">FSB</span>?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Clone the repository from <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>, open Chrome and go to <code>chrome://extensions</code>, enable Developer Mode, click "Load unpacked" and select the FSB folder. The extension icon will appear in your toolbar.</p>
+               
+              <p i18n="@@support.faq.q.install.a">Clone the repository from <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" [attr.translate]="'no'">GitHub</a>, open <span [attr.translate]="'no'">Chrome</span> and go to <code [attr.translate]="'no'">chrome://extensions</code>, enable Developer Mode, click "Load unpacked" and select the <span [attr.translate]="'no'">FSB</span> folder. The extension icon will appear in your toolbar.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Which AI provider should I use?</h3>
+            <h3 i18n="@@support.faq.q.provider.q">Which AI provider should I use?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free hosted option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>. If you want broad model access, use <strong>OpenRouter</strong>. If you want a privacy-friendly local setup with no API key, use <strong>LM Studio</strong>.</p>
+              <p i18n="@@support.faq.q.provider.a">We recommend <strong><span [attr.translate]="'no'">xAI Grok 4.1 Fast</span></strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free hosted option, try <strong><span [attr.translate]="'no'">Gemini 2.0 Flash</span></strong> (experimental). For maximum quality, use <strong><span [attr.translate]="'no'">Claude Opus 4.1</span></strong> or <strong><span [attr.translate]="'no'">Grok 4.1</span></strong>. If you want broad model access, use <strong><span [attr.translate]="'no'">OpenRouter</span></strong>. If you want a privacy-friendly local setup with no API key, use <strong><span [attr.translate]="'no'">LM Studio</span></strong>.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Which browsers are supported?</h3>
+            <h3 i18n="@@support.faq.q.browsers.q">Which browsers are supported?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB supports Chrome 88+ and all Chromium-based browsers including Microsoft Edge, Brave, Opera, and Vivaldi. Firefox support is planned for a future release.</p>
+              <p i18n="@@support.faq.q.browsers.a"><span [attr.translate]="'no'">FSB</span> supports <span [attr.translate]="'no'">Chrome</span> 88+ and all <span [attr.translate]="'no'">Chromium</span>-based browsers including <span [attr.translate]="'no'">Microsoft Edge</span>, <span [attr.translate]="'no'">Brave</span>, <span [attr.translate]="'no'">Opera</span>, and <span [attr.translate]="'no'">Vivaldi</span>. <span [attr.translate]="'no'">Firefox</span> support is planned for a future release.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Are my API keys secure?</h3>
+            <h3 i18n="@@support.faq.q.apiKeys.q">Are my API keys secure?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Yes. API keys are encrypted using AES-GCM before being stored in Chrome's local storage. They are only decrypted in-memory when making API calls. Keys are never logged, exported, or transmitted to any server other than your chosen AI provider.</p>
+              <p i18n="@@support.faq.q.apiKeys.a">Yes. API keys are encrypted using <span [attr.translate]="'no'">AES-GCM</span> before being stored in <span [attr.translate]="'no'">Chrome</span>'s local storage. They are only decrypted in-memory when making API calls. Keys are never logged, exported, or transmitted to any server other than your chosen AI provider.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Is FSB safe to use?</h3>
+            <h3 i18n="@@support.faq.q.safety.q">Is <span [attr.translate]="'no'">FSB</span> safe to use?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB includes action validation and safety checks. It only performs actions on the current tab and only when explicitly instructed. All code is open source and auditable. That said, use caution with tasks involving sensitive accounts or financial transactions -- always review what FSB is doing.</p>
+              <p i18n="@@support.faq.q.safety.a"><span [attr.translate]="'no'">FSB</span> includes action validation and safety checks. It only performs actions on the current tab and only when explicitly instructed. All code is open source and auditable. That said, use caution with tasks involving sensitive accounts or financial transactions -- always review what <span [attr.translate]="'no'">FSB</span> is doing.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How do I report a bug?</h3>
+            <h3 i18n="@@support.faq.q.reportBug.q">How do I report a bug?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Open an issue on the <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">GitHub Issues</a> page. Include the website URL, your task description, and any error messages from the FSB chat or browser console. Session logs from the Debug tab in Options can also help.</p>
+               
+              <p i18n="@@support.faq.q.reportBug.a">Open an issue on the <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" [attr.translate]="'no'">GitHub Issues</a> page. Include the website URL, your task description, and any error messages from the <span [attr.translate]="'no'">FSB</span> chat or browser console. Session logs from the Debug tab in Options can also help.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>What is MCP and how do I use it?</h3>
+            <h3 i18n="@@support.faq.q.mcp.q">What is <span [attr.translate]="'no'">MCP</span> and how do I use it?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code, Codex, Cursor, Windsurf, and OpenClaw. The MCP server runs as <code>npx -y fsb-mcp-server</code> and pairs with the running extension over a local WebSocket bridge -- FSB exposes 50+ browser actions as MCP tools (click, type, navigate, read DOM, fill vault credentials, and more). For OpenClaw users specifically, the fastest path is the one-click install on ClawHub at <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>, or load the FSB skill at <code>skills/FSB Skill/</code> which prints the stdio config block and runs the doctor diagnostic. The full rundown lives at the <a href="/agents">Agents page</a>.</p>
+               
+              <p i18n="@@support.faq.q.mcp.a"><span [attr.translate]="'no'">MCP</span> (Model Context Protocol) lets you control <span [attr.translate]="'no'">FSB</span> from AI coding tools like <span [attr.translate]="'no'">Claude Code</span>, <span [attr.translate]="'no'">Codex</span>, <span [attr.translate]="'no'">Cursor</span>, <span [attr.translate]="'no'">Windsurf</span>, and <span [attr.translate]="'no'">OpenClaw</span>. The <span [attr.translate]="'no'">MCP</span> server runs as <code [attr.translate]="'no'">npx -y fsb-mcp-server</code> and pairs with the running extension over a local WebSocket bridge -- <span [attr.translate]="'no'">FSB</span> exposes 50+ browser actions as <span [attr.translate]="'no'">MCP</span> tools (click, type, navigate, read DOM, fill vault credentials, and more). For <span [attr.translate]="'no'">OpenClaw</span> users specifically, the fastest path is the one-click install on <span [attr.translate]="'no'">ClawHub</span> at <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" [attr.translate]="'no'">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>, or load the <span [attr.translate]="'no'">FSB</span> skill at <code [attr.translate]="'no'">skills/FSB Skill/</code> which prints the stdio config block and runs the doctor diagnostic. The full rundown lives at the <a routerLink="/agents">Agents page</a>.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How does FSB help Claude Code or Codex test apps?</h3>
+            <h3 i18n="@@support.faq.q.testApps.q">How does <span [attr.translate]="'no'">FSB</span> help <span [attr.translate]="'no'">Claude Code</span> or <span [attr.translate]="'no'">Codex</span> test apps?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Connect FSB as an MCP server, then let the coding agent open the local app, click through real flows, observe DOM state, capture console or task errors, and report failures back into the coding session. This closes the manual loop between code generation, browser testing, logging, and fixing.</p>
+              <p i18n="@@support.faq.q.testApps.a">Connect <span [attr.translate]="'no'">FSB</span> as an <span [attr.translate]="'no'">MCP</span> server, then let the coding agent open the local app, click through real flows, observe DOM state, capture console or task errors, and report failures back into the coding session. This closes the manual loop between code generation, browser testing, logging, and fixing.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Can I control FSB remotely?</h3>
+            <h3 i18n="@@support.faq.q.remote.q">Can I control <span [attr.translate]="'no'">FSB</span> remotely?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener">full-selfbrowsing.com</a> lets you pair with your FSB extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor current execution state from any device with a web browser.</p>
+               
+              <p i18n="@@support.faq.q.remote.a">Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard" target="_blank" rel="noopener" [attr.translate]="'no'">full-selfbrowsing.com</a> lets you pair with your <span [attr.translate]="'no'">FSB</span> extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor current execution state from any device with a web browser.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>Does FSB learn from my usage?</h3>
+            <h3 i18n="@@support.faq.q.learn.q">Does <span [attr.translate]="'no'">FSB</span> learn from my usage?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB has a local memory system with three layers: semantic memory (site navigation patterns), episodic memory (past action sequences), and procedural memory (successful workflows). This data stays on your device and helps FSB navigate familiar sites faster and avoid repeating mistakes. Memory auto-consolidates after enough sessions.</p>
+              <p i18n="@@support.faq.q.learn.a"><span [attr.translate]="'no'">FSB</span> has a local memory system with three layers: semantic memory (site navigation patterns), episodic memory (past action sequences), and procedural memory (successful workflows). This data stays on your device and helps <span [attr.translate]="'no'">FSB</span> navigate familiar sites faster and avoid repeating mistakes. Memory auto-consolidates after enough sessions.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How do I set up FSB's MCP server with my IDE?</h3>
+            <h3 i18n="@@support.faq.q.ideSetup.q">How do I set up <span [attr.translate]="'no'">FSB</span>'s <span [attr.translate]="'no'">MCP</span> server with my IDE?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Run <code>npx -y fsb-mcp-server install --list</code> to see which MCP hosts the installer detects on your machine, then run the installer for one (for example <code>npx -y fsb-mcp-server install --claude-desktop</code>). Cursor, Codex, Windsurf, and others have matching flags from <code>--list</code>. For OpenClaw, paste the canonical stdio block printed by the FSB skill (loaded from <code>skills/FSB Skill/</code>) into your OpenClaw MCP config -- the bare <code>--openclaw</code> installer flag is intentionally manual because OpenClaw's MCP config schema is still unstable across builds. Verify the install with <code>npx -y fsb-mcp-server doctor</code>; six green layers means you're ready.</p>
+              <p i18n="@@support.faq.q.ideSetup.a">Run <code [attr.translate]="'no'">npx -y fsb-mcp-server install --list</code> to see which <span [attr.translate]="'no'">MCP</span> hosts the installer detects on your machine, then run the installer for one (for example <code [attr.translate]="'no'">npx -y fsb-mcp-server install --claude-desktop</code>). <span [attr.translate]="'no'">Cursor</span>, <span [attr.translate]="'no'">Codex</span>, <span [attr.translate]="'no'">Windsurf</span>, and others have matching flags from <code [attr.translate]="'no'">--list</code>. For <span [attr.translate]="'no'">OpenClaw</span>, paste the canonical stdio block printed by the <span [attr.translate]="'no'">FSB</span> skill (loaded from <code [attr.translate]="'no'">skills/FSB Skill/</code>) into your <span [attr.translate]="'no'">OpenClaw MCP</span> config -- the bare <code [attr.translate]="'no'">--openclaw</code> installer flag is intentionally manual because <span [attr.translate]="'no'">OpenClaw</span>'s <span [attr.translate]="'no'">MCP</span> config schema is still unstable across builds. Verify the install with <code [attr.translate]="'no'">npx -y fsb-mcp-server doctor</code>; six green layers means you're ready.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>What can I do with FSB through MCP tools?</h3>
+            <h3 i18n="@@support.faq.q.tools.q">What can I do with <span [attr.translate]="'no'">FSB</span> through <span [attr.translate]="'no'">MCP</span> tools?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> is the default and gives the calling agent 50+ granular tools -- navigate, click, type, scroll, read page state, take screenshots, fill spreadsheets, fill vault credentials, and more. <strong>Autopilot mode</strong> (<code>run_task</code>) only fires when the user explicitly delegates the whole task -- phrases like &quot;use FSB autopilot&quot;, &quot;delegate this&quot;, or naming <code>run_task</code> directly. For everything else the calling agent stays in the loop on every action, which is exactly what coding agents want when they're testing an app in-browser and feeding observations back into the editor.</p>
+              <p i18n="@@support.faq.q.tools.a"><span [attr.translate]="'no'">FSB</span> exposes two modes through <span [attr.translate]="'no'">MCP</span>. <strong>Manual mode</strong> is the default and gives the calling agent 50+ granular tools -- navigate, click, type, scroll, read page state, take screenshots, fill spreadsheets, fill vault credentials, and more. <strong>Autopilot mode</strong> (<code [attr.translate]="'no'">run_task</code>) only fires when the user explicitly delegates the whole task -- phrases like &quot;use <span [attr.translate]="'no'">FSB</span> autopilot&quot;, &quot;delegate this&quot;, or naming <code [attr.translate]="'no'">run_task</code> directly. For everything else the calling agent stays in the loop on every action, which is exactly what coding agents want when they're testing an app in-browser and feeding observations back into the editor.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How do I install FSB on OpenClaw?</h3>
+            <h3 i18n="@@support.faq.q.openclawInstall.q">How do I install <span [attr.translate]="'no'">FSB</span> on <span [attr.translate]="'no'">OpenClaw</span>?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Three options, fastest first. <strong>One-click on ClawHub</strong>: install from <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>. <strong>FSB skill</strong>: load the skill from <code>skills/FSB Skill/</code> in the FSB repo -- it prints the canonical OpenClaw stdio block for you to paste into OpenClaw's MCP config and offers consent-gated install for any other MCP hosts on your machine. The full 3-step walkthrough (Chrome extension, MCP server config, doctor verification) lives at the <a href="/agents">Agents page</a>.</p>
+               
+              <p i18n="@@support.faq.q.openclawInstall.a">Three options, fastest first. <strong>One-click on <span [attr.translate]="'no'">ClawHub</span></strong>: install from <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" [attr.translate]="'no'">clawhub.ai/lakshmanturlapati/full-selfbrowsing</a>. <strong><span [attr.translate]="'no'">FSB</span> skill</strong>: load the skill from <code [attr.translate]="'no'">skills/FSB Skill/</code> in the <span [attr.translate]="'no'">FSB</span> repo -- it prints the canonical <span [attr.translate]="'no'">OpenClaw</span> stdio block for you to paste into <span [attr.translate]="'no'">OpenClaw</span>'s <span [attr.translate]="'no'">MCP</span> config and offers consent-gated install for any other <span [attr.translate]="'no'">MCP</span> hosts on your machine. The full 3-step walkthrough (<span [attr.translate]="'no'">Chrome</span> extension, <span [attr.translate]="'no'">MCP</span> server config, doctor verification) lives at the <a routerLink="/agents">Agents page</a>.</p>
             </div>
           </div>
         </div>
 
         <div class="faq-item reveal">
           <div class="faq-question" (click)="toggleFaq($event)">
-            <h3>How do I verify the FSB MCP server is healthy?</h3>
+            <h3 i18n="@@support.faq.q.mcpHealth.q">How do I verify the <span [attr.translate]="'no'">FSB MCP</span> server is healthy?</h3>
             <i class="fa-solid fa-chevron-down faq-icon"></i>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              <p>Run <code>npx -y fsb-mcp-server doctor</code>. The doctor walks six layers -- <code>package</code>, <code>bridge</code>, <code>extension</code>, <code>active-tab</code>, <code>content-script</code>, <code>config</code> -- and exits non-zero on the first failure with a one-line next-step recommendation. The full recovery table for each layer lives in <code>skills/FSB Skill/USAGE.md</code>, and the same diagnostic runs automatically when the FSB skill is loaded into OpenClaw.</p>
+              <p i18n="@@support.faq.q.mcpHealth.a">Run <code [attr.translate]="'no'">npx -y fsb-mcp-server doctor</code>. The doctor walks six layers -- <code [attr.translate]="'no'">package</code>, <code [attr.translate]="'no'">bridge</code>, <code [attr.translate]="'no'">extension</code>, <code [attr.translate]="'no'">active-tab</code>, <code [attr.translate]="'no'">content-script</code>, <code [attr.translate]="'no'">config</code> -- and exits non-zero on the first failure with a one-line next-step recommendation. The full recovery table for each layer lives in <code [attr.translate]="'no'">skills/FSB Skill/USAGE.md</code>, and the same diagnostic runs automatically when the <span [attr.translate]="'no'">FSB</span> skill is loaded into <span [attr.translate]="'no'">OpenClaw</span>.</p>
             </div>
           </div>
         </div>
@@ -182,33 +187,33 @@
 
     <!-- Troubleshooting -->
     <div class="troubleshooting-section">
-      <h2 class="reveal">Common Issues</h2>
+      <h2 class="reveal" i18n="@@support.trouble.title">Common Issues</h2>
       <div class="troubleshooting-grid">
         <div class="trouble-card reveal delay-1">
           <div class="trouble-icon"><i class="fa-solid fa-plug-circle-xmark"></i></div>
-          <h3>API Connection Failed</h3>
-          <p>The extension cannot reach the AI provider's API endpoint.</p>
+          <h3 i18n="@@support.trouble.apiFailed.title">API Connection Failed</h3>
+          <p i18n="@@support.trouble.apiFailed.desc">The extension cannot reach the AI provider's API endpoint.</p>
           <div class="trouble-fix">
-            <div class="trouble-fix-label">Fix</div>
-            <p>Verify your API key in Options. Check that the correct provider and model are selected. Ensure you have internet connectivity and the provider's service is not experiencing downtime.</p>
+            <div class="trouble-fix-label" i18n="@@support.trouble.fixLabel">Fix</div>
+            <p i18n="@@support.trouble.apiFailed.fix">Verify your API key in Options. Check that the correct provider and model are selected. Ensure you have internet connectivity and the provider's service is not experiencing downtime.</p>
           </div>
         </div>
         <div class="trouble-card reveal delay-2">
           <div class="trouble-icon"><i class="fa-solid fa-puzzle-piece"></i></div>
-          <h3>Extension Not Responding</h3>
-          <p>The FSB icon is grayed out or clicking it does nothing.</p>
+          <h3 i18n="@@support.trouble.notResponding.title">Extension Not Responding</h3>
+          <p i18n="@@support.trouble.notResponding.desc">The <span [attr.translate]="'no'">FSB</span> icon is grayed out or clicking it does nothing.</p>
           <div class="trouble-fix">
-            <div class="trouble-fix-label">Fix</div>
-            <p>Go to <code>chrome://extensions</code>, find FSB, and click the refresh button. If that does not work, remove and re-load the extension. Make sure you are not on a chrome:// or edge:// page.</p>
+            <div class="trouble-fix-label" i18n="@@support.trouble.fixLabel">Fix</div>
+            <p i18n="@@support.trouble.notResponding.fix">Go to <code [attr.translate]="'no'">chrome://extensions</code>, find <span [attr.translate]="'no'">FSB</span>, and click the refresh button. If that does not work, remove and re-load the extension. Make sure you are not on a <code [attr.translate]="'no'">chrome://</code> or <code [attr.translate]="'no'">edge://</code> page.</p>
           </div>
         </div>
         <div class="trouble-card reveal delay-3">
           <div class="trouble-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-          <h3>Actions Not Working</h3>
-          <p>FSB clicks or types but nothing happens on the page.</p>
+          <h3 i18n="@@support.trouble.actionsNotWorking.title">Actions Not Working</h3>
+          <p i18n="@@support.trouble.actionsNotWorking.desc"><span [attr.translate]="'no'">FSB</span> clicks or types but nothing happens on the page.</p>
           <div class="trouble-fix">
-            <div class="trouble-fix-label">Fix</div>
-            <p>Some websites use dynamic rendering that changes element selectors. Try refreshing the page and re-running the task. Enable Debug Mode in Options to see detailed action logs. Some sites with heavy anti-bot measures may block automated interactions.</p>
+            <div class="trouble-fix-label" i18n="@@support.trouble.fixLabel">Fix</div>
+            <p i18n="@@support.trouble.actionsNotWorking.fix">Some websites use dynamic rendering that changes element selectors. Try refreshing the page and re-running the task. Enable Debug Mode in Options to see detailed action logs. Some sites with heavy anti-bot measures may block automated interactions.</p>
           </div>
         </div>
       </div>
@@ -216,13 +221,15 @@
 
     <!-- Contact -->
     <div class="contact-section reveal">
-      <h2>Need More Help?</h2>
-      <p>If you cannot find an answer here, reach out through GitHub.</p>
+      <h2 i18n="@@support.contact.title">Need More Help?</h2>
+      <p i18n="@@support.contact.body">If you cannot find an answer here, reach out through <span [attr.translate]="'no'">GitHub</span>.</p>
       <div class="contact-links">
-        <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" class="btn btn-primary">
+         
+        <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" class="btn btn-primary" i18n="@@support.contact.reportIssue">
           <i class="fa-solid fa-bug"></i> Report an Issue
         </a>
-        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-outline">
+         
+        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-outline" i18n="@@support.contact.viewRepo">
           <i class="fa-brands fa-github"></i> View Repository
         </a>
       </div>

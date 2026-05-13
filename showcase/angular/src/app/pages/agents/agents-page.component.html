@@ -2,21 +2,24 @@
 <section class="agents-hero">
   <div class="container">
     <div class="agents-hero-badge reveal">
+      <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
       <img src="assets/providers/openclaw.svg" alt="OpenClaw" class="agents-hero-mark" width="22" height="22" decoding="async">
-      <span>OpenClaw Ready</span>
+      <span i18n="@@agents.hero.badge"><span [attr.translate]="'no'">OpenClaw</span> Ready</span>
     </div>
-    <h1 class="reveal delay-1">
+    <h1 class="reveal delay-1" i18n="@@agents.hero.title">
       Give your agent a real <span class="text-orange">browser</span>.
     </h1>
-    <p class="reveal delay-2">
-      FSB ships a polished OpenClaw skill plus a 50+ tool MCP surface that any agent runtime can drive. Click, type, orchestrate across tabs, fill vault credentials, read live page state, all from one prompt, in the user&#39;s actual Chrome.
+    <p class="reveal delay-2" i18n="@@agents.hero.subtitle">
+      <span [attr.translate]="'no'">FSB</span> ships a polished <span [attr.translate]="'no'">OpenClaw</span> skill plus a 50+ tool <span [attr.translate]="'no'">MCP</span> surface that any agent runtime can drive. Click, type, orchestrate across tabs, fill vault credentials, read live page state, all from one prompt, in the user&#39;s actual <span [attr.translate]="'no'">Chrome</span>.
     </p>
     <div class="agents-hero-actions reveal delay-3">
-      <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary">
-        Install on ClawHub
+       
+      <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary" i18n="@@agents.hero.cta.install">
+        Install on <span [attr.translate]="'no'">ClawHub</span>
       </a>
-      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-secondary">
-        <i class="fa-brands fa-github"></i> View on GitHub
+       
+      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-secondary" i18n="@@agents.hero.cta.github">
+        <i class="fa-brands fa-github"></i> View on <span [attr.translate]="'no'">GitHub</span>
       </a>
     </div>
   </div>
@@ -26,24 +29,24 @@
 <section class="section agents-skill">
   <div class="container">
     <div class="section-header reveal">
-      <h2>Meet the FSB Skill</h2>
-      <p>The canonical OpenClaw onboarding path for FSB. Loads cleanly into a fresh OpenClaw, runs the full diagnostic flow, and installs the bridge for any other MCP host on your machine.</p>
+      <h2 i18n="@@agents.skill.title">Meet the <span [attr.translate]="'no'">FSB</span> Skill</h2>
+      <p i18n="@@agents.skill.subtitle">The canonical <span [attr.translate]="'no'">OpenClaw</span> onboarding path for <span [attr.translate]="'no'">FSB</span>. Loads cleanly into a fresh <span [attr.translate]="'no'">OpenClaw</span>, runs the full diagnostic flow, and installs the bridge for any other <span [attr.translate]="'no'">MCP</span> host on your machine.</p>
     </div>
     <div class="skill-feature-grid">
       <article class="skill-feature-card reveal delay-1">
         <div class="skill-feature-icon"><i class="ph ph-stethoscope"></i></div>
-        <h3>Doctor first protocol</h3>
-        <p>Runs <code>npx -y fsb-mcp-server doctor</code>, parses the failing layer (one of <code>package</code>, <code>bridge</code>, <code>extension</code>, <code>active-tab</code>, <code>content-script</code>, <code>config</code>), and prints the next step recommendation. Exit code surfaces failure to the host.</p>
+        <h3 i18n="@@agents.skill.feature.doctor.title">Doctor first protocol</h3>
+        <p i18n="@@agents.skill.feature.doctor.desc">Runs <code [attr.translate]="'no'">npx -y fsb-mcp-server doctor</code>, parses the failing layer (one of <code [attr.translate]="'no'">package</code>, <code [attr.translate]="'no'">bridge</code>, <code [attr.translate]="'no'">extension</code>, <code [attr.translate]="'no'">active-tab</code>, <code [attr.translate]="'no'">content-script</code>, <code [attr.translate]="'no'">config</code>), and prints the next step recommendation. Exit code surfaces failure to the host.</p>
       </article>
       <article class="skill-feature-card reveal delay-2">
         <div class="skill-feature-icon"><i class="ph ph-clipboard-text"></i></div>
-        <h3>Stdio config printer</h3>
-        <p>Emits the canonical OpenClaw stdio block to paste into your MCP config. The block stays parity locked with <code>mcp/src/install.ts</code> so the printer never drifts from the rest of the installer.</p>
+        <h3 i18n="@@agents.skill.feature.stdio.title">Stdio config printer</h3>
+        <p i18n="@@agents.skill.feature.stdio.desc">Emits the canonical <span [attr.translate]="'no'">OpenClaw</span> stdio block to paste into your <span [attr.translate]="'no'">MCP</span> config. The block stays parity locked with <code [attr.translate]="'no'">mcp/src/install.ts</code> so the printer never drifts from the rest of the installer.</p>
       </article>
       <article class="skill-feature-card reveal delay-3">
         <div class="skill-feature-icon"><i class="ph ph-list-checks"></i></div>
-        <h3>Consent gated host install</h3>
-        <p>Detects other MCP hosts (Claude Desktop, Cursor, Codex, etc.) and asks <code>y/n</code> per host before installing. Never <code>--all</code> without consent. Never auto writes the OpenClaw config.</p>
+        <h3 i18n="@@agents.skill.feature.consent.title">Consent gated host install</h3>
+        <p i18n="@@agents.skill.feature.consent.desc">Detects other <span [attr.translate]="'no'">MCP</span> hosts (<span [attr.translate]="'no'">Claude Desktop</span>, <span [attr.translate]="'no'">Cursor</span>, <span [attr.translate]="'no'">Codex</span>, etc.) and asks <code [attr.translate]="'no'">y/n</code> per host before installing. Never <code [attr.translate]="'no'">--all</code> without consent. Never auto writes the <span [attr.translate]="'no'">OpenClaw</span> config.</p>
       </article>
     </div>
   </div>
@@ -53,36 +56,36 @@
 <section class="section agents-power">
   <div class="container">
     <div class="section-header reveal">
-      <h2>Why FSB MCP is <span class="text-orange">powerful</span></h2>
-      <p>Browser automation usually means a headless instance you cannot see. FSB drives the user&#39;s actual Chrome session, and the MCP surface is built around four hard requirements: precision, observability, safety, and concurrency.</p>
+      <h2 i18n="@@agents.power.title">Why <span [attr.translate]="'no'">FSB MCP</span> is <span class="text-orange">powerful</span></h2>
+      <p i18n="@@agents.power.subtitle">Browser automation usually means a headless instance you cannot see. <span [attr.translate]="'no'">FSB</span> drives the user&#39;s actual <span [attr.translate]="'no'">Chrome</span> session, and the <span [attr.translate]="'no'">MCP</span> surface is built around four hard requirements: precision, observability, safety, and concurrency.</p>
     </div>
     <div class="power-grid">
       <article class="power-card reveal delay-1">
-        <div class="power-card-stat">50+</div>
+        <div class="power-card-stat" i18n="@@agents.power.card.tools.stat">50+</div>
         <div class="power-card-body">
-          <h3>MCP tools, one surface</h3>
-          <p>Read, click, type, navigate, vault, observe. All typed. All agent-scoped. One surface, no glue code.</p>
+          <h3 i18n="@@agents.power.card.tools.title"><span [attr.translate]="'no'">MCP</span> tools, one surface</h3>
+          <p i18n="@@agents.power.card.tools.desc">Read, click, type, navigate, vault, observe. All typed. All agent-scoped. One surface, no glue code.</p>
         </div>
       </article>
       <article class="power-card reveal delay-2">
-        <div class="power-card-stat">N agents</div>
+        <div class="power-card-stat" i18n="@@agents.power.card.multiAgent.stat">N agents</div>
         <div class="power-card-body">
-          <h3>Multi agent identity and tab ownership</h3>
-          <p>Server-minted <code>agent_id</code> per session. Tabs owned per agent. Cross-agent calls fail loud with <code>TAB_NOT_OWNED</code>. Cap 1-64 (default 8), <code>AGENT_CAP_REACHED</code> when full. No focus stealing.</p>
+          <h3 i18n="@@agents.power.card.multiAgent.title">Multi agent identity and tab ownership</h3>
+          <p i18n="@@agents.power.card.multiAgent.desc">Server-minted <code [attr.translate]="'no'">agent_id</code> per session. Tabs owned per agent. Cross-agent calls fail loud with <code [attr.translate]="'no'">TAB_NOT_OWNED</code>. Cap 1-64 (default 8), <code [attr.translate]="'no'">AGENT_CAP_REACHED</code> when full. No focus stealing.</p>
         </div>
       </article>
       <article class="power-card reveal delay-3">
-        <div class="power-card-stat">0 leaks</div>
+        <div class="power-card-stat" i18n="@@agents.power.card.vault.stat">0 leaks</div>
         <div class="power-card-body">
-          <h3>Vault boundary, by design</h3>
-          <p>Passwords and cards resolve inside the extension&#39;s encrypted store via <code>fill_credential</code> and <code>use_payment_method</code>. Never in chat. Never in args. <code>requires.env</code> is mandatory empty.</p>
+          <h3 i18n="@@agents.power.card.vault.title">Vault boundary, by design</h3>
+          <p i18n="@@agents.power.card.vault.desc">Passwords and cards resolve inside the extension&#39;s encrypted store via <code [attr.translate]="'no'">fill_credential</code> and <code [attr.translate]="'no'">use_payment_method</code>. Never in chat. Never in args. <code [attr.translate]="'no'">requires.env</code> is mandatory empty.</p>
         </div>
       </article>
       <article class="power-card reveal delay-4">
-        <div class="power-card-stat">Live</div>
+        <div class="power-card-stat" i18n="@@agents.power.card.live.stat">Live</div>
         <div class="power-card-body">
-          <h3>Real Chrome, real session</h3>
-          <p>Your cookies. Your extensions. Your saved state. <code>change_report</code> streams mutations on every action — no extra <code>read_page</code> round-trip.</p>
+          <h3 i18n="@@agents.power.card.live.title">Real <span [attr.translate]="'no'">Chrome</span>, real session</h3>
+          <p i18n="@@agents.power.card.live.desc">Your cookies. Your extensions. Your saved state. <code [attr.translate]="'no'">change_report</code> streams mutations on every action — no extra <code [attr.translate]="'no'">read_page</code> round-trip.</p>
         </div>
       </article>
     </div>
@@ -93,38 +96,44 @@
 <section class="section agents-install">
   <div class="container">
     <div class="section-header reveal">
-      <h2>Install in 3 Steps</h2>
-      <p>Get from a clean machine to a green doctor in under five minutes.</p>
+      <h2 i18n="@@agents.install.title">Install in 3 Steps</h2>
+      <p i18n="@@agents.install.subtitle">Get from a clean machine to a green doctor in under five minutes.</p>
     </div>
     <ol class="install-steps">
       <li class="install-step reveal delay-1">
-        <div class="install-step-num">1</div>
+        <div class="install-step-num" i18n="@@agents.install.step.1.num">1</div>
         <div class="install-step-body">
-          <h3>Install the FSB Chrome extension</h3>
-          <p>Primary path. Paste this Chrome Web Store URL into Chrome&#39;s address bar:</p>
-          <pre class="install-step-code"><code>https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk</code></pre>
-          <p>Fallback path. Download the latest <code>.zip</code> from <a href="https://github.com/lakshmanturlapati/FSB/releases" target="_blank" rel="noopener">GitHub Releases</a>, then load unpacked at <code>chrome://extensions</code> with Developer mode on.</p>
+          <h3 i18n="@@agents.install.step.1.title">Install the <span [attr.translate]="'no'">FSB Chrome</span> extension</h3>
+          <p i18n="@@agents.install.step.1.body.1">Primary path. Paste this <span [attr.translate]="'no'">Chrome</span> Web Store URL into <span [attr.translate]="'no'">Chrome</span>&#39;s address bar:</p>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <pre class="install-step-code"><code [attr.translate]="'no'">https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk</code></pre>
+           
+          <p i18n="@@agents.install.step.1.body.2">Fallback path. Download the latest <code [attr.translate]="'no'">.zip</code> from <a href="https://github.com/lakshmanturlapati/FSB/releases" target="_blank" rel="noopener" [attr.translate]="'no'">GitHub Releases</a>, then load unpacked at <code [attr.translate]="'no'">chrome://extensions</code> with Developer mode on.</p>
         </div>
       </li>
       <li class="install-step reveal delay-2">
-        <div class="install-step-num">2</div>
+        <div class="install-step-num" i18n="@@agents.install.step.2.num">2</div>
         <div class="install-step-body">
-          <h3>Install the FSB MCP server config</h3>
-          <p>Print the canonical OpenClaw stdio block and paste it into your MCP host config:</p>
-          <pre class="install-step-code"><code>node scripts/print-stdio.mjs</code></pre>
-          <p>Or use the FSB CLI directly. Discover supported hosts on your machine:</p>
-          <pre class="install-step-code"><code>npx -y fsb-mcp-server install --list</code></pre>
-          <p>Then run the installer for one host, for example:</p>
-          <pre class="install-step-code"><code>npx -y fsb-mcp-server install --claude-desktop</code></pre>
+          <h3 i18n="@@agents.install.step.2.title">Install the <span [attr.translate]="'no'">FSB MCP</span> server config</h3>
+          <p i18n="@@agents.install.step.2.body.1">Print the canonical <span [attr.translate]="'no'">OpenClaw</span> stdio block and paste it into your <span [attr.translate]="'no'">MCP</span> host config:</p>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <pre class="install-step-code"><code [attr.translate]="'no'">node scripts/print-stdio.mjs</code></pre>
+          <p i18n="@@agents.install.step.2.body.2">Or use the <span [attr.translate]="'no'">FSB</span> CLI directly. Discover supported hosts on your machine:</p>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <pre class="install-step-code"><code [attr.translate]="'no'">npx -y fsb-mcp-server install --list</code></pre>
+          <p i18n="@@agents.install.step.2.body.3">Then run the installer for one host, for example:</p>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <pre class="install-step-code"><code [attr.translate]="'no'">npx -y fsb-mcp-server install --claude-desktop</code></pre>
         </div>
       </li>
       <li class="install-step reveal delay-3">
-        <div class="install-step-num">3</div>
+        <div class="install-step-num" i18n="@@agents.install.step.3.num">3</div>
         <div class="install-step-body">
-          <h3>Verify with the doctor</h3>
-          <p>Run the six layer diagnostic. Expect <code>[OK]</code> on every layer.</p>
-          <pre class="install-step-code"><code>node scripts/doctor.mjs</code></pre>
-          <p>If any layer fails, the doctor prints a one line next step. The full recovery table lives in <code>USAGE.md</code> inside the skill.</p>
+          <h3 i18n="@@agents.install.step.3.title">Verify with the doctor</h3>
+          <p i18n="@@agents.install.step.3.body.1">Run the six layer diagnostic. Expect <code [attr.translate]="'no'">[OK]</code> on every layer.</p>
+          <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
+          <pre class="install-step-code"><code [attr.translate]="'no'">node scripts/doctor.mjs</code></pre>
+          <p i18n="@@agents.install.step.3.body.2">If any layer fails, the doctor prints a one line next step. The full recovery table lives in <code [attr.translate]="'no'">USAGE.md</code> inside the skill.</p>
         </div>
       </li>
     </ol>
@@ -135,50 +144,50 @@
 <section class="section agents-try">
   <div class="container">
     <div class="section-header reveal">
-      <h2>Where FSB <span class="text-orange">earns its keep</span></h2>
-      <p>The recurring browser work. The boring, repetitive stuff that vision-based agents struggle with on logged-in sites. FSB runs in the user&#39;s real Chrome, so cookies, sessions, MFA state, and saved logins are already there.</p>
+      <h2 i18n="@@agents.try.title">Where <span [attr.translate]="'no'">FSB</span> <span class="text-orange">earns its keep</span></h2>
+      <p i18n="@@agents.try.subtitle">The recurring browser work. The boring, repetitive stuff that vision-based agents struggle with on logged-in sites. <span [attr.translate]="'no'">FSB</span> runs in the user&#39;s real <span [attr.translate]="'no'">Chrome</span>, so cookies, sessions, MFA state, and saved logins are already there.</p>
     </div>
 
     <div class="prompt-grid">
       <article class="prompt-card reveal delay-1">
         <header class="prompt-card-head">
           <span class="prompt-card-icon"><i class="ph ph-tray"></i></span>
-          <span class="prompt-card-label">Inbox triage</span>
+          <span class="prompt-card-label" i18n="@@agents.try.prompt.inbox.label">Inbox triage</span>
         </header>
-        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Open Gmail, label everything from billing as <code>finance</code>, draft replies to support threads using yesterday&#39;s tone, and flag anything urgent.</p>
+        <p class="prompt-card-body" i18n="@@agents.try.prompt.inbox.body"><span class="prompt-caret">&gt;</span>Open <span [attr.translate]="'no'">Gmail</span>, label everything from billing as <code [attr.translate]="'no'">finance</code>, draft replies to support threads using yesterday&#39;s tone, and flag anything urgent.</p>
       </article>
       <article class="prompt-card reveal delay-2">
         <header class="prompt-card-head">
           <span class="prompt-card-icon"><i class="ph ph-headset"></i></span>
-          <span class="prompt-card-label">Support replies</span>
+          <span class="prompt-card-label" i18n="@@agents.try.prompt.support.label">Support replies</span>
         </header>
-        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>In Zendesk, draft answers to open tickets about pricing, order status, and shipping using the help center as ground truth.</p>
+        <p class="prompt-card-body" i18n="@@agents.try.prompt.support.body"><span class="prompt-caret">&gt;</span>In <span [attr.translate]="'no'">Zendesk</span>, draft answers to open tickets about pricing, order status, and shipping using the help center as ground truth.</p>
       </article>
       <article class="prompt-card reveal delay-3">
         <header class="prompt-card-head">
           <span class="prompt-card-icon"><i class="ph ph-chart-line-up"></i></span>
-          <span class="prompt-card-label">Logged-in dashboards</span>
+          <span class="prompt-card-label" i18n="@@agents.try.prompt.dashboards.label">Logged-in dashboards</span>
         </header>
-        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Pull yesterday&#39;s revenue, signups, and refund count from the analytics dashboard and post a one paragraph summary.</p>
+        <p class="prompt-card-body" i18n="@@agents.try.prompt.dashboards.body"><span class="prompt-caret">&gt;</span>Pull yesterday&#39;s revenue, signups, and refund count from the analytics dashboard and post a one paragraph summary.</p>
       </article>
       <article class="prompt-card reveal delay-4">
         <header class="prompt-card-head">
           <span class="prompt-card-icon"><i class="ph ph-target"></i></span>
-          <span class="prompt-card-label">Lead monitoring</span>
+          <span class="prompt-card-label" i18n="@@agents.try.prompt.leads.label">Lead monitoring</span>
         </header>
-        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Score new LinkedIn connection requests against the ICP, draft outreach for the top three, and skip the rest.</p>
+        <p class="prompt-card-body" i18n="@@agents.try.prompt.leads.body"><span class="prompt-caret">&gt;</span>Score new <span [attr.translate]="'no'">LinkedIn</span> connection requests against the ICP, draft outreach for the top three, and skip the rest.</p>
       </article>
       <article class="prompt-card reveal delay-5">
         <header class="prompt-card-head">
           <span class="prompt-card-icon"><i class="ph ph-storefront"></i></span>
-          <span class="prompt-card-label">Small-business ops</span>
+          <span class="prompt-card-label" i18n="@@agents.try.prompt.smb.label">Small-business ops</span>
         </header>
-        <p class="prompt-card-body"><span class="prompt-caret">&gt;</span>Categorize today&#39;s invoices in the POS as supplies vs. retail, extract shipping line items, and flag any vendor over last month&#39;s average.</p>
+        <p class="prompt-card-body" i18n="@@agents.try.prompt.smb.body"><span class="prompt-caret">&gt;</span>Categorize today&#39;s invoices in the POS as supplies vs. retail, extract shipping line items, and flag any vendor over last month&#39;s average.</p>
       </article>
     </div>
 
-    <p class="autopilot-rule reveal">
-      These run as manual-mode tool calls. Autopilot (<code>run_task</code>) only fires when the user explicitly delegates the whole task -- <strong>&quot;use FSB autopilot&quot;</strong>, <strong>&quot;delegate this&quot;</strong>, or names <code>run_task</code> directly. Manual mode is the default for everything else.
+    <p class="autopilot-rule reveal" i18n="@@agents.try.autopilotRule">
+      These run as manual-mode tool calls. Autopilot (<code [attr.translate]="'no'">run_task</code>) only fires when the user explicitly delegates the whole task -- <strong>&quot;use <span [attr.translate]="'no'">FSB</span> autopilot&quot;</strong>, <strong>&quot;delegate this&quot;</strong>, or names <code [attr.translate]="'no'">run_task</code> directly. Manual mode is the default for everything else.
     </p>
   </div>
 </section>
@@ -187,16 +196,18 @@
 <section class="section agents-cta">
   <div class="container">
     <div class="agents-cta-band reveal">
-      <h2>Ship a real browser to your agent <span class="text-orange">today</span>.</h2>
-      <p>Free, open source, BYO model keys. Works with OpenClaw, Claude, Codex, Cursor, Windsurf, and any MCP host that speaks the OpenAI tool protocol.</p>
+      <h2 i18n="@@agents.cta.title">Ship a real browser to your agent <span class="text-orange">today</span>.</h2>
+      <p i18n="@@agents.cta.body">Free, open source, BYO model keys. Works with <span [attr.translate]="'no'">OpenClaw</span>, <span [attr.translate]="'no'">Claude</span>, <span [attr.translate]="'no'">Codex</span>, <span [attr.translate]="'no'">Cursor</span>, <span [attr.translate]="'no'">Windsurf</span>, and any <span [attr.translate]="'no'">MCP</span> host that speaks the <span [attr.translate]="'no'">OpenAI</span> tool protocol.</p>
       <div class="agents-cta-actions">
-        <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary">
-          Install on ClawHub
+         
+        <a href="https://clawhub.ai/lakshmanturlapati/full-selfbrowsing" target="_blank" rel="noopener" class="btn btn-primary" i18n="@@agents.cta.install">
+          Install on <span [attr.translate]="'no'">ClawHub</span>
         </a>
-        <a href="https://github.com/lakshmanturlapati/FSB/tree/main/skills/FSB%20Skill" target="_blank" rel="noopener" class="btn btn-secondary">
+         
+        <a href="https://github.com/lakshmanturlapati/FSB/tree/main/skills/FSB%20Skill" target="_blank" rel="noopener" class="btn btn-secondary" i18n="@@agents.cta.skillSource">
           Read the skill source
         </a>
-        <a href="/about" class="btn btn-ghost">
+        <a routerLink="/about" class="btn btn-ghost" i18n="@@agents.cta.demos">
           Watch the demos
         </a>
       </div>

@@ -1,8 +1,9 @@
-import { Component, OnInit, Renderer2, inject, DOCUMENT } from '@angular/core';
+import { Component, OnInit, Renderer2, inject, DOCUMENT, LOCALE_ID } from '@angular/core';
 import { Title, Meta } from '@angular/platform-browser';
 
+import { HOST, buildLocaleUrl, emitLocaleHead } from '../../core/seo/locale-seo';
 
-const HOST = 'https://full-selfbrowsing.com';
+const ROUTE_PATH = '/support';
 const OG_IMAGE = `${HOST}/assets/fsb_logo_dark.png`;
 const OG_IMAGE_ALT = 'FSB Full Self-Browsing logo';
 const SITE_NAME = 'FSB - Full Self-Browsing';
@@ -79,11 +80,15 @@ export class SupportPageComponent implements OnInit {
   private readonly meta = inject(Meta);
   private readonly renderer = inject(Renderer2);
   private readonly doc = inject(DOCUMENT);
+  private readonly localeId = inject(LOCALE_ID);
 
   ngOnInit(): void {
-    const url = `${HOST}/support`;
-    const t = 'FSB - Support';
-    const d = 'Get help with FSB: setup guides, MCP configuration, troubleshooting, GitHub issues, and direct contact for the open-source Chrome extension.';
+    const url = buildLocaleUrl(this.localeId, ROUTE_PATH);
+    // Marked via $localize so per-locale builds emit translated strings; embedded brand
+    // tokens (FSB, MCP, GitHub, Chrome) are preserved verbatim by translators per
+    // DO-NOT-TRANSLATE.md.
+    const t = $localize`:@@support.meta.title:FSB - Support`;
+    const d = $localize`:@@support.meta.description:Get help with FSB: setup guides, MCP configuration, troubleshooting, GitHub issues, and direct contact for the open-source Chrome extension.`;
     this.applyMeta(t, d, url);
     this.injectSupportFaqJsonLd();
   }
@@ -105,17 +110,7 @@ export class SupportPageComponent implements OnInit {
     this.meta.updateTag({ name: 'twitter:description', content: d });
     this.meta.updateTag({ name: 'twitter:image', content: OG_IMAGE });
     this.meta.updateTag({ name: 'twitter:image:alt', content: OG_IMAGE_ALT });
-    this.upsertCanonical(url);
-  }
-
-  private upsertCanonical(href: string): void {
-    let link = this.doc.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!link) {
-      link = this.renderer.createElement('link') as HTMLLinkElement;
-      this.renderer.setAttribute(link, 'rel', 'canonical');
-      this.renderer.appendChild(this.doc.head, link);
-    }
-    this.renderer.setAttribute(link, 'href', href);
+    emitLocaleHead(this.renderer, this.doc, this.localeId, ROUTE_PATH);
   }
 
   private injectSupportFaqJsonLd(): void {

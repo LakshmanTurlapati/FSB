@@ -1,0 +1,15 @@
+<label class="lang-picker" [class.lang-picker--icon]="mode === 'icon'" [class.lang-picker--text]="mode === 'text'">
+  <span class="lang-picker__icon" *ngIf="mode === 'icon'" aria-hidden="true">
+    <i class="ph ph-globe"></i>
+  </span>
+  <span class="lang-picker__sr" i18n="@@picker.sr.label">Choose language</span>
+  <select
+    class="lang-picker__select"
+    [value]="current"
+    (change)="onChange($event)"
+    i18n-aria-label="@@picker.aria.label"
+    aria-label="Choose language"
+  >
+    <option *ngFor="let code of locales" [value]="code" [attr.translate]="'no'">{{ code.toUpperCase() }}</option>
+  </select>
+</label>

@@ -56,8 +56,21 @@ jobs:
           node-version: '20'
       - name: Install showcase deps
         run: npm --prefix showcase/angular install --no-audit --no-fund
+      - name: Verify locale registry parity (Angular vs Express)
+        run: node showcase/angular/scripts/verify-locale-sync.mjs
+      - name: Lint i18n template marking (CI-03 promoted from Phase 261)
+        run: npm --prefix showcase/angular run lint:i18n
+      - name: Verify ng extract-i18n produces no diff (CI-02)
+        run: |
+          mkdir -p /tmp/extract-check
+          npx --prefix showcase/angular ng extract-i18n --output-path /tmp/extract-check
+          diff -u showcase/angular/src/locale/messages.xlf /tmp/extract-check/messages.xlf
       - name: Build Angular showcase (prerender + SSR)
         run: npm --prefix showcase/angular run build
+      - name: Verify hreflang + canonical + html lang on prerendered HTML (SEO-01)
+        run: npm --prefix showcase/angular run verify:hreflang
+      - name: Verify per-locale gzipped bundle budget (CI-05)
+        run: node showcase/angular/scripts/verify-bundle-budgets.mjs
       # Crawler smoke (smoke:crawler) hits production by default; it lives in
       # 216-HUMAN-UAT.md and runs post-deploy, not in CI.
 

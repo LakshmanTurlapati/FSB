@@ -2,11 +2,12 @@ import { Component, HostListener, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { APP_VERSION } from '../../core/seo/version';
 import { ThemeService } from '../../core/theme.service';
+import { LanguagePickerComponent } from '../language-picker/language-picker.component';
 
 @Component({
   selector: 'app-showcase-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, LanguagePickerComponent],
   templateUrl: './showcase-shell.component.html',
   styleUrl: './showcase-shell.component.scss',
 })

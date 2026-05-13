@@ -10,9 +10,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.62 Implicit Visual Session Contract -- 2026-05-11. Phases 254-260 made the MCP visual-session signal implicit on every action tool call: required `visual_reason` + `client` field bundle on 36 canonical action tools (`mcp/ai/tool-definitions.cjs` + byte-identical mirror in `extension/ai/tool-definitions.js`); sliding 60-second death timer with MV3 SW-eviction replay via `chrome.storage.session` + `chrome.alarms`; `is_final: true` immediate clear; old explicit `start_visual_session` / `end_visual_session` MCP tools removed (converted to typed `TOOL_REMOVED` stubs with migration recipe); `fsb-mcp-server` bumped 0.8.0 -> 0.9.0; v0.9.0 CHANGELOG entry; mcp/README + FSB Skill USAGE banners; 314 schema-lock + 79 lifecycle + 116 contract + 10 version-parity test assertions all wired into `npm test`. Audit status `passed` (27/27 requirements, 7/7 phases, 13/13 integration points). Final `npm publish fsb-mcp-server@0.9.0` remains user-gated.
+**Last shipped:** v0.9.63 Showcase i18n -- 2026-05-13. Phases 261, 262, 264, 265, 266, 267, 268 translated the FSB marketing site (`showcase/angular`) into en/es/de/ja/zh-CN/zh-TW. `LocaleService` + 6-locale registry mirrored Angular ESM <-> Express CJS with `verify-locale-sync.mjs` parity invariant; 420 trans-units in `messages.xlf` (7 namespaces); AI-filled target XLIFFs for all 5 non-en locales with `i18nMissingTranslation: error` enforcing build-time completeness; `lint:i18n` and `extract-i18n-clean` promoted to hard-fail CI gates; 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + en root) with `<link rel="alternate" hreflang>` + canonical fan-out and `<html lang>` reflecting the served locale; `verify:hreflang` CI assertion gates the count; Express middleware on `/` does BCP-47 Accept-Language parsing with 302-redirect to matching locale subpath, cookie-respecting and bot-safe. Phase 268 (post-audit cleanup) deduplicated the server.js literal locale list against the CJS registry and backfilled six per-phase `VERIFICATION.md` artifacts. Audit status `passed` (14/14 requirements, 7/7 phases, 12/12 integration points, 3/3 E2E flows). `feat/showcase-i18n` branch + `v0.9.63` tag remain user-gated for push and merge.
 
 **Recent shipping cadence:**
+- v0.9.63 Showcase i18n -- shipped 2026-05-13
 - v0.9.62 Implicit Visual Session Contract -- shipped 2026-05-11
 - v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
 - v0.9.60 Multi-Agent Tab Concurrency (MCP 0.8.0) -- shipped 2026-05-08
@@ -28,7 +29,23 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current Milestone
 
-No active milestone -- v0.9.62 Implicit Visual Session Contract shipped 2026-05-11. Run `/gsd-new-milestone` to scope the next cycle.
+None active. Most recent milestone (v0.9.63 Showcase i18n) shipped 2026-05-13; run `/gsd-new-milestone` to scope the next cycle.
+
+**Next milestone candidates (carry-forward backlog):**
+- v0.9.64 -- revisit WARNING-02 (picker-cookie short-circuits bare-`/` Accept-Language redirect on fresh-tab returners; currently EN at root).
+- v0.9.65 -- dashboard surface i18n (`showcase/angular/src/app/pages/dashboard/**`; remove `--ignore-pattern` in `lint:i18n`).
+
+## Previous Milestone: v0.9.63 Showcase i18n (shipped 2026-05-13)
+
+**Goal:** Translate the FSB marketing site into es / de / ja / zh-CN / zh-TW with English as source-of-truth, CI-gated drift detection, per-locale prerendered HTML with hreflang + canonical fan-out, AI-filled XLIFFs, and Accept-Language auto-detection.
+
+**Shipped:** 7 phases (261, 262, 264, 265, 266, 267, 268), 15 plans, 14/14 v0.9.63 requirements satisfied, audit `passed`. 420 trans-units across 7 namespaces; 30 prerendered HTMLs; hard-fail CI gates (`lint:i18n`, `extract-i18n-clean`, `verify-locale-sync`, `verify:hreflang`); `i18nMissingTranslation: error`; Accept-Language middleware on `/` (BCP-47, cookie-respecting, bot-safe). Phase 268 closed audit warnings WARNING-01 (server.js locale-list dedup) and WARNING-03 (retroactive `VERIFICATION.md` backfill).
+
+**Archive:** [.planning/milestones/v0.9.63-ROADMAP.md](milestones/v0.9.63-ROADMAP.md), [.planning/milestones/v0.9.63-REQUIREMENTS.md](milestones/v0.9.63-REQUIREMENTS.md), [.planning/milestones/v0.9.63-MILESTONE-AUDIT.md](milestones/v0.9.63-MILESTONE-AUDIT.md).
+
+**Accepted closeout caveats:** WARNING-02 (picker-cookie short-circuits bare-`/` redirect for returning fresh-tab visitors) deferred per 267-CONTEXT D-02 / T-267-03 -- candidate for v0.9.64+ UX revisit. Dashboard surface untranslated, deferred to v0.9.65 (`--ignore-pattern` in `lint:i18n` carries forward). `feat/showcase-i18n` branch merge and `v0.9.63` tag push remain user-gated.
+
+**Branch:** `feat/showcase-i18n`
 
 ## Previous Milestone: v0.9.62 Implicit Visual Session Contract (shipped 2026-05-11)
 
