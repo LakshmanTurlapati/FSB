@@ -28,10 +28,10 @@ Translate the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN 
 
 - [x] **Phase 261: i18n Scaffold** -- LocaleService, language picker mount, DO-NOT-TRANSLATE policy, ESLint i18n rule + `ng extract-i18n` builder. (completed 2026-05-12)
 - [x] **Phase 262: Marketing Strings** -- Mark every visible marketing string + TS-side SEO Title/Meta with `$localize` / `i18n`; regenerate `messages.xlf` (420 trans-units across 7 namespaces); promote `lint:i18n` + `extract-i18n-clean` to hard-fail CI gates. (completed 2026-05-12)
-- [ ] **Phase 264: Per-Locale Bootstrap** -- Emit a per-locale `index.html` for every supported locale at prerender time with correct `<link rel="alternate" hreflang>` fan-out and canonical URL pointing at the locale-specific path; keep the `en` root canonical the way SEO crawlers expect it.
-- [ ] **Phase 265: Translator Fill** -- Run an AI translator over `messages.xlf` to populate target XLIFFs (es/de/ja/zh-CN/zh-TW), preserve `[attr.translate]="'no'"` markers and brand/CLI tokens verbatim, then flip `i18nMissingTranslation: warning -> error` in `angular.json` so the build fails on any unfilled trans-unit.
+- [x] **Phase 264: Per-Locale Bootstrap** -- Emit a per-locale `index.html` for every supported locale at prerender time with correct `<link rel="alternate" hreflang>` fan-out and canonical URL pointing at the locale-specific path; keep the `en` root canonical the way SEO crawlers expect it.
+- [x] **Phase 265: Translator Fill** -- Run an AI translator over `messages.xlf` to populate target XLIFFs (es/de/ja/zh-CN/zh-TW), preserve `[attr.translate]="'no'"` markers and brand/CLI tokens verbatim, then flip `i18nMissingTranslation: warning -> error` in `angular.json` so the build fails on any unfilled trans-unit.
 - [x] **Phase 266: Verification Baseline** -- End-to-end verification: `lint:i18n` exits 0, `extract-i18n-clean` exits 0, `ng build` emits 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + `en` root), every target XLIFF has zero untranslated trans-units, hreflang + canonical fan-out is correct on every emitted HTML. **Done 2026-05-13.**
-- [ ] **Phase 267: Accept-Language Auto-Detection** -- Express middleware on `/` parses Accept-Language, picks best supported locale (BCP-47 q-value parsing), 302-redirects first-visit users to matching locale subpath. Cookie-respecting (existing `fsb-locale` cookie wins). Bot-safe (no Accept-Language header -> no redirect; preserves Googlebot crawl path).
+- [x] **Phase 267: Accept-Language Auto-Detection** -- Express middleware on `/` parses Accept-Language, picks best supported locale (BCP-47 q-value parsing), 302-redirects first-visit users to matching locale subpath. Cookie-respecting (existing `fsb-locale` cookie wins). Bot-safe (no Accept-Language header -> no redirect; preserves Googlebot crawl path).
 
 ---
 
@@ -126,6 +126,17 @@ Established the i18n infrastructure: `LocaleService` + locale-constants module (
 ### Phase 262: Marketing Strings (DONE -- 5 plans, 2026-05-12)
 
 Marked every visible marketing string across shell, picker, home, about, agents, privacy, support pages plus TS-side SEO Title + Meta markers via `$localize`. Regenerated `messages.xlf` with 420 trans-units across 7 namespaces, byte-equal to fresh extract. Promoted `lint:i18n` + `extract-i18n-clean` to hard-fail CI gates in the website job; extended ESLint `ignoreAttributes` for 23 machine tokens. Requirements satisfied: COPY-01, COPY-02, COPY-03, CI-01, CI-02. See `262-05-SUMMARY.md` for the full closeout.
+
+### Phase 268: Address v0.9.63 tech debt: locale-list dedup in server.js + emit VERIFICATION.md artifacts retroactively
+
+**Goal:** Close the two tech-debt items surfaced by .planning/v0.9.63-MILESTONE-AUDIT.md: (WARNING-01) replace the hardcoded supported-locale literal in showcase/server/server.js with a derivation from the canonical CJS locale registry; (WARNING-03) backfill the six per-phase VERIFICATION.md artifacts the milestone template expects, and flip the three remaining open ROADMAP checkboxes (264, 265, 267). No new requirement IDs introduced; closes audit warnings against ROUTE-03 (267) and cross-cutting process across 261-267.
+**Requirements**: none new (closes audit warnings against ROUTE-03 and the cross-cutting process gap across phases 261-267)
+**Depends on:** Phase 267
+**Plans:** 2 plans
+
+Plans:
+- [ ] 268-01-PLAN.md -- server.js locale-list dedup against the canonical CJS registry (closes WARNING-01)
+- [ ] 268-02-PLAN.md -- retroactive VERIFICATION.md backfill for phases 261/262/264/265/266/267 + ROADMAP checkbox sync (closes WARNING-03; preserves WARNING-02 audit trail)
 
 ---
 
