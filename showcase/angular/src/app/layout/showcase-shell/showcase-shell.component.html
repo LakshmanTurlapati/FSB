@@ -18,7 +18,6 @@
       <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github" i18n="@@shell.nav.desktop.github" [attr.translate]="'no'">
         <i class="fa-brands fa-github"></i> GitHub
       </a>
-      <app-language-picker [mode]="'icon'"></app-language-picker>
     </div>
     <button class="nav-toggle" [class.active]="mobileMenuOpen" i18n-aria-label="@@shell.nav.toggle.aria" aria-label="Toggle navigation" (click)="toggleMobileMenu()">
       <span></span>
@@ -36,7 +35,6 @@
   <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.support">Support</a>
    
   <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()" i18n="@@shell.nav.mobile.github" [attr.translate]="'no'"><i class="fa-brands fa-github"></i> GitHub</a>
-  <app-language-picker [mode]="'text'"></app-language-picker>
 </div>
 
 <main>
@@ -75,7 +73,7 @@
     <div class="footer-bottom">
       <p i18n="@@shell.footer.bottom.credit">Made by <span [attr.translate]="'no'">Lakshman Turlapati</span></p>
       <p i18n="@@shell.footer.bottom.version"><span [attr.translate]="'no'">FSB</span> v{{ appVersion }}</p>
-      <app-language-picker [mode]="'text'"></app-language-picker>
+      <app-language-picker [mode]="'icon'"></app-language-picker>
     </div>
   </div>
 </footer>
