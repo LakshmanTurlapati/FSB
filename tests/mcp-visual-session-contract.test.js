@@ -372,8 +372,17 @@ async function runImplicitDispatcherValidationCase() {
   console.log('\n--- Case 3: implicit dispatcher validation -- VISUAL_FIELDS_REQUIRED + BADGE_NOT_ALLOWED ---');
 
   const BUILD_PATH = path.resolve(__dirname, '..', 'mcp', 'build', 'tools', 'manual.js');
+  const SRC_PATH = path.resolve(__dirname, '..', 'mcp', 'src', 'tools', 'manual.ts');
   if (!fs.existsSync(BUILD_PATH)) {
-    console.error('  FAIL: mcp/build/tools/manual.js missing -- run `cd mcp && npm run build` before this test');
+    console.error('  FAIL: mcp/build/tools/manual.js missing -- run `npm --prefix mcp run build` before this test');
+    failed++;
+    return;
+  }
+  // Staleness guard: a build older than the source has caused phantom "contract
+  // hole" failures (build predates validateVisualSessionFields). Fail loud with
+  // remediation rather than running stale code.
+  if (fs.existsSync(SRC_PATH) && fs.statSync(SRC_PATH).mtimeMs > fs.statSync(BUILD_PATH).mtimeMs) {
+    console.error('  FAIL: mcp/build/tools/manual.js is older than mcp/src/tools/manual.ts -- run `npm --prefix mcp run build` to refresh');
     failed++;
     return;
   }
