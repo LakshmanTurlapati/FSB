@@ -78,7 +78,7 @@
               "entry": "src/server.ts"
             },
             "localize": true,
-            "i18nMissingTranslation": "warning",
+            "i18nMissingTranslation": "error",
             "i18nDuplicateTranslation": "error"
           },
           "configurations": {
