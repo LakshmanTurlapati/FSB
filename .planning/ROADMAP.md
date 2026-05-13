@@ -30,7 +30,8 @@ Translate the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN 
 - [x] **Phase 262: Marketing Strings** -- Mark every visible marketing string + TS-side SEO Title/Meta with `$localize` / `i18n`; regenerate `messages.xlf` (420 trans-units across 7 namespaces); promote `lint:i18n` + `extract-i18n-clean` to hard-fail CI gates. (completed 2026-05-12)
 - [ ] **Phase 264: Per-Locale Bootstrap** -- Emit a per-locale `index.html` for every supported locale at prerender time with correct `<link rel="alternate" hreflang>` fan-out and canonical URL pointing at the locale-specific path; keep the `en` root canonical the way SEO crawlers expect it.
 - [ ] **Phase 265: Translator Fill** -- Run an AI translator over `messages.xlf` to populate target XLIFFs (es/de/ja/zh-CN/zh-TW), preserve `[attr.translate]="'no'"` markers and brand/CLI tokens verbatim, then flip `i18nMissingTranslation: warning -> error` in `angular.json` so the build fails on any unfilled trans-unit.
-- [ ] **Phase 266: Verification Baseline** -- End-to-end verification: `lint:i18n` exits 0, `extract-i18n-clean` exits 0, `ng build` emits 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + `en` root), every target XLIFF has zero untranslated trans-units, hreflang + canonical fan-out is correct on every emitted HTML.
+- [x] **Phase 266: Verification Baseline** -- End-to-end verification: `lint:i18n` exits 0, `extract-i18n-clean` exits 0, `ng build` emits 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + `en` root), every target XLIFF has zero untranslated trans-units, hreflang + canonical fan-out is correct on every emitted HTML. **Done 2026-05-13.**
+- [ ] **Phase 267: Accept-Language Auto-Detection** -- Express middleware on `/` parses Accept-Language, picks best supported locale (BCP-47 q-value parsing), 302-redirects first-visit users to matching locale subpath. Cookie-respecting (existing `fsb-locale` cookie wins). Bot-safe (no Accept-Language header -> no redirect; preserves Googlebot crawl path).
 
 ---
 
@@ -89,6 +90,28 @@ Translate the FSB marketing site (`showcase/angular`) into es / de / ja / zh-CN 
   4. Every prerendered HTML has correct hreflang + canonical per Phase 264 success criteria (regression test).
   5. Every target XLIFF has zero `state="new"` or empty `<target>` trans-units (regression test).
   6. CI website job runs all 6 steps green: install -> verify-locale-sync -> lint:i18n -> extract-i18n-clean -> build -> verify-bundle-budgets.
+
+**Plans:** TBD during `/gsd-plan-phase`.
+
+---
+
+### Phase 267: Accept-Language Auto-Detection
+
+**Goal:** First-visit users landing on bare `/` are 302-redirected to the locale subpath best matching their browser's `Accept-Language` header. Users who have an `fsb-locale` cookie (i.e. have used the picker) keep their explicit choice. Bots (typically no Accept-Language) get EN.
+
+**Depends on:** Phase 266 complete (full verification baseline green; per-locale subpaths exist).
+
+**Requirements:** ROUTE-03.
+
+**Success Criteria (what must be TRUE):**
+  1. GET `/` with `Accept-Language: ja,en;q=0.8` -> 302 `/ja/` (no `fsb-locale` cookie).
+  2. GET `/` with `Accept-Language: zh-Hant-TW,en;q=0.8` -> 302 `/zh-TW/` (BCP-47 alias resolution).
+  3. GET `/` with `Accept-Language: en-US,en;q=0.9` -> 200 (EN root, no redirect needed).
+  4. GET `/` with NO `Accept-Language` header -> 200 (EN; bot-safe default).
+  5. GET `/` with `Accept-Language: ja` AND `Cookie: fsb-locale=de` -> 200 (cookie wins).
+  6. GET `/` with unsupported `Accept-Language: ko,en;q=0.5` -> falls through to EN fallback rule.
+  7. GET `/about`, `/agents`, `/es/about`, `/zh-TW/`, etc. -> never redirected (only bare `/` is gated).
+  8. Non-GET (HEAD, POST) -> never redirected.
 
 **Plans:** TBD during `/gsd-plan-phase`.
 

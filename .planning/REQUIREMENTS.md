@@ -23,11 +23,13 @@ REQ IDs are namespaced by concern: `COPY-*` (string marking), `ROUTE-*` (locale 
 | CI-04 | `i18nMissingTranslation` flipped from `warning` to `error` once target XLIFFs are filled | 265 | TODO |
 | BUILD-01 | `ng build` emits 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + en root) | 266 | TODO |
 | VERIFY-01 | Verification baseline: lint:i18n 0 errors, extract-clean 0 diff, build 30 HTMLs, no untranslated trans-units in target XLIFFs | 266 | TODO |
+| ROUTE-03 | Server-side Accept-Language redirect on `/` (cookie-respecting, bot-safe, 302) -- routes first-visit users to their preferred supported locale subpath | 267 | TODO |
 
 ## Coverage notes
 
 - Phases 261 + 262 were executed before this REQUIREMENTS.md was created; REQ IDs above were backfilled from each plan's frontmatter `requirements_addressed` and from the `requirements_addressed` line in Plan 262-05's narrative. Original plan summaries are the source of truth for what was satisfied.
-- Phase 263 dropped from milestone (dashboard surface explicitly deferred to v0.9.65 by user decision 2026-05-12); active phases are 261, 262, 264, 265, 266.
+- Phase 263 dropped from milestone (dashboard surface explicitly deferred to v0.9.65 by user decision 2026-05-12); active phases are 261, 262, 264, 265, 266, 267.
+- Phase 267 added 2026-05-13 (post-verification) for Accept-Language auto-detection -- user decision after Phase 266 surfaced the gap that picker writes a cookie but server never reads it.
 - 264 / 265 / 266 phase boundaries follow the pointers in Plan 262-05's SUMMARY ("Phase 264 hreflang/canonical", "Phase 265 AI translator", "Phase 266 verification baseline").
 
 ## Out of scope (deferred)
