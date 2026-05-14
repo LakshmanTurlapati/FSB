@@ -59,7 +59,8 @@
   2. The user can audit any per-call MCP log row in the Control Panel and see only `{client, tool, tokens_in, tokens_out, cost_usd, ts}` -- no URLs, no prompts, no DOM payloads, no clipboard, no form values are visible anywhere.
   3. A developer reading `fsbUsageData` rows can distinguish MCP entries from AI-provider entries via the `source: 'mcp' | 'ai-provider'` discriminator without changing the rendered hero numbers.
   4. The user runs the same MCP tool 10 times and sees exactly 10 new rows in the Control Panel -- no double-counting from local persistence and outbound telemetry both writing.
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 271-01-PLAN.md — MCPMetricsRecorder + dispatcher hooks + analytics back-fill + tests
 **UI hint**: yes
 
 ### Phase 272: TelemetryCollector + Alarm + Queue Persistence
@@ -155,7 +156,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 |-------|----------------|--------|-----------|
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
 | 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
-| 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 0/TBD | Not started | - |
+| 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 0/1 | Not started | - |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 0/TBD | Not started | - |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
 | 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |

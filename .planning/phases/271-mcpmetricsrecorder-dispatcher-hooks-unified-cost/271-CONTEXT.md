@@ -1,7 +1,7 @@
 # Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing - Context
 
 **Gathered:** 2026-05-14
-**Status:** Ready for planning
+**Status:** Planned (271-01-PLAN.md, 3 tasks, single wave)
 **Milestone:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 **Requirements:** COST-01, COST-02, COST-03, COST-04, COST-05
 
@@ -148,3 +148,20 @@ Every MCP tool dispatch flows through a single recorder that contributes to the 
 - Auto-tuning of token heuristics from telemetry baselines (v0.9.70+).
 
 </deferred>
+
+<plan_reconciliations>
+## Planner Notes (added 2026-05-14 during /gsd-plan-phase)
+
+Four reconciliations between CONTEXT.md and the live codebase were discovered during planning and resolved in `271-01-PLAN.md` `<reconciliations>` block:
+
+1. **`source` field collision** — existing `extension/utils/analytics.js:4-10` `normalizeUsageSource()` coerces unknown source values to `'automation'`. Without intervention, `'mcp'` would be clobbered on every `loadStoredData`. Resolution: extend the function to whitelist `'mcp'` and `'ai-provider'` as additional legal values; the legacy three (`automation|memory|sitemap`) coexist as a 5-value enum on the merged row.
+
+2. **Token-key naming collision** — existing analytics rows use camelCase (`inputTokens`/`outputTokens`/`cost`/`timestamp`). CONTEXT.md decision 5 specifies snake_case (`tokens_in`/`tokens_out`/`cost_usd`/`ts`). The hero `getAllTimeStats` reads camelCase. Resolution: MCP rows write BOTH key sets — canonical snake_case for Phase 272 telemetry, camelCase aliases for hero compatibility with no UI changes. `cost_usd: null` (unknown pricing) maps to legacy `cost: 0` so the hero sum stays correct; `cost_usd` remains null as the canonical "uncounted" signal Phase 274 surfaces.
+
+3. **`mcp-pricing.js` not wired in importScripts chain** — `grep mcp-pricing extension/background.js` returns ZERO matches. Phase 270 produced the module + JSON + tests, but did not wire the importScripts call. Task 1 wires BOTH `utils/mcp-pricing.js` (one-line Phase-270 repair) AND `utils/mcp-metrics-recorder.js`, both AFTER `ws/mcp-tool-dispatcher.js`.
+
+4. **No existing per-call log UI surface** — CONTEXT.md decision 9 references "the per-call log already exists in Control Panel", but `grep` confirms no such UI exists in `extension/ui/control_panel.html`. The closest UI is the 4-tile analytics hero + cost-breakdown + chart. Resolution: NO new UI in this phase (per CONTEXT decision 8 "NO new UI section"). Hero numbers auto-update because MCP rows live in `fsbUsageData`, `getAllTimeStats` sums all rows, and the camelCase aliases ensure visibility. Cost-breakdown workflow tiles (Automation/Memory) read `getStatsBySource('30d', 'automation'|'memory')` and correctly do NOT include MCP rows (source='mcp') — the intended D-04 separation: hero is unified; workflow-source breakdown is orthogonal.
+
+</plan_reconciliations>
+</content>
+</invoke>
