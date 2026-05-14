@@ -17,7 +17,7 @@
 - [x] **Phase 269: Install Identity + Opt-Out Scaffold** -- per-install UUIDv4 in `chrome.storage.local`; opt-out kill switch in Advanced Settings. ✓ shipped 2026-05-14 (35/35 tests, user-validated)
 - [x] **Phase 270: MCP Pricing Module** -- `MODEL_PRICING` + `MCP_CLIENT_DEFAULT_MODEL` table with source-stamped 2026-05-14 rates. ✓ shipped 2026-05-14 (167/0 tests, 6 review fixes, parity gate green)
 - [x] **Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing** -- single chokepoint records every MCP dispatch into `fsbUsageData` alongside AI-provider calls. ✓ shipped 2026-05-14 (88/88 tests + 612 regression assertions, 1 BLOCKER fix landed)
-- [ ] **Phase 272: TelemetryCollector + Alarm + Queue Persistence** -- 5-min beat, MV3-SW-survivable queue in `chrome.storage.local`, minute-resolution timestamps, opt-out-aware flush.
+- [x] **Phase 272: TelemetryCollector + Alarm + Queue Persistence** -- 5-min beat, MV3-SW-survivable queue in `chrome.storage.local`, minute-resolution timestamps, opt-out-aware flush. (completed 2026-05-14)
 - [ ] **Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper** -- ingest pipeline; `trust proxy`, `express-rate-limit@^8.3.0`, HMAC-SHA256 daily salt, k-anonymity-ready rollups. **HAS BLOCKERS #1, #2.**
 - [ ] **Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group** -- `/api/public-stats/*` + `FSBTelemetryService` mirror of `GitHubStatsService` + 6 new chart views on `/stats` with i18n AI-fill.
 - [ ] **Phase 275: Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke** -- `/privacy#telemetry-disclosure`, `listing-copy.md` data-collection section, `verify-store-listing.mjs` CI gate. **HAS BLOCKER #3.**
@@ -74,7 +74,7 @@
   4. The user never sees a notification, badge, or higher-than-debug console log from telemetry activity during normal operation.
   5. The user can replay a server outage scenario (server returns 500) and verify the batch is re-enqueued via `keepalive: true` semantics with capped re-tries -- no infinite retry loop.
 **Plans**: 1 plan
-- [ ] 272-01-PLAN.md — TelemetryCollector module + alarm + active-agent counter + tests
+- [x] 272-01-PLAN.md — TelemetryCollector module + alarm + active-agent counter + tests
 
 ### Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper
 **Goal**: The showcase server accepts anonymous telemetry batches with three release-gating safeguards: trusted-proxy IP handling, CVE-patched rate limiting, and never-persisted plaintext IPs.
@@ -158,7 +158,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
 | 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 1/1 | ✓ Complete | 2026-05-14 |
-| 272. TelemetryCollector + Alarm + Queue Persistence | 0/1 | Planned | - |
+| 272. TelemetryCollector + Alarm + Queue Persistence | 1/1 | Complete   | 2026-05-14 |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
 | 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |
 | 275. Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 0/TBD | Not started | - |

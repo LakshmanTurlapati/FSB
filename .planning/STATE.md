@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 status: executing
-last_updated: "2026-05-14T12:30:00.000Z"
-last_activity: 2026-05-14 -- Phase 271 passed (MCPMetricsRecorder + dispatcher hooks + unified cost: 88 tests + 612 regression assertions; CR-01 double-count BLOCKER fixed)
+last_updated: "2026-05-14T16:50:12.000Z"
+last_activity: "2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + static-grep CI gate over 13 banned identifiers; 88 mcp-metrics-recorder regression assertions still pass"
 progress:
   total_phases: 8
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 37.5
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 
 ## Current Position
 
-Phase: 272 of 276 (TelemetryCollector + Alarm + Queue Persistence) -- next
+Phase: 273 of 276 (Server endpoint /api/telemetry/events) -- next
 Plan: TBD
-Status: Phases 269+270+271 complete; awaiting Phase 272 plan
-Last activity: 2026-05-14 -- Phase 271 (MCPMetricsRecorder + dispatcher hooks) passed: 88 tests + 612 regression assertions, double-count BLOCKER (CR-01: handleToolAliasRoute) fixed via _mcpMetricsSuppressInner flag
+Status: Phases 269+270+271+272 complete; awaiting Phase 273 plan
+Last activity: 2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + 13-identifier static-grep CI gate; 9-field payload allowlist enforced in code + statically + at runtime
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 12.5% (1/8 milestone phases complete after Phase 272)
 
 ## Performance Metrics
 
@@ -95,5 +95,5 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 
 ## Session Continuity
 
-Last session: 2026-05-14 -- ROADMAP.md created for v0.9.69; 68/68 requirements mapped to phases 269-276; STATE.md transitioned from defining-requirements to roadmap-approved.
-Resume file: None. Next step: `/gsd-plan-phase 269`.
+Last session: 2026-05-14 -- Phase 272 plan executed atop commit 28f2d9b. 3 atomic commits (0c2a1d8 feat 272-01 collector + bg.js wiring, eaea6a3 feat 272-02 active-agent counter hooks, 205542f test 272-03 behavior tests + allowlist gate). 71 behavior assertions + 13-identifier static-grep gate all PASS. 88 mcp-metrics-recorder regression assertions still PASS.
+Resume file: None. Next step: `/gsd-plan-phase 273`.

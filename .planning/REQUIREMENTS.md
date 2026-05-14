@@ -58,16 +58,16 @@
 
 ### Telemetry Beat (extension side) -- BEAT
 
-- [ ] **BEAT-01**: Extension transmits a beat every 5 minutes -- `chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 })`. Uniform 0-30s jitter added to flush start to avoid synchronized spikes.
-- [ ] **BEAT-02**: Beat persists across MV3 service-worker eviction -- queue lives in `chrome.storage.local.fsb_telemetry_queue_v1` (NEVER in SW memory). Alarm wakes a fresh SW which re-loads the queue from storage and flushes.
-- [ ] **BEAT-03**: Queue is bounded -- cap at 200 events; drop-oldest FIFO on overflow.
-- [ ] **BEAT-04**: Events de-dup on the server -- every event carries a client-minted `event_id = crypto.randomUUID()`. Server `INSERT OR IGNORE` on a UNIQUE constraint handles double-send after eviction.
-- [ ] **BEAT-05**: Timestamps don't fingerprint timing -- client rounds every `ts` to the minute (`tsMinute = Math.floor(Date.now() / 60000) * 60000`).
-- [ ] **BEAT-06**: Stale events are dropped -- on queue-load, drop events older than 24h.
-- [ ] **BEAT-07**: Opt-out is read live, not cached -- every flush re-reads `chrome.storage.local.fsb_telemetry_opt_out`. When true: queue is cleared, NO POST is made, alarm continues firing harmlessly.
-- [ ] **BEAT-08**: Flush survives tab close -- `fetch(..., { keepalive: true })` used for the POST; on rejection, batch is re-enqueued (capped re-tries to prevent infinite loops).
-- [ ] **BEAT-09**: First beat fires after install -- on `onInstalled`, an `install_announce` event enqueues after a 30s idle grace, then the alarm takes over.
-- [ ] **BEAT-10**: Beat is invisible to the user UI -- no notifications, no badges, no console logs at level higher than debug.
+- [x] **BEAT-01**: Extension transmits a beat every 5 minutes -- `chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 })`. Uniform 0-30s jitter added to flush start to avoid synchronized spikes.
+- [x] **BEAT-02**: Beat persists across MV3 service-worker eviction -- queue lives in `chrome.storage.local.fsb_telemetry_queue_v1` (NEVER in SW memory). Alarm wakes a fresh SW which re-loads the queue from storage and flushes.
+- [x] **BEAT-03**: Queue is bounded -- cap at 200 events; drop-oldest FIFO on overflow.
+- [x] **BEAT-04**: Events de-dup on the server -- every event carries a client-minted `event_id = crypto.randomUUID()`. Server `INSERT OR IGNORE` on a UNIQUE constraint handles double-send after eviction.
+- [x] **BEAT-05**: Timestamps don't fingerprint timing -- client rounds every `ts` to the minute (`tsMinute = Math.floor(Date.now() / 60000) * 60000`).
+- [x] **BEAT-06**: Stale events are dropped -- on queue-load, drop events older than 24h.
+- [x] **BEAT-07**: Opt-out is read live, not cached -- every flush re-reads `chrome.storage.local.fsb_telemetry_opt_out`. When true: queue is cleared, NO POST is made, alarm continues firing harmlessly.
+- [x] **BEAT-08**: Flush survives tab close -- `fetch(..., { keepalive: true })` used for the POST; on rejection, batch is re-enqueued (capped re-tries to prevent infinite loops).
+- [x] **BEAT-09**: First beat fires after install -- on `onInstalled`, an `install_announce` event enqueues after a 30s idle grace, then the alarm takes over.
+- [x] **BEAT-10**: Beat is invisible to the user UI -- no notifications, no badges, no console logs at level higher than debug.
 
 ### Server Ingest (BLOCKERs live here) -- INGEST
 
@@ -190,16 +190,16 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | IDENT-03 | 269 | Pending |
 | IDENT-04 | 269 | Pending |
 | IDENT-05 | 269 | Pending |
-| BEAT-01 | 272 | Pending |
-| BEAT-02 | 272 | Pending |
-| BEAT-03 | 272 | Pending |
-| BEAT-04 | 272 | Pending |
-| BEAT-05 | 272 | Pending |
-| BEAT-06 | 272 | Pending |
-| BEAT-07 | 272 | Pending |
-| BEAT-08 | 272 | Pending |
-| BEAT-09 | 272 | Pending |
-| BEAT-10 | 272 | Pending |
+| BEAT-01 | 272 | Complete |
+| BEAT-02 | 272 | Complete |
+| BEAT-03 | 272 | Complete |
+| BEAT-04 | 272 | Complete |
+| BEAT-05 | 272 | Complete |
+| BEAT-06 | 272 | Complete |
+| BEAT-07 | 272 | Complete |
+| BEAT-08 | 272 | Complete |
+| BEAT-09 | 272 | Complete |
+| BEAT-10 | 272 | Complete |
 | INGEST-01 | 273 | Pending |
 | INGEST-02 | 273 | Pending |
 | INGEST-03 | 273 | Pending |
