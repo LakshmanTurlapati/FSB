@@ -32,6 +32,7 @@
   "files": [
     "build/",
     "ai/",
+    "data/",
     "README.md",
     "server.json"
   ],
