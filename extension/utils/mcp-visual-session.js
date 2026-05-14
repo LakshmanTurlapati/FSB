@@ -13,7 +13,8 @@
     'OpenClaw',
     'OpenClaw 🦀',
     'Grok',
-    'Gemini'
+    'Gemini',
+    'Hermes'
   ];
 
   var CLIENT_LABEL_MAP = Object.create(null);
