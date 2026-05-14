@@ -1,7 +1,7 @@
 # Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper - Context
 
 **Gathered:** 2026-05-14
-**Status:** Ready for planning
+**Status:** Planned (273-01-PLAN.md, 3 tasks, wave 1)
 **Milestone:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 **Requirements:** INGEST-01..13
 **Blockers:** B1 (trust proxy), B2 (express-rate-limit CVE)

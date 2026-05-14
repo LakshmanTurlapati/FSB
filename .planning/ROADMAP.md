@@ -86,7 +86,8 @@
   3. A developer can POST a payload containing a 10th field (e.g. `prompt`) and see the request rejected with `400 unknown_field` -- the 9-field allowlist is enforced server-side.
   4. A developer can POST `{install_uuid: "<uuid>"}` to `/api/telemetry/forget` and `/api/telemetry/optout` and see a `204` response whether the UUID existed or not (no enumeration leak); subsequently see zero matching rows remain in `telemetry_events` and `telemetry_rollups_daily`.
   5. A developer can leave the server running for 25 hours and verify that yesterday's salt row has been deleted, today's salt is fresh, and `telemetry_global_aggregates` has been recomputed at least once by the hourly housekeeper.
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 273-01-PLAN.md — Trust proxy + 4 SQLite tables + WAL pragmas + hash/salt utils + express-rate-limit dep install + rate-limit middleware + 3 telemetry routes (/events, /optout, /forget) + housekeeper + 13 tests + CI grep gate (no IP leak)
 
 ### Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group
 **Goal**: A visitor to `https://full-selfbrowsing.com/stats` can see live anonymous aggregate metrics about FSB usage, k-anonymity-floor-protected, in all six supported locales.
@@ -159,7 +160,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 1/1 | ✓ Complete | 2026-05-14 |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 1/1 | Complete   | 2026-05-14 |
-| 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
+| 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/1 | Planned | - |
 | 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |
 | 275. Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 0/TBD | Not started | - |
 | 276. Dashboard DOM-Streaming Diagnostic + Minimum Patch | 0/TBD | Not started | - |
