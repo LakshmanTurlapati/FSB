@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
-status: executing
-last_updated: "2026-05-14T16:50:12.000Z"
-last_activity: "2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + static-grep CI gate over 13 banned identifiers; 88 mcp-metrics-recorder regression assertions still pass"
+status: completed
+last_updated: "2026-05-14T17:27:57.034Z"
+last_activity: "2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + 13-identifier static-grep CI gate; 9-field payload allowlist enforced in code + statically + at runtime"
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
-  percent: 50
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 
 ## Current Position
 
-Phase: 273 of 276 (Server endpoint /api/telemetry/events) -- next
+Phase: 274 of 276 (Public stats endpoint) -- next
 Plan: TBD
-Status: Phases 269+270+271+272 complete; awaiting Phase 273 plan
-Last activity: 2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + 13-identifier static-grep CI gate; 9-field payload allowlist enforced in code + statically + at runtime
+Status: Phases 269+270+271+272+273 complete; awaiting Phase 274 plan
+Last activity: 2026-05-14 -- Phase 273 (server schema + telemetry routes + salt rotator + rate limiter + housekeeper) passed: 121 sub-asserts across 13 server-telemetry tests; 2 release-gating BLOCKERs (B1 trust-proxy, B2 express-rate-limit ^8.3.0 with ipKeyGenerator+HMAC keyGenerator -- CVE-2026-30827 fix); 4 new SQLite tables + 5 PRAGMAs + 3 public POST endpoints + hourly housekeeper + CI grep gate (15 .js files, 0 hits); 13/13 INGEST requirements complete
 
-Progress: [█████░░░░░] 50% (4/8 milestone phases complete after Phase 272)
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -46,8 +46,8 @@ Progress: [█████░░░░░] 50% (4/8 milestone phases complete af
 
 Three release-gating BLOCKERs (see ROADMAP.md "Risks"):
 
-- **B1 (Phase 273):** `app.set('trust proxy', 1)` must precede every telemetry route mount.
-- **B2 (Phase 273):** `express-rate-limit@^8.3.0` minimum (CVE-2026-30827) with custom HMAC-SHA256 `keyGenerator`.
+- **B1 (Phase 273) -- RESOLVED 2026-05-14:** `app.set('trust proxy', 1)` placed at showcase/server/server.js:33 (immediately after `const app = express()`); invariant tested by tests/server-trust-proxy.test.js (5/5 PASS).
+- **B2 (Phase 273) -- RESOLVED 2026-05-14:** `express-rate-limit ^8.3.0` (resolved 8.5.2) installed; custom `keyGenerator: (req) => hashIp(ipKeyGenerator(req.ip), db)` aligns rate-limit + storage identifiers and routes through the library's IPv6-subnet canonicaliser to fix CVE-2026-30827.
 - **B3 (Phase 275):** Updated CWS `listing-copy.md` + Privacy Practices declaration + privacy policy `#telemetry-disclosure` anchor before CWS publish.
 
 ## Deferred Items
@@ -69,6 +69,7 @@ Items acknowledged and deferred at v0.9.63 milestone close on 2026-05-13. None a
 | quick_task | 260508-gu8-add-agents-nav-page-to-showcase-fsb-skil | missing |
 
 Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future milestone cycle.
+| Phase 273 P01 | 11min | 3 tasks | 18 files |
 
 ## Quick Tasks Completed
 
@@ -95,5 +96,5 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 
 ## Session Continuity
 
-Last session: 2026-05-14 -- Phase 272 plan executed atop commit 28f2d9b. 3 atomic commits (0c2a1d8 feat 272-01 collector + bg.js wiring, eaea6a3 feat 272-02 active-agent counter hooks, 205542f test 272-03 behavior tests + allowlist gate). 71 behavior assertions + 13-identifier static-grep gate all PASS. 88 mcp-metrics-recorder regression assertions still PASS.
-Resume file: None. Next step: `/gsd-plan-phase 273`.
+Last session: 2026-05-14 -- Phase 273 plan executed atop commit 05bd0dc. 3 atomic commits (aa8a4f6 feat 273-01 trust-proxy + schema + WAL pragmas + hash/salt utils, 95082ac feat 273-02 rate-limit middleware + 3 routes + 9 route tests, 320d913 feat 273-03 housekeeper + no-IP-leak CI gate + test chain integration). 121 sub-asserts across 13 server-telemetry-* tests all PASS. 2/3 v0.9.69 BLOCKERs RESOLVED.
+Resume file: None. Next step: `/gsd-plan-phase 274`.
