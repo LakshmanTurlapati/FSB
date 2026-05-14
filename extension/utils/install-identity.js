@@ -39,6 +39,17 @@ var UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 var FSB_INSTALL_UUID_KEY = 'fsbInstallUuid';
 var FSB_TELEMETRY_OPT_OUT_KEY = 'fsbTelemetryOptOut';
 
+// Tracks whether the "Stored install UUID failed validation" warning has
+// already fired in this SW session. The corruption + re-mint path emits the
+// warn line on detection, then attempts a .set that overwrites the corrupt
+// value. If .set REJECTS (enterprise policy, quota exhausted, write
+// contention), the outer try/catch returns null and the corrupt value
+// remains in storage. The NEXT read sees the same corrupt value, would
+// re-trigger the warn, and so on -- spamming the console on every wake.
+// Gating the warn behind a module-level boolean caps the noise at one line
+// per SW lifetime regardless of how many failed .set retries follow.
+var _corruptWarningEmitted = false;
+
 // Single-flight coalescer for concurrent getOrCreateInstallUuid() calls.
 // chrome.runtime.onInstalled and chrome.runtime.onStartup can both fire close
 // together on a cold-start first install, and Chrome runs async listener
@@ -82,11 +93,14 @@ function getOrCreateInstallUuid() {
         return existing;
       }
 
-      if (typeof existing === 'string' && !UUID_V4_REGEX.test(existing)) {
+      if (typeof existing === 'string' && !UUID_V4_REGEX.test(existing) && !_corruptWarningEmitted) {
         // Corruption path: stored value is a string but does not match v4 shape.
-        // Re-mint defensively. One warn log only -- the failure mode is recoverable
-        // and not worth spamming. The new UUID overwrites the corrupt value.
+        // Re-mint defensively. Gate the warn behind a module-level flag so a
+        // failed .set followed by repeated reads doesn't spam the console; the
+        // user only needs one signal per SW session that the stored value was
+        // garbage. The new UUID overwrites the corrupt value if .set succeeds.
         console.warn('[FSB Telemetry] Stored install UUID failed validation; minting fresh');
+        _corruptWarningEmitted = true;
       }
 
       var uuid = crypto.randomUUID();

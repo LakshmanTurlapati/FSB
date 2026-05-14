@@ -320,6 +320,65 @@ function freshRequire() {
     passAssertEqual(m.FSB_TELEMETRY_OPT_OUT_KEY, 'fsbTelemetryOptOut', 'FSB_TELEMETRY_OPT_OUT_KEY is camelCase fsbTelemetryOptOut');
   }
 
+  // --- Test 7b: warn-once across multiple failed-write corruption re-mints
+  console.log('\n--- Test: warn-once when corrupt UUID + failing .set across multiple calls ---');
+  {
+    // Storage with corrupt fsbInstallUuid AND a .set that always rejects.
+    // Each call to getOrCreateInstallUuid() re-enters (since single-flight
+    // clears the memo on resolve), re-reads the corrupt value, would warn
+    // again on every read without the _corruptWarningEmitted gate.
+    const callCounts = { get: 0, set: 0 };
+    const store = { fsbInstallUuid: 'not-a-uuid' };
+    globalThis.chrome = {
+      runtime: { id: 'phase-269-test', lastError: null },
+      storage: {
+        local: {
+          async get(keys) {
+            callCounts.get++;
+            const list = Array.isArray(keys) ? keys : (typeof keys === 'string' ? [keys] : []);
+            const out = {};
+            list.forEach((key) => {
+              if (Object.prototype.hasOwnProperty.call(store, key)) out[key] = store[key];
+            });
+            return out;
+          },
+          async set(_values) {
+            callCounts.set++;
+            throw new Error('Storage write failed (simulated quota / policy)');
+          }
+        },
+        onChanged: { addListener: function () {} }
+      }
+    };
+    const warnCapture = captureWarn();
+    try {
+      const m = freshRequire();
+      // Three consecutive failing mints. Each call observes the corrupt
+      // value, would warn pre-fix; should warn exactly once post-fix.
+      const result1 = await m.getOrCreateInstallUuid();
+      const result2 = await m.getOrCreateInstallUuid();
+      const result3 = await m.getOrCreateInstallUuid();
+
+      passAssertEqual(result1, null, 'first failed-write call returns null');
+      passAssertEqual(result2, null, 'second failed-write call returns null');
+      passAssertEqual(result3, null, 'third failed-write call returns null');
+      passAssertEqual(callCounts.get, 3, 'storage.get was reached on every call (no memo leak)');
+      passAssertEqual(callCounts.set, 3, 'storage.set was attempted on every call (mint path entered each time)');
+
+      const matching = warnCapture.warnings.filter((w) =>
+        w.indexOf('[FSB Telemetry] Stored install UUID failed validation; minting fresh') !== -1
+      );
+      passAssertEqual(
+        matching.length,
+        1,
+        'console.warn emitted EXACTLY ONCE across three corrupt-value re-mint attempts'
+      );
+    } finally {
+      warnCapture.restore();
+      teardownChromeMock();
+    }
+  }
+
   // --- Test 8: single-flight coalesce -- concurrent onInstalled + onStartup race
   console.log('\n--- Test: single-flight coalesce on concurrent getOrCreateInstallUuid ---');
   {
