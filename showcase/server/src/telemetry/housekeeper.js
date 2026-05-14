@@ -73,13 +73,30 @@ function runHousekeeperTick(db, queries, nowMs = Date.now()) {
       const g = queries.selectGlobalForDayRange.get(dayStart, dayEnd) || {};
       const popularMcpRaw = queries.selectPopularMcpForDayRange.all(dayStart, dayEnd);
 
-      // k>=5 anonymity floor per D-07. Labels with fewer than 5 distinct installs
-      // bucket as "Other (N=<count>)" so single-user attribution is impossible.
+      // k>=5 anonymity floor per D-07 (WR-01 fix from Phase 273 review).
+      //
+      // Each row's `uniq` is already `COUNT(DISTINCT install_uuid)` per mcp_client
+      // (see queries.js:selectPopularMcpForDayRange). Labels with uniq >= 5 surface
+      // unchanged; labels with uniq < 5 collapse into a single "Other" bucket
+      // whose count is the SUM of below-k install counts (NOT the number of
+      // distinct below-k labels). This corrects two bugs in the prior code:
+      //
+      //   1. The "Other" bucket previously reported the count of distinct LABELS
+      //      below k (e.g. 4 if four labels each had uniq=1..4). Downstream
+      //      consumers reading `uniq` as installs got a wrong number.
+      //   2. If only one below-k label existed and that label had uniq=1, the
+      //      output was `{ mcp_client: 'Other (N=1)', uniq: 1 }` — surfacing
+      //      a singleton install under a generic name, which still violates k.
+      //
+      // The fix sums the actual installs and SUPPRESSES the bucket when even
+      // the aggregate below-k install count is itself < k.
       const above = popularMcpRaw.filter((r) => (r.uniq || 0) >= K_ANONYMITY_FLOOR);
-      const belowCount = popularMcpRaw.filter((r) => (r.uniq || 0) < K_ANONYMITY_FLOOR).length;
-      const popularMcp = belowCount > 0
-        ? [...above, { mcp_client: `Other (N=${belowCount})`, uniq: belowCount }]
-        : above;
+      const belowInstalls = popularMcpRaw
+        .filter((r) => (r.uniq || 0) < K_ANONYMITY_FLOOR)
+        .reduce((sum, r) => sum + (r.uniq || 0), 0);
+      const popularMcp = belowInstalls >= K_ANONYMITY_FLOOR
+        ? [...above, { mcp_client: 'Other', uniq: belowInstalls }]
+        : above; // suppress entirely when total below-k installs is itself < k
       // Phase 274 will source per-agent popularity from the rolled-up rows; v0.9.69 leaves this empty.
       const popularAgent = [];
 

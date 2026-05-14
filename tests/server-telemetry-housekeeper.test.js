@@ -127,14 +127,15 @@ const globalYesterday = db.prepare('SELECT * FROM telemetry_global_aggregates WH
 check('global aggregate exists for yesterday', !!globalYesterday, `got ${JSON.stringify(globalYesterday)}`);
 check('global yesterday.unique_installs === 1 (A)', globalYesterday && globalYesterday.unique_installs === 1, `got ${JSON.stringify(globalYesterday)}`);
 
-// popular_mcp_json: today has Claude=1 (A only -- 1 distinct UUID), Codex=1 (B). Both below k=5
-// floor -> all bucketed as "Other (N=2)". Confirm:
+// popular_mcp_json: today has Claude (1 distinct install, A) and Codex (1 distinct install, B).
+// Both labels are below the k=5 floor. The fix in WR-01 (Phase 273 review) sums installs
+// across below-k labels (1 + 1 = 2). Since the aggregate below-k install count (2) is itself
+// < k=5, the "Other" bucket is SUPPRESSED entirely and popular_mcp_json is []. This is the
+// privacy-correct behaviour: surfacing "Other (uniq=2)" would still leak that exactly 2
+// installs used unusual clients today, which violates k-anonymity at k=5.
 const popularToday = JSON.parse(globalToday.popular_mcp_json);
-check('popular_mcp_json applies k=5 floor (both mcp_client labels below k)',
-  Array.isArray(popularToday) &&
-  popularToday.length === 1 &&
-  popularToday[0].mcp_client === 'Other (N=2)' &&
-  popularToday[0].uniq === 2,
+check('popular_mcp_json applies k=5 floor: all below-k labels collapsed, aggregate < k -> bucket SUPPRESSED (empty array)',
+  Array.isArray(popularToday) && popularToday.length === 0,
   `got ${JSON.stringify(popularToday)}`
 );
 
