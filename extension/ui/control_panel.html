@@ -1578,7 +1578,13 @@
     (`script-src 'self'`), which forbids inline scripts. The previous inline
     <script> block was silently blocked at runtime, leaving the toggle as a
     visual no-op (storage never written, user opt-out silently discarded).
+
+    install-identity.js MUST load BEFORE install-identity-ui.js -- the UI
+    script reads globalThis.fsbInstallIdentity.{FSB_TELEMETRY_OPT_OUT_KEY,
+    isTelemetryOptedOut, setTelemetryOptOut} instead of hardcoding the
+    storage key string.
   -->
+  <script src="../utils/install-identity.js"></script>
   <script src="install-identity-ui.js"></script>
 </body>
 </html>

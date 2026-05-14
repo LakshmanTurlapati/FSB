@@ -1,26 +1,29 @@
 /**
  * Privacy & Telemetry kill-switch UI wiring.
  *
- * Phase 269 / v0.9.69. Extracted from the inline <script> block in
- * control_panel.html so the script runs under MV3's default CSP
- * (`script-src 'self'`), which forbids inline scripts. Inline scripts in
- * extension pages are blocked at runtime with no fallback execution; the
- * previous inline block silently failed and the toggle never persisted.
+ * Phase 269 / v0.9.69. Runs in the control_panel.html document context.
+ * Extracted from an inline <script> block so it satisfies MV3's default
+ * CSP (`script-src 'self'`); inline scripts are blocked at runtime on
+ * extension pages.
  *
- * Storage key `fsbTelemetryOptOut === true` means the user has opted OUT.
- * Toggle checkbox `checked` state is the INVERSE: checked = telemetry ON.
+ * This file depends on `globalThis.fsbInstallIdentity` (provided by
+ * extension/utils/install-identity.js, which control_panel.html loads
+ * via <script src="../utils/install-identity.js"> BEFORE this file).
+ * The module exports the storage-key constant (FSB_TELEMETRY_OPT_OUT_KEY)
+ * + the API functions (isTelemetryOptedOut, setTelemetryOptOut) so this
+ * file does NOT hardcode the storage string -- a future rename only
+ * needs to touch install-identity.js.
  *
- * Hardcoded string `'fsbTelemetryOptOut'` here mirrors the inline block's
- * prior shape; a follow-up commit replaces this with the install-identity
- * module's exported `FSB_TELEMETRY_OPT_OUT_KEY` constant + module API
- * (`isTelemetryOptedOut` / `setTelemetryOptOut`).
+ * Storage semantics:
+ *   - chrome.storage.local[FSB_TELEMETRY_OPT_OUT_KEY] === true means the
+ *     user has opted OUT (telemetry OFF).
+ *   - Toggle `checked` is the INVERSE: checked = telemetry ON.
  */
 
 'use strict';
 
 (function () {
   const TOGGLE_ID = 'fsbTelemetryOptOut';
-  const STORAGE_KEY = 'fsbTelemetryOptOut';
 
   function applyAriaLabel(checked) {
     const el = document.getElementById(TOGGLE_ID);
@@ -30,12 +33,26 @@
       : 'Anonymous usage data is NOT being sent. Click to re-enable.');
   }
 
+  function getModule() {
+    return globalThis.fsbInstallIdentity || null;
+  }
+
   async function initPrivacyToggle() {
     const el = document.getElementById(TOGGLE_ID);
     if (!el) return;
+    const mod = getModule();
     try {
-      const data = await chrome.storage.local.get([STORAGE_KEY]);
-      const optedOut = data && data[STORAGE_KEY] === true;
+      // Prefer the module API. If the module failed to load (e.g., load-
+      // order regression), fall back to a direct storage read using a
+      // hardcoded key string so the UI degrades gracefully instead of
+      // throwing on undefined.fsbInstallIdentity.isTelemetryOptedOut.
+      let optedOut = false;
+      if (mod && typeof mod.isTelemetryOptedOut === 'function') {
+        optedOut = await mod.isTelemetryOptedOut();
+      } else {
+        const data = await chrome.storage.local.get(['fsbTelemetryOptOut']);
+        optedOut = !!(data && data.fsbTelemetryOptOut === true);
+      }
       el.checked = !optedOut; // checked = telemetry ON
       applyAriaLabel(el.checked);
     } catch (_e) {
@@ -47,7 +64,12 @@
       const optedOut = !el.checked; // checked off -> opted out
       applyAriaLabel(el.checked);
       try {
-        await chrome.storage.local.set({ [STORAGE_KEY]: optedOut });
+        const m = getModule();
+        if (m && typeof m.setTelemetryOptOut === 'function') {
+          await m.setTelemetryOptOut(optedOut);
+        } else {
+          await chrome.storage.local.set({ fsbTelemetryOptOut: optedOut });
+        }
       } catch (_e) {
         // No user-facing error per UI-SPEC ("no nag screen").
         console.warn('[FSB Telemetry] opt-out write failed');
