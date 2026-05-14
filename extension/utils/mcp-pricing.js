@@ -74,8 +74,18 @@ var _data = null;
 
 // In-flight fetch Promise. Resolves to `_data` once the fetch lands; null if
 // the fetch failed. Reused by `_loadDataIfNeeded` so concurrent callers don't
-// double-fetch.
+// double-fetch. On MV3 SW fetch failure the promise is RESET to null inside
+// the .catch so a later wake / retry can re-attempt the load rather than
+// latching UNKNOWN for the rest of the SW session (mirrors install-identity's
+// _pendingMintPromise reset pattern from Phase 269).
 var _dataPromise = null;
+
+// One-shot diagnostic flag for the MV3-SW fetch failure path. We surface
+// exactly one `console.warn` per SW session if the bundled pricing JSON
+// cannot be loaded, so operators investigating "all MCP telemetry rows are
+// UNKNOWN" have a signal in the SW logs without log spam on every subsequent
+// retry. Mirrors install-identity.js's _corruptWarningEmitted pattern.
+var _loadWarningEmitted = false;
 
 /**
  * Load the JSON pricing data if it has not been loaded yet.
@@ -88,10 +98,17 @@ var _dataPromise = null;
  * resolves into `_data` when the bundled JSON arrives. Returns the Promise
  * so callers (mainly tests) can `await` first-load completion.
  *
- * On fetch / require failure: caches a resolved-null Promise so the
- * resolver returns UNKNOWN defensively (rather than throwing). The
- * `_corruptDataWarningEmitted` flag (not used in this module yet -- reserved
- * for a future enhancement) would gate any warn line to once per SW session.
+ * On Node `require` failure: caches a resolved-null Promise so the resolver
+ * returns UNKNOWN defensively (rather than throwing).
+ *
+ * On MV3 SW fetch / HTTP / parse failure: (a) emits exactly ONE
+ * `console.warn` per SW session via the `_loadWarningEmitted` latch so
+ * operators have a single diagnostic line in the SW logs instead of either
+ * silent failure or per-call log spam, and (b) RESETS `_dataPromise` to null
+ * so a subsequent caller can re-attempt the load. The previous behavior
+ * resolved the promise to null permanently, which latched every subsequent
+ * call to UNKNOWN for the lifetime of the SW session even on transient fetch
+ * hiccups at cold-start.
  *
  * @returns {Promise<object|null>} The loaded JSON, or null on load failure.
  */
@@ -114,10 +131,37 @@ function _loadDataIfNeeded() {
   }
 
   // Path B: MV3 SW -- fetch the bundled JSON.
+  //
+  // 1. Check r.ok BEFORE r.json() -- a 404 (e.g. typo in the bundled-resource
+  //    path, or extension upgrade race where the file isn't yet available)
+  //    would otherwise let r.json() try to parse an HTML error body and
+  //    throw without diagnostic.
+  // 2. .catch emits ONE warn per SW session via _loadWarningEmitted so the
+  //    operator sees "why is everything UNKNOWN" without log spam.
+  // 3. .catch RESETS _dataPromise to null so the next caller can retry the
+  //    load. This is the production hook -- a transient fetch hiccup at SW
+  //    cold start no longer permanently degrades the rest of the session.
   _dataPromise = fetch(chrome.runtime.getURL('utils/mcp-pricing-data.json'))
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function (d) { _data = d; return d; })
-    .catch(function (_e) { return null; });
+    .catch(function (e) {
+      if (!_loadWarningEmitted) {
+        // Safe-guard `console` access: SW context has it, but we still guard
+        // for any test harness that might stub the global.
+        if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+          console.warn(
+            '[FSB MCP Pricing] Failed to load pricing data; cost estimation will return UNKNOWN:',
+            e && e.message ? e.message : e
+          );
+        }
+        _loadWarningEmitted = true;
+      }
+      _dataPromise = null;  // permit retry on next call
+      return null;
+    });
   return _dataPromise;
 }
 
