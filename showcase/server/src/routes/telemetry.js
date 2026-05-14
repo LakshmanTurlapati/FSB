@@ -28,6 +28,10 @@ const express = require('express');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { isValidUuidV4 } = require('../utils/telemetry-hash');
 const { createTelemetryRateLimiter, checkPerUuidBudget } = require('../middleware/telemetry-rate-limit');
+// Phase 274 / AGG-02 + AGG-03 -- in-memory liveness tracker. Hook fires AFTER
+// the SQLite insert succeeds; failure paths (validation, timestamp, budget
+// reject) do NOT record. Only counts/sums leave the module surface.
+const activeTracker = require('../telemetry/active-tracker');
 
 // ---------------------------------------------------------------------------
 // Allowlists (hardcoded per CONTEXT specifics -- decoupled from Phase 270's JSON).
@@ -211,6 +215,20 @@ function createTelemetryRouter(db, queries, hashIp) {
         return n;
       });
       inserted = tx(budgetAccepted);
+    }
+
+    // Phase 274 / AGG-02 + AGG-03 -- record active liveness in the in-memory
+    // tracker AFTER the SQLite insert succeeded for the batch. We pass the
+    // wall-clock receive time `now` (already captured at line 168), NOT
+    // ev.ts_minute (client clock). A drifted client cannot pin itself as
+    // "active" indefinitely because the tracker stores receive time.
+    // Note: we record once per event in budgetAccepted, even if INSERT OR IGNORE
+    // dropped some as duplicates -- the activity signal is "client beat for this
+    // UUID in this window", which is still true on a replay collision.
+    if (inserted > 0) {
+      for (const ev of budgetAccepted) {
+        activeTracker.recordSeen(ev.install_uuid, ev.active_agent_count, now);
+      }
     }
 
     // Build the response. Priority of error status codes:
