@@ -21,7 +21,7 @@
 - [x] **Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper** -- ingest pipeline; `trust proxy`, `express-rate-limit@^8.3.0`, HMAC-SHA256 daily salt, k-anonymity-ready rollups. **HAS BLOCKERS #1, #2.** (completed 2026-05-14)
 - [x] **Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group** -- `/api/public-stats/*` + `FSBTelemetryService` mirror of `GitHubStatsService` + 6 new chart views on `/stats` with i18n AI-fill. (completed 2026-05-14; 4 atomic commits; 6 new tests / 294 sub-assertions; AGG-01..09 + STATS-01..07)
 - [x] **Phase 275: Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke** -- `/privacy#telemetry-disclosure` section with 6-locale i18n (25 trans-units × 6 locales), `store-assets/chrome-web-store/listing-copy.md` "Data Collection" section, new `store-assets/chrome-web-store/privacy-practices-evidence.md`, `scripts/verify-store-listing.mjs` CI gate + 2 new tests / 56 sub-assertions, root npm test chain wiring, `homepage_url` added to manifest.json (Rule 2 auto-fix). BLOCKER #3 RESOLVED. (completed 2026-05-14; 4 atomic commits; CONS-03..07)
-- [ ] **Phase 276: Dashboard DOM-Streaming Diagnostic + Minimum Patch** -- capture 3 logs, walk 7-hypothesis chain in rank order, apply minimum patch. **LOCKED LAST.**
+- [x] **Phase 276: Dashboard DOM-Streaming Diagnostic + Minimum Patch** -- 276-DIAGNOSTIC.md scaffold (7-hypothesis matrix) + defensive patches for hypotheses #1 (hashKey room-state logs), #2 (replace setTimeout(300) with pingDomStream readiness poll), #4 (parked-intent re-arm via _pendingStreamStart) + STREAM-04 tooltip with 4 new counters + Resync button + STREAM-05 watchdog auto-resnapshot + STREAM-06 WS backpressure drop counter. Status `human_needed` per autonomous-mode boundary; manual repro pass documented in 276-VERIFICATION.md `<human_verification>`. (completed 2026-05-14; 4 atomic per-task commits + 1 metadata commit; 3 new tests / 52 sub-assertions; STREAM-01..06 satisfied; STREAM-07 5-attempt cap honoured as attempt 1 of 5)
 
 ## Phase Details
 
@@ -163,9 +163,9 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 1/1 | ✓ Complete | 2026-05-14 |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 1/1 | Complete   | 2026-05-14 |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 1/1 | Complete   | 2026-05-14 |
-| 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |
-| 275. Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 0/TBD | Not started | - |
-| 276. Dashboard DOM-Streaming Diagnostic + Minimum Patch | 0/TBD | Not started | - |
+| 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 2/2 | Complete   | 2026-05-14 |
+| 275. Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 1/1 | Complete   | 2026-05-14 |
+| 276. Dashboard DOM-Streaming Diagnostic + Minimum Patch | 1/1 | Complete (human_needed) | 2026-05-14 |
 
 ---
 
