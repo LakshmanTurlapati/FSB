@@ -100,6 +100,47 @@
         <li i18n="@@privacy.section.memory.li.4">Site maps and navigation patterns are domain-specific and isolated from each other</li>
       </ul>
 
+      <!-- Anonymous Usage Telemetry (v0.9.69 / Phase 275) -->
+      <h2 id="telemetry-disclosure" i18n="@@PRIVACY_TELEMETRY_HEADING">Anonymous Usage Telemetry</h2>
+      <p i18n="@@PRIVACY_TELEMETRY_INTRO"><span [attr.translate]="'no'">FSB</span> v0.9.69 introduced an opt-out anonymous usage telemetry pipeline so the project can publish aggregate adoption numbers (see <a href="/stats">/stats</a>) without ever touching the pages you browse. Telemetry is on by default but can be disabled with a single toggle, and the per-install data can be erased on request.</p>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_COLLECT_HEADING">What we collect</h3>
+      <ul>
+        <li i18n="@@PRIVACY_TELEMETRY_COLLECT_UUID">A random per-install <span [attr.translate]="'no'">UUID</span> stored in <code [attr.translate]="'no'">chrome.storage.local</code> under the key <code [attr.translate]="'no'">fsbInstallUuid</code>. The <span [attr.translate]="'no'">UUID</span> is generated locally and never tied to your identity.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_COLLECT_MCP_CLIENT">The name of the <span [attr.translate]="'no'">MCP</span> client used (e.g. <span [attr.translate]="'no'">Claude Code</span>, <span [attr.translate]="'no'">Cursor</span>, <span [attr.translate]="'no'">Codex</span>), drawn from a fixed allowlist.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_COLLECT_MODEL">The model name used for a session (e.g. <code [attr.translate]="'no'">grok-4-fast</code>, <code [attr.translate]="'no'">claude-opus-4</code>), drawn from a fixed allowlist.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_COLLECT_TOKENS">Aggregate input/output token counts per session.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_COLLECT_AGENTS">The number of active <span [attr.translate]="'no'">FSB</span> agents on your install (an integer count).</li>
+      </ul>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_HEADING">What we do NOT collect</h3>
+      <ul>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_URLS">Page <span [attr.translate]="'no'">URLs</span>, hostnames, or browsing history.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_PROMPTS">Prompts, instructions, task descriptions, or any natural-language text you send to your model provider.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_DOM">Page <span [attr.translate]="'no'">DOM</span>, screenshots, page content, or <span [attr.translate]="'no'">AI</span> responses.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_IP">Plaintext <span [attr.translate]="'no'">IP</span> addresses. The server hashes the request <span [attr.translate]="'no'">IP</span> with a daily-rotating salt for rate limiting and discards it.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_NAMES">Names, usernames, account handles, or any free-form identity fields.</li>
+        <li i18n="@@PRIVACY_TELEMETRY_NOT_COLLECT_EMAILS">Email addresses, phone numbers, or contact information.</li>
+      </ul>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_RETENTION_HEADING">Retention</h3>
+      <p i18n="@@PRIVACY_TELEMETRY_RETENTION_TEXT">Raw events are retained for 7 days. Daily rollups (one row per install per day) are retained for 365 days. Global aggregates (one row per day, no per-install dimension) are retained indefinitely so historical charts on <a href="/stats">/stats</a> remain stable.</p>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_OPTOUT_HEADING">How to opt out</h3>
+      <p i18n="@@PRIVACY_TELEMETRY_OPTOUT_TEXT">Open the <span [attr.translate]="'no'">FSB</span> Control Panel, scroll to Advanced Settings, and toggle <strong>Send anonymous usage data</strong> off. The change takes effect immediately; no further events will be sent from your install.</p>
+
+      <h3 id="erase-data" i18n="@@PRIVACY_TELEMETRY_ERASE_HEADING">How to erase your data</h3>
+      <p i18n="@@PRIVACY_TELEMETRY_ERASE_TEXT">To request erasure of all telemetry rows associated with your install (<span [attr.translate]="'no'">GDPR</span> Article 17), look up your <code [attr.translate]="'no'">fsbInstallUuid</code> in <span [attr.translate]="'no'">Chrome</span> <span [attr.translate]="'no'">DevTools</span> &rarr; Application &rarr; Storage &rarr; Extension storage, then send a single <span [attr.translate]="'no'">HTTP</span> request:</p>
+      <pre><code [attr.translate]="'no'">curl -X POST -H "Content-Type: application/json" \
+  -d '{{ '{' }}"install_uuid":"&lt;your-uuid&gt;"{{ '}' }}' \
+  https://full-selfbrowsing.com/api/telemetry/forget</code></pre>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_LIMITED_USE_HEADING">Limited Use affirmation</h3>
+      <p i18n="@@PRIVACY_TELEMETRY_LIMITED_USE_TEXT"><span [attr.translate]="'no'">FSB</span>'s anonymous usage telemetry is used only to compute aggregate usage statistics displayed publicly at <a href="/stats" [attr.translate]="'no'">full-selfbrowsing.com/stats</a>. The data is never sold, never shared with third parties, never used for advertising, and never used to train any machine-learning models. This commitment satisfies the <span [attr.translate]="'no'">Chrome Web Store</span>'s <span [attr.translate]="'no'">Limited Use</span> requirement.</p>
+
+      <h3 i18n="@@PRIVACY_TELEMETRY_AGGREGATED_HEADING">Aggregated public metrics</h3>
+      <p i18n="@@PRIVACY_TELEMETRY_AGGREGATED_TEXT">We publish aggregated metrics derived from this telemetry pipeline at <a href="/stats">/stats</a>. Only counts and totals are shown; no per-install row is ever exposed.</p>
+
       <!-- Open Source -->
       <h2 i18n="@@privacy.section.openSource.title">Open Source</h2>
        

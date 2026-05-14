@@ -3582,6 +3582,206 @@
           <context context-type="linenumber">91</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_HEADING" datatype="html">
+        <source>Anonymous Usage Telemetry</source>
+        <target state="translated">匿名使用遙測</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">104,105</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_INTRO" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v0.9.69 introduced an opt-out anonymous usage telemetry pipeline so the project can publish aggregate adoption numbers (see <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>) without ever touching the pages you browse. Telemetry is on by default but can be disabled with a single toggle, and the per-install data can be erased on request.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v0.9.69 引入了一個可選退出的匿名使用遙測管線，讓專案能在完全不接觸你瀏覽的任何頁面的情況下，發布聚合的採用數據（請參見 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>）。遙測預設啟用，但可以透過一個開關停用，並且按安裝的資料可根據請求被抹除。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">105,107</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_HEADING" datatype="html">
+        <source>What we collect</source>
+        <target state="translated">我們收集的內容</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">107,109</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_UUID" datatype="html">
+        <source>A random per-install <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> stored in <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> under the key <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>. The <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> is generated locally and never tied to your identity.</source>
+        <target state="translated">每次安裝隨機產生的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>，儲存於 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> 的鍵 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> 之下。<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 於本機產生，永遠不會與你的身分關聯。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">109,110</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MCP_CLIENT" datatype="html">
+        <source>The name of the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> client used (e.g. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Claude Code<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Cursor<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Codex<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>), drawn from a fixed allowlist.</source>
+        <target state="translated">所使用的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 用戶端名稱（例如 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Claude Code<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Cursor<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Codex<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>），取自固定的允許清單。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">110,111</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MODEL" datatype="html">
+        <source>The model name used for a session (e.g. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>grok-4-fast<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>claude-opus-4<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>), drawn from a fixed allowlist.</source>
+        <target state="translated">工作階段中使用的模型名稱（例如 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>grok-4-fast<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>、<x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>claude-opus-4<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>），取自固定的允許清單。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">111,112</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_TOKENS" datatype="html">
+        <source>Aggregate input/output token counts per session.</source>
+        <target state="translated">每個工作階段的輸入／輸出 token 數量聚合值。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">112,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_AGENTS" datatype="html">
+        <source>The number of active <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> agents on your install (an integer count).</source>
+        <target state="translated">你的安裝上活躍的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 代理數量（一個整數值）。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">113,115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_HEADING" datatype="html">
+        <source>What we do NOT collect</source>
+        <target state="translated">我們不收集的內容</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">116,118</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_URLS" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>URLs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, hostnames, or browsing history.</source>
+        <target state="translated">頁面 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>URLs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、主機名稱或瀏覽歷史紀錄。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">118,119</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_PROMPTS" datatype="html">
+        <source>Prompts, instructions, task descriptions, or any natural-language text you send to your model provider.</source>
+        <target state="translated">提示、指令、工作描述，或你傳送給模型供應商的任何自然語言文字。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">119,120</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_DOM" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, screenshots, page content, or <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> responses.</source>
+        <target state="translated">頁面 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、螢幕截圖、頁面內容或 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 回應。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">120,121</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_IP" datatype="html">
+        <source>Plaintext <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> addresses. The server hashes the request <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> with a daily-rotating salt for rate limiting and discards it.</source>
+        <target state="translated">純文字 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 位址。伺服器使用每日輪換的鹽對請求 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 進行雜湊以限制流量，並立即丟棄。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">121,122</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_NAMES" datatype="html">
+        <source>Names, usernames, account handles, or any free-form identity fields.</source>
+        <target state="translated">姓名、使用者名稱、帳號代號，或任何自由文字身分欄位。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">122,123</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_EMAILS" datatype="html">
+        <source>Email addresses, phone numbers, or contact information.</source>
+        <target state="translated">電子郵件地址、電話號碼，或聯絡資訊。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">123,126</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_HEADING" datatype="html">
+        <source>Retention</source>
+        <target state="translated">保留期</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">126,127</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_TEXT" datatype="html">
+        <source>Raw events are retained for 7 days. Daily rollups (one row per install per day) are retained for 365 days. Global aggregates (one row per day, no per-install dimension) are retained indefinitely so historical charts on <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> remain stable.</source>
+        <target state="translated">原始事件保留 7 天。每日彙總（每安裝每天一列）保留 365 天。全域聚合（每天一列，無按安裝維度）無限期保留，以便 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 上的歷史圖表保持穩定。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">127,129</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_HEADING" datatype="html">
+        <source>How to opt out</source>
+        <target state="translated">如何選擇退出</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">129,130</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_TEXT" datatype="html">
+        <source>Open the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Control Panel, scroll to Advanced Settings, and toggle <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Send anonymous usage data<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> off. The change takes effect immediately; no further events will be sent from your install.</source>
+        <target state="translated">開啟 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 控制面板，捲動至「進階設定」，將 <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>傳送匿名使用資料<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> 開關關閉。變更立即生效；之後不會再從你的安裝傳送事件。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">130,132</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_HEADING" datatype="html">
+        <source>How to erase your data</source>
+        <target state="translated">如何抹除你的資料</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">132,133</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_TEXT" datatype="html">
+        <source>To request erasure of all telemetry rows associated with your install (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GDPR<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Article 17), look up your <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DevTools<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> → Application → Storage → Extension storage, then send a single <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>HTTP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> request:</source>
+        <target state="translated">若要請求抹除與你的安裝關聯的所有遙測列（<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GDPR<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 第 17 條），請在 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DevTools<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> → Application → Storage → Extension storage 中查找你的 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>，然後傳送一次 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>HTTP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 請求：</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">133,134</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_HEADING" datatype="html">
+        <source>Limited Use affirmation</source>
+        <target state="translated">Limited Use 合規聲明</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">138,139</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_TEXT" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s anonymous usage telemetry is used only to compute aggregate usage statistics displayed publicly at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>full-selfbrowsing.com/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. The data is never sold, never shared with third parties, never used for advertising, and never used to train any machine-learning models. This commitment satisfies the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome Web Store<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Limited Use<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> requirement.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 的匿名使用遙測僅用於計算在 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>full-selfbrowsing.com/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 公開展示的聚合使用統計。資料從不出售、從不與第三方共享、從不用於廣告，且從不用於訓練任何機器學習模型。此承諾滿足 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome Web Store<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Limited Use<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 要求。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">139,141</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_HEADING" datatype="html">
+        <source>Aggregated public metrics</source>
+        <target state="translated">聚合的公開指標</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">141,142</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_TEXT" datatype="html">
+        <source>We publish aggregated metrics derived from this telemetry pipeline at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. Only counts and totals are shown; no per-install row is ever exposed.</source>
+        <target state="translated">我們在 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 發布來自此遙測管線的聚合指標。僅展示計數和總數；每安裝的列從不公開。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">142,144</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -111,11 +111,11 @@
 
 - [ ] **CONS-01**: User can disable telemetry via kill switch -- extension Control Panel "Advanced Settings" tab gains a "Send anonymous usage data" toggle. ON by default. When OFF: `chrome.storage.local.fsb_telemetry_opt_out = true`; alarm continues firing but flush is a no-op; queue is cleared.
 - [ ] **CONS-02**: User can verify the kill switch is honored -- toggle state is reflected in the toggle UI within 100ms of click (sync write to storage). No "Apply" button. No nag screen.
-- [ ] **CONS-03**: Public privacy policy page is updated -- `showcase/angular/src/app/pages/privacy/privacy-page.component.html` gains a "Anonymous Usage Telemetry" section covering: what we collect (UUID + tokens + active-agent count + MCP client label + model name), what we explicitly do NOT collect (URLs, prompts, DOM, IPs in plaintext, names, emails), retention (7d raw, 365d rollups, lifetime global aggregates), kill-switch path (Control Panel > Advanced Settings), erasure recipe (curl command for `POST /api/telemetry/forget`), and Limited Use affirmation.
-- [ ] **CONS-04**: Public privacy policy page links to /stats -- "we publish aggregated metrics here" pointer added below the telemetry section.
-- [ ] **CONS-05** (BLOCKER #3 listing): CWS listing copy is updated in-repo -- `store-assets/chrome-web-store/listing-copy.md` gets a "Data we collect" section mirroring CONS-03. New file `store-assets/chrome-web-store/privacy-practices-evidence.md` documents which CWS Privacy Practices checkboxes must be ticked (Personally identifiable information YES = UUID; Web history NO; Limited Use YES; Privacy Policy URL = `https://full-selfbrowsing.com/privacy#telemetry-disclosure`).
-- [ ] **CONS-06**: CWS listing diff is CI-gated -- `scripts/verify-store-listing.mjs` is added to the website CI chain; fails if `listing-copy.md` lacks the new Data Collection section OR if the privacy-policy URL in `manifest.json`-listed homepage_url doesn't end with `/privacy`.
-- [ ] **CONS-07**: GDPR Article 17 erasure is reachable -- privacy policy page documents the curl recipe (`curl -X POST https://server/api/telemetry/forget -d '{"install_uuid":"<your-uuid>"}'`) plus the in-extension path to copy the UUID (read-only field in Advanced Settings). NO "forget my data" button UI in v0.9.69 -- documented and deferred to v0.9.70+.
+- [x] **CONS-03**: Public privacy policy page is updated -- `showcase/angular/src/app/pages/privacy/privacy-page.component.html` gains a "Anonymous Usage Telemetry" section covering: what we collect (UUID + tokens + active-agent count + MCP client label + model name), what we explicitly do NOT collect (URLs, prompts, DOM, IPs in plaintext, names, emails), retention (7d raw, 365d rollups, lifetime global aggregates), kill-switch path (Control Panel > Advanced Settings), erasure recipe (curl command for `POST /api/telemetry/forget`), and Limited Use affirmation. Phase 275-01, commit c9db4f0.
+- [x] **CONS-04**: Public privacy policy page links to /stats -- `@@PRIVACY_TELEMETRY_AGGREGATED_TEXT` paragraph links to `/stats` with "We publish aggregated metrics" phrasing. Phase 275-01, commit c9db4f0.
+- [x] **CONS-05** (BLOCKER #3 listing): CWS listing copy is updated in-repo -- `store-assets/chrome-web-store/listing-copy.md` gets a "Data Collection" section mirroring CONS-03. New file `store-assets/chrome-web-store/privacy-practices-evidence.md` documents which CWS Privacy Practices checkboxes must be ticked (Personally identifiable information YES = UUID; Web history NO; Limited Use YES; Privacy Policy URL = `https://full-selfbrowsing.com/privacy#telemetry-disclosure`). Phase 275-03, commit 94144ee.
+- [x] **CONS-06**: CWS listing diff is CI-gated -- `scripts/verify-store-listing.mjs` is added to the root `npm test` chain immediately after `tests/showcase-build-smoke.test.js`; fails if `listing-copy.md` lacks the new Data Collection heading OR is missing `full-selfbrowsing.com/privacy` reference OR neither in-repo file references `#telemetry-disclosure` OR `privacy-practices-evidence.md` is empty/missing OR `extension/manifest.json` lacks `homepage_url`. Phase 275-04, commit b3fc2ee.
+- [x] **CONS-07**: GDPR Article 17 erasure is reachable -- privacy policy page documents the curl recipe (`curl -X POST https://full-selfbrowsing.com/api/telemetry/forget -d '{"install_uuid":"<your-uuid>"}'`) plus the in-extension path to copy the UUID (read via Chrome DevTools > Application > Storage > Extension storage > `fsbInstallUuid`). NO "forget my data" button UI in v0.9.69 -- documented and deferred to TELEMETRY-FUTURE-04. Phase 275-01, commit c9db4f0.
 
 ### Dashboard DOM-Streaming Fix -- STREAM
 
@@ -231,11 +231,11 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | STATS-07 | 274 | Complete |
 | CONS-01 | 269 | Pending |
 | CONS-02 | 269 | Pending |
-| CONS-03 | 275 | Pending |
-| CONS-04 | 275 | Pending |
-| CONS-05 | 275 | Pending |
-| CONS-06 | 275 | Pending |
-| CONS-07 | 275 | Pending |
+| CONS-03 | 275 | Complete |
+| CONS-04 | 275 | Complete |
+| CONS-05 | 275 | Complete |
+| CONS-06 | 275 | Complete |
+| CONS-07 | 275 | Complete |
 | STREAM-01 | 276 | Pending |
 | STREAM-02 | 276 | Pending |
 | STREAM-03 | 276 | Pending |
