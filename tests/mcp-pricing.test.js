@@ -75,7 +75,7 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
 // Tests
 // ---------------------------------------------------------------------------
 
-(function runTests() {
+(async function runTests() {
 
   // --- Section 1: lookup path (PRICE-01) ---------------------------------
   console.log('\n--- Section 1: lookup path (PRICE-01) ---');
@@ -465,20 +465,79 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
   }
 
   // --- Section 8: client-allowlist parity with visual-session.ts ---------
+  //
+  // Resolves the canonical MCP_VISUAL_CLIENT_LABELS list from
+  // mcp/src/tools/visual-session.ts and asserts it is a set-equal mirror of
+  // Object.keys(client_default_model) (no missing / no extra labels in
+  // either direction; crab-grapheme byte-exact).
+  //
+  // PREFERRED: load via the programmatic accessor
+  // `getAllowedMcpVisualClientLabels()` exported from the compiled
+  // mcp/build/tools/visual-session.js. This is robust against future source
+  // edits (comments, alternate quoting, multi-line array literals, etc.).
+  // The npm test chain runs `npm --prefix mcp run build` before this test,
+  // so the build artifact is guaranteed present in CI.
+  //
+  // FALLBACK: if the build artifact is missing (ad-hoc test run without
+  // `npm --prefix mcp run build` first), the regex source-parser is used
+  // and the test log emits a `[Section 8 FALLBACK]` marker so a reader
+  // investigating a failure can see the path was taken. The fallback first
+  // strips // and /* */ comments before splitting on commas so an inline
+  // comment in the array literal cannot silently corrupt the parse (the
+  // failure mode flagged by Phase 270 review WR-04).
   console.log('\n--- Section 8: client-allowlist parity with visual-session.ts ---');
   {
-    const vsPath = path.join(__dirname, '../mcp/src/tools/visual-session.ts');
-    const vsSource = fs.readFileSync(vsPath, 'utf-8');
-    const m = vsSource.match(/MCP_VISUAL_CLIENT_LABELS:\s*string\[\]\s*=\s*\[([\s\S]*?)\];/);
-    passAssert(m !== null, 'visual-session.ts contains MCP_VISUAL_CLIENT_LABELS array literal');
-    if (m !== null) {
-      const arrayBody = m[1];
-      const labels = arrayBody
-        .split(',')
-        .map(function (s) { return s.trim().replace(/^['"]|['"]$/g, '').trim(); })
-        .filter(function (s) { return s.length > 0; });
+    let labels = null;
+    let labelSource = null;
 
-      passAssertEqual(labels.length, 13, 'visual-session.ts allowlist has 13 labels (parsed ' + labels.length + ')');
+    // Try the programmatic accessor first. visual-session.ts compiles to an
+    // ESM module (mcp/package.json has "type":"module"), so this CommonJS
+    // test file must use the dynamic import() form -- require() would fail
+    // with ERR_REQUIRE_ESM.
+    const vsBuildPath = path.join(__dirname, '../mcp/build/tools/visual-session.js');
+    if (fs.existsSync(vsBuildPath)) {
+      try {
+        const visualSession = await import(vsBuildPath);
+        if (typeof visualSession.getAllowedMcpVisualClientLabels === 'function') {
+          labels = visualSession.getAllowedMcpVisualClientLabels();
+          labelSource = 'programmatic (mcp/build/tools/visual-session.js)';
+        }
+      } catch (e) {
+        // fall through to regex path
+        console.error('  [Section 8 NOTE] dynamic import of visual-session.js failed: ' + (e && e.message) + ' -- falling back to regex parse.');
+      }
+    }
+
+    if (labels === null) {
+      // Regex fallback. STRIPS comments first to avoid the WR-04 brittleness
+      // (an inline `// deprecated` or `/* TODO */` in the array literal would
+      // otherwise be split across the comma boundary and corrupt the parse).
+      console.log('  [Section 8 FALLBACK] using regex source-parser; build mcp/ first for the robust programmatic path.');
+      const vsPath = path.join(__dirname, '../mcp/src/tools/visual-session.ts');
+      const vsSource = fs.readFileSync(vsPath, 'utf-8');
+      const m = vsSource.match(/MCP_VISUAL_CLIENT_LABELS:\s*string\[\]\s*=\s*\[([\s\S]*?)\];/);
+      passAssert(m !== null, 'visual-session.ts contains MCP_VISUAL_CLIENT_LABELS array literal');
+      if (m !== null) {
+        // Strip /* ... */ block comments first (greedy across newlines is
+        // SAFE because the input is bounded to the array body), then //
+        // line comments. Order matters: stripping line comments first
+        // would prematurely chop the `*/` of an unterminated block.
+        const arrayBody = m[1]
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/[^\n]*/g, '');
+        labels = arrayBody
+          .split(',')
+          .map(function (s) { return s.trim().replace(/^['"]|['"]$/g, '').trim(); })
+          .filter(function (s) { return s.length > 0; });
+        labelSource = 'regex (mcp/src/tools/visual-session.ts source)';
+      }
+    }
+
+    passAssert(Array.isArray(labels) && labels.length > 0,
+      'visual-session client labels resolved (' + (labelSource || 'no source') + ', count=' + (labels ? labels.length : 0) + ')');
+
+    if (Array.isArray(labels) && labels.length > 0) {
+      passAssertEqual(labels.length, 13, 'visual-session allowlist has 13 labels (parsed ' + labels.length + ' via ' + labelSource + ')');
 
       const allowlistSet = new Set(labels);
       const pricingSet = new Set(Object.keys(pricingData.client_default_model));
@@ -495,7 +554,7 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
         (extraInPricing.length ? '; extra in client_default_model: [' + extraInPricing.join(', ') + ']' : ''));
 
       // Crab grapheme byte-exact check.
-      passAssert(allowlistSet.has('OpenClaw \u{1F980}'), 'visual-session.ts allowlist contains "OpenClaw 🦀" (U+1F980 crab)');
+      passAssert(allowlistSet.has('OpenClaw \u{1F980}'), 'visual-session allowlist contains "OpenClaw 🦀" (U+1F980 crab)');
       passAssert(pricingSet.has('OpenClaw \u{1F980}'), 'client_default_model contains "OpenClaw 🦀" (U+1F980 crab)');
     }
   }
