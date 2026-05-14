@@ -305,10 +305,27 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
   // value or thrown error. Early-return paths above (!route, handler missing,
   // gateResult) intentionally do NOT call recordDispatch -- those are
   // dispatcher-internal errors where no tool actually ran.
+  //
+  // CR-01 (271-REVIEW.md): When invoked via a tool route alias, the outer
+  // tool route is responsible for recording. The `_mcpMetricsSuppressInner`
+  // flag below is propagated by handleToolAliasRoute into
+  // dispatchMcpMessageRoute and suppresses the inner message-route recording
+  // to prevent double-counting. The outer dispatchMcpToolRoute ALWAYS records
+  // (with dispatcher_route: 'tool'); the inner dispatchMcpMessageRoute
+  // skips its finally when the flag is true. Non-alias handlers ignore the
+  // flag, so this is a no-op for the 13 non-alias tool routes.
   let response = undefined;
   let success = false;
   try {
-    response = await route.handler({ tool, params: params || {}, client, tab, payload, route });
+    response = await route.handler({
+      tool,
+      params: params || {},
+      client,
+      tab,
+      payload,
+      route,
+      _mcpMetricsSuppressInner: true
+    });
     success = !(response && typeof response === 'object' && response.success === false);
     return response;
   } finally {
@@ -333,7 +350,7 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
   }
 }
 
-async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null }) {
+async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null, _mcpMetricsSuppressInner = false }) {
   const route = MCP_PHASE199_MESSAGE_ROUTES[type];
   if (!route) {
     return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT);
@@ -384,22 +401,37 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
       return response;
     }
   } finally {
-    try {
-      if (
-        typeof globalThis !== 'undefined' &&
-        globalThis.fsbMcpMetricsRecorder &&
-        typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
-      ) {
-        globalThis.fsbMcpMetricsRecorder.recordDispatch({
-          client,
-          tool: type,
-          requestPayload: payload,
-          response,
-          success,
-          dispatcher_route: 'message'
-        });
-      }
-    } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
+    // CR-01 (271-REVIEW.md): when invoked via a tool route alias, the outer
+    // dispatchMcpToolRoute is responsible for recording. The
+    // `_mcpMetricsSuppressInner` flag suppresses the inner message-route
+    // recording to prevent double-counting for the 14 alias-routed tools
+    // (run_task, read_page, get_dom_snapshot, ...). Direct WS message
+    // dispatches (the normal path) leave the flag at its default `false`
+    // and continue to record as before.
+    //
+    // IMPORTANT: do NOT use `if (flag) return;` inside this finally block --
+    // a bare `return` from a finally OVERRIDES the try block's return value
+    // (the return propagates as `undefined`, swallowing the handler's real
+    // response). Instead, gate the recordDispatch call itself so the try
+    // block's return value flows through unchanged.
+    if (!_mcpMetricsSuppressInner) {
+      try {
+        if (
+          typeof globalThis !== 'undefined' &&
+          globalThis.fsbMcpMetricsRecorder &&
+          typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
+        ) {
+          globalThis.fsbMcpMetricsRecorder.recordDispatch({
+            client,
+            tool: type,
+            requestPayload: payload,
+            response,
+            success,
+            dispatcher_route: 'message'
+          });
+        }
+      } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
+    }
   }
 }
 
@@ -1410,11 +1442,19 @@ function callCallbackHandler(handlerName, request, sender = {}, routeFamily = 'a
   });
 }
 
-async function handleToolAliasRoute({ params, client, route }) {
+// CR-01 (271-REVIEW.md): handleToolAliasRoute is the bridge between the two
+// dispatchers for the 14 alias-routed tools. When invoked via a tool route
+// alias, the outer tool route (dispatchMcpToolRoute) is responsible for
+// recording. This handler propagates the `_mcpMetricsSuppressInner` flag
+// passed in by dispatchMcpToolRoute into the inner dispatchMcpMessageRoute
+// call so the inner finally skips its recordDispatch -- preventing the
+// double-write that would otherwise inflate every alias-routed metric by 2x.
+async function handleToolAliasRoute({ params, client, route, _mcpMetricsSuppressInner }) {
   return dispatchMcpMessageRoute({
     type: route.messageType,
     payload: params || {},
-    client
+    client,
+    _mcpMetricsSuppressInner
   });
 }
 

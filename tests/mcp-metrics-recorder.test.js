@@ -444,6 +444,115 @@ function installChromeStub(shim) {
       'unknown client -> camelCase cost alias = 0 (D-10 zero-floor for hero)');
   }
 
+  // --- Section 9: alias route does not double-record (CR-01 regression) ---
+  //
+  // The 14 alias-routed tools (run_task, read_page, get_dom_snapshot, ...)
+  // route through `handleToolAliasRoute`, which calls
+  // `dispatchMcpMessageRoute` from inside `dispatchMcpToolRoute`. Before
+  // CR-01 was fixed, BOTH dispatchers' `finally` blocks would call
+  // `recordDispatch`, producing TWO `fsbUsageData` rows per logical client
+  // call -- inflating tokens / cost / requests by 2x for the heaviest MCP
+  // tools.
+  //
+  // This regression test loads the real dispatcher, stubs the underlying
+  // message-route handler (so no real automation runs), invokes
+  // `dispatchMcpToolRoute({tool: 'run_task', ...})`, and asserts that
+  // EXACTLY ONE row is appended to `fsbUsageData` with `tool: 'run_task'`
+  // (the outer tool name, NOT the inner `mcp:start-automation` message
+  // type) and `dispatcher_route: 'tool'` (NOT 'message'). If the
+  // `_mcpMetricsSuppressInner` flag is ever dropped from any of the three
+  // chokepoints (dispatchMcpToolRoute, handleToolAliasRoute,
+  // dispatchMcpMessageRoute), this test will fail with 2 rows instead of 1.
+  console.log('\n--- Section 9: alias route does not double-record (CR-01) ---');
+  {
+    // Fresh recorder + chrome stub + storage shim.
+    const m = freshRequire();
+    const shim = makeShim();
+    installChromeStub(shim);
+    m._setStorageShim(shim);
+
+    // Wire the recorder into globalThis so the dispatcher's finally block
+    // can find it the same way the production service worker does.
+    globalThis.fsbMcpMetricsRecorder = { recordDispatch: m.recordDispatch };
+
+    // Load the real dispatcher. The dispatcher uses require() in Node mode
+    // (no `TOOL_REGISTRY` global). We require it AFTER the recorder is
+    // wired so its `finally` block sees `globalThis.fsbMcpMetricsRecorder`
+    // on every invocation.
+    const DISPATCHER_PATH = require.resolve('../extension/ws/mcp-tool-dispatcher.js');
+    delete require.cache[DISPATCHER_PATH];
+    const dispatcher = require(DISPATCHER_PATH);
+
+    // Stub the underlying message-route handler so no real automation runs.
+    // run_task -> 'mcp:start-automation' -> handleStartAutomationRoute by
+    // default. We replace that handler with an async stub that returns a
+    // canonical success envelope.
+    const stubResponse = { success: true, sessionId: 'test-session-cr01' };
+    const originalHandler = dispatcher.MCP_PHASE199_MESSAGE_ROUTES['mcp:start-automation'].handler;
+    dispatcher.MCP_PHASE199_MESSAGE_ROUTES['mcp:start-automation'].handler =
+      async function stubStartAutomation() { return stubResponse; };
+
+    try {
+      // Invoke the outer tool route. This must traverse:
+      //   dispatchMcpToolRoute('run_task')
+      //     -> route.handler === handleToolAliasRoute
+      //     -> dispatchMcpMessageRoute('mcp:start-automation')
+      //       -> stubStartAutomation() -> stubResponse
+      //     -> inner finally (MUST be suppressed -- no inner row)
+      //   -> outer finally (records exactly ONE row, dispatcher_route='tool')
+      const response = await dispatcher.dispatchMcpToolRoute({
+        tool: 'run_task',
+        params: { task: 'cr01 regression test' },
+        client: 'Claude'
+      });
+
+      passAssertEqual(response.success, true,
+        'alias-routed dispatch returns the stubbed success response');
+      passAssertEqual(response.sessionId, 'test-session-cr01',
+        'alias-routed dispatch propagates the stubbed sessionId');
+
+      // recordDispatch is fire-and-forget inside the dispatcher's finally
+      // (intentionally not awaited so storage IO never blocks the WS
+      // client response). Yield the event loop a few times so the
+      // queued chrome.storage.local.set inside recordDispatch flushes
+      // before we inspect fsbUsageData.
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const rows = shim._store.fsbUsageData || [];
+      passAssertEqual(rows.length, 1,
+        'CR-01: alias-routed dispatch appends EXACTLY ONE row (not 2)');
+
+      if (rows.length === 1) {
+        const row = rows[0];
+        passAssertEqual(row.tool, 'run_task',
+          'CR-01: the recorded row carries the OUTER tool name (run_task), not the inner message type (mcp:start-automation)');
+        passAssertEqual(row.dispatcher_route, 'tool',
+          'CR-01: the recorded row carries dispatcher_route="tool" (NOT "message")');
+        passAssertEqual(row.source, 'mcp',
+          'CR-01: the recorded row is tagged source="mcp"');
+        passAssertEqual(row.success, true,
+          'CR-01: the recorded row preserves success=true from the stubbed response');
+      } else if (rows.length === 2) {
+        // Diagnostic surface: if the regression returns, dump the row pair
+        // so the failure log shows BOTH writers' fingerprints.
+        console.error('  DIAG: double-record regression detected. Rows:');
+        console.error('    row[0]: ' + JSON.stringify({ tool: rows[0].tool, dispatcher_route: rows[0].dispatcher_route }));
+        console.error('    row[1]: ' + JSON.stringify({ tool: rows[1].tool, dispatcher_route: rows[1].dispatcher_route }));
+      }
+    } finally {
+      // Restore the real handler so subsequent test runs / requires see a
+      // clean module. The require.cache delete + re-require pattern above
+      // means future sections do not see this stub, but resetting here is
+      // belt-and-suspenders for in-process re-runs.
+      dispatcher.MCP_PHASE199_MESSAGE_ROUTES['mcp:start-automation'].handler = originalHandler;
+      // Drop the global so it does not leak into other test files in the
+      // same Node process (the test chain re-requires per file).
+      delete globalThis.fsbMcpMetricsRecorder;
+    }
+  }
+
   // --- Summary ------------------------------------------------------------
   console.log('\n--- Summary ---');
   console.log('Total: ' + passed + ' passed, ' + failed + ' failed');
