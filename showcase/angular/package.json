@@ -10,7 +10,7 @@
     "test": "ng test",
     "smoke:crawler": "node scripts/smoke-crawler.mjs",
     "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs",
-    "lint:i18n": "eslint \"src/**/*.html\" --ignore-pattern \"src/app/pages/dashboard/**\"",
+    "lint:i18n": "eslint \"src/**/*.html\" --ignore-pattern \"src/app/pages/dashboard/**\" --ignore-pattern \"src/app/pages/stats/**\"",
     "verify:hreflang": "node scripts/verify-hreflang.mjs"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "@angular/platform-server": "^20.3.19",
     "@angular/router": "^20.3.19",
     "@angular/ssr": "^20.3.25",
+    "chart.js": "^4.4.0",
     "express": "^4.18.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.6.0",

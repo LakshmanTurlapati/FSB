@@ -1,0 +1,53 @@
+<section class="stats-page container">
+  <header class="stats-header">
+    <h1>FSB <span class="dot">·</span> Stats <span class="muted">for nerds</span></h1>
+    <p class="stats-sub">Live signals from <code>LakshmanTurlapati/FSB</code>. Auto-refreshes every 5&nbsp;minutes while this tab is visible.</p>
+  </header>
+
+  <nav class="view-switcher" role="tablist" aria-label="Stats view">
+    @for (opt of views; track trackByView($index, opt)) {
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="selectedView === opt.id"
+        [attr.data-view]="opt.id"
+        [class.active]="selectedView === opt.id"
+        (click)="setView(opt.id)">
+        {{ opt.label }}
+      </button>
+    }
+  </nav>
+
+  <div class="chart-card" [attr.data-state]="viewState">
+    @if (viewState === 'loading') {
+      <div class="skeleton" aria-busy="true" aria-live="polite">
+        <span class="sr-only">Loading stats…</span>
+      </div>
+    }
+    @if (viewState === 'ready') {
+      <div class="chart-mount">
+        <canvas #chartCanvas></canvas>
+      </div>
+    }
+    @if (viewState === 'rate-limited') {
+      <div class="rate-card" role="status">
+        <h3>GitHub rate-limited</h3>
+        <p>
+          Retrying at
+          <strong>{{ rateLimitedUntil | date:'HH:mm' }}</strong>.
+          The unauthenticated API allows 60 requests / hour / IP &mdash; we'll be back shortly.
+        </p>
+      </div>
+    }
+    @if (viewState === 'error') {
+      <div class="error-card" role="alert">
+        <h3>Could not load stats</h3>
+        <p>{{ errorMessage || 'Network or parse error.' }} The page retries automatically every 5 minutes.</p>
+      </div>
+    }
+  </div>
+
+  <footer class="stats-foot">
+    <p>Live from the <a href="https://docs.github.com/en/rest" target="_blank" rel="noopener">GitHub REST API</a>. Auto-refreshes every 5&nbsp;minutes.</p>
+  </footer>
+</section>
