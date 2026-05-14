@@ -1,6 +1,10 @@
 // Background service worker for FSB v0.9.50
 
 // Import configuration and AI integration modules
+// Phase 269 / v0.9.69: install-identity.js MUST load FIRST so that any
+// downstream module (analytics.js, telemetry collectors, MCP recorder)
+// can call globalThis.fsbInstallIdentity.* synchronously at boot.
+importScripts('utils/install-identity.js');
 importScripts('config/config.js');
 importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
@@ -13018,6 +13022,19 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Initialize analytics
   initializeAnalytics();
 
+  // Phase 269 / IDENT-01, IDENT-02: lazy-mint or reuse the install UUID.
+  // Idempotent across both onInstalled and onStartup. Module guarantees no
+  // throw on storage error -- defensive try/catch logs only if a regression
+  // breaks that guarantee.
+  try {
+    const seededUuid = await globalThis.fsbInstallIdentity.getOrCreateInstallUuid();
+    if (seededUuid) {
+      console.log('[FSB Telemetry] Install UUID seeded');
+    }
+  } catch (e) {
+    console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
+  }
+
   // Load debug mode setting
   await loadDebugMode();
 
@@ -13051,6 +13068,16 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
   initializeAnalytics();
+  // Phase 269 / IDENT-01, IDENT-02: idempotent get-or-create on every SW wake.
+  // Returns the existing UUID after first install -- no re-mint.
+  try {
+    const seededUuid = await globalThis.fsbInstallIdentity.getOrCreateInstallUuid();
+    if (seededUuid) {
+      console.log('[FSB Telemetry] Install UUID seeded');
+    }
+  } catch (e) {
+    console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
+  }
   // Load debug mode setting
   await loadDebugMode();
   // Restore sessions from storage so stop button works after service worker restart
