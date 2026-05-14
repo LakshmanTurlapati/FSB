@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 status: executing
-last_updated: "2026-05-14T13:30:00.000Z"
-last_activity: "2026-05-14 -- Phase 273 (server schema + telemetry routes + salt rotator + rate limiter + housekeeper) passed: 121 server-telemetry assertions; BLOCKERs B1+B2 RESOLVED (trust proxy + express-rate-limit@^8.3.0 CVE-2026-30827 fix via ipKeyGenerator+HMAC)"
+last_updated: "2026-05-14T18:22:41.000Z"
+last_activity: "2026-05-14 -- Phase 274 (public-stats endpoint + FSBTelemetryService + /stats toggle group + i18n AI-fill) passed: 294 sub-assertions across 6 new tests + full Angular build + verify:hreflang 301 routes (unchanged); 9 AGG + 5 STATS + 2 STATS-Plan01 requirements complete"
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
-  percent: 62.5
+  completed_phases: 6
+  total_plans: 7
+  completed_plans: 7
+  percent: 75.0
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 
 ## Current Position
 
-Phase: 274 of 276 (Public stats endpoint) -- next
+Phase: 275 of 276 (Privacy policy + CWS listing) -- next
 Plan: TBD
-Status: Phases 269+270+271+272+273 complete; awaiting Phase 274 plan
-Last activity: 2026-05-14 -- Phase 273 (server schema + telemetry routes + salt rotator + rate limiter + housekeeper) passed: 121 sub-asserts across 13 server-telemetry tests; 2 release-gating BLOCKERs (B1 trust-proxy, B2 express-rate-limit ^8.3.0 with ipKeyGenerator+HMAC keyGenerator -- CVE-2026-30827 fix); 4 new SQLite tables + 5 PRAGMAs + 3 public POST endpoints + hourly housekeeper + CI grep gate (15 .js files, 0 hits); 13/13 INGEST requirements complete
+Status: Phases 269+270+271+272+273+274 complete; awaiting Phase 275 plan
+Last activity: 2026-05-14 -- Phase 274 (public-stats endpoint + FSBTelemetryService + /stats toggle group + i18n AI-fill) passed: 6 new tests / 294 sub-assertions; full Angular production build SUCCESS with `i18nMissingTranslation: error` invariant honoured; verify:hreflang 301 pass/0 fail unchanged; /stats remains Easter-egg-invisible across prerender-routes.txt + sitemap.xml + llms.txt + llms-full.txt + dist/. 9 AGG-* + 7 STATS-* requirements complete.
 
-Progress: [██████░░░░] 62.5% (5/8 milestone phases complete after Phase 273)
+Progress: [████████░░] 75.0% (6/8 milestone phases complete after Phase 274)
 
 ## Performance Metrics
 
@@ -70,6 +70,8 @@ Items acknowledged and deferred at v0.9.63 milestone close on 2026-05-13. None a
 
 Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future milestone cycle.
 | Phase 273 P01 | 11min | 3 tasks | 18 files |
+| Phase 274 P01 | 11min | 2 tasks | 13 files |
+| Phase 274 P02 | 12min | 2 tasks | 18 files |
 
 ## Quick Tasks Completed
 
@@ -97,4 +99,5 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 ## Session Continuity
 
 Last session: 2026-05-14 -- Phase 273 plan executed atop commit 05bd0dc. 3 atomic commits (aa8a4f6 feat 273-01 trust-proxy + schema + WAL pragmas + hash/salt utils, 95082ac feat 273-02 rate-limit middleware + 3 routes + 9 route tests, 320d913 feat 273-03 housekeeper + no-IP-leak CI gate + test chain integration). 121 sub-asserts across 13 server-telemetry-* tests all PASS. 2/3 v0.9.69 BLOCKERs RESOLVED.
-Resume file: None. Next step: `/gsd-plan-phase 274`.
+Last session: 2026-05-14 -- Phase 274 plan executed atop commit fc87165. 4 atomic commits (5dfc6c1 feat 274-01 public-stats endpoint + active-tracker + recordSeen hook + 4 server tests, a4744bf feat 274-01 FSBTelemetryService Angular mirror + types + harness test, c3abe18 feat 274-02 stats-page 6 toggles + headline row + scss, 7908164 feat 274-02 i18n extract + AI-fill 5 locales + build smoke test). 294 sub-assertions across 6 new tests + full Angular build + 301 hreflang routes (unchanged). 24 new SHOWCASE_STATS_FSB_* trans-units translated across es/de/ja/zh-CN/zh-TW. /stats Easter-egg invariant preserved. AGG-01..09 + STATS-01..07 (16 requirements) complete.
+Resume file: None. Next step: `/gsd-plan-phase 275` (privacy policy + CWS listing per BLOCKER B3).

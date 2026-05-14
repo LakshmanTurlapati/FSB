@@ -87,25 +87,25 @@
 
 ### Aggregations (server side) -- AGG
 
-- [ ] **AGG-01**: User can see total tokens used by all FSB users -- aggregated across all `telemetry_events` rows: 24h, 7d, lifetime. Surfaced as 3 metrics.
-- [ ] **AGG-02**: User can see active users right now -- in-memory `Map<install_uuid, last_seen_ts>` updated on every ingest; "active right now" = count of UUIDs with `last_seen_ts > now - 5min`. NOT a SQLite query.
-- [ ] **AGG-03**: User can see active agents right now -- sum of `active_agent_count` field across UUIDs with `last_seen_ts > now - 10min`. Result bucketed for display (`{0, 1, 2-4, 5-8, 9-16, 17-32, 33+}`).
-- [ ] **AGG-04**: User can see total unique installs lifetime -- `SELECT COUNT(DISTINCT install_uuid) FROM telemetry_rollups_daily`.
-- [ ] **AGG-05**: User can see total agent activations lifetime -- `SUM(daily_max_active_agent_count) FROM telemetry_rollups_daily` summed across UUIDs.
-- [ ] **AGG-06**: User can see most-popular AI agent name (7d rolling) -- GROUP BY agent name (when available in payload) over last 7 days WITH `HAVING COUNT(DISTINCT install_uuid) >= 5`. Below-k labels bucket as `"Other (N=<count>)"`.
-- [ ] **AGG-07**: User can see most-popular MCP client (7d rolling) -- GROUP BY `mcp_client` over last 7 days WITH `HAVING COUNT(DISTINCT install_uuid) >= 5`. Same below-k bucketing as AGG-06.
-- [ ] **AGG-08**: User can see avg agents per active user -- mean of `active_agent_count` over UUIDs seen in last 5 minutes; rounded to 1 decimal.
-- [ ] **AGG-09**: Aggregations are cached -- in-process `Map` memo with 30s TTL on the public aggregates endpoint; HTTP `Cache-Control: max-age=60` on response. Client-side already polls at 5min with visibility-aware pause.
+- [x] **AGG-01**: User can see total tokens used by all FSB users -- aggregated across all `telemetry_events` rows: 24h, 7d, lifetime. Surfaced as 3 metrics.
+- [x] **AGG-02**: User can see active users right now -- in-memory `Map<install_uuid, last_seen_ts>` updated on every ingest; "active right now" = count of UUIDs with `last_seen_ts > now - 5min`. NOT a SQLite query.
+- [x] **AGG-03**: User can see active agents right now -- sum of `active_agent_count` field across UUIDs with `last_seen_ts > now - 10min`. Result bucketed for display (`{0, 1, 2-4, 5-8, 9-16, 17-32, 33+}`).
+- [x] **AGG-04**: User can see total unique installs lifetime -- `SELECT COUNT(DISTINCT install_uuid) FROM telemetry_rollups_daily`.
+- [x] **AGG-05**: User can see total agent activations lifetime -- `SUM(daily_max_active_agent_count) FROM telemetry_rollups_daily` summed across UUIDs.
+- [x] **AGG-06**: User can see most-popular AI agent name (7d rolling) -- GROUP BY agent name (when available in payload) over last 7 days WITH `HAVING COUNT(DISTINCT install_uuid) >= 5`. Below-k labels bucket as `"Other (N=<count>)"`.
+- [x] **AGG-07**: User can see most-popular MCP client (7d rolling) -- GROUP BY `mcp_client` over last 7 days WITH `HAVING COUNT(DISTINCT install_uuid) >= 5`. Same below-k bucketing as AGG-06.
+- [x] **AGG-08**: User can see avg agents per active user -- mean of `active_agent_count` over UUIDs seen in last 5 minutes; rounded to 1 decimal.
+- [x] **AGG-09**: Aggregations are cached -- in-process `Map` memo with 30s TTL on the public aggregates endpoint; HTTP `Cache-Control: max-age=60` on response. Client-side already polls at 5min with visibility-aware pause.
 
 ### /stats Page Surface -- STATS
 
-- [ ] **STATS-01**: User can view 6 new FSB telemetry chart views on /stats -- toggle entries: `fsb-active-now`, `fsb-tokens`, `fsb-agents-running`, `fsb-popular-agents`, `fsb-popular-mcp`, `fsb-avg-agents-per-user`. Appended to the existing 7 GitHub views.
-- [ ] **STATS-02**: User sees headline numbers above the chart -- new headline row renders `active right now: N · total users: N · tokens 24h: NM`. Refreshes on every poll (5 min visibility-aware).
-- [ ] **STATS-03**: User experiences the new views with the existing visibility-aware polling -- `FSBTelemetryService` mirrors `GitHubStatsService` (PLATFORM_ID guard, `BehaviorSubject<DatasetState<T>>`, `afterNextRender` bootstrap, ETag cache, pause on document.hidden, 5min interval).
-- [ ] **STATS-04**: Server exposes public aggregates as JSON -- `GET /api/public-stats/global` (headline numbers) + `GET /api/public-stats/global/series` (time-series for chart views). NO auth. CORS open. ETag + Cache-Control headers. Mounted on a NEW path -- does NOT shadow the existing auth-gated `/api/stats`.
-- [ ] **STATS-05**: New strings are translated -- 20-30 new trans-units added to `messages.xlf` with `i18n` markers; AI-filled across 5 non-en locales (es, de, ja, zh-CN, zh-TW). Build-time `i18nMissingTranslation: error` invariant respected.
-- [ ] **STATS-06**: /stats remains Easter-egg-invisible -- existing `<meta name="robots" content="noindex, nofollow">` preserved; `prerender-routes.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`, `verify-hreflang.mjs` are NOT touched. Footer link remains the only entry point.
-- [ ] **STATS-07**: Public JSON API documentation is explicitly DEFERRED -- no documented public API contract in v0.9.69 (the endpoint exists but is not advertised as stable). Future milestone may version + advertise.
+- [x] **STATS-01**: User can view 6 new FSB telemetry chart views on /stats -- toggle entries: `fsb-active-now`, `fsb-tokens`, `fsb-agents-running`, `fsb-popular-agents`, `fsb-popular-mcp`, `fsb-avg-agents-per-user`. Appended to the existing 7 GitHub views.
+- [x] **STATS-02**: User sees headline numbers above the chart -- new headline row renders `active right now: N · total users: N · tokens 24h: NM`. Refreshes on every poll (5 min visibility-aware).
+- [x] **STATS-03**: User experiences the new views with the existing visibility-aware polling -- `FSBTelemetryService` mirrors `GitHubStatsService` (PLATFORM_ID guard, `BehaviorSubject<DatasetState<T>>`, `afterNextRender` bootstrap, ETag cache, pause on document.hidden, 5min interval).
+- [x] **STATS-04**: Server exposes public aggregates as JSON -- `GET /api/public-stats/global` (headline numbers) + `GET /api/public-stats/global/series` (time-series for chart views). NO auth. CORS open. ETag + Cache-Control headers. Mounted on a NEW path -- does NOT shadow the existing auth-gated `/api/stats`.
+- [x] **STATS-05**: New strings are translated -- 20-30 new trans-units added to `messages.xlf` with `i18n` markers; AI-filled across 5 non-en locales (es, de, ja, zh-CN, zh-TW). Build-time `i18nMissingTranslation: error` invariant respected.
+- [x] **STATS-06**: /stats remains Easter-egg-invisible -- existing `<meta name="robots" content="noindex, nofollow">` preserved; `prerender-routes.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`, `verify-hreflang.mjs` are NOT touched. Footer link remains the only entry point.
+- [x] **STATS-07**: Public JSON API documentation is explicitly DEFERRED -- no documented public API contract in v0.9.69 (the endpoint exists but is not advertised as stable). Future milestone may version + advertise.
 
 ### Consent / Privacy UX (minimal, per D-02) -- CONS
 
@@ -213,22 +213,22 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | INGEST-11 | 273 | Complete |
 | INGEST-12 | 273 | Complete |
 | INGEST-13 | 273 | Complete |
-| AGG-01 | 274 | Pending |
-| AGG-02 | 274 | Pending |
-| AGG-03 | 274 | Pending |
-| AGG-04 | 274 | Pending |
-| AGG-05 | 274 | Pending |
-| AGG-06 | 274 | Pending |
-| AGG-07 | 274 | Pending |
-| AGG-08 | 274 | Pending |
-| AGG-09 | 274 | Pending |
-| STATS-01 | 274 | Pending |
-| STATS-02 | 274 | Pending |
-| STATS-03 | 274 | Pending |
-| STATS-04 | 274 | Pending |
-| STATS-05 | 274 | Pending |
-| STATS-06 | 274 | Pending |
-| STATS-07 | 274 | Pending |
+| AGG-01 | 274 | Complete |
+| AGG-02 | 274 | Complete |
+| AGG-03 | 274 | Complete |
+| AGG-04 | 274 | Complete |
+| AGG-05 | 274 | Complete |
+| AGG-06 | 274 | Complete |
+| AGG-07 | 274 | Complete |
+| AGG-08 | 274 | Complete |
+| AGG-09 | 274 | Complete |
+| STATS-01 | 274 | Complete |
+| STATS-02 | 274 | Complete |
+| STATS-03 | 274 | Complete |
+| STATS-04 | 274 | Complete |
+| STATS-05 | 274 | Complete |
+| STATS-06 | 274 | Complete |
+| STATS-07 | 274 | Complete |
 | CONS-01 | 269 | Pending |
 | CONS-02 | 269 | Pending |
 | CONS-03 | 275 | Pending |
