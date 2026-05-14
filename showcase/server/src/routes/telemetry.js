@@ -25,6 +25,7 @@
 'use strict';
 
 const express = require('express');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { isValidUuidV4 } = require('../utils/telemetry-hash');
 const { createTelemetryRateLimiter, checkPerUuidBudget } = require('../middleware/telemetry-rate-limit');
 
@@ -122,10 +123,23 @@ function createTelemetryRouter(db, queries, hashIp) {
 
     // PRIVACY INVARIANT -- Per CONTEXT D-09 + INGEST-13:
     //   req.ip is read EXACTLY ONCE per request, on the next line, and immediately
-    //   passed to hashIp(). It is NEVER assigned to a local variable that escapes
-    //   this scope, NEVER logged, NEVER stored. Plaintext IP discarded at
-    //   end-of-function. Test: tests/server-no-ip-leak.test.js (Task 3).
-    const clientHash = hashIp(req.ip, db);
+    //   funneled through ipKeyGenerator -> hashIp() in a single expression. It is
+    //   NEVER assigned to a local variable that escapes this scope, NEVER logged,
+    //   NEVER stored. Plaintext IP discarded at end-of-function. The canonical
+    //   form emitted by ipKeyGenerator is also short-lived (it is the argument of
+    //   the immediately-evaluated hashIp call). Test: tests/server-no-ip-leak.test.js.
+    //
+    // WR-02 alignment (Phase 273 review): ipKeyGenerator is the CVE-2026-30827 fix
+    // from express-rate-limit. It collapses IPv6 addresses to a /56 subnet and
+    // normalises IPv4-mapped-IPv6 forms so dual-stack users cannot escape buckets
+    // by switching address families. middleware/telemetry-rate-limit.js:54 already
+    // applies it to the rate-limit bucket key; applying the same canonicalisation
+    // here makes the stored ip_hash equal to the rate-limit bucket key for every
+    // request (the "same identifier" invariant claimed by that middleware's
+    // docstring). For IPv6 clients this slightly widens anonymity (same /56 ->
+    // same stored hash); for IPv4 it is a no-op since ipKeyGenerator returns the
+    // address unchanged.
+    const clientHash = hashIp(ipKeyGenerator(req.ip), db);
 
     const body = req.body;
     if (!body || !Array.isArray(body.events)) {
