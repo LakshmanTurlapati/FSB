@@ -1927,16 +1927,32 @@
   background: rgba(0, 0, 0, 0.75);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
-  max-width: 250px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  // Phase 276 STREAM-04: widen the max-width since we now surface four
+  // additional diagnostic counters (last-frame, mutations, apply failures,
+  // stale) alongside the existing snapshot timestamp / state / reason rows.
+  // Switch from single-line ellipsis to multi-line wrap so the counters
+  // remain legible. white-space: pre-line preserves the " | " separators
+  // as visual line breaks at narrow widths.
+  white-space: normal;
+  word-break: break-word;
+  max-width: 360px;
+  line-height: 1.35;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
 .dash-preview-status-wrap:hover .dash-preview-tooltip {
   display: block !important;
+}
+
+// Phase 276 STREAM-04: Resync button shares the dash-preview-btn surface
+// styling; this rule is a thin override to nudge the rotate icon's resting
+// state so it does not visually compete with the existing toggle (pause/play)
+// glyph. No transform animation; the click handler is the only state change.
+.dash-preview-resync-btn {
+  &:hover {
+    color: var(--accent, #ff8a3d);
+  }
 }
 
 .dash-preview-controls {

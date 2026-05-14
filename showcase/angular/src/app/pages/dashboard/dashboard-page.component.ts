@@ -188,6 +188,12 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private remoteControlCaptureActive = false;
   private staleMutationCount = 0;
   private mutationApplyFailures = 0;
+  // Phase 276 STREAM-04: stream-state tooltip counters surfaced via
+  // updatePreviewTooltip. mutationsAppliedTotal increments inside the
+  // handleDOMMutations forEach branch; lastFrameTime is refreshed on every
+  // snapshot AND every mutation arrival.
+  private mutationsAppliedTotal = 0;
+  private lastFrameTime = 0;
   private previewResyncPending = false;
   private lastPreviewOverlayIdentity: PreviewOverlayIdentity = {
     clientLabel: '',
@@ -282,6 +288,8 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private previewDialogMessage!: HTMLElement | null;
   private previewToggle!: HTMLElement | null;
   private previewTooltip!: HTMLElement | null;
+  // Phase 276 STREAM-04: Resync button DOM ref.
+  private previewResyncBtn!: HTMLElement | null;
   private previewPipBtn!: HTMLElement | null;
   private previewMaximizeBtn!: HTMLElement | null;
   private previewFullscreenBtn!: HTMLElement | null;
@@ -482,6 +490,8 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.previewDialogMessage = this.el('dash-preview-dialog-message');
     this.previewToggle = this.el('dash-preview-toggle');
     this.previewTooltip = this.el('dash-preview-tooltip');
+    // Phase 276 STREAM-04
+    this.previewResyncBtn = this.el('dash-preview-resync-btn');
     this.previewPipBtn = this.el('dash-preview-pip-btn');
     this.previewMaximizeBtn = this.el('dash-preview-maximize-btn');
     this.previewFullscreenBtn = this.el('dash-preview-fullscreen-btn');
@@ -749,6 +759,16 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.listen(this.previewPipBtn, 'click', () => this.togglePip());
     this.listen(this.previewFullscreenBtn, 'click', () => this.toggleFullscreen());
 
+    // Phase 276 STREAM-04: Resync button -- user-initiated forced refresh of
+    // the live preview stream. Routes through the same requestPreviewResync
+    // path the stale-mutation watchdog already uses; sends dash:request-status
+    // + dash:dom-stream-start and arms the recovery watchdog if not already
+    // pending. Idempotent -- if a resync is already pending the call returns
+    // false and the button click is a no-op for the user.
+    this.listen(this.previewResyncBtn, 'click', () => {
+      this.requestPreviewResync('user-resync-button');
+    });
+
     // Phase 212 / NAV-01: URL bar event handlers
     if (this.previewUrlForm) {
       this.listen(this.previewUrlForm, 'submit', (e: Event) => {
@@ -957,7 +977,23 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private resetPreviewGenerationState(): void {
     this.staleMutationCount = 0;
     this.mutationApplyFailures = 0;
+    // Phase 276 STREAM-04: reset tooltip counters on every generation cycle
+    // so a fresh snapshot starts counting from 0. lastFrameTime is left as-is
+    // (refreshed on the next message) so the tooltip's "X seconds ago" reading
+    // does not jump back to 0 mid-cycle.
+    this.mutationsAppliedTotal = 0;
     this.previewResyncPending = false;
+  }
+
+  /**
+   * Phase 276 STREAM-04: seconds since the last DOM frame (snapshot OR mutation)
+   * was applied to the preview iframe. Surfaced in the dash-preview-tooltip.
+   * Returns 0 when no frame has been observed yet. Capped at -- not the
+   * "0s ago" reading, which would be misleading if no frame ever arrived.
+   */
+  private lastFrameAgo(): number {
+    if (!this.lastFrameTime) return 0;
+    return Math.max(0, Math.round((Date.now() - this.lastFrameTime) / 1000));
   }
 
   private shouldAcceptPreviewMessage(payload: any, messageType: string): boolean {
@@ -2829,6 +2865,9 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     this.previewSnapshotData = payload;
     this.lastSnapshotTime = Date.now();
+    // Phase 276 STREAM-04: snapshot counts as a "frame" for the
+    // last-frame-ago tooltip reading.
+    this.lastFrameTime = this.lastSnapshotTime;
     this.previewLoadStartedAt = 0;
     this.pageReady = true;
     this.lastRecoveredStreamState = 'streaming';
@@ -3130,6 +3169,11 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (!this.shouldAcceptPreviewMessage(payload, 'ext:dom-mutations')) return;
     if (this.previewState !== 'streaming' || !this.previewIframe) return;
 
+    // Phase 276 STREAM-04: refresh the "last frame" timestamp on every
+    // mutation envelope. mutationsAppliedTotal is incremented per accepted
+    // mutation operation inside the forEach branch below.
+    this.lastFrameTime = Date.now();
+
     try {
       const mutations = payload.mutations || [];
       const doc = this.previewIframe.contentDocument;
@@ -3155,12 +3199,14 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
               } else {
                 parent.appendChild(newNode);
               }
+              this.mutationsAppliedTotal += 1;
               break;
             }
             case 'rm': {
               const el = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
               if (!el) { this.staleMutationCount += 1; if (this.staleMutationCount >= 3) this.requestPreviewResync('stale-mutation-target'); break; }
               if (el.parentNode) el.parentNode.removeChild(el);
+              this.mutationsAppliedTotal += 1;
               break;
             }
             case 'attr': {
@@ -3168,12 +3214,14 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
               if (!target) { this.staleMutationCount += 1; if (this.staleMutationCount >= 3) this.requestPreviewResync('stale-mutation-target'); break; }
               if (m.val === null) target.removeAttribute(m.attr);
               else target.setAttribute(m.attr, m.val);
+              this.mutationsAppliedTotal += 1;
               break;
             }
             case 'text': {
               const textTarget = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
               if (!textTarget) { this.staleMutationCount += 1; if (this.staleMutationCount >= 3) this.requestPreviewResync('stale-mutation-target'); break; }
               textTarget.textContent = m.text;
+              this.mutationsAppliedTotal += 1;
               break;
             }
           }
@@ -3285,6 +3333,13 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (this.previewLoadStartedAt && this.previewState === 'loading') {
       parts.push('Recovering for ' + Math.max(1, Math.round((Date.now() - this.previewLoadStartedAt) / 1000)) + 's');
     }
+    // Phase 276 STREAM-04: stream-state diagnostic counters. The four lines
+    // below mirror the values already in this.* state; they make the live
+    // pipeline state visible to the user without opening DevTools.
+    parts.push('last-frame: ' + this.lastFrameAgo() + 's ago');
+    parts.push('mutations: ' + this.mutationsAppliedTotal);
+    parts.push('apply failures: ' + this.mutationApplyFailures);
+    parts.push('stale: ' + this.staleMutationCount);
     this.previewTooltip.textContent = parts.join(' | ') || 'No stream data';
   }
 
