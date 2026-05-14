@@ -99,7 +99,9 @@
   3. A visitor opening `/stats` in es / de / ja / zh-CN / zh-TW sees the new headline and toggle labels in their locale, with the build-time `i18nMissingTranslation: error` invariant respected.
   4. A visitor querying `/api/public-stats/global` directly receives JSON with no auth, no cookies in response, ETag + `Cache-Control: max-age=60` headers, and the new path does not shadow the existing auth-gated `/api/stats`.
   5. A visitor cannot find `/stats` via search engines or `sitemap.xml`/`llms.txt`/`hreflang` -- the Easter-egg posture is preserved, footer link remains the only entry point.
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 274-01-PLAN.md — Wave 1: server `active-tracker` + `public-stats` route (GET /global + /global/series, 30s memo + ETag + Cache-Control) + queries.js read paths + `recordSeen` hook in telemetry.js + server.js mount + Angular `FSBTelemetryService` + `fsb-telemetry.types.ts` + 5 new tests
+  - [ ] 274-02-PLAN.md — Wave 2: stats-page component updates (6 toggle entries + headline row + section heading + scss) + i18n extract → AI-fill 5 non-en XLF locales (es/de/ja/zh-CN/zh-TW) + build smoke test (`i18nMissingTranslation: error` + Easter-egg crawler invariant)
 **UI hint**: yes
 
 ### Phase 275: Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke

@@ -1,7 +1,7 @@
 # Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group - Context
 
 **Gathered:** 2026-05-14
-**Status:** Ready for planning
+**Status:** Planned (2026-05-14, 2 plans, 4 tasks, 2 waves)
 **Milestone:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 **Requirements:** AGG-01..09, STATS-01..07
 
