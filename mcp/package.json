@@ -37,7 +37,7 @@
     "server.json"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.20.0"
   },
   "scripts": {
     "clean": "node -e \"try{require('fs').unlinkSync('build/test-config-engine.js')}catch{}\"",
