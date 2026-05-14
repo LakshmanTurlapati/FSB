@@ -5,6 +5,16 @@
 function initializeDatabase(db) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // Phase 273 / INGEST-06 -- per-connection performance + safety PRAGMAs.
+  // synchronous=NORMAL is corruption-safe in WAL mode (per better-sqlite3 + PITFALLS.md section 6).
+  // busy_timeout=5000 waits 5s on lock before erroring (rate-limit + housekeeper contention).
+  // cache_size=-64000 = 64 MB page cache.
+  // mmap_size=30 GB maps the DB file into the process address space (read-fast).
+  db.pragma('synchronous = NORMAL');
+  db.pragma('busy_timeout = 5000');
+  db.pragma('cache_size = -64000');
+  db.pragma('temp_store = MEMORY');
+  db.pragma('mmap_size = 30000000000');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS hash_keys (
@@ -70,6 +80,62 @@ function initializeDatabase(db) {
 
     CREATE INDEX IF NOT EXISTS idx_pairing_tokens_token ON pairing_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_pairing_tokens_hash_key ON pairing_tokens(hash_key);
+
+    -- Phase 273 / INGEST-05 -- anonymous telemetry ingest. Additive only; existing tables untouched.
+    -- telemetry_events: raw event log; 7-day retention enforced by housekeeper. event_id is PRIMARY KEY
+    --   so INSERT OR IGNORE satisfies BEAT-04 (client-side replay-dedup). ip_hash stores ONLY the
+    --   HMAC-SHA256(plaintext_ip, todays_salt); plaintext IP never persisted.
+    CREATE TABLE IF NOT EXISTS telemetry_events (
+      event_id TEXT PRIMARY KEY,
+      install_uuid TEXT NOT NULL,
+      ts_minute INTEGER NOT NULL,
+      mcp_client TEXT NOT NULL,
+      model TEXT,
+      tokens_in INTEGER NOT NULL DEFAULT 0,
+      tokens_out INTEGER NOT NULL DEFAULT 0,
+      active_agent_count INTEGER NOT NULL DEFAULT 0,
+      event_type TEXT NOT NULL,
+      ip_hash TEXT NOT NULL,
+      received_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_telemetry_events_uuid_ts ON telemetry_events(install_uuid, ts_minute);
+    CREATE INDEX IF NOT EXISTS idx_telemetry_events_iphash_recv ON telemetry_events(ip_hash, received_at);
+
+    -- telemetry_rollups_daily: per-UUID per-day aggregates; 365-day retention; powers Phase 274.
+    CREATE TABLE IF NOT EXISTS telemetry_rollups_daily (
+      install_uuid TEXT NOT NULL,
+      day_utc TEXT NOT NULL,
+      tokens_in INTEGER NOT NULL DEFAULT 0,
+      tokens_out INTEGER NOT NULL DEFAULT 0,
+      max_active_agents INTEGER NOT NULL DEFAULT 0,
+      event_count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(install_uuid, day_utc)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rollups_day ON telemetry_rollups_daily(day_utc);
+
+    -- telemetry_global_aggregates: one row per day; lifetime retention; powers /api/public-stats/global
+    -- (Phase 274). popular_mcp_json and popular_agent_json apply a k>=5 anonymity floor at WRITE time
+    -- in the housekeeper (per D-07); below-k labels bucket as "Other (N=<count>)".
+    CREATE TABLE IF NOT EXISTS telemetry_global_aggregates (
+      day_utc TEXT PRIMARY KEY,
+      unique_installs INTEGER NOT NULL DEFAULT 0,
+      tokens_in_sum INTEGER NOT NULL DEFAULT 0,
+      tokens_out_sum INTEGER NOT NULL DEFAULT 0,
+      agents_active_sum INTEGER NOT NULL DEFAULT 0,
+      popular_mcp_json TEXT NOT NULL DEFAULT '[]',
+      popular_agent_json TEXT NOT NULL DEFAULT '[]'
+    );
+
+    -- telemetry_daily_salt: daily-rotated HMAC-SHA256 salt for ip_hash. Lazy UTC-daily rotation in
+    -- src/utils/telemetry-salt.js retains today + yesterday only; older salts deleted on each rotation.
+    -- Yesterday's salt is retained for ~25h so late-arriving batches near midnight still hash correctly.
+    CREATE TABLE IF NOT EXISTS telemetry_daily_salt (
+      day_utc TEXT PRIMARY KEY,
+      salt_hex TEXT NOT NULL,
+      minted_at INTEGER NOT NULL
+    );
   `);
 
   // Migration: add replay columns to existing databases

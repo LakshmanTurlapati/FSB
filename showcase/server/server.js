@@ -30,6 +30,7 @@ const queries = new Queries(db);
 
 // Express app
 const app = express();
+app.set('trust proxy', 1);  // BLOCKER #1 / INGEST-01 -- Fly.io single-edge proxy; req.ip = real client IP. NEVER remove. See .planning/research/STACK.md section 3 + tests/server-trust-proxy.test.js.
 
 // Drop the default x-powered-by: Express header (information disclosure).
 app.disable('x-powered-by');
