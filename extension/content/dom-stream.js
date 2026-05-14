@@ -970,6 +970,16 @@
 
   chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     switch (request.action) {
+      case 'pingDomStream':
+        // Phase 276 STREAM-DEFENSIVE-02: synchronous readiness probe.
+        // ws-client.js _waitForContentScriptReady polls this handler at
+        // 200ms intervals until { ready: true } responds (or its 5s budget
+        // elapses). The handler ONLY signals module-loaded; it does not
+        // gate on `streaming` because the dashboard's stream-start path
+        // itself is what flips `streaming` to true.
+        sendResponse({ ready: true });
+        break;
+
       case 'domStreamStart':
         logger.info('[DOM Stream] Start requested');
         injectDialogInterceptor();
