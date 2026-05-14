@@ -284,9 +284,15 @@ server.listen(PORT, () => {
   console.log(`[FSB Server] Database: ${DB_PATH}`);
 });
 
+// Phase 273 / INGEST-11 -- start hourly maintenance: delete events >7d,
+// re-aggregate rollups + globals (k>=5 anonymity floor), nudge salt rotation.
+const { startHousekeeper } = require('./src/telemetry/housekeeper');
+const housekeeperInterval = startHousekeeper(db);
+
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[FSB Server] Shutting down...');
+  clearInterval(housekeeperInterval);
   wss.close();
   server.close();
   db.close();
@@ -294,6 +300,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
+  clearInterval(housekeeperInterval);
   wss.close();
   server.close();
   db.close();
