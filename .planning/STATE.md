@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
-status: executing
+status: completed
 last_updated: "2026-05-14T19:11:00.000Z"
 last_activity: "2026-05-14 -- Phase 276 (dashboard DOM-streaming diagnostic + minimum patch) human_needed: 4 atomic commits + DIAGNOSTIC.md scaffold + 3 defensive hypothesis patches (#1 hashKey room-state logs, #2 readiness ping, #4 pending-intent re-arm) + STREAM-04 tooltip + Resync button + 2 STREAM-05/06 bonuses; 52/52 new test assertions PASS + 134/134 showcase-build-smoke PASS; FINAL phase of v0.9.69 milestone landed"
 progress:

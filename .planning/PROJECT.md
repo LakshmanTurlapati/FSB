@@ -13,6 +13,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 **Last shipped:** v0.9.63 Showcase i18n -- 2026-05-13. Phases 261, 262, 264, 265, 266, 267, 268 translated the FSB marketing site (`showcase/angular`) into en/es/de/ja/zh-CN/zh-TW. `LocaleService` + 6-locale registry mirrored Angular ESM <-> Express CJS with `verify-locale-sync.mjs` parity invariant; 420 trans-units in `messages.xlf` (7 namespaces); AI-filled target XLIFFs for all 5 non-en locales with `i18nMissingTranslation: error` enforcing build-time completeness; `lint:i18n` and `extract-i18n-clean` promoted to hard-fail CI gates; 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + en root) with `<link rel="alternate" hreflang>` + canonical fan-out and `<html lang>` reflecting the served locale; `verify:hreflang` CI assertion gates the count; Express middleware on `/` does BCP-47 Accept-Language parsing with 302-redirect to matching locale subpath, cookie-respecting and bot-safe. Phase 268 (post-audit cleanup) deduplicated the server.js literal locale list against the CJS registry and backfilled six per-phase `VERIFICATION.md` artifacts. Audit status `passed` (14/14 requirements, 7/7 phases, 12/12 integration points, 3/3 E2E flows). `feat/showcase-i18n` branch + `v0.9.63` tag remain user-gated for push and merge.
 
 **Recent shipping cadence:**
+- v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- shipped 2026-05-14
 - v0.9.63 Showcase i18n -- shipped 2026-05-13
 - v0.9.62 Implicit Visual Session Contract -- shipped 2026-05-11
 - v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
@@ -27,7 +28,17 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone: v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
+## Current Milestone
+
+None active. Most recent milestone (v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix) shipped 2026-05-14 on branch `Refinements`; tag `v0.9.69` created locally, push user-gated.
+
+**Next milestone candidates (carry-forward backlog):**
+- **v0.9.70 (telemetry follow-up)** — first-run banner, "View what we send" preview, "Reset anonymous ID" button, in-extension "Wipe my data" UI, region-gated opt-IN for EU/UK/CA, public versioned `/api/public-stats` documentation, per-day spark lines, geo heatmap.
+- **v0.9.70 (streaming)** — full dashboard streaming rewrite if STREAM-07 5-attempt cap is hit during Phase 276 browser repro.
+- v0.9.64 (UX, carry-forward) — picker-cookie short-circuit on bare-`/` Accept-Language redirect.
+- v0.9.65 (dashboard i18n, carry-forward) — translate `showcase/angular/src/app/pages/dashboard/**`.
+
+## Previous Milestone: v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix (shipped 2026-05-14)
 
 **Goal:** Stand up a privacy-preserving telemetry pipeline that flows MCP and extension usage metrics from end-user installs into the FSB server (`showcase/server/`), render those aggregates on the public `/stats` Easter-egg page, and restore the broken DOM streaming in the showcase dashboard.
 
@@ -549,4 +560,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-14 -- milestone v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix started on branch Refinements*
+*Last updated: 2026-05-14 -- milestone v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix SHIPPED on branch Refinements; tag v0.9.69 created locally (push user-gated)*
