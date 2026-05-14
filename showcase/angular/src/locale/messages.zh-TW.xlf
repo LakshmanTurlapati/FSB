@@ -3750,6 +3750,18 @@
           <context context-type="linenumber">133,134</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_CURL|GDPR Article 17 erasure curl command. Copy this command literally; do not translate." datatype="html">
+        <source><x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>curl -X POST -H &quot;Content-Type: application/json&quot; \
+  -d &apos;<x id="INTERPOLATION" equiv-text="{{ &apos;{&apos; }}"/>&quot;install_uuid&quot;:&quot;&lt;your-uuid&gt;&quot;<x id="INTERPOLATION_1" equiv-text="{{ &apos;}&apos; }}"/>&apos; \
+  https://full-selfbrowsing.com/api/telemetry/forget<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
+        <target state="translated"><x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>curl -X POST -H &quot;Content-Type: application/json&quot; \
+  -d &apos;<x id="INTERPOLATION" equiv-text="{{ &apos;{&apos; }}"/>&quot;install_uuid&quot;:&quot;&lt;your-uuid&gt;&quot;<x id="INTERPOLATION_1" equiv-text="{{ &apos;}&apos; }}"/>&apos; \
+  https://full-selfbrowsing.com/api/telemetry/forget<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">134,138</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_HEADING" datatype="html">
         <source>Limited Use affirmation</source>
         <target state="translated">Limited Use 合規聲明</target>

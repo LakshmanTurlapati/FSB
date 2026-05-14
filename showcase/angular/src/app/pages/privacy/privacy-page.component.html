@@ -131,7 +131,7 @@
 
       <h3 id="erase-data" i18n="@@PRIVACY_TELEMETRY_ERASE_HEADING">How to erase your data</h3>
       <p i18n="@@PRIVACY_TELEMETRY_ERASE_TEXT">To request erasure of all telemetry rows associated with your install (<span [attr.translate]="'no'">GDPR</span> Article 17), look up your <code [attr.translate]="'no'">fsbInstallUuid</code> in <span [attr.translate]="'no'">Chrome</span> <span [attr.translate]="'no'">DevTools</span> &rarr; Application &rarr; Storage &rarr; Extension storage, then send a single <span [attr.translate]="'no'">HTTP</span> request:</p>
-      <pre><code [attr.translate]="'no'">curl -X POST -H "Content-Type: application/json" \
+      <pre i18n="@@PRIVACY_TELEMETRY_ERASE_CURL|GDPR Article 17 erasure curl command. Copy this command literally; do not translate."><code [attr.translate]="'no'">curl -X POST -H "Content-Type: application/json" \
   -d '{{ '{' }}"install_uuid":"&lt;your-uuid&gt;"{{ '}' }}' \
   https://full-selfbrowsing.com/api/telemetry/forget</code></pre>
 
