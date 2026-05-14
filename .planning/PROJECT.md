@@ -27,13 +27,29 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone
+## Current Milestone: v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 
-None active. Most recent milestone (v0.9.63 Showcase i18n) shipped 2026-05-13; run `/gsd-new-milestone` to scope the next cycle.
+**Goal:** Stand up a privacy-preserving telemetry pipeline that flows MCP and extension usage metrics from end-user installs into the FSB server (`showcase/server/`), render those aggregates on the public `/stats` Easter-egg page, and restore the broken DOM streaming in the showcase dashboard.
 
-**Next milestone candidates (carry-forward backlog):**
-- v0.9.64 -- revisit WARNING-02 (picker-cookie short-circuits bare-`/` Accept-Language redirect on fresh-tab returners; currently EN at root).
-- v0.9.65 -- dashboard surface i18n (`showcase/angular/src/app/pages/dashboard/**`; remove `--ignore-pattern` in `lint:i18n`).
+**Target features:**
+- MCP request logging in the extension control panel: cost + token tracking + per-call log rows alongside the existing AI-provider analytics hero.
+- API pricing module: hardcoded `MODEL_PRICING` table with per-MCP-client default-model assumptions (Claude Code -> Sonnet 4.6, Codex -> GPT-5, etc.), researched live for 2026 rates, source-stamped, updateable by version bump.
+- Anonymous telemetry collector in the extension: install-time UUIDv4 in `chrome.storage.local`; batched periodic beats; strictly allowlisted payload (UUID, tokens used, active-agent count, MCP client label, model). Opt-out toggle + first-run privacy banner.
+- Telemetry ingestion on `showcase/server/`: new `/api/telemetry/*` routes; server hashes IP as `SHA-256(IP + daily salt)` so plaintext IP is never persisted; new SQLite tables for events + per-UUID rollups.
+- Aggregation queries: total tokens, active users right now, total users, active agents, total agents lifetime, most-popular agent, most-popular MCP, avg agents per user.
+- Stats page (`/stats`) extended with a "FSB Telemetry" toggle group surfacing the aggregates, reusing the existing 5-min visibility-aware polling primitive.
+- Showcase dashboard DOM-streaming fix: diagnose and repair the WS `dash:dom-stream-*` pipeline between extension and dashboard preview pane (last phase).
+
+**Key constraints:**
+- Anonymous identity only -- UUIDv4 per install, NO PII, ever. Plaintext IP never persisted (hashed server-side with daily salt).
+- Opt-out consent, on by default, visible toggle in control panel + first-run privacy banner.
+- Server side extends existing `showcase/server/` (Express + SQLite); NO new microservice.
+- Build order: telemetry pipeline first (extension logging -> pricing -> collector -> ingest -> aggregates -> stats page); dashboard streaming fix LAST.
+- The `/stats` Easter-egg page from quick task 260514-1nv (on `Refinements`) is the consumption surface for the new aggregates.
+
+**Carry-forward backlog still pending (NOT in this milestone):**
+- v0.9.64-equivalent UX -- WARNING-02 picker-cookie short-circuit on bare-`/` Accept-Language redirect.
+- v0.9.65-equivalent i18n -- dashboard surface i18n; `--ignore-pattern src/app/pages/dashboard/**` in `lint:i18n` carries forward.
 
 ## Previous Milestone: v0.9.63 Showcase i18n (shipped 2026-05-13)
 
@@ -533,4 +549,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 -- milestone v0.9.62 Implicit Visual Session Contract shipped on branch refinements*
+*Last updated: 2026-05-14 -- milestone v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix started on branch Refinements*

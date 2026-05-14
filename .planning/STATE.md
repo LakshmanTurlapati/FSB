@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: ""
-status: between_milestones
-last_updated: "2026-05-14T06:30:00.000Z"
-last_activity: 2026-05-14 -- Completed quick task 260514-1nv: showcase /stats Easter-egg page (footer-only) with live GitHub graphs, 5-min visibility-aware polling, chart.js lazy chunk, crawler-invisible.
+milestone: v0.9.69
+milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
+status: planning
+last_updated: "2026-05-14T06:46:45.479Z"
+last_activity: 2026-05-14
 progress:
   total_phases: 0
   completed_phases: 0
@@ -26,10 +26,10 @@ See: .planning/ROADMAP.md (collapsed; no active milestone)
 
 ## Current Position
 
-Phase: --
-Plan: --
-Status: v0.9.63 shipped; no active milestone. One quick task on `Refinements`: showcase /stats Easter-egg page (260514-1nv).
-Last activity: 2026-05-14 -- Completed quick task 260514-1nv: showcase /stats Easter-egg page (footer-only) with live GitHub graphs.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-14 — Milestone v0.9.69 started
 
 ## Performance Metrics
 
