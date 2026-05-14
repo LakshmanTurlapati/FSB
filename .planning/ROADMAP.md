@@ -34,7 +34,8 @@
   2. The user can flip the toggle OFF, and within 100ms the displayed state reflects the change with no "Apply" button and no nag screen.
   3. The user can reload the extension, the service worker can be evicted and revived, and the same install UUID is returned by `chrome.storage.local.fsb_install_uuid` -- no new UUID is minted.
   4. On an incognito or ephemeral profile where `chrome.storage.local` is unavailable, the telemetry collector silently no-ops without spawning errors visible to the user.
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 269-01-PLAN.md — install-identity.js + background.js boot hooks + control_panel Privacy & Telemetry card + tests/install-identity.test.js
 **UI hint**: yes
 
 ### Phase 270: MCP Pricing Module
