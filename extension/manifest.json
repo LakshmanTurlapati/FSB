@@ -3,6 +3,7 @@
   "name": "FSB v0.9.65",
   "version": "0.9.65",
   "description": "FSB - Universal AI-powered browser automation assistant with multi-model support",
+  "homepage_url": "https://full-selfbrowsing.com",
   "permissions": [
     "activeTab",
     "scripting",
