@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 status: executing
-last_updated: "2026-05-14T10:30:00.000Z"
-last_activity: 2026-05-14 -- Phase 269 passed (35/35 unit tests, 8/8 must_haves, 5 review fixes, user-validated in Chrome)
+last_updated: "2026-05-14T11:30:00.000Z"
+last_activity: 2026-05-14 -- Phase 270 passed (MCP Pricing Module: 167/0 tests, 6 review fixes, npm-pack data/ blocker fixed)
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 12.5
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
+  percent: 25
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 
 ## Current Position
 
-Phase: 270 of 276 (MCP Pricing Module) -- next; phases 269 ∥ 270 are parallelizable but 269 already complete
+Phase: 271 of 276 (MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing) -- next
 Plan: TBD
-Status: Phase 269 complete; awaiting Phase 270 plan
-Last activity: 2026-05-14 -- Phase 269 (Install Identity + Opt-Out Scaffold) passed: 35/35 unit tests, 5 review fixes (BL-01/02 + MA-01/02/03), user-validated in Chrome
+Status: Phases 269+270 complete; awaiting Phase 271 plan
+Last activity: 2026-05-14 -- Phase 270 (MCP Pricing Module) passed: 167/167 tests, 1 BLOCKER + 4 WARNING + 1 INFO review fixes landed, npm pack data/ inclusion fixed
 
 Progress: [░░░░░░░░░░] 0%
 

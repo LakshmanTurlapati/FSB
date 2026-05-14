@@ -15,7 +15,7 @@
 ## Phases
 
 - [x] **Phase 269: Install Identity + Opt-Out Scaffold** -- per-install UUIDv4 in `chrome.storage.local`; opt-out kill switch in Advanced Settings. ✓ shipped 2026-05-14 (35/35 tests, user-validated)
-- [ ] **Phase 270: MCP Pricing Module** -- `MODEL_PRICING` + `MCP_CLIENT_DEFAULT_MODEL` table with source-stamped 2026-05-14 rates. **PARALLEL with 269.**
+- [x] **Phase 270: MCP Pricing Module** -- `MODEL_PRICING` + `MCP_CLIENT_DEFAULT_MODEL` table with source-stamped 2026-05-14 rates. ✓ shipped 2026-05-14 (167/0 tests, 6 review fixes, parity gate green)
 - [ ] **Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing** -- single chokepoint records every MCP dispatch into `fsbUsageData` alongside AI-provider calls.
 - [ ] **Phase 272: TelemetryCollector + Alarm + Queue Persistence** -- 5-min beat, MV3-SW-survivable queue in `chrome.storage.local`, minute-resolution timestamps, opt-out-aware flush.
 - [ ] **Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper** -- ingest pipeline; `trust proxy`, `express-rate-limit@^8.3.0`, HMAC-SHA256 daily salt, k-anonymity-ready rollups. **HAS BLOCKERS #1, #2.**
@@ -154,7 +154,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
-| 270. MCP Pricing Module | 0/1 | Plans created | - |
+| 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 0/TBD | Not started | - |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 0/TBD | Not started | - |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
