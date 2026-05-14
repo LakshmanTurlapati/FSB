@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: none
 milestone_name: ""
 status: between_milestones
-last_updated: "2026-05-13T07:00:00.000Z"
-last_activity: 2026-05-13 -- v0.9.63 Showcase i18n shipped (7 phases, 15 plans, 14/14 requirements, audit passed). Phase 268 closed audit WARNING-01 + WARNING-03. WARNING-02 deferred. Branch `feat/showcase-i18n` and `v0.9.63` tag user-gated.
+last_updated: "2026-05-14T06:30:00.000Z"
+last_activity: 2026-05-14 -- Completed quick task 260514-1nv: showcase /stats Easter-egg page (footer-only) with live GitHub graphs, 5-min visibility-aware polling, chart.js lazy chunk, crawler-invisible.
 progress:
   total_phases: 0
   completed_phases: 0
@@ -28,8 +28,8 @@ See: .planning/ROADMAP.md (collapsed; no active milestone)
 
 Phase: --
 Plan: --
-Status: v0.9.63 shipped; no active milestone.
-Last activity: 2026-05-13 -- `/gsd-complete-milestone v0.9.63` archived ROADMAP + REQUIREMENTS + audit; tag `v0.9.63` created (push user-gated).
+Status: v0.9.63 shipped; no active milestone. One quick task on `Refinements`: showcase /stats Easter-egg page (260514-1nv).
+Last activity: 2026-05-14 -- Completed quick task 260514-1nv: showcase /stats Easter-egg page (footer-only) with live GitHub graphs.
 
 ## Performance Metrics
 
@@ -57,6 +57,12 @@ Items acknowledged and deferred at v0.9.63 milestone close on 2026-05-13. None a
 | quick_task | 260508-gu8-add-agents-nav-page-to-showcase-fsb-skil | missing |
 
 Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future milestone cycle.
+
+## Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260514-1nv | Showcase /stats Easter-egg page with live GitHub graphs, footer-only entry, 5-min visibility-aware polling | 2026-05-14 | 7d9e449 | [260514-1nv-showcase-stats-page-footer-only-easter-e](./quick/260514-1nv-showcase-stats-page-footer-only-easter-e/) |
 
 ## Pending User-Gated Actions (carry-forward)
 
