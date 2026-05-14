@@ -71,19 +71,19 @@
 
 ### Server Ingest (BLOCKERs live here) -- INGEST
 
-- [ ] **INGEST-01** (BLOCKER #1): Showcase server trusts the Fly.io proxy -- `app.set('trust proxy', 1)` is set in `showcase/server/server.js` IMMEDIATELY after `const app = express()`, BEFORE any route or middleware mount. Without this, every install collapses into Fly's proxy IP and rate-limiting + IP-hashing are broken.
-- [ ] **INGEST-02** (BLOCKER #2): Rate-limiter pinned to CVE-fixed version -- `showcase/server/package.json` adds `express-rate-limit: ^8.3.0` (minimum 8.3.0; below this is CVE-2026-30827 IPv4-in-IPv6 collision). Custom `keyGenerator` returns `hashIp(req.ip, db)` so rate buckets align with anonymous identity.
-- [ ] **INGEST-03**: Server hashes IPs before storage -- `showcase/server/src/utils/telemetry-hash.js` uses HMAC-SHA256 with a daily-rotated salt fetched from a SQLite row in `telemetry_daily_salt`. Plaintext IP read from `req.ip` once, hash computed, plaintext discarded same statement.
-- [ ] **INGEST-04**: Salt rotates daily, lazily, in-process -- `showcase/server/src/utils/telemetry-salt.js` checks on every hash whether today's UTC salt exists; if not, mints `crypto.randomBytes(32)`, INSERTs the row, deletes salts older than yesterday. NO cron daemon required.
-- [ ] **INGEST-05**: SQLite schema is additive -- `showcase/server/src/db/schema.js` adds 4 new tables: `telemetry_events`, `telemetry_rollups_daily`, `telemetry_global_aggregates`, `telemetry_daily_salt`. NO existing table is altered.
-- [ ] **INGEST-06**: SQLite is tuned for write throughput -- every new `Database()` connection PRAGMAs: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `cache_size=-64000`, `temp_store=MEMORY`, `mmap_size=30000000000`.
-- [ ] **INGEST-07**: Public POST endpoint enforces abuse limits -- `POST /api/telemetry/events` is unauthenticated but layered: (a) body size cap 32KB, (b) batch size cap 50 events, (c) per-IP-hash rate limit 30 batches/min, (d) per-UUID daily budget 1000 events/day, (e) timestamp tolerance: reject `ts > now+5min` OR `ts < now-7d`, (f) `INSERT OR IGNORE` on UNIQUE `event_id` for replay dedup.
-- [ ] **INGEST-08**: Optout endpoint deletes by UUID -- `POST /api/telemetry/optout` body `{install_uuid}` deletes all matching rows from `telemetry_events` and `telemetry_rollups_daily`. Returns 204 always (no enumeration leak: same response whether UUID existed or not).
-- [ ] **INGEST-09**: Server enforces a strict payload allowlist -- exactly 9 fields permitted per event: `event_id, install_uuid, ts_minute, mcp_client, model, tokens_in, tokens_out, active_agent_count, event_type`. Any unknown field returns `400 unknown_field`. Server-side Zod or hand-rolled validator.
-- [ ] **INGEST-10**: Sec-GPC=1 header is honored -- requests carrying `Sec-GPC: 1` are silently dropped with 204 (future-safe for California AB 566 + Connecticut CTDPA).
-- [ ] **INGEST-11**: Server has a housekeeper -- `showcase/server/src/telemetry/housekeeper.js` runs `setInterval(1h)`: deletes `telemetry_events` older than 7 days; re-aggregates today + yesterday rows in `telemetry_rollups_daily`; recomputes `telemetry_global_aggregates`; nudges salt rotation.
-- [ ] **INGEST-12** (BLOCKER #3 backend): Erasure endpoint exists for GDPR Article 17 -- `POST /api/telemetry/forget` body `{install_uuid}` deletes from all 3 telemetry tables (events + rollups + nothing in global_aggregates since not joinable). 204 always. Documented in privacy policy with a curl recipe.
-- [ ] **INGEST-13**: Server does not log raw `req.ip` to disk -- audit of any `morgan` / access logger middleware mounted before the telemetry route MUST redact `req.ip` from log lines that touch `/api/telemetry/*`. CI test (`tests/server-no-ip-leak.test.js`) asserts via grep.
+- [x] **INGEST-01** (BLOCKER #1): Showcase server trusts the Fly.io proxy -- `app.set('trust proxy', 1)` is set in `showcase/server/server.js` IMMEDIATELY after `const app = express()`, BEFORE any route or middleware mount. Without this, every install collapses into Fly's proxy IP and rate-limiting + IP-hashing are broken.
+- [x] **INGEST-02** (BLOCKER #2): Rate-limiter pinned to CVE-fixed version -- `showcase/server/package.json` adds `express-rate-limit: ^8.3.0` (minimum 8.3.0; below this is CVE-2026-30827 IPv4-in-IPv6 collision). Custom `keyGenerator` returns `hashIp(req.ip, db)` so rate buckets align with anonymous identity.
+- [x] **INGEST-03**: Server hashes IPs before storage -- `showcase/server/src/utils/telemetry-hash.js` uses HMAC-SHA256 with a daily-rotated salt fetched from a SQLite row in `telemetry_daily_salt`. Plaintext IP read from `req.ip` once, hash computed, plaintext discarded same statement.
+- [x] **INGEST-04**: Salt rotates daily, lazily, in-process -- `showcase/server/src/utils/telemetry-salt.js` checks on every hash whether today's UTC salt exists; if not, mints `crypto.randomBytes(32)`, INSERTs the row, deletes salts older than yesterday. NO cron daemon required.
+- [x] **INGEST-05**: SQLite schema is additive -- `showcase/server/src/db/schema.js` adds 4 new tables: `telemetry_events`, `telemetry_rollups_daily`, `telemetry_global_aggregates`, `telemetry_daily_salt`. NO existing table is altered.
+- [x] **INGEST-06**: SQLite is tuned for write throughput -- every new `Database()` connection PRAGMAs: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `cache_size=-64000`, `temp_store=MEMORY`, `mmap_size=30000000000`.
+- [x] **INGEST-07**: Public POST endpoint enforces abuse limits -- `POST /api/telemetry/events` is unauthenticated but layered: (a) body size cap 32KB, (b) batch size cap 50 events, (c) per-IP-hash rate limit 30 batches/min, (d) per-UUID daily budget 1000 events/day, (e) timestamp tolerance: reject `ts > now+5min` OR `ts < now-7d`, (f) `INSERT OR IGNORE` on UNIQUE `event_id` for replay dedup.
+- [x] **INGEST-08**: Optout endpoint deletes by UUID -- `POST /api/telemetry/optout` body `{install_uuid}` deletes all matching rows from `telemetry_events` and `telemetry_rollups_daily`. Returns 204 always (no enumeration leak: same response whether UUID existed or not).
+- [x] **INGEST-09**: Server enforces a strict payload allowlist -- exactly 9 fields permitted per event: `event_id, install_uuid, ts_minute, mcp_client, model, tokens_in, tokens_out, active_agent_count, event_type`. Any unknown field returns `400 unknown_field`. Server-side Zod or hand-rolled validator.
+- [x] **INGEST-10**: Sec-GPC=1 header is honored -- requests carrying `Sec-GPC: 1` are silently dropped with 204 (future-safe for California AB 566 + Connecticut CTDPA).
+- [x] **INGEST-11**: Server has a housekeeper -- `showcase/server/src/telemetry/housekeeper.js` runs `setInterval(1h)`: deletes `telemetry_events` older than 7 days; re-aggregates today + yesterday rows in `telemetry_rollups_daily`; recomputes `telemetry_global_aggregates`; nudges salt rotation.
+- [x] **INGEST-12** (BLOCKER #3 backend): Erasure endpoint exists for GDPR Article 17 -- `POST /api/telemetry/forget` body `{install_uuid}` deletes from all 3 telemetry tables (events + rollups + nothing in global_aggregates since not joinable). 204 always. Documented in privacy policy with a curl recipe.
+- [x] **INGEST-13**: Server does not log raw `req.ip` to disk -- audit of any `morgan` / access logger middleware mounted before the telemetry route MUST redact `req.ip` from log lines that touch `/api/telemetry/*`. CI test (`tests/server-no-ip-leak.test.js`) asserts via grep.
 
 ### Aggregations (server side) -- AGG
 
@@ -200,19 +200,19 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | BEAT-08 | 272 | Complete |
 | BEAT-09 | 272 | Complete |
 | BEAT-10 | 272 | Complete |
-| INGEST-01 | 273 | Pending |
-| INGEST-02 | 273 | Pending |
-| INGEST-03 | 273 | Pending |
-| INGEST-04 | 273 | Pending |
-| INGEST-05 | 273 | Pending |
-| INGEST-06 | 273 | Pending |
-| INGEST-07 | 273 | Pending |
-| INGEST-08 | 273 | Pending |
-| INGEST-09 | 273 | Pending |
-| INGEST-10 | 273 | Pending |
-| INGEST-11 | 273 | Pending |
-| INGEST-12 | 273 | Pending |
-| INGEST-13 | 273 | Pending |
+| INGEST-01 | 273 | Complete |
+| INGEST-02 | 273 | Complete |
+| INGEST-03 | 273 | Complete |
+| INGEST-04 | 273 | Complete |
+| INGEST-05 | 273 | Complete |
+| INGEST-06 | 273 | Complete |
+| INGEST-07 | 273 | Complete |
+| INGEST-08 | 273 | Complete |
+| INGEST-09 | 273 | Complete |
+| INGEST-10 | 273 | Complete |
+| INGEST-11 | 273 | Complete |
+| INGEST-12 | 273 | Complete |
+| INGEST-13 | 273 | Complete |
 | AGG-01 | 274 | Pending |
 | AGG-02 | 274 | Pending |
 | AGG-03 | 274 | Pending |
