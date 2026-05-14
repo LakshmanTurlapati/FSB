@@ -191,8 +191,16 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
       { client: '__proto__', model: '__proto__' },               // both prototype-pollution
       { client: 'constructor', model: 'constructor' },           // both prototype-pollution
     ];
+    // Two distinct failure modes are tracked separately so a future
+    // regression's FAIL log clearly identifies which class of bug occurred:
+    //   - chaosThrows         : resolver threw an uncaught exception
+    //                           (violates the NEVER-throws contract).
+    //   - chaosShapeMisses    : resolver returned without throwing but the
+    //                           result was missing one or more of the 5
+    //                           canonical envelope keys.
     let chaosCount = 0;
     let chaosThrows = 0;
+    let chaosShapeMisses = 0;
     for (const g of garbage) {
       try {
         const r = m.estimateMcpCost(g);
@@ -200,7 +208,7 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
         const keys = Object.keys(r).sort();
         const expectedKeys = ['cost', 'model_used', 'pricing_confidence', 'pricing_source_date', 'source'];
         if (JSON.stringify(keys) !== JSON.stringify(expectedKeys)) {
-          chaosThrows++;
+          chaosShapeMisses++;
           console.error('  chaos input returned non-canonical shape:', r);
         }
         passAssertEqual(r.pricing_source_date, '2026-05-14', 'chaos input ' + chaosCount + ' has pricing_source_date');
@@ -210,7 +218,8 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
         console.error('  chaos input threw:', e.message);
       }
     }
-    passAssertEqual(chaosThrows, 0, 'chaos sweep: zero throws across 10 garbage inputs');
+    passAssertEqual(chaosThrows, 0, 'chaos sweep: zero uncaught throws across 10 garbage inputs (NEVER-throws contract)');
+    passAssertEqual(chaosShapeMisses, 0, 'chaos sweep: zero non-canonical-shape results across 10 garbage inputs');
 
     // Specifically the prototype-pollution attempts: client/model must NOT
     // match any inherited Object.prototype property.
