@@ -175,21 +175,21 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PRICE-01 | 270 | Pending |
-| PRICE-02 | 270 | Pending |
-| PRICE-03 | 270 | Pending |
-| PRICE-04 | 270 | Pending |
-| PRICE-05 | 270 | Pending |
-| COST-01 | 271 | Pending |
-| COST-02 | 271 | Pending |
-| COST-03 | 271 | Pending |
-| COST-04 | 271 | Pending |
-| COST-05 | 271 | Pending |
-| IDENT-01 | 269 | Pending |
-| IDENT-02 | 269 | Pending |
-| IDENT-03 | 269 | Pending |
-| IDENT-04 | 269 | Pending |
-| IDENT-05 | 269 | Pending |
+| PRICE-01 | 270 | Complete |
+| PRICE-02 | 270 | Complete |
+| PRICE-03 | 270 | Complete |
+| PRICE-04 | 270 | Complete |
+| PRICE-05 | 270 | Complete |
+| COST-01 | 271 | Complete |
+| COST-02 | 271 | Complete |
+| COST-03 | 271 | Complete |
+| COST-04 | 271 | Complete |
+| COST-05 | 271 | Complete |
+| IDENT-01 | 269 | Complete |
+| IDENT-02 | 269 | Complete |
+| IDENT-03 | 269 | Complete |
+| IDENT-04 | 269 | Complete |
+| IDENT-05 | 269 | Complete |
 | BEAT-01 | 272 | Complete |
 | BEAT-02 | 272 | Complete |
 | BEAT-03 | 272 | Complete |
@@ -229,8 +229,8 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | STATS-05 | 274 | Complete |
 | STATS-06 | 274 | Complete |
 | STATS-07 | 274 | Complete |
-| CONS-01 | 269 | Pending |
-| CONS-02 | 269 | Pending |
+| CONS-01 | 269 | Complete |
+| CONS-02 | 269 | Complete |
 | CONS-03 | 275 | Complete |
 | CONS-04 | 275 | Complete |
 | CONS-05 | 275 | Complete |
