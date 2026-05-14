@@ -31,6 +31,15 @@ try { importScripts('utils/mcp-task-store.js'); } catch (e) { console.error('[FS
 // chrome.scripting.executeScript injection inside wrapWithChangeReport.
 try { importScripts('utils/action-verification.js'); } catch (e) { console.error('[FSB] Failed to load action-verification.js:', e.message); }
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
+// Phase 270 / v0.9.69 -- price resolver. Must load BEFORE mcp-metrics-recorder
+// so the recorder's try/catch can call globalThis.fsbMcpPricing.estimateMcpCost.
+// (Phase 270 produced the module but did not wire the importScripts; Phase 271
+// reconciliation #3 repairs the gap with this single line.)
+try { importScripts('utils/mcp-pricing.js'); } catch (e) { console.error('[FSB] Failed to load mcp-pricing.js:', e.message); }
+// Phase 271 / v0.9.69 -- MCP analytics chokepoint. Loaded AFTER pricing
+// (it calls fsbMcpPricing) and AFTER mcp-tool-dispatcher.js (dispatcher hooks
+// call globalThis.fsbMcpMetricsRecorder).
+try { importScripts('utils/mcp-metrics-recorder.js'); } catch (e) { console.error('[FSB] Failed to load mcp-metrics-recorder.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
@@ -4360,13 +4369,38 @@ class BackgroundAnalytics {
     try {
       const result = await chrome.storage.local.get(['fsbUsageData', 'fsbCurrentModel']);
       if (result.fsbUsageData) {
-        this.usageData = result.fsbUsageData.map((entry) => ({
-          ...entry,
-          source: typeof normalizeUsageSource === 'function'
-            ? normalizeUsageSource(entry?.source)
-            : (entry?.source || 'automation')
-        }));
+        // Phase 271 (v0.9.69) reconciliation #1 + decision 7: mirror the
+        // back-fill walk from extension/utils/analytics.js so the inline
+        // BackgroundAnalytics class does not clobber MCP rows or strip
+        // back-fillable AI-provider rows. The walk:
+        //   1. AI-provider-shaped rows lacking source -> source='ai-provider'
+        //   2. Already-sourced rows pass through normalizeUsageSource (which
+        //      whitelists 'mcp' and 'ai-provider' as of Phase 271).
+        //   3. After the walk, if ANY row was back-filled, persist once via
+        //      saveData() so reload paths don't re-run the heuristic.
+        let backfilledAny = false;
+        this.usageData = result.fsbUsageData.map((entry) => {
+          const next = { ...entry };
+          const hasSourceString = typeof next.source === 'string' && next.source.length > 0;
+          if (
+            !hasSourceString &&
+            typeof next.model === 'string' &&
+            typeof next.inputTokens === 'number'
+          ) {
+            next.source = 'ai-provider';
+            backfilledAny = true;
+          } else {
+            next.source = typeof normalizeUsageSource === 'function'
+              ? normalizeUsageSource(next.source)
+              : (next.source || 'automation');
+          }
+          return next;
+        });
         automationLogger.debug('Loaded analytics data', { entries: this.usageData.length });
+        if (backfilledAny) {
+          // Single persist pass after the migration.
+          await this.saveData();
+        }
       }
       if (result.fsbCurrentModel) {
         this.currentModel = result.fsbCurrentModel;

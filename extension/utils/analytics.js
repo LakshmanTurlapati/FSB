@@ -3,7 +3,17 @@
 
 function normalizeUsageSource(source) {
   const value = typeof source === 'string' ? source.trim().toLowerCase() : '';
-  if (value === 'memory' || value === 'sitemap') {
+  // Phase 271 (v0.9.69) reconciliation #1: extend the legal-source enum to
+  // include `'mcp'` (MCPMetricsRecorder rows) and `'ai-provider'` (back-filled
+  // existing rows from extension/ai/cost-tracker.js). Without this, every
+  // loadStoredData cycle would clobber `'mcp'` to `'automation'`. The legacy
+  // three workflow values continue to pass through untouched.
+  if (
+    value === 'memory' ||
+    value === 'sitemap' ||
+    value === 'mcp' ||
+    value === 'ai-provider'
+  ) {
     return value;
   }
   return 'automation';
@@ -153,14 +163,42 @@ class FSBAnalytics {
       });
       
       if (result.fsbUsageData) {
-        this.usageData = result.fsbUsageData.map((entry) => ({
-          ...entry,
-          source: normalizeUsageSource(entry?.source)
-        }));
+        // Phase 271 (v0.9.69) decision 7 + reconciliation #1: one-time
+        // idempotent back-fill of `source: 'ai-provider'` on rows that lack
+        // a source-surface marker AND carry the AI-provider shape
+        // (model + inputTokens). Genuinely-legacy workflow-source rows
+        // (which already carry one of automation|memory|sitemap) retain
+        // their value. After the walk, if ANY row was back-filled, persist
+        // once via saveData() so subsequent reads do NOT re-run the
+        // heuristic. The persistence makes the migration idempotent across
+        // reloads -- a second loadStoredData walk finds source='ai-provider'
+        // already present and the back-fill is a no-op.
+        let backfilled = false;
+        this.usageData = result.fsbUsageData.map((entry) => {
+          const next = { ...entry };
+          const hasSourceString = typeof next.source === 'string' && next.source.length > 0;
+          if (
+            !hasSourceString &&
+            typeof next.model === 'string' &&
+            typeof next.inputTokens === 'number'
+          ) {
+            next.source = 'ai-provider';
+            backfilled = true;
+          } else {
+            next.source = normalizeUsageSource(next.source);
+          }
+          return next;
+        });
         console.log(`Analytics: Loaded ${this.usageData.length} usage entries`);
         // Clean old data (keep only last 30 days)
         this.cleanOldData();
         console.log(`Analytics: After cleanup, ${this.usageData.length} entries remain`);
+        if (backfilled) {
+          // Single persist pass after the migration. saveData writes the
+          // entire fsbUsageData array back, so the next load sees the
+          // back-filled rows and the walk above becomes a pure no-op.
+          await this.saveData();
+        }
       } else {
         console.log('Analytics: No stored usage data found, starting fresh');
       }
