@@ -9,8 +9,8 @@
  *   - the temporary `plaintextIp` parameter is the only place plaintext exists,
  *     and it leaves scope as soon as this function returns
  *
- * tests/server-no-ip-leak.test.js audits showcase/server/src/**/*.js for any
- * pattern that would violate this invariant.
+ * tests/server-no-ip-leak.test.js audits all .js files under showcase/server/src/
+ * recursively for any pattern that would violate this invariant.
  *
  * The daily salt is fetched via getOrMintTodaySalt(db) -- lazy UTC-daily rotation;
  * see src/utils/telemetry-salt.js.

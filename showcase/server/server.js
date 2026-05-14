@@ -113,6 +113,14 @@ app.use('/api/stats', auth, (req, res) => {
   }
 });
 
+// Phase 273 / INGEST-01..13 -- anonymous telemetry ingest (PUBLIC, no auth).
+// Mount order: AFTER trust-proxy line (top of file), AFTER existing routes
+// (no path overlap with /api/auth /api/agents /api/pair /api/stats),
+// BEFORE static-file middleware so the static handler doesn't shadow /api/telemetry/*.
+const createTelemetryRouter = require('./src/routes/telemetry');
+const { hashIp } = require('./src/utils/telemetry-hash');
+app.use('/api/telemetry', createTelemetryRouter(db, queries, hashIp));
+
 // Serve showcase static files with cache headers
 // In Docker: Angular dist is copied to /app/public
 // Local dev: serve Angular dist output directly from showcase/dist/.
