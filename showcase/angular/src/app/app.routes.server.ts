@@ -21,5 +21,6 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'support', renderMode: RenderMode.Prerender },
   { path: 'agents', renderMode: RenderMode.Prerender },
   { path: 'dashboard', renderMode: RenderMode.Client },
+  { path: 'stats', renderMode: RenderMode.Client },
   { path: '**', renderMode: RenderMode.Client },
 ];

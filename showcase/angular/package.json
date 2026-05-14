@@ -10,7 +10,7 @@
     "test": "ng test",
     "smoke:crawler": "node scripts/smoke-crawler.mjs",
     "serve:ssr:showcase-angular": "node ../dist/showcase-angular/server/server.mjs",
-    "lint:i18n": "eslint \"src/**/*.html\" --ignore-pattern \"src/app/pages/dashboard/**\"",
+    "lint:i18n": "eslint \"src/**/*.html\" --ignore-pattern \"src/app/pages/dashboard/**\" --ignore-pattern \"src/app/pages/stats/**\"",
     "verify:hreflang": "node scripts/verify-hreflang.mjs"
   },
   "dependencies": {
