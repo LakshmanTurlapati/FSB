@@ -80,7 +80,7 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260514-1nv | Showcase /stats Easter-egg page with live GitHub graphs, footer-only entry, 5-min visibility-aware polling | 2026-05-14 | 7d9e449 | [260514-1nv-showcase-stats-page-footer-only-easter-e](./quick/260514-1nv-showcase-stats-page-footer-only-easter-e/) |
-| 260514-pu4 | Wire showcase/server + showcase/angular deps into ci.yml extension job for v0.9.69 PR checks | 2026-05-14 | 17ef4e1 | [260514-pu4-wire-showcase-server-showcase-angular-de](./quick/260514-pu4-wire-showcase-server-showcase-angular-de/) |
+| 260514-pu4 | Wire showcase/server + showcase/angular deps into ci.yml extension job for v0.9.69 PR checks | 2026-05-14 | fbbdae2 | [260514-pu4-wire-showcase-server-showcase-angular-de](./quick/260514-pu4-wire-showcase-server-showcase-angular-de/) |
 
 ## Pending User-Gated Actions (carry-forward)
 
