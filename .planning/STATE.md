@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 status: executing
-last_updated: "2026-05-14T18:22:41.000Z"
-last_activity: "2026-05-14 -- Phase 274 (public-stats endpoint + FSBTelemetryService + /stats toggle group + i18n AI-fill) passed: 294 sub-assertions across 6 new tests + full Angular build + verify:hreflang 301 routes (unchanged); 9 AGG + 5 STATS + 2 STATS-Plan01 requirements complete"
+last_updated: "2026-05-14T14:30:00.000Z"
+last_activity: "2026-05-14 -- Phase 275 (privacy policy + CWS listing + CI guard) passed: 56 assertions + 5 verifications green; BLOCKER B3 RESOLVED; ALL 3 RELEASE BLOCKERS NOW RESOLVED"
 progress:
   total_phases: 8
-  completed_phases: 6
-  total_plans: 7
-  completed_plans: 7
-  percent: 75.0
+  completed_phases: 7
+  total_plans: 8
+  completed_plans: 8
+  percent: 87.5
 ---
 
 # Project State
