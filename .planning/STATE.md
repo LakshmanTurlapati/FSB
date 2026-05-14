@@ -10,7 +10,7 @@ progress:
   completed_phases: 4
   total_plans: 4
   completed_plans: 4
-  percent: 100
+  percent: 50
 ---
 
 # Project State
@@ -33,7 +33,7 @@ Plan: TBD
 Status: Phases 269+270+271+272 complete; awaiting Phase 273 plan
 Last activity: 2026-05-14 -- Phase 272 (TelemetryCollector + alarm + queue persistence) passed: 71 behavior assertions across 10 sections + 13-identifier static-grep CI gate; 9-field payload allowlist enforced in code + statically + at runtime
 
-Progress: [█░░░░░░░░░] 12.5% (1/8 milestone phases complete after Phase 272)
+Progress: [█████░░░░░] 50% (4/8 milestone phases complete after Phase 272)
 
 ## Performance Metrics
 
