@@ -2,6 +2,20 @@ const WebSocket = require('ws');
 
 const ROOM_DIAGNOSTIC_LIMIT = 100;
 
+// Phase 276 STREAM-DEFENSIVE-06: backpressure drop threshold. Frames bound for
+// a client whose ws.bufferedAmount exceeds this byte ceiling are dropped
+// rather than queued. 16 MiB is conservative -- real-world dashboard sessions
+// rarely exceed a few hundred KB of buffered data, so crossing this line
+// implies the receiver is wedged. Dropping the frame here is preferable to
+// growing an unbounded queue (which eventually OOMs the Node process or
+// triggers the V8 string-length cap).
+const BACKPRESSURE_BUFFER_LIMIT_BYTES = 16 * 1024 * 1024; // 16 MiB
+
+// Phase 276 STREAM-DEFENSIVE-06: module-level counter of frames dropped due
+// to backpressure. Surfaced via getBackpressureDroppedCount() for tests and
+// future observability hooks.
+let backpressureDroppedCount = 0;
+
 // Room map: hashKey -> { extensions: Set<ws>, dashboards: Set<ws> }
 const rooms = new Map();
 const roomDiagnostics = new Map();
@@ -73,6 +87,27 @@ function sendToClients(hashKey, clients, data, messageType, direction) {
     targetCount += 1;
     if (client.readyState !== WebSocket.OPEN) {
       droppedCount += 1;
+      continue;
+    }
+
+    // Phase 276 STREAM-DEFENSIVE-06: backpressure drop. If this client's send
+    // buffer is already over 16 MiB, skip the send and record the drop in
+    // backpressureDroppedCount. Lets a single wedged dashboard fall behind
+    // without OOM'ing the Node process or starving the other clients in the
+    // same room. The dashboard's existing transport-event-history surfaces
+    // the lost frame on the receiver side; this counter surfaces it on the
+    // relay side.
+    if (typeof client.bufferedAmount === 'number'
+        && client.bufferedAmount > BACKPRESSURE_BUFFER_LIMIT_BYTES) {
+      backpressureDroppedCount += 1;
+      droppedCount += 1;
+      pushRoomDiagnosticEvent(hashKey, {
+        event: 'backpressure-drop',
+        direction,
+        type,
+        bufferedAmount: client.bufferedAmount,
+        limitBytes: BACKPRESSURE_BUFFER_LIMIT_BYTES
+      });
       continue;
     }
 
@@ -314,4 +349,19 @@ function broadcastToRoom(hashKey, messageObj) {
   return broadcast(hashKey, 'dashboards', messageObj);
 }
 
-module.exports = { setupWSHandler, broadcastToRoom, getRoomDiagnostics, rooms };
+// Phase 276 STREAM-DEFENSIVE-06: expose the backpressure counter for tests +
+// future observability. The setter is for test-only reset (tests/server-ws-backpressure.test.js).
+function getBackpressureDroppedCount() { return backpressureDroppedCount; }
+function _resetBackpressureDroppedCount() { backpressureDroppedCount = 0; }
+
+module.exports = {
+  setupWSHandler,
+  broadcastToRoom,
+  getRoomDiagnostics,
+  rooms,
+  // Phase 276 STREAM-DEFENSIVE-06 exports
+  sendToClients,
+  getBackpressureDroppedCount,
+  _resetBackpressureDroppedCount,
+  BACKPRESSURE_BUFFER_LIMIT_BYTES
+};
