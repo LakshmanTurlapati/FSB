@@ -169,12 +169,95 @@ These were named in research as table-stakes-for-someday but explicitly out of t
 
 ## Traceability
 
-To be filled by `gsd-roadmapper` during ROADMAP creation. Each REQ-ID will map to exactly one phase.
+Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v0.9.63 (last phase = 268); v0.9.69 phases are 269-276.
+
+**Coverage:** 68/68 v0.9.69 requirements mapped (100%); no orphans.
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| _filled by roadmapper_ |       |        |
+| PRICE-01 | 270 | Pending |
+| PRICE-02 | 270 | Pending |
+| PRICE-03 | 270 | Pending |
+| PRICE-04 | 270 | Pending |
+| PRICE-05 | 270 | Pending |
+| COST-01 | 271 | Pending |
+| COST-02 | 271 | Pending |
+| COST-03 | 271 | Pending |
+| COST-04 | 271 | Pending |
+| COST-05 | 271 | Pending |
+| IDENT-01 | 269 | Pending |
+| IDENT-02 | 269 | Pending |
+| IDENT-03 | 269 | Pending |
+| IDENT-04 | 269 | Pending |
+| IDENT-05 | 269 | Pending |
+| BEAT-01 | 272 | Pending |
+| BEAT-02 | 272 | Pending |
+| BEAT-03 | 272 | Pending |
+| BEAT-04 | 272 | Pending |
+| BEAT-05 | 272 | Pending |
+| BEAT-06 | 272 | Pending |
+| BEAT-07 | 272 | Pending |
+| BEAT-08 | 272 | Pending |
+| BEAT-09 | 272 | Pending |
+| BEAT-10 | 272 | Pending |
+| INGEST-01 | 273 | Pending |
+| INGEST-02 | 273 | Pending |
+| INGEST-03 | 273 | Pending |
+| INGEST-04 | 273 | Pending |
+| INGEST-05 | 273 | Pending |
+| INGEST-06 | 273 | Pending |
+| INGEST-07 | 273 | Pending |
+| INGEST-08 | 273 | Pending |
+| INGEST-09 | 273 | Pending |
+| INGEST-10 | 273 | Pending |
+| INGEST-11 | 273 | Pending |
+| INGEST-12 | 273 | Pending |
+| INGEST-13 | 273 | Pending |
+| AGG-01 | 274 | Pending |
+| AGG-02 | 274 | Pending |
+| AGG-03 | 274 | Pending |
+| AGG-04 | 274 | Pending |
+| AGG-05 | 274 | Pending |
+| AGG-06 | 274 | Pending |
+| AGG-07 | 274 | Pending |
+| AGG-08 | 274 | Pending |
+| AGG-09 | 274 | Pending |
+| STATS-01 | 274 | Pending |
+| STATS-02 | 274 | Pending |
+| STATS-03 | 274 | Pending |
+| STATS-04 | 274 | Pending |
+| STATS-05 | 274 | Pending |
+| STATS-06 | 274 | Pending |
+| STATS-07 | 274 | Pending |
+| CONS-01 | 269 | Pending |
+| CONS-02 | 269 | Pending |
+| CONS-03 | 275 | Pending |
+| CONS-04 | 275 | Pending |
+| CONS-05 | 275 | Pending |
+| CONS-06 | 275 | Pending |
+| CONS-07 | 275 | Pending |
+| STREAM-01 | 276 | Pending |
+| STREAM-02 | 276 | Pending |
+| STREAM-03 | 276 | Pending |
+| STREAM-04 | 276 | Pending |
+| STREAM-05 | 276 | Pending |
+| STREAM-06 | 276 | Pending |
+| STREAM-07 | 276 | Pending |
+
+### Phase summary (REQ count per phase)
+
+| Phase | REQ count | Categories |
+|-------|-----------|------------|
+| 269 Install Identity + Opt-Out Scaffold | 7 | IDENT-01..05, CONS-01, CONS-02 |
+| 270 MCP Pricing Module | 5 | PRICE-01..05 |
+| 271 MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 5 | COST-01..05 |
+| 272 TelemetryCollector + Alarm + Queue Persistence | 10 | BEAT-01..10 |
+| 273 Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 13 | INGEST-01..13 (BLOCKERs #1, #2) |
+| 274 Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 16 | AGG-01..09, STATS-01..07 |
+| 275 Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 5 | CONS-03..07 (BLOCKER #3) |
+| 276 Dashboard DOM-Streaming Diagnostic + Minimum Patch | 7 | STREAM-01..07 |
+| **Total** | **68** | **100% coverage, no orphans** |
 
 ---
 
-*Generated: 2026-05-14 -- v0.9.69 milestone start. Source-of-truth research at .planning/research/SUMMARY.md.*
+*Generated: 2026-05-14 -- v0.9.69 milestone start. Source-of-truth research at .planning/research/SUMMARY.md. Traceability filled by gsd-roadmapper.*
