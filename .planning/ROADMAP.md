@@ -16,7 +16,7 @@
 
 - [x] **Phase 269: Install Identity + Opt-Out Scaffold** -- per-install UUIDv4 in `chrome.storage.local`; opt-out kill switch in Advanced Settings. ✓ shipped 2026-05-14 (35/35 tests, user-validated)
 - [x] **Phase 270: MCP Pricing Module** -- `MODEL_PRICING` + `MCP_CLIENT_DEFAULT_MODEL` table with source-stamped 2026-05-14 rates. ✓ shipped 2026-05-14 (167/0 tests, 6 review fixes, parity gate green)
-- [ ] **Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing** -- single chokepoint records every MCP dispatch into `fsbUsageData` alongside AI-provider calls.
+- [x] **Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing** -- single chokepoint records every MCP dispatch into `fsbUsageData` alongside AI-provider calls. ✓ shipped 2026-05-14 (88/88 tests + 612 regression assertions, 1 BLOCKER fix landed)
 - [ ] **Phase 272: TelemetryCollector + Alarm + Queue Persistence** -- 5-min beat, MV3-SW-survivable queue in `chrome.storage.local`, minute-resolution timestamps, opt-out-aware flush.
 - [ ] **Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper** -- ingest pipeline; `trust proxy`, `express-rate-limit@^8.3.0`, HMAC-SHA256 daily salt, k-anonymity-ready rollups. **HAS BLOCKERS #1, #2.**
 - [ ] **Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group** -- `/api/public-stats/*` + `FSBTelemetryService` mirror of `GitHubStatsService` + 6 new chart views on `/stats` with i18n AI-fill.
@@ -156,7 +156,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 |-------|----------------|--------|-----------|
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
 | 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
-| 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 0/1 | Not started | - |
+| 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 1/1 | ✓ Complete | 2026-05-14 |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 0/TBD | Not started | - |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
 | 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |

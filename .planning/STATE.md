@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.69
 milestone_name: Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix
 status: executing
-last_updated: "2026-05-14T11:30:00.000Z"
-last_activity: 2026-05-14 -- Phase 270 passed (MCP Pricing Module: 167/0 tests, 6 review fixes, npm-pack data/ blocker fixed)
+last_updated: "2026-05-14T12:30:00.000Z"
+last_activity: 2026-05-14 -- Phase 271 passed (MCPMetricsRecorder + dispatcher hooks + unified cost: 88 tests + 612 regression assertions; CR-01 double-count BLOCKER fixed)
 progress:
   total_phases: 8
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 25
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 37.5
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 
 ## Current Position
 
-Phase: 271 of 276 (MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing) -- next
+Phase: 272 of 276 (TelemetryCollector + Alarm + Queue Persistence) -- next
 Plan: TBD
-Status: Phases 269+270 complete; awaiting Phase 271 plan
-Last activity: 2026-05-14 -- Phase 270 (MCP Pricing Module) passed: 167/167 tests, 1 BLOCKER + 4 WARNING + 1 INFO review fixes landed, npm pack data/ inclusion fixed
+Status: Phases 269+270+271 complete; awaiting Phase 272 plan
+Last activity: 2026-05-14 -- Phase 271 (MCPMetricsRecorder + dispatcher hooks) passed: 88 tests + 612 regression assertions, double-count BLOCKER (CR-01: handleToolAliasRoute) fixed via _mcpMetricsSuppressInner flag
 
 Progress: [░░░░░░░░░░] 0%
 
