@@ -48,7 +48,7 @@ A developer can attribute a USD cost to any MCP tool call by looking up the call
 - Path 1: `model` provided AND in `MCP_MODEL_PRICING` -> `{cost: rate*tokens, source: 'lookup', model_used: model, pricing_confidence: row.confidence}`.
 - Path 2: `model` missing/unknown BUT `client` in `MCP_CLIENT_DEFAULT_MODEL` AND its default model is in `MCP_MODEL_PRICING` -> compute using the default model, `source: 'fallback'`, `pricing_confidence: 'fallback'`.
 - Path 3: neither matches -> `{cost: null, source: 'unknown', model_used: null, pricing_confidence: null}`.
-- Path 4: `tokensIn` or `tokensOut` is `null`/`undefined`/non-finite -> `cost: null`, but still return `model_used` + `source` as far as the lookup got. Tokens missing are a legitimate "uncounted" reason on the stats page.
+- Path 4: `tokensIn` or `tokensOut` is `null`/`undefined`/non-finite (NaN, Infinity, -Infinity) OR **negative** -> `cost: null`, but still return `model_used` + `source` as far as the lookup got. Tokens missing are a legitimate "uncounted" reason on the stats page. Negative tokens are rejected uniformly with missing/non-finite (added in Phase 270 review-fix WR-03) to prevent negative USD costs from polluting `sum(cost_usd)` / `avg(cost_usd)` aggregations on the showcase dashboard. Zero remains legitimate (`tokensIn >= 0` accepted -> `cost: 0` for a zero-tokens call).
 
 ### Storage of pricing data
 - **`mcp/data/mcp-pricing-data.json`** — single source-of-truth JSON file. Contains:

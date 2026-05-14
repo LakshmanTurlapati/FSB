@@ -195,12 +195,15 @@ _loadDataIfNeeded();
  *   3. **unknown**: neither path matches -> {cost: null, source: 'unknown',
  *      model_used: null, pricing_confidence: null, pricing_source_date: '2026-05-14'}.
  *
- *   4. **missing tokens** (modifier on any of the above): if tokensIn or
- *      tokensOut is null / undefined / NaN / Infinity / non-number, set
- *      cost=null but preserve model_used + source + pricing_confidence as
- *      far as the lookup got. Telemetry rows with missing tokens are a
+ *   4. **missing or invalid tokens** (modifier on any of the above): if
+ *      tokensIn or tokensOut is null / undefined / NaN / Infinity /
+ *      -Infinity / non-number / NEGATIVE number, set cost=null but
+ *      preserve model_used + source + pricing_confidence as far as the
+ *      lookup got. Telemetry rows with missing-or-invalid tokens are a
  *      legitimate "uncounted" reason; we still want the model/source
- *      attribution to flow through to the stats page.
+ *      attribution to flow through to the stats page. Negative tokens
+ *      are treated as "uncounted" rather than producing a negative USD
+ *      cost that would pollute downstream sum/avg telemetry aggregations.
  *
  * Security: the resolver NEVER throws. The whole body is wrapped in a
  * try/catch that falls through to UNKNOWN on any caught exception.
@@ -252,11 +255,16 @@ function estimateMcpCost(input) {
 
     if (!modelKey) return _unknownEnvelope();
 
-    // Compute cost only if BOTH tokens are finite numbers. Strict typeof check
-    // rejects string-shaped tokens ('1000'), null/undefined, NaN, Infinity,
-    // and non-numeric inputs uniformly.
-    var tin = (typeof tokensIn === 'number' && isFinite(tokensIn)) ? tokensIn : null;
-    var tout = (typeof tokensOut === 'number' && isFinite(tokensOut)) ? tokensOut : null;
+    // Compute cost only if BOTH tokens are finite NON-NEGATIVE numbers.
+    // Strict typeof check rejects string-shaped tokens ('1000'),
+    // null/undefined, NaN, Infinity, -Infinity, and non-numeric inputs
+    // uniformly. The `>= 0` guard rejects negative integers -- a malformed
+    // MCP envelope reporting negative token counts (or an integer-overflow
+    // wraparound) would otherwise produce a negative USD cost that would
+    // silently distort sum/avg aggregations on the showcase dashboard.
+    // Zero remains legitimate (cost = 0 is a valid zero-tokens result).
+    var tin = (typeof tokensIn === 'number' && isFinite(tokensIn) && tokensIn >= 0) ? tokensIn : null;
+    var tout = (typeof tokensOut === 'number' && isFinite(tokensOut) && tokensOut >= 0) ? tokensOut : null;
 
     var cost = null;
     if (tin !== null && tout !== null) {

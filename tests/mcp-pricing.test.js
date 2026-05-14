@@ -299,6 +299,47 @@ const pricingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
     });
     passAssertEqual(r7.cost, 0, 'zero tokens -> cost=0 (LEGITIMATE; not null)');
     passAssertEqual(r7.source, 'lookup', 'zero tokens preserves source=lookup');
+
+    // Negative tokens are INVALID -- reject like missing tokens to prevent
+    // negative USD costs from polluting sum/avg aggregations downstream.
+    // Source/model_used are still preserved (lookup got that far before
+    // the token-shape check failed). Regression guard for the WR-03 fix.
+    const rNegIn = m.estimateMcpCost({
+      client: 'Claude',
+      model: 'claude-haiku-4-5',
+      tokensIn: -1,
+      tokensOut: 1
+    });
+    passAssertEqual(rNegIn.cost, null, 'negative tokensIn -> cost=null (no negative USD)');
+    passAssertEqual(rNegIn.source, 'lookup', 'negative tokensIn preserves source=lookup');
+    passAssertEqual(rNegIn.model_used, 'claude-haiku-4-5', 'negative tokensIn preserves model_used');
+
+    const rNegOut = m.estimateMcpCost({
+      client: 'Claude',
+      model: 'claude-haiku-4-5',
+      tokensIn: 1,
+      tokensOut: -1
+    });
+    passAssertEqual(rNegOut.cost, null, 'negative tokensOut -> cost=null (no negative USD)');
+    passAssertEqual(rNegOut.source, 'lookup', 'negative tokensOut preserves source=lookup');
+
+    // Both negative -- previously produced negative USD via tin*rate +
+    // tout*rate both negative. After the fix: cost=null.
+    const rNegBoth = m.estimateMcpCost({
+      client: 'Claude',
+      model: 'claude-haiku-4-5',
+      tokensIn: -1000000,
+      tokensOut: -1000000
+    });
+    passAssertEqual(rNegBoth.cost, null, 'both-negative tokens -> cost=null (was producing negative USD)');
+    passAssertEqual(rNegBoth.source, 'lookup', 'both-negative preserves source=lookup');
+
+    // Negative tokens on the fallback path also rejected (model resolution
+    // still succeeds; only the cost arithmetic is gated).
+    const rNegFallback = m.estimateMcpCost({ client: 'Claude', tokensIn: -1, tokensOut: -1 });
+    passAssertEqual(rNegFallback.cost, null, 'negative tokens on fallback path -> cost=null');
+    passAssertEqual(rNegFallback.source, 'fallback', 'negative tokens preserve fallback source');
+    passAssertEqual(rNegFallback.model_used, 'claude-opus-4-7', 'negative tokens preserve fallback model_used');
   }
 
   // --- Section 5: pricing_source_date on every result (PRICE-05) ---------
