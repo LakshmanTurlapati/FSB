@@ -188,6 +188,30 @@ class Queries {
     this.selectTodaySalt = this.db.prepare('SELECT salt_hex, minted_at FROM telemetry_daily_salt WHERE day_utc = ?');
     this.insertTodaySalt = this.db.prepare('INSERT INTO telemetry_daily_salt (day_utc, salt_hex, minted_at) VALUES (?, ?, ?)');
     this.deleteOldSalts = this.db.prepare('DELETE FROM telemetry_daily_salt WHERE day_utc < ?');
+
+    // Phase 274 / AGG-01..09 -- public aggregates read paths (no writes).
+    // Each is hand-built from typed fields per T-274-01; no SELECT *. The lifetime
+    // statements (total_users / lifetime tokens) scan tables the housekeeper rolls
+    // up nightly; reads are O(rows-per-day) for ~365 days, well under SQLite's
+    // millisecond ceiling.
+    this.aggregateTotalUsers = this.db.prepare(
+      'SELECT COUNT(DISTINCT install_uuid) AS n FROM telemetry_rollups_daily'
+    );
+    this.aggregateTotalAgentsLifetime = this.db.prepare(
+      'SELECT COALESCE(SUM(max_active_agents), 0) AS n FROM telemetry_rollups_daily'
+    );
+    this.aggregateTokensLifetime = this.db.prepare(
+      'SELECT COALESCE(SUM(tokens_in_sum + tokens_out_sum), 0) AS n FROM telemetry_global_aggregates'
+    );
+    this.aggregateTokens24h = this.db.prepare(
+      "SELECT COALESCE(SUM(tokens_in_sum + tokens_out_sum), 0) AS n FROM telemetry_global_aggregates WHERE day_utc >= date('now', '-1 day')"
+    );
+    this.selectLatestGlobalAggregate = this.db.prepare(
+      'SELECT popular_mcp_json, popular_agent_json FROM telemetry_global_aggregates ORDER BY day_utc DESC LIMIT 1'
+    );
+    this.selectSeriesForWindow = this.db.prepare(
+      "SELECT day_utc, unique_installs, tokens_in_sum, tokens_out_sum, agents_active_sum FROM telemetry_global_aggregates WHERE day_utc >= date('now', ?) ORDER BY day_utc ASC"
+    );
   }
 
   // Hash key operations
@@ -368,6 +392,30 @@ class Queries {
       dayUtc, uniqueInstalls || 0, tokensInSum || 0, tokensOutSum || 0, agentsActiveSum || 0,
       popularMcpJson || '[]', popularAgentJson || '[]'
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase 274 / AGG-01..09 -- public-stats helpers.
+  // Each method returns plain JS numbers (better-sqlite3 INTEGER -> number
+  // when <= 2^53; for our scale this is safe). Defensive defaults handle the
+  // empty-database case so the public endpoint never returns null fields.
+  // -----------------------------------------------------------------------
+  getPublicHeadlineRows() {
+    return {
+      total_users:           this.aggregateTotalUsers.get()?.n || 0,
+      total_agents_lifetime: this.aggregateTotalAgentsLifetime.get()?.n || 0,
+      tokens_total_lifetime: this.aggregateTokensLifetime.get()?.n || 0,
+      tokens_24h:            this.aggregateTokens24h.get()?.n || 0,
+      latest_global:         this.selectLatestGlobalAggregate.get() || { popular_mcp_json: '[]', popular_agent_json: '[]' },
+    };
+  }
+
+  getPublicSeriesRows() {
+    return {
+      d30:  this.selectSeriesForWindow.all('-30 days'),
+      d90:  this.selectSeriesForWindow.all('-90 days'),
+      d365: this.selectSeriesForWindow.all('-365 days'),
+    };
   }
 }
 

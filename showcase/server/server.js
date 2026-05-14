@@ -121,6 +121,13 @@ const createTelemetryRouter = require('./src/routes/telemetry');
 const { hashIp } = require('./src/utils/telemetry-hash');
 app.use('/api/telemetry', createTelemetryRouter(db, queries, hashIp));
 
+// Phase 274 / AGG-01..09 + STATS-04 -- anonymous public aggregates (PUBLIC, no auth).
+// Mounted AFTER auth routes and the auth-gated /api/stats handler so the path
+// /api/public-stats does NOT shadow /api/stats. Distinct namespaces by design.
+// Memo + ETag handling lives inside the router; this mount is the only wiring.
+const createPublicStatsRouter = require('./src/routes/public-stats');
+app.use('/api/public-stats', createPublicStatsRouter(db, queries));
+
 // Serve showcase static files with cache headers
 // In Docker: Angular dist is copied to /app/public
 // Local dev: serve Angular dist output directly from showcase/dist/.

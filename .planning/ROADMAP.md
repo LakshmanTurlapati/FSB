@@ -19,7 +19,7 @@
 - [x] **Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing** -- single chokepoint records every MCP dispatch into `fsbUsageData` alongside AI-provider calls. ✓ shipped 2026-05-14 (88/88 tests + 612 regression assertions, 1 BLOCKER fix landed)
 - [x] **Phase 272: TelemetryCollector + Alarm + Queue Persistence** -- 5-min beat, MV3-SW-survivable queue in `chrome.storage.local`, minute-resolution timestamps, opt-out-aware flush. (completed 2026-05-14)
 - [x] **Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper** -- ingest pipeline; `trust proxy`, `express-rate-limit@^8.3.0`, HMAC-SHA256 daily salt, k-anonymity-ready rollups. **HAS BLOCKERS #1, #2.** (completed 2026-05-14)
-- [ ] **Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group** -- `/api/public-stats/*` + `FSBTelemetryService` mirror of `GitHubStatsService` + 6 new chart views on `/stats` with i18n AI-fill.
+- [x] **Phase 274: Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group** -- `/api/public-stats/*` + `FSBTelemetryService` mirror of `GitHubStatsService` + 6 new chart views on `/stats` with i18n AI-fill. (completed 2026-05-14; 4 atomic commits; 6 new tests / 294 sub-assertions; AGG-01..09 + STATS-01..07)
 - [ ] **Phase 275: Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke** -- `/privacy#telemetry-disclosure`, `listing-copy.md` data-collection section, `verify-store-listing.mjs` CI gate. **HAS BLOCKER #3.**
 - [ ] **Phase 276: Dashboard DOM-Streaming Diagnostic + Minimum Patch** -- capture 3 logs, walk 7-hypothesis chain in rank order, apply minimum patch. **LOCKED LAST.**
 

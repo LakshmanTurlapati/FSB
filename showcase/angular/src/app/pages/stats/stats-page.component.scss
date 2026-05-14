@@ -191,3 +191,57 @@
   white-space: nowrap;
   border: 0;
 }
+
+// Phase 274 / STATS-02 -- FSB Telemetry section heading + headline row.
+// Re-uses existing FSB CSS custom-property tokens only -- no new color
+// literals, no new tokens (matches the pre-274 convention at top of file).
+.fsb-section-heading {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .fsb-section-sub {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+}
+
+.stats-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+
+  .headline-cell {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+
+    strong {
+      font-size: 1.4rem;
+      color: var(--primary);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+  }
+
+  .headline-dot {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+  }
+}
