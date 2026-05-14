@@ -47,7 +47,8 @@
   2. A developer can call the resolver with any client label from the v0.9.36 allowlist (`Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Windsurf`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`, `Hermes`) and receive an assumed default model plus a HIGH/MEDIUM/LOW confidence stamp.
   3. When the resolver is given an unknown `(client, model)` pair, the returned result has `cost: null` and `source: 'unknown'` -- never `$0` and never a default model row.
   4. Every resolver result carries the `PRICING_SOURCE_DATE = "2026-05-14"` constant so downstream consumers know when prices were last refreshed.
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 270-01-PLAN.md — mcp-pricing-data.json + mcp/src/tools/pricing.ts + extension/utils/mcp-pricing.js + tests/mcp-pricing.test.js + tests/mcp-pricing-data-parity.test.js
 
 ### Phase 271: MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing
 **Goal**: Every MCP tool dispatch flows through a single recorder that contributes to the SAME analytics numbers the user already sees in the Control Panel.
@@ -153,7 +154,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
-| 270. MCP Pricing Module | 0/TBD | Not started | - |
+| 270. MCP Pricing Module | 0/1 | Plans created | - |
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 0/TBD | Not started | - |
 | 272. TelemetryCollector + Alarm + Queue Persistence | 0/TBD | Not started | - |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
