@@ -40,6 +40,11 @@ try { importScripts('utils/mcp-pricing.js'); } catch (e) { console.error('[FSB] 
 // (it calls fsbMcpPricing) and AFTER mcp-tool-dispatcher.js (dispatcher hooks
 // call globalThis.fsbMcpMetricsRecorder).
 try { importScripts('utils/mcp-metrics-recorder.js'); } catch (e) { console.error('[FSB] Failed to load mcp-metrics-recorder.js:', e.message); }
+// Phase 272 / v0.9.69 -- TelemetryCollector. Loaded AFTER mcp-metrics-recorder
+// (collector reads the rows the recorder writes to fsbUsageData). The alarm
+// handler in chrome.alarms.onAlarm + the install_announce setTimeout in
+// chrome.runtime.onInstalled are wired below.
+try { importScripts('utils/telemetry-collector.js'); } catch (e) { console.error('[FSB] Failed to load telemetry-collector.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
@@ -12963,6 +12968,24 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
 
+  // Phase 272 / BEAT-01..02: telemetry beat alarm. The 5-minute alarm
+  // survives MV3 SW eviction because it lives in chrome.alarms (not SW
+  // memory). When it fires, schedule the collector flush with 0-30s
+  // jitter to desynchronize installs (avoids synchronized spikes against
+  // https://full-selfbrowsing.com/api/telemetry/events). Defensive
+  // try/catch wraps the flush -- a telemetry crash must NEVER kill the
+  // alarm dispatcher (threat T-272-04).
+  if (alarm && alarm.name === 'fsb-telemetry-beat') {
+    setTimeout(function () {
+      try {
+        if (globalThis.fsbTelemetryCollector && typeof globalThis.fsbTelemetryCollector.flush === 'function') {
+          globalThis.fsbTelemetryCollector.flush();
+        }
+      } catch (_e) { /* swallow per defence in depth */ }
+    }, Math.floor(Math.random() * 30000));
+    return;
+  }
+
   const isMcpReconnectAlarm =
     typeof MCP_RECONNECT_ALARM !== 'undefined' &&
     alarm.name === MCP_RECONNECT_ALARM;
@@ -13069,6 +13092,33 @@ chrome.runtime.onInstalled.addListener(async () => {
     console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
   }
 
+  // Phase 272 / BEAT-02: register the 5-minute telemetry beat alarm.
+  // Idempotent -- chrome.alarms.create with the same name replaces, so this
+  // is safe to call from BOTH onInstalled and onStartup. The alarm lives in
+  // the Chrome alarms registry, not SW memory, so it survives MV3 eviction.
+  try {
+    chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 });
+  } catch (e) {
+    console.error('[FSB Telemetry] alarm create failed:', e && e.message);
+  }
+
+  // Phase 272 / BEAT-06: install_announce. 30s setTimeout (NOT a chrome.alarm
+  // -- the minimum alarm period is 30s but the 30s grace before announce is
+  // a one-shot per install, not a recurring beat). Enqueue + flush invokes
+  // the collector once. The collector's enqueue() resolves the partial input
+  // ({event_type:'install_announce'}) into the full 9-field payload, so we
+  // do NOT construct the shape here (keeps the static-grep gate meaningful).
+  setTimeout(async function () {
+    try {
+      if (globalThis.fsbTelemetryCollector
+          && typeof globalThis.fsbTelemetryCollector.enqueue === 'function'
+          && typeof globalThis.fsbTelemetryCollector.flush === 'function') {
+        await globalThis.fsbTelemetryCollector.enqueue({ event_type: 'install_announce' });
+        await globalThis.fsbTelemetryCollector.flush();
+      }
+    } catch (_e) { /* swallow per defence in depth */ }
+  }, 30000);
+
   // Load debug mode setting
   await loadDebugMode();
 
@@ -13111,6 +13161,15 @@ chrome.runtime.onStartup.addListener(async () => {
     }
   } catch (e) {
     console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
+  }
+  // Phase 272 / BEAT-02: idempotent alarm registration on every SW wake.
+  // chrome.alarms.create with the same name replaces -- safe to call again.
+  // This is the SW-eviction recovery path: if Chrome evicted the SW and the
+  // alarm registry somehow lost the entry, onStartup re-arms it.
+  try {
+    chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 });
+  } catch (e) {
+    console.error('[FSB Telemetry] alarm create failed:', e && e.message);
   }
   // Load debug mode setting
   await loadDebugMode();
