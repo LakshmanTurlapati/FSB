@@ -297,7 +297,40 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
   const gateResult = checkOwnershipGate({ tool, params, payload });
   if (gateResult) return gateResult;
 
-  return route.handler({ tool, params: params || {}, client, tab, payload, route });
+  // Phase 271 / v0.9.69 -- MCP analytics chokepoint. recordDispatch fires in
+  // finally on BOTH success and failure paths; errors do NOT skip recording.
+  // The recorder's own try/catch insulates this dispatcher from any internal
+  // recorder failure, but we wrap the call in a second try/catch as defence
+  // in depth: the metrics call MUST NEVER alter the dispatcher's resolved
+  // value or thrown error. Early-return paths above (!route, handler missing,
+  // gateResult) intentionally do NOT call recordDispatch -- those are
+  // dispatcher-internal errors where no tool actually ran.
+  let response = undefined;
+  let success = false;
+  try {
+    response = await route.handler({ tool, params: params || {}, client, tab, payload, route });
+    success = !(response && typeof response === 'object' && response.success === false);
+    return response;
+  } finally {
+    try {
+      if (
+        typeof globalThis !== 'undefined' &&
+        globalThis.fsbMcpMetricsRecorder &&
+        typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
+      ) {
+        // Fire-and-forget; intentionally NOT awaited so a slow storage write
+        // never blocks the dispatcher's return to the WS client.
+        globalThis.fsbMcpMetricsRecorder.recordDispatch({
+          client,
+          tool,
+          requestPayload: payload,
+          response,
+          success,
+          dispatcher_route: 'tool'
+        });
+      }
+    } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
+  }
 }
 
 async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null }) {
@@ -309,24 +342,64 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
   const restrictedReadResponse = await buildRestrictedResponseIfReadRoute({ type, client });
   if (restrictedReadResponse) return restrictedReadResponse;
 
-  if (typeof route.handler === 'function') {
-    try {
-      return await route.handler({ type, payload: payload || {}, client, mcpMsgId, route });
-    } catch (error) {
-      return maybeBuildRestrictedResponse({ error, tool: type, client });
-    }
-  }
-
-  if (!client || typeof client[route.helperName] !== 'function') {
-    const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
-    if (restrictedResponse) return restrictedResponse;
-    return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client helper unavailable' });
-  }
-
+  // Phase 271 / v0.9.69 -- MCP analytics chokepoint (message surface). Same
+  // try/finally pattern as dispatchMcpToolRoute: recorder fires from finally
+  // on BOTH success and failure paths and on both terminal arms (route.handler
+  // and client.helperName). Early-return paths (!route, restricted-read
+  // synthesis) do NOT record -- the route never ran.
+  let response = undefined;
+  let success = false;
   try {
-    return await client[route.helperName](payload || {}, mcpMsgId);
-  } catch (error) {
-    return maybeBuildRestrictedResponse({ error, tool: type, client });
+    if (typeof route.handler === 'function') {
+      try {
+        response = await route.handler({ type, payload: payload || {}, client, mcpMsgId, route });
+        success = !(response && typeof response === 'object' && response.success === false);
+        return response;
+      } catch (error) {
+        response = await maybeBuildRestrictedResponse({ error, tool: type, client });
+        success = false;
+        return response;
+      }
+    }
+
+    if (!client || typeof client[route.helperName] !== 'function') {
+      const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
+      if (restrictedResponse) {
+        response = restrictedResponse;
+        success = !(restrictedResponse && restrictedResponse.success === false);
+        return restrictedResponse;
+      }
+      response = createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client helper unavailable' });
+      success = false;
+      return response;
+    }
+
+    try {
+      response = await client[route.helperName](payload || {}, mcpMsgId);
+      success = !(response && typeof response === 'object' && response.success === false);
+      return response;
+    } catch (error) {
+      response = await maybeBuildRestrictedResponse({ error, tool: type, client });
+      success = false;
+      return response;
+    }
+  } finally {
+    try {
+      if (
+        typeof globalThis !== 'undefined' &&
+        globalThis.fsbMcpMetricsRecorder &&
+        typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
+      ) {
+        globalThis.fsbMcpMetricsRecorder.recordDispatch({
+          client,
+          tool: type,
+          requestPayload: payload,
+          response,
+          success,
+          dispatcher_route: 'message'
+        });
+      }
+    } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
   }
 }
 
