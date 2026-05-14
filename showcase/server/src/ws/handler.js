@@ -146,14 +146,48 @@ function getRoomDiagnostics(hashKey) {
 /**
  * Set up WebSocket connection handling on the given WebSocketServer.
  * Called after upgrade authentication completes in server.js.
+ *
+ * Phase 276 / STREAM-DEFENSIVE-01 (hypothesis #1 hashKey-room mismatch):
+ *
+ * Pair-handshake contract:
+ *   Dashboard and extension must join the SAME hashKey-keyed room before any
+ *   dash: -> ext: or ext: -> dash: relay can succeed. The hashKey is the
+ *   QR-pair shared secret, minted server-side via queries.validateHashKey and
+ *   threaded through both upgrade handlers (server.js:241-268).
+ *
+ *   On every WS upgrade we log:
+ *     [WS] <role> connected | hashKey=<first-8-of-key>
+ *
+ *   And once the client has been added to its room we log:
+ *     [WS] room-state | roles=<comma-separated> hashKey=<first-8-of-key>
+ *
+ *   If the dashboard and extension end up in DIFFERENT rooms (different hashKey),
+ *   you will see two `room-state` lines with `roles=dash` and `roles=ext`
+ *   against DIFFERENT hashKey prefixes -- that is the hypothesis #1 signature.
+ *   If they end up in the SAME room you will see a single line `roles=ext,dash`
+ *   against ONE hashKey prefix. This is the happy-path signature for the
+ *   defensive-diagnostic walk in 276-DIAGNOSTIC.md row 1.
  */
 function setupWSHandler(wss) {
   wss.on('connection', (ws, request, { hashKey, role }) => {
-    console.log(`[WS] ${role} connected, hashKey: ${hashKey.substring(0, 8)}...`);
+    const keyPrefix = hashKey.substring(0, 8);
+    console.log(`[WS] ${role} connected | hashKey=${keyPrefix}`);
     addClient(hashKey, ws, role);
     recordRoomConnectionEvent(hashKey, 'connected', role, null, '');
     const room = rooms.get(hashKey);
-    console.log(`[WS] Room ${hashKey.substring(0, 8)}...: ${room ? room.extensions.size : 0} ext, ${room ? room.dashboards.size : 0} dash`);
+    const extCount = room ? room.extensions.size : 0;
+    const dashCount = room ? room.dashboards.size : 0;
+    console.log(`[WS] Room ${keyPrefix}...: ${extCount} ext, ${dashCount} dash`);
+
+    // Phase 276 STREAM-DEFENSIVE-01: room-state line emitted on every connect so
+    // DIAGNOSTIC.md row-1 verification can grep for the pair-handshake symptom.
+    // When both roles are present, the line reads: roles=ext,dash. When only one
+    // role is present, it reads: roles=ext or roles=dash. A hashKey-mismatch bug
+    // manifests as two `room-state` lines with mismatched hashKey prefixes.
+    const presentRoles = [];
+    if (extCount > 0) presentRoles.push('ext');
+    if (dashCount > 0) presentRoles.push('dash');
+    console.log(`[WS] room-state | roles=${presentRoles.join(',')} hashKey=${keyPrefix}`);
 
     // Notify dashboards when extension connects
     if (role === 'extension') {
