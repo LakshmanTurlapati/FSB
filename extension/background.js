@@ -6223,6 +6223,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
         fsbWebSocket.send('ext:dom-ready', { tabId: sender.tab ? sender.tab.id : null });
       }
+      // Phase 276 STREAM-DEFENSIVE-04 (hypothesis #4 pending-intent re-arm):
+      // when the content-script's dom-stream module finishes loading and pings
+      // ready, re-arm any dash:dom-stream-start payload that was parked in
+      // ws-client.js _pendingStreamStart because pingDomStream had not yet
+      // responded within the 5s probe budget. The function is a no-op if no
+      // intent is parked. Defensive only -- the readiness ping should normally
+      // succeed on the first poll, but this covers the edge case where a slow
+      // CWS-flagged page extends past 5s before the dom-stream module loads.
+      try {
+        if (typeof _onDomStreamReady === 'function') {
+          _onDomStreamReady(sender.tab ? sender.tab.id : null);
+        }
+      } catch (e) {
+        console.warn('[FSB DOM] _onDomStreamReady re-arm failed (non-blocking):', e && e.message);
+      }
       sendResponse({ success: true });
       break;
 
@@ -13002,6 +13017,28 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Phase 212 owns the agent branch below; this branch slots BEFORE it.
   if (alarm.name === 'fsb-domstream-watchdog') {
     console.log('[FSB DOM] watchdog alarm fired (SW safety net)');
+    // Phase 276 STREAM-DEFENSIVE-05 (watchdog auto-resnapshot): if streaming
+    // is supposed to be active but the alarm is firing (i.e. the SW just woke
+    // and nothing has flushed mutations recently), request a fresh snapshot
+    // from the dashboard via the ext:request-snapshot signal. The dashboard
+    // routes this through its requestPreviewResync path which re-issues
+    // dash:dom-stream-start. Best-effort -- no-op if the WS is offline or
+    // _streamingActive is false/undefined.
+    try {
+      var streamingActive = (typeof _streamingActive !== 'undefined') && !!_streamingActive;
+      if (streamingActive
+          && typeof fsbWebSocket !== 'undefined'
+          && fsbWebSocket
+          && fsbWebSocket.connected
+          && typeof fsbWebSocket.send === 'function') {
+        fsbWebSocket.send('ext:request-snapshot', {
+          reason: 'sw-watchdog-tick',
+          ts: Date.now()
+        });
+      }
+    } catch (e) {
+      console.warn('[FSB DOM] watchdog auto-resnapshot failed (non-blocking):', e && e.message);
+    }
     return;
   }
 

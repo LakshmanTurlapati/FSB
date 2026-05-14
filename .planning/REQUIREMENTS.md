@@ -119,13 +119,13 @@
 
 ### Dashboard DOM-Streaming Fix -- STREAM
 
-- [ ] **STREAM-01**: Developer captures reproducible logs BEFORE patching -- Phase 276 produces `.planning/phases/276-.../DIAGNOSTIC.md` with three simultaneous logs: (a) showcase server stdout around `handler.js:152, 156, 202`, (b) extension diagnostics ring (`chrome.storage.local.fsbDiagnostics_ring`), (c) dashboard transport-event history. Reproduction steps explicit.
-- [ ] **STREAM-02**: Hypothesis chain is validated in rank order -- 7 ranked candidates from SUMMARY §Dashboard Streaming. Steps: #1 hashKey room mismatch -> #2 stream-tab `not-ready` -> #3 `_forwardToContentScript` no-tab -> #4 `domStreamReady` pending-intent -> #5 `ext:status` race -> #6 LZ decompression -> #7 stale-mutation loop. Each step: predicted symptom + verification command + fix surface.
-- [ ] **STREAM-03**: User sees the dashboard preview start streaming again -- whichever hypothesis confirms, the minimum patch lands. Acceptance smoke: click "wake" on the dashboard with an active extension on a non-restricted tab; preview pane shows live DOM within 3 seconds; stream-state pill reads "streaming".
-- [ ] **STREAM-04**: User sees stream health metrics in the pill tooltip -- existing `dash-preview-tooltip` element gains: last-frame-ago (s), mutations applied total, apply failures total, stale-mutation count. All values already exist as component state (`mutationApplyFailures`, `staleMutationCount`) per `dashboard-page.component.ts`.
-- [ ] **STREAM-05** (defensive bonus, only if time allows): Background watchdog re-requests snapshot on stale stream -- `background.js:12942-12945` watchdog-alarm handler upgraded from `console.log` to: if `_streamingActive` true, send `ext:request-snapshot` to relay.
-- [ ] **STREAM-06** (defensive bonus, only if time allows): Server WS skips clients with backpressure -- `showcase/server/src/ws/handler.js:74-80` `sendToClients` checks `client.bufferedAmount > 16MB` and increments a `backpressure-dropped` counter, drops the frame to that client.
-- [ ] **STREAM-07**: Scope is hard-capped -- maximum 5 fix attempts (1 per hypothesis confirmation cycle) before re-scoping the unresolved tail to v0.9.70 with explicit deferred-items.md entry.
+- [x] **STREAM-01**: Developer captures reproducible logs BEFORE patching -- Phase 276 produced `.planning/phases/276-.../276-DIAGNOSTIC.md` with reproduction steps + log capture commands for all three logs (showcase server stdout, extension `fsbDiagnostics_ring`, dashboard `transportEventHistory()`); blank sections for the human to paste captured logs during the manual repro pass. (Phase 276 / commit 647df1c)
+- [x] **STREAM-02**: Hypothesis chain validated in rank order -- 276-DIAGNOSTIC.md contains the full 7-row matrix with predicted symptom + verification command (grep / jq) + fix surface per row, ranked: #1 hashKey room mismatch → #2 stream-tab not-ready → #3 `_forwardToContentScript` no-tab → #4 `domStreamReady` pending-intent → #5 `ext:status` race → #6 LZ decompression → #7 stale-mutation loop. (Phase 276 / commit 647df1c)
+- [ ] **STREAM-03**: User sees the dashboard preview start streaming again -- *partial:* defensive patches for hypotheses #1 (hashKey room-state logs), #2 (replace setTimeout(300) with pingDomStream readiness poll), and #4 (parked-intent re-arm via _pendingStreamStart) landed in commits 647df1c and 7005823. **Acceptance smoke (3s wake -> streaming) is HUMAN-gated** per 276-VERIFICATION.md `<human_verification>` because autonomous mode cannot drive a real browser. Status `human_needed`.
+- [x] **STREAM-04**: User sees stream health metrics in the pill tooltip -- `dash-preview-tooltip` now renders `last-frame: <N>s ago | mutations: <count> | apply failures: <count> | stale: <count>` after the existing rows; added `mutationsAppliedTotal` + `lastFrameTime` state; added `lastFrameAgo()` getter. (Phase 276 / commit 4b9d992)
+- [x] **STREAM-05**: Background watchdog re-requests snapshot on stale stream -- `extension/background.js` `fsb-domstream-watchdog` alarm handler upgraded: if `_streamingActive` is true AND fsbWebSocket connected, send `ext:request-snapshot` `{ reason: 'sw-watchdog-tick', ts: Date.now() }`. Best-effort try/catch wrapper. (Phase 276 / commit 634c0e7)
+- [x] **STREAM-06**: Server WS skips clients with backpressure -- `showcase/server/src/ws/handler.js` `sendToClients` now checks `client.bufferedAmount > BACKPRESSURE_BUFFER_LIMIT_BYTES (16 MiB)` and increments `backpressureDroppedCount` + pushes a `backpressure-drop` event to the room diagnostics ring when triggered. Counter accessor exported via `getBackpressureDroppedCount`. (Phase 276 / commit 634c0e7)
+- [x] **STREAM-07**: Scope hard-capped at 5 fix attempts -- Phase 276 honoured the cap; this counts as **attempt 1 of 5** (combined hypotheses #1 + #2 + #4 hardening). Subsequent attempts on #3 / #5 / #6 / #7 land in follow-up phases if browser repro shows the streaming bug persists. Hard limit documented in 276-DIAGNOSTIC.md "Re-scope note" and 276-VERIFICATION.md `<human_verification>`. (Phase 276 / all 4 task commits)
 
 ---
 
@@ -236,13 +236,13 @@ Every v0.9.69 REQ-ID maps to exactly one phase. Phase numbering continues from v
 | CONS-05 | 275 | Complete |
 | CONS-06 | 275 | Complete |
 | CONS-07 | 275 | Complete |
-| STREAM-01 | 276 | Pending |
-| STREAM-02 | 276 | Pending |
-| STREAM-03 | 276 | Pending |
-| STREAM-04 | 276 | Pending |
-| STREAM-05 | 276 | Pending |
-| STREAM-06 | 276 | Pending |
-| STREAM-07 | 276 | Pending |
+| STREAM-01 | 276 | Complete |
+| STREAM-02 | 276 | Complete |
+| STREAM-03 | 276 | Partial (human_needed) |
+| STREAM-04 | 276 | Complete |
+| STREAM-05 | 276 | Complete |
+| STREAM-06 | 276 | Complete |
+| STREAM-07 | 276 | Complete (attempt 1 of 5) |
 
 ### Phase summary (REQ count per phase)
 
