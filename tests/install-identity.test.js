@@ -320,6 +320,48 @@ function freshRequire() {
     passAssertEqual(m.FSB_TELEMETRY_OPT_OUT_KEY, 'fsbTelemetryOptOut', 'FSB_TELEMETRY_OPT_OUT_KEY is camelCase fsbTelemetryOptOut');
   }
 
+  // --- Test 8: single-flight coalesce -- concurrent onInstalled + onStartup race
+  console.log('\n--- Test: single-flight coalesce on concurrent getOrCreateInstallUuid ---');
+  {
+    const mock = setupChromeMock();
+    try {
+      const m = freshRequire();
+      // Kick off two concurrent calls BEFORE awaiting either. This mirrors
+      // the chrome.runtime.onInstalled / onStartup interleaving on a cold-
+      // start first install -- Chrome fires both events with async listener
+      // bodies that run in parallel. Without single-flight memoization,
+      // both calls would observe an empty store, mint two different UUIDs,
+      // and race to .set, leaving one caller with a UUID that no longer
+      // exists in storage.
+      const p1 = m.getOrCreateInstallUuid();
+      const p2 = m.getOrCreateInstallUuid();
+      const [uuid1, uuid2] = await Promise.all([p1, p2]);
+
+      passAssert(typeof uuid1 === 'string', 'first concurrent call returns a string');
+      passAssert(m.UUID_V4_REGEX.test(uuid1), 'first concurrent call returns a v4 UUID');
+      passAssertEqual(uuid2, uuid1, 'both concurrent calls return the SAME UUID');
+      passAssertEqual(
+        mock.local._callCounts.set,
+        1,
+        'chrome.storage.local.set called exactly ONCE across two concurrent callers'
+      );
+
+      // After the in-flight Promise resolves, a subsequent call must hit
+      // the stored value path -- the `finally` block clears the memo so
+      // later SW wakes can re-attempt. Confirm storage was NOT re-written.
+      const setsBefore = mock.local._callCounts.set;
+      const uuid3 = await m.getOrCreateInstallUuid();
+      passAssertEqual(uuid3, uuid1, 'post-coalesce call returns the persisted UUID');
+      passAssertEqual(
+        mock.local._callCounts.set,
+        setsBefore,
+        'post-coalesce call does NOT re-write storage (memo cleared, but stored value is now valid)'
+      );
+    } finally {
+      teardownChromeMock();
+    }
+  }
+
   // --- Summary -----------------------------------------------------------
   console.log('\n--- Summary ---');
   console.log('passed:', passed);

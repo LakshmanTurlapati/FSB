@@ -39,6 +39,20 @@ var UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 var FSB_INSTALL_UUID_KEY = 'fsbInstallUuid';
 var FSB_TELEMETRY_OPT_OUT_KEY = 'fsbTelemetryOptOut';
 
+// Single-flight coalescer for concurrent getOrCreateInstallUuid() calls.
+// chrome.runtime.onInstalled and chrome.runtime.onStartup can both fire close
+// together on a cold-start first install, and Chrome runs async listener
+// bodies in parallel. Without coalescing, two interleaved calls could each
+// observe an empty store, mint two different UUIDs, and race to .set --
+// the persisted value is whichever .set lands last while one of the call
+// sites returns a UUID that no longer exists in storage.
+//
+// We memoize the in-flight Promise so concurrent callers await the same
+// operation. The reference is cleared in the `finally` block so subsequent
+// calls (e.g., a later SW wake) can re-attempt the mint -- otherwise a
+// transient storage failure would permanently latch null for this SW session.
+var _pendingMintPromise = null;
+
 /**
  * Get or create the per-install anonymous UUID.
  *
@@ -51,33 +65,47 @@ var FSB_TELEMETRY_OPT_OUT_KEY = 'fsbTelemetryOptOut';
  * a session-only UUID would have no aggregation value and would confuse the
  * downstream collector which uses null as the "no telemetry" signal).
  *
+ * Concurrent callers (e.g., onInstalled + onStartup racing at first install)
+ * are coalesced via `_pendingMintPromise` so the storage write happens
+ * exactly once per in-flight window.
+ *
  * @returns {Promise<string|null>} The install UUID, or null on storage error.
  */
-async function getOrCreateInstallUuid() {
-  try {
-    var data = await chrome.storage.local.get([FSB_INSTALL_UUID_KEY]);
-    var existing = data && data[FSB_INSTALL_UUID_KEY];
+function getOrCreateInstallUuid() {
+  if (_pendingMintPromise) return _pendingMintPromise;
+  _pendingMintPromise = (async () => {
+    try {
+      var data = await chrome.storage.local.get([FSB_INSTALL_UUID_KEY]);
+      var existing = data && data[FSB_INSTALL_UUID_KEY];
 
-    if (typeof existing === 'string' && UUID_V4_REGEX.test(existing)) {
-      return existing;
+      if (typeof existing === 'string' && UUID_V4_REGEX.test(existing)) {
+        return existing;
+      }
+
+      if (typeof existing === 'string' && !UUID_V4_REGEX.test(existing)) {
+        // Corruption path: stored value is a string but does not match v4 shape.
+        // Re-mint defensively. One warn log only -- the failure mode is recoverable
+        // and not worth spamming. The new UUID overwrites the corrupt value.
+        console.warn('[FSB Telemetry] Stored install UUID failed validation; minting fresh');
+      }
+
+      var uuid = crypto.randomUUID();
+      await chrome.storage.local.set({ [FSB_INSTALL_UUID_KEY]: uuid });
+      return uuid;
+    } catch (_e) {
+      // Storage unavailable (incognito SW context, corrupted profile, enterprise
+      // policy denying chrome.storage.local). Downstream collector treats null
+      // as a hard no-op. NO session-only fallback (IDENT-03).
+      return null;
+    } finally {
+      // Allow re-entry on the next call so a later SW wake (or a transient
+      // failure followed by recovery) can retry the mint. Module state
+      // persists across the entire SW lifetime; without this, one storage
+      // hiccup would latch null for the whole session.
+      _pendingMintPromise = null;
     }
-
-    if (typeof existing === 'string' && !UUID_V4_REGEX.test(existing)) {
-      // Corruption path: stored value is a string but does not match v4 shape.
-      // Re-mint defensively. One warn log only -- the failure mode is recoverable
-      // and not worth spamming. The new UUID overwrites the corrupt value.
-      console.warn('[FSB Telemetry] Stored install UUID failed validation; minting fresh');
-    }
-
-    var uuid = crypto.randomUUID();
-    await chrome.storage.local.set({ [FSB_INSTALL_UUID_KEY]: uuid });
-    return uuid;
-  } catch (_e) {
-    // Storage unavailable (incognito SW context, corrupted profile, enterprise
-    // policy denying chrome.storage.local). Downstream collector treats null
-    // as a hard no-op. NO session-only fallback (IDENT-03).
-    return null;
-  }
+  })();
+  return _pendingMintPromise;
 }
 
 /**
