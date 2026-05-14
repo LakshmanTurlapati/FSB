@@ -115,3 +115,20 @@ date: 2026-05-14
 **Merge-ready.** The two BLOCKERs (B1 + B2) of v0.9.69 land here cleanly. Phase 274 can read from `telemetry_global_aggregates` + `telemetry_rollups_daily` without further server-side work. The CI grep gate stays in the test chain forever as a safety net.
 
 Once main updates, Phase 272's TelemetryCollector beats will start landing rows in `telemetry_events`. The Fly.io deploy is user-gated per the v0.9.69 carry-forward list.
+
+## Addendum: 273-REVIEW.md fix application (2026-05-14)
+
+Two WARNINGs from `273-REVIEW.md` were applied as separate atomic commits on top of the verified merge. INFO findings (IN-01..04) were intentionally skipped per the review-fix scope (only WR-tier + BLOCKER-tier auto-fixed).
+
+| Finding | Commit | Files | Test result |
+|---------|--------|-------|-------------|
+| WR-01 (k-anonymity floor sums installs, not labels; suppress when below k) | `6193572` | `showcase/server/src/telemetry/housekeeper.js`, `tests/server-telemetry-housekeeper.test.js` | 24/24 pass (test expectation updated: 2 below-k labels with uniq=1 each -> aggregate 2 < k=5 -> `popular_mcp_json` is `[]`, not the prior buggy `[{Other (N=2), uniq=2}]`). |
+| WR-02 (rate-limit bucket and storage hash diverged on IPv6; align via `ipKeyGenerator`) | `589d855` | `showcase/server/src/routes/telemetry.js` | 6/6 rate-limit pass; no-ip-leak grep gate still PASS (15 files scanned, 0 hits); spot-check across 8 other server-telemetry-* tests all green (allowlist, body-cap, batch-cap, daily-budget, event-id-dedup, optout-forget, salt-rotation, sec-gpc, timestamp-tolerance) — full regression sweep on the telemetry test family. |
+
+INFO findings deferred:
+- **IN-01** (hashIp ordering — wasted work on malformed batches): minor performance refactor; behaviour unchanged. Out of fix scope.
+- **IN-02** (per-UUID budget Map unbounded growth): housekeeper-driven sweep; cross-module change, behaviour unchanged. Out of fix scope.
+- **IN-03** (housekeeper try/catch covers whole tick; partial failures abort the rest): resilience refactor; current behaviour matches CONTEXT spec ("never crash the interval"). Out of fix scope.
+- **IN-04** (budget counter burns on `INSERT OR IGNORE` duplicates): self-DoS only; cross-UUID attack impossible. Documented as accepted trade-off. Out of fix scope.
+
+Re-running the full server-telemetry-* test family (13 files, 121 asserts) after both fixes still yields 121/121. The `findings_found` status in `273-REVIEW.md` is therefore reconciled at the WR tier; INFO findings remain open as documented above.
