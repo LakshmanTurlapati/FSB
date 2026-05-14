@@ -73,7 +73,8 @@
   3. The user can flip the opt-out toggle to OFF mid-session, and the next alarm tick clears the queue, makes no POST, and the alarm continues firing harmlessly.
   4. The user never sees a notification, badge, or higher-than-debug console log from telemetry activity during normal operation.
   5. The user can replay a server outage scenario (server returns 500) and verify the batch is re-enqueued via `keepalive: true` semantics with capped re-tries -- no infinite retry loop.
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 272-01-PLAN.md — TelemetryCollector module + alarm + active-agent counter + tests
 
 ### Phase 273: Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper
 **Goal**: The showcase server accepts anonymous telemetry batches with three release-gating safeguards: trusted-proxy IP handling, CVE-patched rate limiting, and never-persisted plaintext IPs.
@@ -157,7 +158,7 @@ Phases execute in numeric order with 269 || 270 (parallel) -> 271 -> 272 -> 273 
 | 269. Install Identity + Opt-Out Scaffold | 1/1 | ✓ Complete | 2026-05-14 |
 | 270. MCP Pricing Module | 1/1 | ✓ Complete | 2026-05-14 |
 | 271. MCPMetricsRecorder + Dispatcher Hooks + Unified Cost Surfacing | 1/1 | ✓ Complete | 2026-05-14 |
-| 272. TelemetryCollector + Alarm + Queue Persistence | 0/TBD | Not started | - |
+| 272. TelemetryCollector + Alarm + Queue Persistence | 0/1 | Planned | - |
 | 273. Server Schema + Telemetry Routes + Salt Rotator + Rate Limiter + Housekeeper | 0/TBD | Not started | - |
 | 274. Public Aggregates Endpoint + FSBTelemetryService Angular + /stats Toggle Group | 0/TBD | Not started | - |
 | 275. Privacy Policy Page Update + CWS Listing Diff + CI Guard + Integration Smoke | 0/TBD | Not started | - |
