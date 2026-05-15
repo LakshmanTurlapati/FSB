@@ -1,6 +1,6 @@
 # FSB Chrome Extension
 
-`extension/` is the unpacked Chrome extension package for FSB v0.9.65. Load this directory, not the repository root, when running locally.
+`extension/` is the unpacked Chrome extension package for FSB v0.9.66. Load this directory, not the repository root, when running locally.
 
 ## Load Unpacked
 
