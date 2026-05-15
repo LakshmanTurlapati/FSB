@@ -55,10 +55,17 @@
     }
     @if (viewState === 'ready') {
       <div class="chart-mount">
+        <!-- Quick task 260515-mfs (P1) -- canvas stays mounted under [hidden] so
+             @ViewChild('chartCanvas') always resolves and redrawChart() can find
+             the canvas without an extra change-detection tick. redrawChart()
+             early-returns for fsb-avg-agents-per-user (component.ts:391) and
+             destroys any prior chart instance, so nothing renders onto this
+             canvas while the big-number tile is active. -->
+        <canvas #chartCanvas [hidden]="selectedView === 'fsb-avg-agents-per-user'"></canvas>
         @if (selectedView === 'fsb-avg-agents-per-user') {
           <!-- Quick task 260515-kw1 -- big-number tile (HTML, not canvas). The
-               template branches here so the chart-mount slot is reused without
-               creating a canvas; redrawChart() early-returns for this view. -->
+               tile renders in parallel with the [hidden] canvas above so the
+               chart-mount slot is reused; redrawChart() early-returns for this view. -->
           <div class="big-number-tile" role="status" aria-live="polite">
             <div class="big-number-label" i18n="@@SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL">Avg agents per active user</div>
             <div class="big-number-value">{{ fsbHeadline?.avg_agents_per_user ?? 0 | number:'1.1-2' }}</div>
@@ -69,8 +76,6 @@
               </div>
             }
           </div>
-        } @else {
-          <canvas #chartCanvas></canvas>
         }
       </div>
     }
