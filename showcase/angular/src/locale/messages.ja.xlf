@@ -3126,14 +3126,6 @@
           <context context-type="linenumber">545</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING" datatype="html">
-        <source>Agents running right now</source>
-        <target state="translated">現在実行中のエージェント</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">564</context>
-        </context-group>
-      </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING_LEGEND" datatype="html">
         <source>Active agents (10 min window)</source>
         <target state="translated">アクティブなエージェント（10分間の枠）</target>
@@ -3174,20 +3166,12 @@
           <context context-type="linenumber">617</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS" datatype="html">
+      <trans-unit id="SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL" datatype="html">
         <source>Avg agents per active user</source>
-        <target state="translated">アクティブユーザーあたりの平均エージェント数</target>
+        <target state="translated">アクティブユーザーあたりのエージェント平均数</target>
         <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">644</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND" datatype="html">
-        <source>Avg active agents per active user</source>
-        <target state="translated">アクティブユーザーあたりのアクティブエージェントの平均数</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">647</context>
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">59</context>
         </context-group>
       </trans-unit>
       <trans-unit id="support.hero.title" datatype="html">

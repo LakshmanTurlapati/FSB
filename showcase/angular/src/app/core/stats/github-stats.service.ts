@@ -394,7 +394,25 @@ export class GitHubStatsService {
   maintenanceSignal(releases: ReleaseEvent[], commits: CommitEvent[]): TimeSeriesPoint[] {
     return maintenanceSignal(releases, commits);
   }
+
+  commitPunchcard(commits: CommitEvent[]): PunchcardPoint[] {
+    return commitPunchcard(commits);
+  }
+
+  monthlyForks(forks: ForkEvent[]): TimeSeriesPoint[] {
+    return monthlyForks(forks);
+  }
 }
+
+/**
+ * Punchcard cell -- one bubble in the GitHub-style "commits by hour of day +
+ * weekday" view. `x` is the UTC hour (0-23), `y` is the UTC weekday
+ * (0=Sun..6=Sat), `r` is the sqrt-scaled commit count clamped to 3..20 px so
+ * a busy bucket does not dominate the canvas, and `c` is the raw un-scaled
+ * commit count for that bucket -- used by the tooltip so users see
+ * "5 commits" instead of the meaningless radius value (Codex P2 on PR #58).
+ */
+export interface PunchcardPoint { x: number; y: number; r: number; c: number }
 
 // --- Pure aggregator implementations (exported for unit-test reuse). ---
 
@@ -414,7 +432,7 @@ function startOfUtcIsoWeek(d: Date): Date {
   return new Date(day.getTime() - back * DAY_MS);
 }
 
-function startOfUtcMonth(d: Date): Date {
+export function startOfUtcMonth(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
 
@@ -585,6 +603,50 @@ export function maintenanceSignal(releases: ReleaseEvent[], commits: CommitEvent
   }
   // Fallback: commits per week over last 12 weeks.
   return commitsOverTime(commits);
+}
+
+/**
+ * Bucket commits by UTC weekday (0=Sun..6=Sat) and UTC hour (0..23), emitting
+ * one bubble cell per non-empty bucket. Radius is sqrt-scaled and clamped to
+ * 3..20 px so a dominant bucket cannot blow out the chart. Invalid ISO date
+ * strings are filtered out via isValidIsoString -- matches the convention of
+ * every other aggregator in this file.
+ */
+/**
+ * Bucket forks by UTC month, returning monthly counts (not cumulative). Used
+ * by the dual-axis forks-growth view (bar dataset on the right axis).
+ */
+export function monthlyForks(forks: ForkEvent[]): TimeSeriesPoint[] {
+  const buckets = new Map<string, number>();
+  for (const f of forks) {
+    if (!isValidIsoString(f?.created_at)) continue;
+    const k = isoDate(startOfUtcMonth(new Date(f.created_at)));
+    buckets.set(k, (buckets.get(k) ?? 0) + 1);
+  }
+  return mapToSortedSeries(buckets);
+}
+
+export function commitPunchcard(commits: CommitEvent[]): PunchcardPoint[] {
+  const buckets = new Map<string, number>();
+  for (const c of commits) {
+    const d = c?.commit?.author?.date;
+    if (!isValidIsoString(d)) continue;
+    const dt = new Date(d);
+    const weekday = dt.getUTCDay(); // 0=Sun..6=Sat
+    const hour = dt.getUTCHours();
+    const key = `${weekday}-${hour}`;
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  const out: PunchcardPoint[] = [];
+  for (const [key, count] of buckets.entries()) {
+    if (count <= 0) continue;
+    const [wdStr, hrStr] = key.split('-');
+    const weekday = Number(wdStr);
+    const hour = Number(hrStr);
+    const r = Math.max(3, Math.min(20, Math.sqrt(count) * 4));
+    out.push({ x: hour, y: weekday, r, c: count });
+  }
+  return out;
 }
 
 function mapToSortedSeries(m: Map<string, number>): TimeSeriesPoint[] {
