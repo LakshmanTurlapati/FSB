@@ -1,6 +1,6 @@
 {
   "name": "showcase-angular",
-  "version": "0.9.65",
+  "version": "0.9.66",
   "private": true,
   "scripts": {
     "ng": "ng",

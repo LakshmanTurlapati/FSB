@@ -85,6 +85,7 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 | 260514-rm4 | Fix two Codex P1 telemetry bugs from PR #50 review: (1) serialize recordDispatch fsbUsageData rmw to stop concurrent-dispatch row loss; (2) strip `attempts` from POST body so server allowlist doesn't 400 retried events | 2026-05-15 | 2e514c1 | [260514-rm4-fix-two-p1-telemetry-bugs-from-codex-pr-](./quick/260514-rm4-fix-two-p1-telemetry-bugs-from-codex-pr-/) |
 | 260514-w34 | Add showcase/server + showcase/angular install steps to chrome-extension.yml (mirror of 260514-pu4 for the on-push-to-main auto-zip workflow; fixes MODULE_NOT_FOUND better-sqlite3 from run 25899440149) | 2026-05-15 | 5cb4869 | [260514-w34-fix-chrome-extension-yml-dep-gap-add-sho](./quick/260514-w34-fix-chrome-extension-yml-dep-gap-add-sho/) |
 | 260514-wdy | Add cumulative-commits all-time line chart to /stats; bump MAX_PAGES from 2 to 30 so commits pagination covers full ~2300-commit history (other endpoints early-exit on page 1 so unaffected) | 2026-05-15 | 5ac9aaf | [260514-wdy-add-cumulative-commits-all-time-line-cha](./quick/260514-wdy-add-cumulative-commits-all-time-line-cha/) |
+| 260514-x4s | Bump FSB version 0.9.65 → 0.9.66 across 8 manifest/README/CWS-listing surfaces; mcp/src/version.ts left at 0.9.0 (independent) | 2026-05-15 | 7758deb | [260514-x4s-bump-fsb-version-0-9-65-0-9-66-across-al](./quick/260514-x4s-bump-fsb-version-0-9-65-0-9-66-across-al/) |
 
 ## Pending User-Gated Actions (carry-forward)
 
