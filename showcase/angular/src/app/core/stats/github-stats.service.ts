@@ -4,9 +4,14 @@
 //
 //  * Unauthenticated GitHub REST: the rate limit is 60 requests / hour / IP
 //    (https://docs.github.com/en/rest/overview/resources-in-the-rest-api).
-//    We hard-cap pagination at MAX_PAGES = 2 so initial load is ~7 requests
-//    and each refresh cycle is ~7 requests too -- well under the limit even
-//    with a busy multi-tab user.
+//    We hard-cap pagination at MAX_PAGES = 30 (bumped from 2 in quick task
+//    260514-wdy so the all-time cumulative-commits chart covers the repo's
+//    full history). Other endpoints early-exit at page 1 because they sit
+//    under PER_PAGE = 100 (stars/forks/issues/pulls/releases), so the per-
+//    cycle budget is `1 (summary) + 5 (early-exit endpoints) + up to 30
+//    (commits)` = ~36 worst-case. ETag 304s short-circuit steady-state
+//    polling (counted as 0 toward the limit per GitHub docs), so a quiet
+//    repo costs effectively 0 requests/cycle after the cold start.
 //
 //  * Polling: every POLL_INTERVAL_MS = 5 min, but only while the document is
 //    visible. We pause via `visibilitychange` (clear the interval, skip the
@@ -57,7 +62,17 @@ import {
 const OWNER = 'LakshmanTurlapati';
 const REPO = 'FSB';
 const API_BASE = 'https://api.github.com';
-const MAX_PAGES = 2;
+// MAX_PAGES = 30 covers ~3000 commits with ~30% headroom over the repo's
+// current 23-page /commits history -- needed by the all-time cumulative-commits
+// view (quick task 260514-wdy). Other endpoints are NOT affected because
+// `fetchPaginated` early-exits when `body.length < PER_PAGE` (see ~line 279):
+// stars (66), forks (4), issues (50), pulls (47), releases (17) all sit well
+// under PER_PAGE = 100 and exit at page 1, so they still cost 1 request/cycle.
+// The per-URL ETag cache returns 304 on steady-state polling (counted as 0
+// toward the unauth 60-req/hr limit per GitHub docs) so the rate-limit
+// budget stays preserved. If the repo grows past 3000 commits the cumulative
+// chart truncates to the most-recent 3000 -- graceful degradation, not a crash.
+const MAX_PAGES = 30;
 const PER_PAGE = 100;
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -372,6 +387,10 @@ export class GitHubStatsService {
     return commitsOverTime(commits);
   }
 
+  cumulativeCommitsSeries(commits: CommitEvent[]): TimeSeriesPoint[] {
+    return cumulativeCommitsSeries(commits);
+  }
+
   maintenanceSignal(releases: ReleaseEvent[], commits: CommitEvent[]): TimeSeriesPoint[] {
     return maintenanceSignal(releases, commits);
   }
@@ -410,6 +429,25 @@ export function cumulativeStarsSeries(stars: StarEvent[]): TimeSeriesPoint[] {
   const buckets = new Map<string, number>();
   for (const s of sorted) {
     const dayKey = isoDate(startOfUtcDay(new Date(s.starred_at)));
+    buckets.set(dayKey, (buckets.get(dayKey) ?? 0) + 1);
+  }
+  // Emit running cumulative.
+  const out: TimeSeriesPoint[] = [];
+  let running = 0;
+  for (const [dayKey, count] of [...buckets.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    running += count;
+    out.push({ t: dayKey, y: running });
+  }
+  return out;
+}
+
+export function cumulativeCommitsSeries(commits: CommitEvent[]): TimeSeriesPoint[] {
+  const valid = commits.filter((c) => isValidIsoString(c?.commit?.author?.date));
+  if (valid.length === 0) return [];
+  const sorted = [...valid].sort((a, b) => Date.parse(a.commit.author.date) - Date.parse(b.commit.author.date));
+  const buckets = new Map<string, number>();
+  for (const c of sorted) {
+    const dayKey = isoDate(startOfUtcDay(new Date(c.commit.author.date)));
     buckets.set(dayKey, (buckets.get(dayKey) ?? 0) + 1);
   }
   // Emit running cumulative.
