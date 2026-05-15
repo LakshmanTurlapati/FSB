@@ -49,6 +49,14 @@ app.disable('x-powered-by');
 // stuck at media="print" so its @import for Font Awesome / Phosphor never
 // applies to screen rendering -- icons disappear. Without an explicit
 // script-src-attr, it falls back to script-src which permits 'unsafe-inline'.
+// connect-src allows api.github.com so the /stats Easter-egg page's
+// GitHubStatsService (showcase/angular/src/app/core/stats/github-stats.service.ts)
+// can fetch repo metrics directly from the browser. GitHub's public-read
+// endpoints return `access-control-allow-origin: *`, so no server-side
+// proxy is required. If you tighten this back to 'self', the /stats charts
+// (cumulative stars / weekly stars / issues / forks / PRs / commits-over-time
+// / maintenance) will surface no data. See tests/showcase-csp-allows-github-api.test.js
+// for the regression guard.
 const SHOWCASE_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://unpkg.com",
@@ -56,7 +64,7 @@ const SHOWCASE_CSP = [
   "font-src 'self' data: https://cdnjs.cloudflare.com https://unpkg.com",
   "img-src 'self' data: blob: https://i.ytimg.com",
   "media-src 'self' blob:",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.github.com",
   // YouTube embeds on the /about page require frame-src; without this it falls
   // back to default-src 'self' and the demo videos render as a blocked iframe.
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
