@@ -815,6 +815,8 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
                 },
               },
             },
+            // Quick task 260515-mfs (P2) -- precision:0 + Math.round(v) guards against
+            // float drift on linear axes with non-integer min/max (Codex P2 on PR #58).
             scales: {
               x: {
                 type: 'linear',
@@ -823,7 +825,8 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
                 ticks: {
                   color: tokens.muted,
                   stepSize: 3,
-                  callback: (v: number) => `${v}:00`,
+                  precision: 0,
+                  callback: (v: number) => `${Math.round(v)}:00`,
                 },
                 grid: { color: tokens.border },
               },
@@ -834,7 +837,9 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
                 ticks: {
                   color: tokens.muted,
                   stepSize: 1,
-                  callback: (v: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][v] ?? '',
+                  precision: 0,
+                  callback: (v: number) =>
+                    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][Math.round(v)] ?? '',
                 },
                 grid: { color: tokens.border },
               },
