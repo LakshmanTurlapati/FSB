@@ -89,6 +89,7 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'issues-open-vs-closed', label: 'Issues' },
     { id: 'forks-growth', label: 'Forks' },
     { id: 'prs-opened-vs-merged', label: 'Pull requests' },
+    { id: 'commits-cumulative', label: 'Cumulative commits' },
     { id: 'commits-over-time', label: 'Commits' },
     { id: 'maintenance', label: 'Maintenance' },
     // Phase 274 / STATS-01 -- 6 new FSB telemetry views appended. Only the
@@ -465,6 +466,26 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
                 data: labels.map((t) => valueAt(merged, t)),
                 borderColor: tokens.muted,
                 backgroundColor: 'transparent',
+                tension: 0.2,
+              },
+            ],
+          },
+          options: baseOpts,
+        };
+      }
+      case 'commits-cumulative': {
+        const series = this.statsService.cumulativeCommitsSeries(this.latestCommits);
+        return {
+          type: 'line',
+          data: {
+            labels: series.map((p) => p.t),
+            datasets: [
+              {
+                label: 'Cumulative commits',
+                data: series.map((p) => p.y),
+                borderColor: tokens.primary,
+                backgroundColor: tokens.primarySoft,
+                fill: true,
                 tension: 0.2,
               },
             ],
