@@ -203,7 +203,7 @@ app.use((req, res, next) => {
     return next();
   }
   if (!staticPath) {
-    if (marketingRoutes.has(req.path) || req.path === '/dashboard') {
+    if (marketingRoutes.has(req.path) || req.path === '/dashboard' || req.path === '/stats') {
       res.status(503).type('text/plain').send('Showcase build not found. Run `npm --prefix showcase/angular run build` first.');
       return;
     }
@@ -221,9 +221,10 @@ app.use((req, res, next) => {
     // will surface this on the next run.
     return next();
   }
-  if (req.path === '/dashboard') {
-    // D-10 exact-match whitelist: /dashboard is the only SPA-shell route.
-    // /dashboard/anything is NOT covered and falls through to 404.
+  if (req.path === '/dashboard' || req.path === '/stats') {
+    // D-10 exact-match whitelist: /dashboard and /stats are SPA-shell routes
+    // (RenderMode.Client per app.routes.server.ts). /dashboard/* and /stats/*
+    // are NOT covered and fall through to 404.
     res.sendFile(path.join(staticPath, 'index.html'));
     return;
   }
