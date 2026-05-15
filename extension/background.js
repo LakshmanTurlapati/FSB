@@ -1,6 +1,10 @@
 // Background service worker for FSB v0.9.50
 
 // Import configuration and AI integration modules
+// Phase 269 / v0.9.69: install-identity.js MUST load FIRST so that any
+// downstream module (analytics.js, telemetry collectors, MCP recorder)
+// can call globalThis.fsbInstallIdentity.* synchronously at boot.
+importScripts('utils/install-identity.js');
 importScripts('config/config.js');
 importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
@@ -27,6 +31,20 @@ try { importScripts('utils/mcp-task-store.js'); } catch (e) { console.error('[FS
 // chrome.scripting.executeScript injection inside wrapWithChangeReport.
 try { importScripts('utils/action-verification.js'); } catch (e) { console.error('[FSB] Failed to load action-verification.js:', e.message); }
 try { importScripts('ws/mcp-tool-dispatcher.js'); } catch (e) { console.error('[FSB] Failed to load mcp-tool-dispatcher.js:', e.message); }
+// Phase 270 / v0.9.69 -- price resolver. Must load BEFORE mcp-metrics-recorder
+// so the recorder's try/catch can call globalThis.fsbMcpPricing.estimateMcpCost.
+// (Phase 270 produced the module but did not wire the importScripts; Phase 271
+// reconciliation #3 repairs the gap with this single line.)
+try { importScripts('utils/mcp-pricing.js'); } catch (e) { console.error('[FSB] Failed to load mcp-pricing.js:', e.message); }
+// Phase 271 / v0.9.69 -- MCP analytics chokepoint. Loaded AFTER pricing
+// (it calls fsbMcpPricing) and AFTER mcp-tool-dispatcher.js (dispatcher hooks
+// call globalThis.fsbMcpMetricsRecorder).
+try { importScripts('utils/mcp-metrics-recorder.js'); } catch (e) { console.error('[FSB] Failed to load mcp-metrics-recorder.js:', e.message); }
+// Phase 272 / v0.9.69 -- TelemetryCollector. Loaded AFTER mcp-metrics-recorder
+// (collector reads the rows the recorder writes to fsbUsageData). The alarm
+// handler in chrome.alarms.onAlarm + the install_announce setTimeout in
+// chrome.runtime.onInstalled are wired below.
+try { importScripts('utils/telemetry-collector.js'); } catch (e) { console.error('[FSB] Failed to load telemetry-collector.js:', e.message); }
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
@@ -4356,13 +4374,38 @@ class BackgroundAnalytics {
     try {
       const result = await chrome.storage.local.get(['fsbUsageData', 'fsbCurrentModel']);
       if (result.fsbUsageData) {
-        this.usageData = result.fsbUsageData.map((entry) => ({
-          ...entry,
-          source: typeof normalizeUsageSource === 'function'
-            ? normalizeUsageSource(entry?.source)
-            : (entry?.source || 'automation')
-        }));
+        // Phase 271 (v0.9.69) reconciliation #1 + decision 7: mirror the
+        // back-fill walk from extension/utils/analytics.js so the inline
+        // BackgroundAnalytics class does not clobber MCP rows or strip
+        // back-fillable AI-provider rows. The walk:
+        //   1. AI-provider-shaped rows lacking source -> source='ai-provider'
+        //   2. Already-sourced rows pass through normalizeUsageSource (which
+        //      whitelists 'mcp' and 'ai-provider' as of Phase 271).
+        //   3. After the walk, if ANY row was back-filled, persist once via
+        //      saveData() so reload paths don't re-run the heuristic.
+        let backfilledAny = false;
+        this.usageData = result.fsbUsageData.map((entry) => {
+          const next = { ...entry };
+          const hasSourceString = typeof next.source === 'string' && next.source.length > 0;
+          if (
+            !hasSourceString &&
+            typeof next.model === 'string' &&
+            typeof next.inputTokens === 'number'
+          ) {
+            next.source = 'ai-provider';
+            backfilledAny = true;
+          } else {
+            next.source = typeof normalizeUsageSource === 'function'
+              ? normalizeUsageSource(next.source)
+              : (next.source || 'automation');
+          }
+          return next;
+        });
         automationLogger.debug('Loaded analytics data', { entries: this.usageData.length });
+        if (backfilledAny) {
+          // Single persist pass after the migration.
+          await this.saveData();
+        }
       }
       if (result.fsbCurrentModel) {
         this.currentModel = result.fsbCurrentModel;
@@ -6179,6 +6222,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'domStreamReady':
       if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && fsbWebSocket.connected) {
         fsbWebSocket.send('ext:dom-ready', { tabId: sender.tab ? sender.tab.id : null });
+      }
+      // Phase 276 STREAM-DEFENSIVE-04 (hypothesis #4 pending-intent re-arm):
+      // when the content-script's dom-stream module finishes loading and pings
+      // ready, re-arm any dash:dom-stream-start payload that was parked in
+      // ws-client.js _pendingStreamStart because pingDomStream had not yet
+      // responded within the 5s probe budget. The function is a no-op if no
+      // intent is parked. Defensive only -- the readiness ping should normally
+      // succeed on the first poll, but this covers the edge case where a slow
+      // CWS-flagged page extends past 5s before the dom-stream module loads.
+      try {
+        if (typeof _onDomStreamReady === 'function') {
+          _onDomStreamReady(sender.tab ? sender.tab.id : null);
+        }
+      } catch (e) {
+        console.warn('[FSB DOM] _onDomStreamReady re-arm failed (non-blocking):', e && e.message);
       }
       sendResponse({ success: true });
       break;
@@ -12925,6 +12983,24 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
 
+  // Phase 272 / BEAT-01..02: telemetry beat alarm. The 5-minute alarm
+  // survives MV3 SW eviction because it lives in chrome.alarms (not SW
+  // memory). When it fires, schedule the collector flush with 0-30s
+  // jitter to desynchronize installs (avoids synchronized spikes against
+  // https://full-selfbrowsing.com/api/telemetry/events). Defensive
+  // try/catch wraps the flush -- a telemetry crash must NEVER kill the
+  // alarm dispatcher (threat T-272-04).
+  if (alarm && alarm.name === 'fsb-telemetry-beat') {
+    setTimeout(function () {
+      try {
+        if (globalThis.fsbTelemetryCollector && typeof globalThis.fsbTelemetryCollector.flush === 'function') {
+          globalThis.fsbTelemetryCollector.flush();
+        }
+      } catch (_e) { /* swallow per defence in depth */ }
+    }, Math.floor(Math.random() * 30000));
+    return;
+  }
+
   const isMcpReconnectAlarm =
     typeof MCP_RECONNECT_ALARM !== 'undefined' &&
     alarm.name === MCP_RECONNECT_ALARM;
@@ -12941,6 +13017,28 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Phase 212 owns the agent branch below; this branch slots BEFORE it.
   if (alarm.name === 'fsb-domstream-watchdog') {
     console.log('[FSB DOM] watchdog alarm fired (SW safety net)');
+    // Phase 276 STREAM-DEFENSIVE-05 (watchdog auto-resnapshot): if streaming
+    // is supposed to be active but the alarm is firing (i.e. the SW just woke
+    // and nothing has flushed mutations recently), request a fresh snapshot
+    // from the dashboard via the ext:request-snapshot signal. The dashboard
+    // routes this through its requestPreviewResync path which re-issues
+    // dash:dom-stream-start. Best-effort -- no-op if the WS is offline or
+    // _streamingActive is false/undefined.
+    try {
+      var streamingActive = (typeof _streamingActive !== 'undefined') && !!_streamingActive;
+      if (streamingActive
+          && typeof fsbWebSocket !== 'undefined'
+          && fsbWebSocket
+          && fsbWebSocket.connected
+          && typeof fsbWebSocket.send === 'function') {
+        fsbWebSocket.send('ext:request-snapshot', {
+          reason: 'sw-watchdog-tick',
+          ts: Date.now()
+        });
+      }
+    } catch (e) {
+      console.warn('[FSB DOM] watchdog auto-resnapshot failed (non-blocking):', e && e.message);
+    }
     return;
   }
 
@@ -13018,6 +13116,46 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Initialize analytics
   initializeAnalytics();
 
+  // Phase 269 / IDENT-01, IDENT-02: lazy-mint or reuse the install UUID.
+  // Idempotent across both onInstalled and onStartup. Module guarantees no
+  // throw on storage error -- defensive try/catch logs only if a regression
+  // breaks that guarantee.
+  try {
+    const seededUuid = await globalThis.fsbInstallIdentity.getOrCreateInstallUuid();
+    if (seededUuid) {
+      console.log('[FSB Telemetry] Install UUID seeded');
+    }
+  } catch (e) {
+    console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
+  }
+
+  // Phase 272 / BEAT-02: register the 5-minute telemetry beat alarm.
+  // Idempotent -- chrome.alarms.create with the same name replaces, so this
+  // is safe to call from BOTH onInstalled and onStartup. The alarm lives in
+  // the Chrome alarms registry, not SW memory, so it survives MV3 eviction.
+  try {
+    chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 });
+  } catch (e) {
+    console.error('[FSB Telemetry] alarm create failed:', e && e.message);
+  }
+
+  // Phase 272 / BEAT-06: install_announce. 30s setTimeout (NOT a chrome.alarm
+  // -- the minimum alarm period is 30s but the 30s grace before announce is
+  // a one-shot per install, not a recurring beat). Enqueue + flush invokes
+  // the collector once. The collector's enqueue() resolves the partial input
+  // ({event_type:'install_announce'}) into the full 9-field payload, so we
+  // do NOT construct the shape here (keeps the static-grep gate meaningful).
+  setTimeout(async function () {
+    try {
+      if (globalThis.fsbTelemetryCollector
+          && typeof globalThis.fsbTelemetryCollector.enqueue === 'function'
+          && typeof globalThis.fsbTelemetryCollector.flush === 'function') {
+        await globalThis.fsbTelemetryCollector.enqueue({ event_type: 'install_announce' });
+        await globalThis.fsbTelemetryCollector.flush();
+      }
+    } catch (_e) { /* swallow per defence in depth */ }
+  }, 30000);
+
   // Load debug mode setting
   await loadDebugMode();
 
@@ -13051,6 +13189,25 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
   initializeAnalytics();
+  // Phase 269 / IDENT-01, IDENT-02: idempotent get-or-create on every SW wake.
+  // Returns the existing UUID after first install -- no re-mint.
+  try {
+    const seededUuid = await globalThis.fsbInstallIdentity.getOrCreateInstallUuid();
+    if (seededUuid) {
+      console.log('[FSB Telemetry] Install UUID seeded');
+    }
+  } catch (e) {
+    console.error('[FSB Telemetry] Install UUID seed failed:', e && e.message);
+  }
+  // Phase 272 / BEAT-02: idempotent alarm registration on every SW wake.
+  // chrome.alarms.create with the same name replaces -- safe to call again.
+  // This is the SW-eviction recovery path: if Chrome evicted the SW and the
+  // alarm registry somehow lost the entry, onStartup re-arms it.
+  try {
+    chrome.alarms.create('fsb-telemetry-beat', { periodInMinutes: 5 });
+  } catch (e) {
+    console.error('[FSB Telemetry] alarm create failed:', e && e.message);
+  }
   // Load debug mode setting
   await loadDebugMode();
   // Restore sessions from storage so stop button works after service worker restart

@@ -13,6 +13,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 **Last shipped:** v0.9.63 Showcase i18n -- 2026-05-13. Phases 261, 262, 264, 265, 266, 267, 268 translated the FSB marketing site (`showcase/angular`) into en/es/de/ja/zh-CN/zh-TW. `LocaleService` + 6-locale registry mirrored Angular ESM <-> Express CJS with `verify-locale-sync.mjs` parity invariant; 420 trans-units in `messages.xlf` (7 namespaces); AI-filled target XLIFFs for all 5 non-en locales with `i18nMissingTranslation: error` enforcing build-time completeness; `lint:i18n` and `extract-i18n-clean` promoted to hard-fail CI gates; 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + en root) with `<link rel="alternate" hreflang>` + canonical fan-out and `<html lang>` reflecting the served locale; `verify:hreflang` CI assertion gates the count; Express middleware on `/` does BCP-47 Accept-Language parsing with 302-redirect to matching locale subpath, cookie-respecting and bot-safe. Phase 268 (post-audit cleanup) deduplicated the server.js literal locale list against the CJS registry and backfilled six per-phase `VERIFICATION.md` artifacts. Audit status `passed` (14/14 requirements, 7/7 phases, 12/12 integration points, 3/3 E2E flows). `feat/showcase-i18n` branch + `v0.9.63` tag remain user-gated for push and merge.
 
 **Recent shipping cadence:**
+- v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- shipped 2026-05-14
 - v0.9.63 Showcase i18n -- shipped 2026-05-13
 - v0.9.62 Implicit Visual Session Contract -- shipped 2026-05-11
 - v0.9.61 FSB Skill (OpenClaw) -- shipped 2026-05-08
@@ -29,11 +30,37 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current Milestone
 
-None active. Most recent milestone (v0.9.63 Showcase i18n) shipped 2026-05-13; run `/gsd-new-milestone` to scope the next cycle.
+None active. Most recent milestone (v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix) shipped 2026-05-14 on branch `Refinements`; tag `v0.9.69` created locally, push user-gated.
 
 **Next milestone candidates (carry-forward backlog):**
-- v0.9.64 -- revisit WARNING-02 (picker-cookie short-circuits bare-`/` Accept-Language redirect on fresh-tab returners; currently EN at root).
-- v0.9.65 -- dashboard surface i18n (`showcase/angular/src/app/pages/dashboard/**`; remove `--ignore-pattern` in `lint:i18n`).
+- **v0.9.70 (telemetry follow-up)** — first-run banner, "View what we send" preview, "Reset anonymous ID" button, in-extension "Wipe my data" UI, region-gated opt-IN for EU/UK/CA, public versioned `/api/public-stats` documentation, per-day spark lines, geo heatmap.
+- **v0.9.70 (streaming)** — full dashboard streaming rewrite if STREAM-07 5-attempt cap is hit during Phase 276 browser repro.
+- v0.9.64 (UX, carry-forward) — picker-cookie short-circuit on bare-`/` Accept-Language redirect.
+- v0.9.65 (dashboard i18n, carry-forward) — translate `showcase/angular/src/app/pages/dashboard/**`.
+
+## Previous Milestone: v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix (shipped 2026-05-14)
+
+**Goal:** Stand up a privacy-preserving telemetry pipeline that flows MCP and extension usage metrics from end-user installs into the FSB server (`showcase/server/`), render those aggregates on the public `/stats` Easter-egg page, and restore the broken DOM streaming in the showcase dashboard.
+
+**Target features:**
+- MCP request logging in the extension control panel: cost + token tracking + per-call log rows alongside the existing AI-provider analytics hero.
+- API pricing module: hardcoded `MODEL_PRICING` table with per-MCP-client default-model assumptions (Claude Code -> Sonnet 4.6, Codex -> GPT-5, etc.), researched live for 2026 rates, source-stamped, updateable by version bump.
+- Anonymous telemetry collector in the extension: install-time UUIDv4 in `chrome.storage.local`; batched periodic beats; strictly allowlisted payload (UUID, tokens used, active-agent count, MCP client label, model). Opt-out toggle + first-run privacy banner.
+- Telemetry ingestion on `showcase/server/`: new `/api/telemetry/*` routes; server hashes IP as `SHA-256(IP + daily salt)` so plaintext IP is never persisted; new SQLite tables for events + per-UUID rollups.
+- Aggregation queries: total tokens, active users right now, total users, active agents, total agents lifetime, most-popular agent, most-popular MCP, avg agents per user.
+- Stats page (`/stats`) extended with a "FSB Telemetry" toggle group surfacing the aggregates, reusing the existing 5-min visibility-aware polling primitive.
+- Showcase dashboard DOM-streaming fix: diagnose and repair the WS `dash:dom-stream-*` pipeline between extension and dashboard preview pane (last phase).
+
+**Key constraints:**
+- Anonymous identity only -- UUIDv4 per install, NO PII, ever. Plaintext IP never persisted (hashed server-side with daily salt).
+- Opt-out consent, on by default, visible toggle in control panel + first-run privacy banner.
+- Server side extends existing `showcase/server/` (Express + SQLite); NO new microservice.
+- Build order: telemetry pipeline first (extension logging -> pricing -> collector -> ingest -> aggregates -> stats page); dashboard streaming fix LAST.
+- The `/stats` Easter-egg page from quick task 260514-1nv (on `Refinements`) is the consumption surface for the new aggregates.
+
+**Carry-forward backlog still pending (NOT in this milestone):**
+- v0.9.64-equivalent UX -- WARNING-02 picker-cookie short-circuit on bare-`/` Accept-Language redirect.
+- v0.9.65-equivalent i18n -- dashboard surface i18n; `--ignore-pattern src/app/pages/dashboard/**` in `lint:i18n` carries forward.
 
 ## Previous Milestone: v0.9.63 Showcase i18n (shipped 2026-05-13)
 
@@ -533,4 +560,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 -- milestone v0.9.62 Implicit Visual Session Contract shipped on branch refinements*
+*Last updated: 2026-05-14 -- milestone v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix SHIPPED on branch Refinements; tag v0.9.69 created locally (push user-gated)*

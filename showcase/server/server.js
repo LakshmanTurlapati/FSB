@@ -30,6 +30,7 @@ const queries = new Queries(db);
 
 // Express app
 const app = express();
+app.set('trust proxy', 1);  // BLOCKER #1 / INGEST-01 -- Fly.io single-edge proxy; req.ip = real client IP. NEVER remove. See .planning/research/STACK.md section 3 + tests/server-trust-proxy.test.js.
 
 // Drop the default x-powered-by: Express header (information disclosure).
 app.disable('x-powered-by');
@@ -111,6 +112,21 @@ app.use('/api/stats', auth, (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Phase 273 / INGEST-01..13 -- anonymous telemetry ingest (PUBLIC, no auth).
+// Mount order: AFTER trust-proxy line (top of file), AFTER existing routes
+// (no path overlap with /api/auth /api/agents /api/pair /api/stats),
+// BEFORE static-file middleware so the static handler doesn't shadow /api/telemetry/*.
+const createTelemetryRouter = require('./src/routes/telemetry');
+const { hashIp } = require('./src/utils/telemetry-hash');
+app.use('/api/telemetry', createTelemetryRouter(db, queries, hashIp));
+
+// Phase 274 / AGG-01..09 + STATS-04 -- anonymous public aggregates (PUBLIC, no auth).
+// Mounted AFTER auth routes and the auth-gated /api/stats handler so the path
+// /api/public-stats does NOT shadow /api/stats. Distinct namespaces by design.
+// Memo + ETag handling lives inside the router; this mount is the only wiring.
+const createPublicStatsRouter = require('./src/routes/public-stats');
+app.use('/api/public-stats', createPublicStatsRouter(db, queries));
 
 // Serve showcase static files with cache headers
 // In Docker: Angular dist is copied to /app/public
@@ -275,9 +291,15 @@ server.listen(PORT, () => {
   console.log(`[FSB Server] Database: ${DB_PATH}`);
 });
 
+// Phase 273 / INGEST-11 -- start hourly maintenance: delete events >7d,
+// re-aggregate rollups + globals (k>=5 anonymity floor), nudge salt rotation.
+const { startHousekeeper } = require('./src/telemetry/housekeeper');
+const housekeeperInterval = startHousekeeper(db);
+
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[FSB Server] Shutting down...');
+  clearInterval(housekeeperInterval);
   wss.close();
   server.close();
   db.close();
@@ -285,6 +307,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
+  clearInterval(housekeeperInterval);
   wss.close();
   server.close();
   db.close();

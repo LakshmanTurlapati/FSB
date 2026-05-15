@@ -123,6 +123,112 @@ getFSBTransportDiagnostics();
 var _remoteControlActive = false;
 var _lastRemoteControlState = null;
 
+// =====================================================================
+// Phase 276 STREAM-DEFENSIVE-02 (hypothesis #2 stream-tab not-ready)
+// + STREAM-DEFENSIVE-04 (hypothesis #4 domStreamReady pending-intent).
+//
+// `_pendingStreamStart` queues a `dash:dom-stream-start` payload that
+// arrived BEFORE the content-script's dom-stream module finished loading.
+// The watchdog `_waitForContentScriptReady` polls `pingDomStream` against
+// the target tab; if the 5-second budget elapses the payload is parked in
+// `_pendingStreamStart` and re-armed from the background.js
+// `domStreamReady` handler (which fires when dom-stream.js sends its
+// post-load ready ping). The flag is also cleared whenever
+// `_handleDashboardStreamStart` succeeds end-to-end so a late ready ping
+// does not double-fire a stream-start.
+// =====================================================================
+
+var _pendingStreamStart = null;
+var FSB_CONTENT_READY_POLL_INTERVAL_MS = 200;
+var FSB_CONTENT_READY_TIMEOUT_MS = 5000;
+
+/**
+ * Poll `chrome.tabs.sendMessage(tabId, { action: 'pingDomStream' })` until
+ * the content script's dom-stream module responds with { ready: true }, or
+ * the overall timeout elapses. Returns Promise<boolean> (true = ready).
+ *
+ * Replaces the prior `setTimeout(300)` heuristic at line 1406 -- 300ms is
+ * an arbitrary guess that races on slow page loads (CWS-flagged Chromebooks,
+ * busy first-paint pages) and over-waits on fast ones. Polling at 200ms
+ * yields under 250ms on the happy path and bounds the failure mode at 5s.
+ */
+function _waitForContentScriptReady(tabId, timeoutMs) {
+  var totalBudget = (typeof timeoutMs === 'number' && timeoutMs > 0)
+    ? timeoutMs
+    : FSB_CONTENT_READY_TIMEOUT_MS;
+  var deadline = Date.now() + totalBudget;
+  return new Promise(function (resolve) {
+    function tick() {
+      try {
+        chrome.tabs.sendMessage(tabId, { action: 'pingDomStream' }, { frameId: 0 }, function (response) {
+          // chrome.runtime.lastError surfaces when no listener is registered yet
+          // OR when the tab has navigated away. Both mean "not ready" -- keep
+          // polling until the deadline.
+          if (chrome.runtime && chrome.runtime.lastError) {
+            // swallow -- expected during ready-up
+          }
+          if (response && response.ready === true) {
+            resolve(true);
+            return;
+          }
+          if (Date.now() >= deadline) {
+            resolve(false);
+            return;
+          }
+          setTimeout(tick, FSB_CONTENT_READY_POLL_INTERVAL_MS);
+        });
+      } catch (e) {
+        // chrome.tabs.sendMessage threw synchronously (rare; e.g. invalid
+        // tabId). Treat as not-ready and keep polling within budget.
+        if (Date.now() >= deadline) {
+          resolve(false);
+          return;
+        }
+        setTimeout(tick, FSB_CONTENT_READY_POLL_INTERVAL_MS);
+      }
+    }
+    tick();
+  });
+}
+
+/**
+ * Re-arm a parked stream-start intent when the content script signals
+ * `domStreamReady`. Called from extension/background.js inside the
+ * `case 'domStreamReady':` branch of the runtime.onMessage listener.
+ *
+ * The pending payload is cleared before re-dispatch to prevent the
+ * domStreamReady ping from firing more than one stream-start (in the
+ * unusual case where the content script re-loads after a navigation and
+ * pings ready again -- legitimate, but we only want to re-arm if there is
+ * still a parked intent).
+ */
+function _onDomStreamReady(senderTabId) {
+  if (!_pendingStreamStart) return;
+  var parked = _pendingStreamStart;
+  _pendingStreamStart = null;
+  try {
+    var wsInstance = globalThis.__fsbWsInstance;
+    if (wsInstance && typeof wsInstance._handleDashboardStreamStart === 'function') {
+      // Re-dispatch through the normal entry point so the streaming-active
+      // flag, _streamingTabId arming, and stream-state emission all run as
+      // they would on a fresh dash:dom-stream-start.
+      wsInstance._handleDashboardStreamStart(parked.payload);
+    }
+  } catch (e) {
+    // best-effort -- failure to re-arm is logged via transport-failure
+    // helpers inside _handleDashboardStreamStart on the retry path.
+    if (typeof recordFSBTransportFailure === 'function') {
+      recordFSBTransportFailure('pending-stream-rearm-failed', {
+        type: 'dash:dom-stream-start',
+        target: 'pending-rearm',
+        tabId: typeof senderTabId === 'number' ? senderTabId : null,
+        readyState: 'rearm-exception',
+        error: e && e.message ? e.message : 'pending stream-start rearm failed'
+      });
+    }
+  }
+}
+
 function _getRemoteControlTabId() {
   return getCurrentTransportTabId();
 }
@@ -1051,6 +1157,28 @@ class FSBWebSocket {
       url: candidate.url || '',
       source: 'dash:dom-stream-start'
     });
+
+    // Phase 276 STREAM-DEFENSIVE-02 + STREAM-DEFENSIVE-04: probe the content
+    // script for readiness before issuing `domStreamStart`. If the content
+    // script is not ready within the 5s budget, park the payload in
+    // `_pendingStreamStart` so the background.js `domStreamReady` handler
+    // can re-arm it once the dom-stream module finishes loading.
+    var ready = await _waitForContentScriptReady(candidate.tabId);
+    if (!ready) {
+      _pendingStreamStart = { payload: payload, tabId: candidate.tabId, ts: Date.now() };
+      recordFSBTransportFailure('stream-tab-not-ready', {
+        type: 'dash:dom-stream-start',
+        target: 'content-script',
+        tabId: candidate.tabId,
+        readyState: 'ping-timeout',
+        error: 'pingDomStream did not respond within ' + FSB_CONTENT_READY_TIMEOUT_MS + 'ms; parked for re-arm on domStreamReady'
+      });
+      return;
+    }
+
+    // Clear any prior parked intent before issuing -- if this fires the
+    // domStreamReady handler should NOT re-arm anything stale.
+    _pendingStreamStart = null;
     this._forwardToContentScript('domStreamStart', payload);
   }
 
@@ -1402,8 +1530,23 @@ class FSBWebSocket {
             target: { tabId: tabId, allFrames: false },
             files: scriptFiles
           });
-          // Brief delay for script initialization
-          await new Promise(function(r) { setTimeout(r, 300); });
+          // Phase 276 STREAM-DEFENSIVE-02: replace setTimeout(300) heuristic
+          // with a real readiness probe. Poll pingDomStream every 200ms until
+          // the dom-stream module responds with { ready: true }, or the 5s
+          // budget elapses. The prior 300ms guess raced on slow pages and
+          // over-waited on fast ones; this version is bounded above (5s) and
+          // returns under 250ms on the happy path.
+          var contentScriptReady = await _waitForContentScriptReady(tabId);
+          if (!contentScriptReady) {
+            recordFSBTransportFailure('dom-forward-failed', {
+              type: action,
+              target: 'content-script',
+              tabId: tabId,
+              readyState: 'ping-timeout-after-inject',
+              error: 'pingDomStream did not respond within ' + FSB_CONTENT_READY_TIMEOUT_MS + 'ms after re-injection'
+            });
+            return;
+          }
           await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
         } catch (injectErr) {
           console.warn('[FSB WS] Failed to inject content script on tab', tabId, ':', injectErr.message);

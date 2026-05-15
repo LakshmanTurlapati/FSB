@@ -223,28 +223,35 @@
         <source>BSL 1.1 License</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">69,72</context>
+          <context context-type="linenumber">69,70</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="shell.footer.project.stats" datatype="html">
+        <source>Stats</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
+          <context context-type="linenumber">70,73</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.bottom.credit" datatype="html">
         <source>Made by <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Lakshman Turlapati<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">74,75</context>
+          <context context-type="linenumber">75,76</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.bottom.version" datatype="html">
         <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v<x id="INTERPOLATION" equiv-text="{{ appVersion }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">75,76</context>
+          <context context-type="linenumber">76,77</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.theme.toggle.aria" datatype="html">
         <source>Toggle theme</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">81,82</context>
+          <context context-type="linenumber">82,83</context>
         </context-group>
       </trans-unit>
       <trans-unit id="about.hero.title" datatype="html">
@@ -2513,95 +2520,279 @@
           <context context-type="linenumber">100,103</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_HEADING" datatype="html">
+        <source>Anonymous Usage Telemetry</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">104,105</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_INTRO" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v0.9.69 introduced an opt-out anonymous usage telemetry pipeline so the project can publish aggregate adoption numbers (see <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>) without ever touching the pages you browse. Telemetry is on by default but can be disabled with a single toggle, and the per-install data can be erased on request.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">105,107</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_HEADING" datatype="html">
+        <source>What we collect</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">107,109</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_UUID" datatype="html">
+        <source>A random per-install <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> stored in <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> under the key <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>. The <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> is generated locally and never tied to your identity.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">109,110</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MCP_CLIENT" datatype="html">
+        <source>The name of the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> client used (e.g. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Claude Code<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Cursor<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Codex<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>), drawn from a fixed allowlist.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">110,111</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MODEL" datatype="html">
+        <source>The model name used for a session (e.g. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>grok-4-fast<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>claude-opus-4<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>), drawn from a fixed allowlist.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">111,112</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_TOKENS" datatype="html">
+        <source>Aggregate input/output token counts per session.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">112,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_AGENTS" datatype="html">
+        <source>The number of active <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> agents on your install (an integer count).</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">113,115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_HEADING" datatype="html">
+        <source>What we do NOT collect</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">116,118</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_URLS" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>URLs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, hostnames, or browsing history.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">118,119</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_PROMPTS" datatype="html">
+        <source>Prompts, instructions, task descriptions, or any natural-language text you send to your model provider.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">119,120</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_DOM" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, screenshots, page content, or <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> responses.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">120,121</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_IP" datatype="html">
+        <source>Plaintext <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> addresses. The server hashes the request <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> with a daily-rotating salt for rate limiting and discards it.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">121,122</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_NAMES" datatype="html">
+        <source>Names, usernames, account handles, or any free-form identity fields.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">122,123</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_EMAILS" datatype="html">
+        <source>Email addresses, phone numbers, or contact information.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">123,126</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_HEADING" datatype="html">
+        <source>Retention</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">126,127</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_TEXT" datatype="html">
+        <source>Raw events are retained for 7 days. Daily rollups (one row per install per day) are retained for 365 days. Global aggregates (one row per day, no per-install dimension) are retained indefinitely so historical charts on <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> remain stable.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">127,129</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_HEADING" datatype="html">
+        <source>How to opt out</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">129,130</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_TEXT" datatype="html">
+        <source>Open the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Control Panel, scroll to Advanced Settings, and toggle <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Send anonymous usage data<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> off. The change takes effect immediately; no further events will be sent from your install.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">130,132</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_HEADING" datatype="html">
+        <source>How to erase your data</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">132,133</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_TEXT" datatype="html">
+        <source>To request erasure of all telemetry rows associated with your install (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GDPR<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Article 17), look up your <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DevTools<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> → Application → Storage → Extension storage, then send a single <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>HTTP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> request:</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">133,134</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_CURL|GDPR Article 17 erasure curl command. Copy this command literally; do not translate." datatype="html">
+        <source><x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>curl -X POST -H &quot;Content-Type: application/json&quot; \
+  -d &apos;<x id="INTERPOLATION" equiv-text="{{ &apos;{&apos; }}"/>&quot;install_uuid&quot;:&quot;&lt;your-uuid&gt;&quot;<x id="INTERPOLATION_1" equiv-text="{{ &apos;}&apos; }}"/>&apos; \
+  https://full-selfbrowsing.com/api/telemetry/forget<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">134,138</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_HEADING" datatype="html">
+        <source>Limited Use affirmation</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">138,139</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_TEXT" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s anonymous usage telemetry is used only to compute aggregate usage statistics displayed publicly at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>full-selfbrowsing.com/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. The data is never sold, never shared with third parties, never used for advertising, and never used to train any machine-learning models. This commitment satisfies the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome Web Store<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Limited Use<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> requirement.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">139,141</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_HEADING" datatype="html">
+        <source>Aggregated public metrics</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">141,142</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_TEXT" datatype="html">
+        <source>We publish aggregated metrics derived from this telemetry pipeline at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. Only counts and totals are shown; no per-install row is ever exposed.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">142,144</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="privacy.section.openSource.title" datatype="html">
         <source>Open Source</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">104,106</context>
+          <context context-type="linenumber">145,147</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.openSource.body" datatype="html">
         <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> is fully open source under the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>BSL 1.1<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> License. You can audit every line of code to verify these privacy claims. The source code is available on <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;https://github.com/lakshmanturlapati/FSB&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GitHub<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">106,108</context>
+          <context context-type="linenumber">147,149</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.changes.title" datatype="html">
         <source>Changes to This Policy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">109,110</context>
+          <context context-type="linenumber">150,151</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.changes.body" datatype="html">
         <source>If this policy is updated, the changes will be reflected by the &quot;Last updated&quot; date at the top of this page. Significant changes will also be noted in the project&apos;s <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GitHub<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> release notes.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">110,112</context>
+          <context context-type="linenumber">151,153</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.contact.title" datatype="html">
         <source>Contact</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">113,115</context>
+          <context context-type="linenumber">154,156</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.contact.body" datatype="html">
         <source>If you have questions about this privacy policy or <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s data handling, please open an issue on <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;https://github.com/lakshmanturlapati/FSB/issues&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GitHub Issues<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">115,117</context>
+          <context context-type="linenumber">156,158</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.title" datatype="html">
         <source>Policy History</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">118,119</context>
+          <context context-type="linenumber">159,160</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v902.date" datatype="html">
         <source>March 2026</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">121,122</context>
+          <context context-type="linenumber">162,163</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v902.label" datatype="html">
         <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v9.0.2<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Background Agents, Memory System, Server Sync</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">122,123</context>
+          <context context-type="linenumber">163,164</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v902.body" datatype="html">
         <source>Added sections for Background Agents and Server Sync (optional relay server for dashboard pairing and agent run metadata). Added Memory System section (all local storage). Updated External Services to acknowledge optional server, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenRouter<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, and <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>LM Studio<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> local-provider support. Updated action count to 50+.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">125,126</context>
+          <context context-type="linenumber">166,167</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v09.date" datatype="html">
         <source>February 2026</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">130,131</context>
+          <context context-type="linenumber">171,172</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v09.label" datatype="html">
         <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Initial privacy policy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">131,132</context>
+          <context context-type="linenumber">172,173</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.history.v09.body" datatype="html">
         <source>Initial privacy policy covering data collection, storage, external services, API key encryption, auto-passwords, prompt injection prevention, and open source transparency. Four AI providers supported (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>xAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Anthropic<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Google Gemini<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">134,135</context>
+          <context context-type="linenumber">175,176</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.meta.title" datatype="html">
@@ -2616,6 +2807,174 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.ts</context>
           <context context-type="linenumber">29</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_ARIA" datatype="html">
+        <source>FSB Telemetry</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">23,24</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_HEADING" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Telemetry</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">25,26</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_SUB" datatype="html">
+        <source>Live anonymous usage from <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> installs. Refreshes every 5 minutes.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">26,27</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_ARIA" datatype="html">
+        <source>Live FSB metrics</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">31,32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_ACTIVE" datatype="html">
+        <source>active right now</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">35,37</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_TOTAL" datatype="html">
+        <source>total users</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">40,42</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_TOKENS" datatype="html">
+        <source>tokens (last 24h)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">45,50</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_ACTIVE_NOW" datatype="html">
+        <source>Active right now</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">98</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_TOKENS" datatype="html">
+        <source>Tokens</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">99</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AGENTS_RUNNING" datatype="html">
+        <source>Agents running</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">100</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_AGENTS" datatype="html">
+        <source>Popular agents</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">101</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_MCP" datatype="html">
+        <source>Popular MCP clients</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">102</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AVG_AGENTS" datatype="html">
+        <source>Average agents per user</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">103</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW" datatype="html">
+        <source>Active users right now</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">523</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW_LEGEND" datatype="html">
+        <source>Active users (5 min window)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">526</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_TOKENS_LEGEND" datatype="html">
+        <source>Tokens (last 30 days)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">545</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING" datatype="html">
+        <source>Agents running right now</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">564</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING_LEGEND" datatype="html">
+        <source>Active agents (10 min window)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">570</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING" datatype="html">
+        <source>Pending (k&gt;=5 floor)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">587</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_AGENTS_LEGEND" datatype="html">
+        <source>Popular agents</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">594</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING_MCP" datatype="html">
+        <source>Pending (k&gt;=5 floor)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">610</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_MCP_LEGEND" datatype="html">
+        <source>Popular MCP clients</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">617</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS" datatype="html">
+        <source>Avg agents per active user</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">644</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND" datatype="html">
+        <source>Avg active agents per active user</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">647</context>
         </context-group>
       </trans-unit>
       <trans-unit id="support.hero.title" datatype="html">

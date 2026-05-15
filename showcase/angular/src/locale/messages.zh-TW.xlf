@@ -15,7 +15,7 @@
         <target state="translated">選擇語言</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/language-picker/language-picker.component.html</context>
-          <context context-type="linenumber">11,13</context>
+          <context context-type="linenumber">10,12</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.brand.logo.alt" datatype="html">
@@ -95,7 +95,7 @@
         <target state="translated">切換導航</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">23,24</context>
+          <context context-type="linenumber">22,23</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.home" datatype="html">
@@ -103,7 +103,7 @@
         <target state="translated">首頁</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">32</context>
+          <context context-type="linenumber">31</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.about" datatype="html">
@@ -111,7 +111,7 @@
         <target state="translated">關於</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">32,33</context>
+          <context context-type="linenumber">31,32</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.agents" datatype="html">
@@ -119,7 +119,7 @@
         <target state="translated">智慧體</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">33,34</context>
+          <context context-type="linenumber">32,33</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.dashboard" datatype="html">
@@ -127,7 +127,7 @@
         <target state="translated">控制檯</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">34,35</context>
+          <context context-type="linenumber">33,34</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.privacy" datatype="html">
@@ -135,7 +135,7 @@
         <target state="translated">隱私</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">35,36</context>
+          <context context-type="linenumber">34,35</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.support" datatype="html">
@@ -143,7 +143,7 @@
         <target state="translated">支援</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">36,38</context>
+          <context context-type="linenumber">35,37</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.nav.mobile.github" datatype="html">
@@ -151,7 +151,7 @@
         <target state="translated"><x id="START_ITALIC_TEXT" ctype="x-i" equiv-text="&lt;i class=&quot;fa-brands fa-github&quot;&gt;"/><x id="CLOSE_ITALIC_TEXT" ctype="x-i" equiv-text="&lt;/i&gt;"/> GitHub</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">38,39</context>
+          <context context-type="linenumber">37,41</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.brand.logo.alt" datatype="html">
@@ -159,7 +159,7 @@
         <target state="translated">FSB</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">51</context>
+          <context context-type="linenumber">49</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.brand.text" datatype="html">
@@ -167,7 +167,7 @@
         <target state="translated">FSB</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">52,54</context>
+          <context context-type="linenumber">50,52</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.title" datatype="html">
@@ -175,7 +175,7 @@
         <target state="translated">頁面</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">56,57</context>
+          <context context-type="linenumber">54,55</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.home" datatype="html">
@@ -183,7 +183,7 @@
         <target state="translated">首頁</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">58</context>
+          <context context-type="linenumber">56</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.about" datatype="html">
@@ -191,7 +191,7 @@
         <target state="translated">關於</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">58,59</context>
+          <context context-type="linenumber">56,57</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.dashboard" datatype="html">
@@ -199,7 +199,7 @@
         <target state="translated">控制檯</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">59,60</context>
+          <context context-type="linenumber">57,58</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.agents" datatype="html">
@@ -207,7 +207,7 @@
         <target state="translated">智慧體</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">60,61</context>
+          <context context-type="linenumber">58,59</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.privacy" datatype="html">
@@ -215,7 +215,7 @@
         <target state="translated">隱私</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">61,62</context>
+          <context context-type="linenumber">59,60</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.pages.support" datatype="html">
@@ -223,7 +223,7 @@
         <target state="translated">支援</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">62,64</context>
+          <context context-type="linenumber">60,62</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.col.project.title" datatype="html">
@@ -231,7 +231,7 @@
         <target state="translated">專案</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">65,67</context>
+          <context context-type="linenumber">63,65</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.project.github" datatype="html">
@@ -239,7 +239,7 @@
         <target state="translated">GitHub</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">67,69</context>
+          <context context-type="linenumber">65,67</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.project.issues" datatype="html">
@@ -247,7 +247,7 @@
         <target state="translated">Issues</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">69,71</context>
+          <context context-type="linenumber">67,69</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.project.license" datatype="html">
@@ -255,7 +255,15 @@
         <target state="translated">BSL 1.1 許可證</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">71,74</context>
+          <context context-type="linenumber">69,70</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="shell.footer.project.stats" datatype="html">
+        <source>Stats</source>
+        <target state="translated">統計</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
+          <context context-type="linenumber">70,73</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.bottom.credit" datatype="html">
@@ -263,7 +271,7 @@
         <target state="translated">由 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Lakshman Turlapati<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 製作</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">76,77</context>
+          <context context-type="linenumber">75,76</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.footer.bottom.version" datatype="html">
@@ -271,7 +279,7 @@
         <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v<x id="INTERPOLATION" equiv-text="{{ appVersion }}"/></target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">77,78</context>
+          <context context-type="linenumber">76,77</context>
         </context-group>
       </trans-unit>
       <trans-unit id="shell.theme.toggle.aria" datatype="html">
@@ -279,7 +287,7 @@
         <target state="translated">切換主題</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
-          <context context-type="linenumber">83,84</context>
+          <context context-type="linenumber">82,83</context>
         </context-group>
       </trans-unit>
       <trans-unit id="about.hero.title" datatype="html">
@@ -1255,7 +1263,7 @@
         <target state="translated">FSB - 關於</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/about/about-page.component.ts</context>
-          <context context-type="linenumber">58</context>
+          <context context-type="linenumber">61</context>
         </context-group>
       </trans-unit>
       <trans-unit id="about.meta.description" datatype="html">
@@ -1263,7 +1271,7 @@
         <target state="translated">觀看真實的 FSB 演示：Grok 4.1 電商自動駕駛、Codex MCP 機票預訂、OpenClaw 監控以及由 Claude 驅動的瀏覽器迭代。</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/about/about-page.component.ts</context>
-          <context context-type="linenumber">59</context>
+          <context context-type="linenumber">62</context>
         </context-group>
       </trans-unit>
       <trans-unit id="agents.hero.badge" datatype="html">
@@ -1751,7 +1759,7 @@
         <target state="translated">FSB - 智慧體（OpenClaw 技能 + MCP）</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/agents/agents-page.component.ts</context>
-          <context context-type="linenumber">26</context>
+          <context context-type="linenumber">29</context>
         </context-group>
       </trans-unit>
       <trans-unit id="agents.meta.description" datatype="html">
@@ -1759,7 +1767,7 @@
         <target state="translated">在 OpenClaw、Claude、Codex、Cursor 等中驅動你真實的 Chrome。3 步安裝 FSB OpenClaw 技能，使用 50 多種 MCP 工具來執行、觀察、驗證。</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/agents/agents-page.component.ts</context>
-          <context context-type="linenumber">27</context>
+          <context context-type="linenumber">30</context>
         </context-group>
       </trans-unit>
       <trans-unit id="home.hero.title" datatype="html">
@@ -2403,7 +2411,7 @@
         <target state="translated">FSB - 完全自主瀏覽</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/home/home-page.component.ts</context>
-          <context context-type="linenumber">34</context>
+          <context context-type="linenumber">37</context>
         </context-group>
       </trans-unit>
       <trans-unit id="home.meta.description" datatype="html">
@@ -2411,7 +2419,7 @@
         <target state="translated">透過自然語言驅動 AI 瀏覽器自動化的開源 Chrome 擴充套件，併為 Claude Code、Codex、Cursor 等智慧體提供 MCP 伺服器。</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/home/home-page.component.ts</context>
-          <context context-type="linenumber">35</context>
+          <context context-type="linenumber">38</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.header.kicker" datatype="html">
@@ -2979,7 +2987,7 @@
         <target state="translated">FSB - 隱私</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.ts</context>
-          <context context-type="linenumber">26</context>
+          <context context-type="linenumber">28</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.meta.description" datatype="html">
@@ -2987,7 +2995,199 @@
         <target state="translated">FSB 如何處理你的資料：API Key 在 Chrome 本地儲存中加密，無遙測，自動化在你的瀏覽器內本地執行。自帶 Key、自帶瀏覽器。</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.ts</context>
-          <context context-type="linenumber">27</context>
+          <context context-type="linenumber">29</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_ARIA" datatype="html">
+        <source>FSB Telemetry</source>
+        <target state="translated">FSB 遙測</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">23,24</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_HEADING" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Telemetry</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 遙測</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">25,26</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_SECTION_SUB" datatype="html">
+        <source>Live anonymous usage from <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> installs. Refreshes every 5 minutes.</source>
+        <target state="translated">即時顯示 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 安裝的匿名使用情況。每 5 分鐘更新一次。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">26,27</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_ARIA" datatype="html">
+        <source>Live FSB metrics</source>
+        <target state="translated">即時 FSB 指標</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">31,32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_ACTIVE" datatype="html">
+        <source>active right now</source>
+        <target state="translated">目前活躍</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">35,37</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_TOTAL" datatype="html">
+        <source>total users</source>
+        <target state="translated">總用戶數</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">40,42</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_HEADLINE_TOKENS" datatype="html">
+        <source>tokens (last 24h)</source>
+        <target state="translated">權杖（過去 24 小時）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
+          <context context-type="linenumber">45,50</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_ACTIVE_NOW" datatype="html">
+        <source>Active right now</source>
+        <target state="translated">目前活躍</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">98</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_TOKENS" datatype="html">
+        <source>Tokens</source>
+        <target state="translated">權杖</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">99</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AGENTS_RUNNING" datatype="html">
+        <source>Agents running</source>
+        <target state="translated">執行中的代理</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">100</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_AGENTS" datatype="html">
+        <source>Popular agents</source>
+        <target state="translated">熱門代理</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">101</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_MCP" datatype="html">
+        <source>Popular MCP clients</source>
+        <target state="translated">熱門 MCP 客戶端</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">102</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AVG_AGENTS" datatype="html">
+        <source>Average agents per user</source>
+        <target state="translated">每用戶平均代理數</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">103</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW" datatype="html">
+        <source>Active users right now</source>
+        <target state="translated">目前活躍的用戶</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">523</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW_LEGEND" datatype="html">
+        <source>Active users (5 min window)</source>
+        <target state="translated">活躍用戶（5 分鐘視窗）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">526</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_TOKENS_LEGEND" datatype="html">
+        <source>Tokens (last 30 days)</source>
+        <target state="translated">權杖（過去 30 天）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">545</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING" datatype="html">
+        <source>Agents running right now</source>
+        <target state="translated">目前執行中的代理</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">564</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING_LEGEND" datatype="html">
+        <source>Active agents (10 min window)</source>
+        <target state="translated">活躍代理（10 分鐘視窗）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">570</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING" datatype="html">
+        <source>Pending (k&gt;=5 floor)</source>
+        <target state="translated">待定（k&gt;=5 閾值）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">587</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_AGENTS_LEGEND" datatype="html">
+        <source>Popular agents</source>
+        <target state="translated">熱門代理</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">594</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING_MCP" datatype="html">
+        <source>Pending (k&gt;=5 floor)</source>
+        <target state="translated">待定（k&gt;=5 閾值）</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">610</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_MCP_LEGEND" datatype="html">
+        <source>Popular MCP clients</source>
+        <target state="translated">熱門 MCP 客戶端</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">617</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS" datatype="html">
+        <source>Avg agents per active user</source>
+        <target state="translated">每位活躍用戶的平均代理數</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">644</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND" datatype="html">
+        <source>Avg active agents per active user</source>
+        <target state="translated">每位活躍用戶的平均活躍代理數</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
+          <context context-type="linenumber">647</context>
         </context-group>
       </trans-unit>
       <trans-unit id="support.hero.title" datatype="html">
@@ -3371,7 +3571,7 @@
         <target state="translated">FSB - 支援</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/support/support-page.component.ts</context>
-          <context context-type="linenumber">88</context>
+          <context context-type="linenumber">90</context>
         </context-group>
       </trans-unit>
       <trans-unit id="support.meta.description" datatype="html">
@@ -3379,7 +3579,219 @@
         <target state="translated">獲取 FSB 幫助：安裝指南、MCP 配置、故障排查、GitHub issues 以及與開源 Chrome 擴充套件的直接聯絡。</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/support/support-page.component.ts</context>
-          <context context-type="linenumber">89</context>
+          <context context-type="linenumber">91</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_HEADING" datatype="html">
+        <source>Anonymous Usage Telemetry</source>
+        <target state="translated">匿名使用遙測</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">104,105</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_INTRO" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v0.9.69 introduced an opt-out anonymous usage telemetry pipeline so the project can publish aggregate adoption numbers (see <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>) without ever touching the pages you browse. Telemetry is on by default but can be disabled with a single toggle, and the per-install data can be erased on request.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> v0.9.69 引入了一個可選退出的匿名使用遙測管線，讓專案能在完全不接觸你瀏覽的任何頁面的情況下，發布聚合的採用數據（請參見 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>）。遙測預設啟用，但可以透過一個開關停用，並且按安裝的資料可根據請求被抹除。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">105,107</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_HEADING" datatype="html">
+        <source>What we collect</source>
+        <target state="translated">我們收集的內容</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">107,109</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_UUID" datatype="html">
+        <source>A random per-install <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> stored in <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> under the key <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>. The <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> is generated locally and never tied to your identity.</source>
+        <target state="translated">每次安裝隨機產生的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>，儲存於 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> 的鍵 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> 之下。<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UUID<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 於本機產生，永遠不會與你的身分關聯。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">109,110</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MCP_CLIENT" datatype="html">
+        <source>The name of the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> client used (e.g. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Claude Code<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Cursor<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Codex<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>), drawn from a fixed allowlist.</source>
+        <target state="translated">所使用的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 用戶端名稱（例如 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Claude Code<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Cursor<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Codex<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>），取自固定的允許清單。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">110,111</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_MODEL" datatype="html">
+        <source>The model name used for a session (e.g. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>grok-4-fast<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>claude-opus-4<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>), drawn from a fixed allowlist.</source>
+        <target state="translated">工作階段中使用的模型名稱（例如 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>grok-4-fast<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>、<x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>claude-opus-4<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>），取自固定的允許清單。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">111,112</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_TOKENS" datatype="html">
+        <source>Aggregate input/output token counts per session.</source>
+        <target state="translated">每個工作階段的輸入／輸出 token 數量聚合值。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">112,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_COLLECT_AGENTS" datatype="html">
+        <source>The number of active <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> agents on your install (an integer count).</source>
+        <target state="translated">你的安裝上活躍的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 代理數量（一個整數值）。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">113,115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_HEADING" datatype="html">
+        <source>What we do NOT collect</source>
+        <target state="translated">我們不收集的內容</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">116,118</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_URLS" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>URLs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, hostnames, or browsing history.</source>
+        <target state="translated">頁面 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>URLs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、主機名稱或瀏覽歷史紀錄。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">118,119</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_PROMPTS" datatype="html">
+        <source>Prompts, instructions, task descriptions, or any natural-language text you send to your model provider.</source>
+        <target state="translated">提示、指令、工作描述，或你傳送給模型供應商的任何自然語言文字。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">119,120</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_DOM" datatype="html">
+        <source>Page <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, screenshots, page content, or <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> responses.</source>
+        <target state="translated">頁面 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>、螢幕截圖、頁面內容或 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 回應。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">120,121</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_IP" datatype="html">
+        <source>Plaintext <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> addresses. The server hashes the request <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> with a daily-rotating salt for rate limiting and discards it.</source>
+        <target state="translated">純文字 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 位址。伺服器使用每日輪換的鹽對請求 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>IP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 進行雜湊以限制流量，並立即丟棄。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">121,122</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_NAMES" datatype="html">
+        <source>Names, usernames, account handles, or any free-form identity fields.</source>
+        <target state="translated">姓名、使用者名稱、帳號代號，或任何自由文字身分欄位。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">122,123</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_NOT_COLLECT_EMAILS" datatype="html">
+        <source>Email addresses, phone numbers, or contact information.</source>
+        <target state="translated">電子郵件地址、電話號碼，或聯絡資訊。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">123,126</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_HEADING" datatype="html">
+        <source>Retention</source>
+        <target state="translated">保留期</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">126,127</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_RETENTION_TEXT" datatype="html">
+        <source>Raw events are retained for 7 days. Daily rollups (one row per install per day) are retained for 365 days. Global aggregates (one row per day, no per-install dimension) are retained indefinitely so historical charts on <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> remain stable.</source>
+        <target state="translated">原始事件保留 7 天。每日彙總（每安裝每天一列）保留 365 天。全域聚合（每天一列，無按安裝維度）無限期保留，以便 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 上的歷史圖表保持穩定。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">127,129</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_HEADING" datatype="html">
+        <source>How to opt out</source>
+        <target state="translated">如何選擇退出</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">129,130</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_OPTOUT_TEXT" datatype="html">
+        <source>Open the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Control Panel, scroll to Advanced Settings, and toggle <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Send anonymous usage data<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> off. The change takes effect immediately; no further events will be sent from your install.</source>
+        <target state="translated">開啟 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 控制面板，捲動至「進階設定」，將 <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>傳送匿名使用資料<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> 開關關閉。變更立即生效；之後不會再從你的安裝傳送事件。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">130,132</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_HEADING" datatype="html">
+        <source>How to erase your data</source>
+        <target state="translated">如何抹除你的資料</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">132,133</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_TEXT" datatype="html">
+        <source>To request erasure of all telemetry rows associated with your install (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GDPR<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Article 17), look up your <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DevTools<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> → Application → Storage → Extension storage, then send a single <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>HTTP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> request:</source>
+        <target state="translated">若要請求抹除與你的安裝關聯的所有遙測列（<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>GDPR<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 第 17 條），請在 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DevTools<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> → Application → Storage → Extension storage 中查找你的 <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>fsbInstallUuid<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>，然後傳送一次 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>HTTP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 請求：</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">133,134</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_ERASE_CURL|GDPR Article 17 erasure curl command. Copy this command literally; do not translate." datatype="html">
+        <source><x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>curl -X POST -H &quot;Content-Type: application/json&quot; \
+  -d &apos;<x id="INTERPOLATION" equiv-text="{{ &apos;{&apos; }}"/>&quot;install_uuid&quot;:&quot;&lt;your-uuid&gt;&quot;<x id="INTERPOLATION_1" equiv-text="{{ &apos;}&apos; }}"/>&apos; \
+  https://full-selfbrowsing.com/api/telemetry/forget<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
+        <target state="translated"><x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>curl -X POST -H &quot;Content-Type: application/json&quot; \
+  -d &apos;<x id="INTERPOLATION" equiv-text="{{ &apos;{&apos; }}"/>&quot;install_uuid&quot;:&quot;&lt;your-uuid&gt;&quot;<x id="INTERPOLATION_1" equiv-text="{{ &apos;}&apos; }}"/>&apos; \
+  https://full-selfbrowsing.com/api/telemetry/forget<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">134,138</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_HEADING" datatype="html">
+        <source>Limited Use affirmation</source>
+        <target state="translated">Limited Use 合規聲明</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">138,139</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_LIMITED_USE_TEXT" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s anonymous usage telemetry is used only to compute aggregate usage statistics displayed publicly at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>full-selfbrowsing.com/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. The data is never sold, never shared with third parties, never used for advertising, and never used to train any machine-learning models. This commitment satisfies the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome Web Store<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Limited Use<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> requirement.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 的匿名使用遙測僅用於計算在 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot; [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>full-selfbrowsing.com/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 公開展示的聚合使用統計。資料從不出售、從不與第三方共享、從不用於廣告，且從不用於訓練任何機器學習模型。此承諾滿足 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome Web Store<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 的 <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Limited Use<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> 要求。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">139,141</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_HEADING" datatype="html">
+        <source>Aggregated public metrics</source>
+        <target state="translated">聚合的公開指標</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">141,142</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="PRIVACY_TELEMETRY_AGGREGATED_TEXT" datatype="html">
+        <source>We publish aggregated metrics derived from this telemetry pipeline at <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>. Only counts and totals are shown; no per-install row is ever exposed.</source>
+        <target state="translated">我們在 <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> 發布來自此遙測管線的聚合指標。僅展示計數和總數；每安裝的列從不公開。</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">142,144</context>
         </context-group>
       </trans-unit>
     </body>

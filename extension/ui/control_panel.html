@@ -629,6 +629,39 @@
               </div>
             </div>
 
+            <!-- Phase 269 / CONS-01, CONS-02: Anonymous Telemetry kill switch.
+                 Toggle checked = telemetry ON (default). Storage key fsbTelemetryOptOut stores
+                 true ONLY when the user has opted OUT. Inverse wiring at script block below. -->
+            <div class="settings-card" id="card-privacy-telemetry">
+              <div class="settings-card-header">
+                <div class="settings-card-icon">
+                  <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>Privacy &amp; Telemetry</h3>
+                  <p>Anonymous usage data</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="setting-item">
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="fsbTelemetryOptOut" checked
+                           aria-label="Anonymous usage data is being sent. Click to stop.">
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Send anonymous usage data</span>
+                      <span class="toggle-desc">Tokens used, MCP client name, active agent count. No URLs, prompts, or DOM.</span>
+                    </div>
+                  </label>
+                  <a class="setting-hint" href="https://full-selfbrowsing.com/privacy#telemetry-disclosure"
+                     target="_blank" rel="noopener noreferrer"
+                     style="display:block; margin-top:8px;">Read full policy &rarr;</a>
+                </div>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -1539,5 +1572,19 @@
   <!-- Phase 243 Plan 04 / UI-03: pure helpers for the cap counter + validation. Must load BEFORE options.js. -->
   <script src="cap-counter-helpers.js"></script>
   <script src="options.js"></script>
+  <!--
+    Phase 269 / CONS-01, CONS-02: kill-switch wiring.
+    Extracted to an external file so it runs under MV3's default CSP
+    (`script-src 'self'`), which forbids inline scripts. The previous inline
+    <script> block was silently blocked at runtime, leaving the toggle as a
+    visual no-op (storage never written, user opt-out silently discarded).
+
+    install-identity.js MUST load BEFORE install-identity-ui.js -- the UI
+    script reads globalThis.fsbInstallIdentity.{FSB_TELEMETRY_OPT_OUT_KEY,
+    isTelemetryOptedOut, setTelemetryOptOut} instead of hardcoding the
+    storage key string.
+  -->
+  <script src="../utils/install-identity.js"></script>
+  <script src="install-identity-ui.js"></script>
 </body>
 </html>

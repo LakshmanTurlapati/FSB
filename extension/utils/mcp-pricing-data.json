@@ -1,0 +1,297 @@
+{
+  "pricing_source_date": "2026-05-14",
+  "pricing_policy": "Rates are non-batch, non-cache-hit standard list price in USD per million tokens. Batch / cache-hit multipliers and per-request surcharges (Anthropic web search, Google grounding, Anthropic Fast mode, etc.) are NOT modeled in v0.9.69; v0.9.70+ may add multiplier fields. Token counts are taken at face value as reported by the MCP client envelope -- no local retokenization. Refresh policy: review STACK.md sections 1-2 on every milestone version bump; bump pricing_source_date on update.",
+  "model_pricing": {
+    "claude-haiku-4-5": {
+      "input_per_mtok": 1.00,
+      "output_per_mtok": 5.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "claude-opus-4-1": {
+      "input_per_mtok": 15.00,
+      "output_per_mtok": 75.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "claude-opus-4-5": {
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 25.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "claude-opus-4-6": {
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 25.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "claude-opus-4-7": {
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 25.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14",
+      "notes": "Opus 4.7 uses a NEW TOKENIZER that consumes up to 35% more tokens for the same input text vs 4.6. Per-token rate is unchanged but effective cost-per-request can rise ~35%. 1M context window included at standard pricing; no over-context surcharge."
+    },
+    "claude-sonnet-4-5": {
+      "input_per_mtok": 3.00,
+      "output_per_mtok": 15.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "claude-sonnet-4-6": {
+      "input_per_mtok": 3.00,
+      "output_per_mtok": 15.00,
+      "confidence": "HIGH",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "source_date": "2026-05-14"
+    },
+    "deepseek-v4-flash": {
+      "input_per_mtok": 0.14,
+      "output_per_mtok": 0.28,
+      "confidence": "HIGH",
+      "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+      "source_date": "2026-05-14",
+      "notes": "cache-hit input rate is 0.0028; cache discounts not modeled in v1"
+    },
+    "deepseek-v4-pro": {
+      "input_per_mtok": 0.435,
+      "output_per_mtok": 0.87,
+      "confidence": "HIGH",
+      "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+      "source_date": "2026-05-14",
+      "notes": "75% promo discount through 2026-05-31; the rates here ARE the promo rates -- vNext milestone must reverify after 2026-05-31"
+    },
+    "gemini-2.5-flash": {
+      "input_per_mtok": 0.30,
+      "output_per_mtok": 2.50,
+      "confidence": "HIGH",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "source_date": "2026-05-14"
+    },
+    "gemini-2.5-flash-lite": {
+      "input_per_mtok": 0.10,
+      "output_per_mtok": 0.40,
+      "confidence": "HIGH",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "source_date": "2026-05-14"
+    },
+    "gemini-2.5-pro": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.00,
+      "confidence": "HIGH",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "source_date": "2026-05-14",
+      "notes": ">200k tier is 2.50/15.00 (not modeled in resolver v1)"
+    },
+    "gemini-3.1-pro": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.00,
+      "confidence": "MEDIUM",
+      "source_url": "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
+      "source_date": "2026-05-14",
+      "notes": "STACK §2 lists Antigravity default=gemini-3.1-pro; rates assumed-parity with 2.5-pro pending Gemini 3.x official table -- verify on refresh"
+    },
+    "gpt-5": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.00,
+      "confidence": "HIGH",
+      "source_url": "https://openrouter.ai/openai/gpt-5",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5-mini": {
+      "input_per_mtok": 0.25,
+      "output_per_mtok": 2.00,
+      "confidence": "HIGH",
+      "source_url": "https://openrouter.ai/openai/gpt-5-mini",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5-nano": {
+      "input_per_mtok": 0.05,
+      "output_per_mtok": 0.40,
+      "confidence": "MEDIUM",
+      "source_url": "https://devtk.ai/en/blog/openai-api-pricing-guide-2026/",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5.2": {
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.00,
+      "confidence": "MEDIUM",
+      "source_url": "https://devtk.ai/en/blog/openai-api-pricing-guide-2026/",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5.4": {
+      "input_per_mtok": 2.50,
+      "output_per_mtok": 15.00,
+      "confidence": "MEDIUM",
+      "source_url": "https://devtk.ai/en/blog/openai-api-pricing-guide-2026/",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5.5": {
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 30.00,
+      "confidence": "MEDIUM",
+      "source_url": "https://www.theregister.com/ai-and-ml/2026/05/08/gpt-55-may-burn-fewer-tokens-but-it-always-burns-more-cash/5237498",
+      "source_date": "2026-05-14"
+    },
+    "gpt-5.5-codex": {
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 30.00,
+      "confidence": "MEDIUM",
+      "source_url": "https://developers.openai.com/codex/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-3": {
+      "input_per_mtok": 3.00,
+      "output_per_mtok": 15.00,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-3-mini": {
+      "input_per_mtok": 0.30,
+      "output_per_mtok": 0.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4": {
+      "input_per_mtok": 3.00,
+      "output_per_mtok": 15.00,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14",
+      "notes": "DEPRECATED -- retiring 2026-05-15; new requests redirect to grok-4.3 pricing. Row kept for historical-telemetry cost-out."
+    },
+    "grok-4-fast": {
+      "input_per_mtok": 0.20,
+      "output_per_mtok": 0.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.1-fast-non-reasoning": {
+      "input_per_mtok": 0.20,
+      "output_per_mtok": 0.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.1-fast-reasoning": {
+      "input_per_mtok": 0.20,
+      "output_per_mtok": 0.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.20-0309-non-reasoning": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 2.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.20-0309-reasoning": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 2.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.20-multi-agent-0309": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 2.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14"
+    },
+    "grok-4.3": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 2.50,
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models",
+      "source_date": "2026-05-14",
+      "notes": ">200k tier exact rate not published on docs.x.ai as of 2026-05-14"
+    }
+  },
+  "client_default_model": {
+    "Claude": {
+      "model": "claude-opus-4-7",
+      "confidence": "HIGH",
+      "source_url": "https://code.claude.com/docs/en/model-config",
+      "notes": "Default since April 23, 2026 for Enterprise PAYG + API users."
+    },
+    "Codex": {
+      "model": "gpt-5.5",
+      "confidence": "HIGH",
+      "source_url": "https://developers.openai.com/codex/models"
+    },
+    "ChatGPT": {
+      "model": "gpt-5",
+      "confidence": "MEDIUM",
+      "source_url": "internal-fallback",
+      "notes": "No canonical ChatGPT CLI; conservative choice keeps it on standard-tier."
+    },
+    "Perplexity": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "MEDIUM",
+      "source_url": "https://www.perplexity.ai/changelog/what-we-shipped---february-6th-2026"
+    },
+    "Windsurf": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "LOW",
+      "source_url": "internal-fallback",
+      "notes": "Conservative fallback; SWE-1.5 has no public per-token price."
+    },
+    "Cursor": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "MEDIUM",
+      "source_url": "internal-fallback",
+      "notes": "Conservative fallback; Cursor Auto-mode routes across GPT-5.4 / Sonnet 4.6 / Opus 4.6 / Gemini 3.1 Pro -- no fixed default."
+    },
+    "Antigravity": {
+      "model": "gemini-3.1-pro",
+      "confidence": "HIGH",
+      "source_url": "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli"
+    },
+    "OpenCode": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "MEDIUM",
+      "source_url": "internal-fallback",
+      "notes": "Conservative fallback; OpenCode is user-configurable via opencode.json model field."
+    },
+    "OpenClaw": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "HIGH",
+      "source_url": "https://docs.openclaw.ai/cli/mcp"
+    },
+    "OpenClaw 🦀": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "HIGH",
+      "source_url": "https://docs.openclaw.ai/cli/mcp"
+    },
+    "Grok": {
+      "model": "grok-4.3",
+      "confidence": "HIGH",
+      "source_url": "https://docs.x.ai/developers/models"
+    },
+    "Gemini": {
+      "model": "gemini-2.5-pro",
+      "confidence": "MEDIUM",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "notes": "Conservative -- Gemini 3.x Pro is documented for Antigravity; Gemini CLI still defaults to 2.5 Pro."
+    },
+    "Hermes": {
+      "model": "claude-sonnet-4-6",
+      "confidence": "LOW",
+      "source_url": "internal-fallback",
+      "notes": "Conservative fallback; Hermes Agent lets the user wire OpenRouter / Nemotron / Mimo / etc. -- no Hermes-side single price-able default exists."
+    }
+  }
+}

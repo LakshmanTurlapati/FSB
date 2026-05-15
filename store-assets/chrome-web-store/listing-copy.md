@@ -77,3 +77,42 @@ Leave blank unless you have a YouTube demo video ready.
   - `screenshots/05-intelligence-graph.png`
 - Small promo tile: `small-promo-tile-440x280.png`
 - Marquee promo tile: `marquee-promo-tile-1400x560.png`
+
+## Data Collection
+
+FSB v0.9.69 collects opt-out anonymous usage telemetry so the project can publish aggregate adoption metrics (total installs, active sessions, token throughput) at https://full-selfbrowsing.com/stats. Telemetry never touches the pages you browse and can be disabled in one click from the Control Panel.
+
+What FSB collects:
+
+- A random per-install UUID stored locally as `fsbInstallUuid` in `chrome.storage.local` (generated client-side, never tied to user identity).
+- The name of the MCP client used (Claude Code, Cursor, Codex, …) — drawn from a fixed allowlist.
+- The name of the model used (grok-4-fast, claude-opus-4, …) — drawn from a fixed allowlist.
+- Aggregate input/output token counts per session.
+- A count of active FSB agents on the install (an integer).
+
+What FSB does NOT collect:
+
+- Page URLs, hostnames, or browsing history.
+- Prompts, instructions, task descriptions, or any natural-language text sent to the model provider.
+- Page DOM, screenshots, page content, or AI responses.
+- Plaintext IP addresses (the server hashes the request IP with a daily-rotating salt for rate limiting and discards it).
+- Names, usernames, account handles, or any free-form identity fields.
+- Email addresses, phone numbers, or contact information.
+
+Retention:
+
+- Raw events: 7 days.
+- Daily rollups (one row per install per day): 365 days.
+- Global aggregates (one row per day, no per-install dimension): indefinite, so historical charts on `/stats` remain stable.
+
+Opt-out path:
+
+- Open the FSB Control Panel, scroll to Advanced Settings, and toggle off "Send anonymous usage data". The change takes effect immediately.
+
+Limited Use affirmation:
+
+FSB's anonymous usage telemetry is used only to compute aggregate usage statistics displayed publicly at full-selfbrowsing.com/stats. The data is never sold, never shared with third parties, never used for advertising, and never used to train any machine-learning models. This commitment satisfies the Chrome Web Store's Limited Use requirement.
+
+Full privacy policy:
+
+- https://full-selfbrowsing.com/privacy#telemetry-disclosure

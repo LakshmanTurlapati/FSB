@@ -297,10 +297,60 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
   const gateResult = checkOwnershipGate({ tool, params, payload });
   if (gateResult) return gateResult;
 
-  return route.handler({ tool, params: params || {}, client, tab, payload, route });
+  // Phase 271 / v0.9.69 -- MCP analytics chokepoint. recordDispatch fires in
+  // finally on BOTH success and failure paths; errors do NOT skip recording.
+  // The recorder's own try/catch insulates this dispatcher from any internal
+  // recorder failure, but we wrap the call in a second try/catch as defence
+  // in depth: the metrics call MUST NEVER alter the dispatcher's resolved
+  // value or thrown error. Early-return paths above (!route, handler missing,
+  // gateResult) intentionally do NOT call recordDispatch -- those are
+  // dispatcher-internal errors where no tool actually ran.
+  //
+  // CR-01 (271-REVIEW.md): When invoked via a tool route alias, the outer
+  // tool route is responsible for recording. The `_mcpMetricsSuppressInner`
+  // flag below is propagated by handleToolAliasRoute into
+  // dispatchMcpMessageRoute and suppresses the inner message-route recording
+  // to prevent double-counting. The outer dispatchMcpToolRoute ALWAYS records
+  // (with dispatcher_route: 'tool'); the inner dispatchMcpMessageRoute
+  // skips its finally when the flag is true. Non-alias handlers ignore the
+  // flag, so this is a no-op for the 13 non-alias tool routes.
+  let response = undefined;
+  let success = false;
+  try {
+    response = await route.handler({
+      tool,
+      params: params || {},
+      client,
+      tab,
+      payload,
+      route,
+      _mcpMetricsSuppressInner: true
+    });
+    success = !(response && typeof response === 'object' && response.success === false);
+    return response;
+  } finally {
+    try {
+      if (
+        typeof globalThis !== 'undefined' &&
+        globalThis.fsbMcpMetricsRecorder &&
+        typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
+      ) {
+        // Fire-and-forget; intentionally NOT awaited so a slow storage write
+        // never blocks the dispatcher's return to the WS client.
+        globalThis.fsbMcpMetricsRecorder.recordDispatch({
+          client,
+          tool,
+          requestPayload: payload,
+          response,
+          success,
+          dispatcher_route: 'tool'
+        });
+      }
+    } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
+  }
 }
 
-async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null }) {
+async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpMsgId = null, _mcpMetricsSuppressInner = false }) {
   const route = MCP_PHASE199_MESSAGE_ROUTES[type];
   if (!route) {
     return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT);
@@ -309,24 +359,79 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
   const restrictedReadResponse = await buildRestrictedResponseIfReadRoute({ type, client });
   if (restrictedReadResponse) return restrictedReadResponse;
 
-  if (typeof route.handler === 'function') {
-    try {
-      return await route.handler({ type, payload: payload || {}, client, mcpMsgId, route });
-    } catch (error) {
-      return maybeBuildRestrictedResponse({ error, tool: type, client });
-    }
-  }
-
-  if (!client || typeof client[route.helperName] !== 'function') {
-    const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
-    if (restrictedResponse) return restrictedResponse;
-    return createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client helper unavailable' });
-  }
-
+  // Phase 271 / v0.9.69 -- MCP analytics chokepoint (message surface). Same
+  // try/finally pattern as dispatchMcpToolRoute: recorder fires from finally
+  // on BOTH success and failure paths and on both terminal arms (route.handler
+  // and client.helperName). Early-return paths (!route, restricted-read
+  // synthesis) do NOT record -- the route never ran.
+  let response = undefined;
+  let success = false;
   try {
-    return await client[route.helperName](payload || {}, mcpMsgId);
-  } catch (error) {
-    return maybeBuildRestrictedResponse({ error, tool: type, client });
+    if (typeof route.handler === 'function') {
+      try {
+        response = await route.handler({ type, payload: payload || {}, client, mcpMsgId, route });
+        success = !(response && typeof response === 'object' && response.success === false);
+        return response;
+      } catch (error) {
+        response = await maybeBuildRestrictedResponse({ error, tool: type, client });
+        success = false;
+        return response;
+      }
+    }
+
+    if (!client || typeof client[route.helperName] !== 'function') {
+      const restrictedResponse = await buildRestrictedResponseIfActive({ client, tool: type, error: new Error('Bridge client helper unavailable') });
+      if (restrictedResponse) {
+        response = restrictedResponse;
+        success = !(restrictedResponse && restrictedResponse.success === false);
+        return restrictedResponse;
+      }
+      response = createMcpRouteError(type, 'message', MCP_ROUTE_RECOVERY_HINT, { error: 'Bridge client helper unavailable' });
+      success = false;
+      return response;
+    }
+
+    try {
+      response = await client[route.helperName](payload || {}, mcpMsgId);
+      success = !(response && typeof response === 'object' && response.success === false);
+      return response;
+    } catch (error) {
+      response = await maybeBuildRestrictedResponse({ error, tool: type, client });
+      success = false;
+      return response;
+    }
+  } finally {
+    // CR-01 (271-REVIEW.md): when invoked via a tool route alias, the outer
+    // dispatchMcpToolRoute is responsible for recording. The
+    // `_mcpMetricsSuppressInner` flag suppresses the inner message-route
+    // recording to prevent double-counting for the 14 alias-routed tools
+    // (run_task, read_page, get_dom_snapshot, ...). Direct WS message
+    // dispatches (the normal path) leave the flag at its default `false`
+    // and continue to record as before.
+    //
+    // IMPORTANT: do NOT use `if (flag) return;` inside this finally block --
+    // a bare `return` from a finally OVERRIDES the try block's return value
+    // (the return propagates as `undefined`, swallowing the handler's real
+    // response). Instead, gate the recordDispatch call itself so the try
+    // block's return value flows through unchanged.
+    if (!_mcpMetricsSuppressInner) {
+      try {
+        if (
+          typeof globalThis !== 'undefined' &&
+          globalThis.fsbMcpMetricsRecorder &&
+          typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
+        ) {
+          globalThis.fsbMcpMetricsRecorder.recordDispatch({
+            client,
+            tool: type,
+            requestPayload: payload,
+            response,
+            success,
+            dispatcher_route: 'message'
+          });
+        }
+      } catch (_e) { /* defence in depth -- never let metrics break dispatch */ }
+    }
   }
 }
 
@@ -1337,11 +1442,19 @@ function callCallbackHandler(handlerName, request, sender = {}, routeFamily = 'a
   });
 }
 
-async function handleToolAliasRoute({ params, client, route }) {
+// CR-01 (271-REVIEW.md): handleToolAliasRoute is the bridge between the two
+// dispatchers for the 14 alias-routed tools. When invoked via a tool route
+// alias, the outer tool route (dispatchMcpToolRoute) is responsible for
+// recording. This handler propagates the `_mcpMetricsSuppressInner` flag
+// passed in by dispatchMcpToolRoute into the inner dispatchMcpMessageRoute
+// call so the inner finally skips its recordDispatch -- preventing the
+// double-write that would otherwise inflate every alias-routed metric by 2x.
+async function handleToolAliasRoute({ params, client, route, _mcpMetricsSuppressInner }) {
   return dispatchMcpMessageRoute({
     type: route.messageType,
     payload: params || {},
-    client
+    client,
+    _mcpMetricsSuppressInner
   });
 }
 
@@ -1506,6 +1619,20 @@ async function handleAgentRegisterRoute({ payload, client } = {}) {
     try { reg.stampConnectionId(agentId, connectionId); } catch (_e) { /* best-effort */ }
   }
   console.log('[FSB MCP Dispatcher] agent:register minted ' + agentIdShort);
+  // Phase 272 / BEAT-09 sub-requirement: active-agent counter feeds the
+  // telemetry beat's active_agent_count field. Read-modify-write under
+  // best-effort semantics -- a dropped increment is acceptable telemetry
+  // quality cost; throwing here would crash the MCP dispatch chokepoint.
+  // Placed AFTER the cap check returns (so AGENT_CAP_REACHED does NOT
+  // increment) and AFTER stampConnectionId (so connection_id binding still
+  // races independently of counter writes).
+  try {
+    const cur = await chrome.storage.local.get(['fsbActiveAgentsCount']);
+    const n = (cur && typeof cur.fsbActiveAgentsCount === 'number' && cur.fsbActiveAgentsCount >= 0)
+      ? Math.floor(cur.fsbActiveAgentsCount)
+      : 0;
+    await chrome.storage.local.set({ fsbActiveAgentsCount: n + 1 });
+  } catch (_e) { /* best-effort */ }
   // Phase 240 Open Q1 resolution: agent:register response carries an empty
   // ownershipTokens map at register time. Subsequent bindTab-firing handlers
   // include `ownershipToken: <new>` in their per-call response; the MCP
@@ -1530,6 +1657,19 @@ async function handleAgentReleaseRoute({ payload } = {}) {
   // The Phase 237 registry returns a plain boolean today; future evolution may
   // return { released, releasedTabIds }. Accept either shape defensively.
   const released = (result === true) || !!(result && result.released);
+  // Phase 272 / BEAT-09 sub-requirement: clamp-to-zero decrement on release.
+  // Per CONTEXT.md "Guard against negative counts (clamp to 0)". Best-effort:
+  // storage failures are swallowed so a dropped decrement never crashes the
+  // dispatcher chokepoint (threat T-272-04 / T-272-08).
+  if (released) {
+    try {
+      const cur = await chrome.storage.local.get(['fsbActiveAgentsCount']);
+      const n = (cur && typeof cur.fsbActiveAgentsCount === 'number' && cur.fsbActiveAgentsCount > 0)
+        ? Math.floor(cur.fsbActiveAgentsCount)
+        : 0;
+      await chrome.storage.local.set({ fsbActiveAgentsCount: Math.max(0, n - 1) });
+    } catch (_e) { /* best-effort */ }
+  }
   return { success: true, released };
 }
 

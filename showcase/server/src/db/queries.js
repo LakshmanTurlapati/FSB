@@ -133,6 +133,85 @@ class Queries {
       FROM agent_runs
       WHERE hash_key = ? AND agent_id = ?
     `);
+
+    // -----------------------------------------------------------------------
+    // Phase 273 / INGEST-07/08/11/12 -- anonymous telemetry pipeline statements.
+    // Additive; existing statements untouched. Uses INSERT OR IGNORE on event_id
+    // PRIMARY KEY so BEAT-04 (client-side replay dedup) survives at the server.
+    // -----------------------------------------------------------------------
+    this.insertTelemetryEvent = this.db.prepare(
+      'INSERT OR IGNORE INTO telemetry_events (event_id, install_uuid, ts_minute, mcp_client, model, tokens_in, tokens_out, active_agent_count, event_type, ip_hash, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    this.upsertRollupDaily = this.db.prepare(`
+      INSERT INTO telemetry_rollups_daily (install_uuid, day_utc, tokens_in, tokens_out, max_active_agents, event_count)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(install_uuid, day_utc) DO UPDATE SET
+        tokens_in = excluded.tokens_in,
+        tokens_out = excluded.tokens_out,
+        max_active_agents = excluded.max_active_agents,
+        event_count = excluded.event_count
+    `);
+
+    this.upsertGlobalAggregate = this.db.prepare(`
+      INSERT INTO telemetry_global_aggregates (day_utc, unique_installs, tokens_in_sum, tokens_out_sum, agents_active_sum, popular_mcp_json, popular_agent_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(day_utc) DO UPDATE SET
+        unique_installs = excluded.unique_installs,
+        tokens_in_sum = excluded.tokens_in_sum,
+        tokens_out_sum = excluded.tokens_out_sum,
+        agents_active_sum = excluded.agents_active_sum,
+        popular_mcp_json = excluded.popular_mcp_json,
+        popular_agent_json = excluded.popular_agent_json
+    `);
+
+    this.deleteEventsByUuid = this.db.prepare('DELETE FROM telemetry_events WHERE install_uuid = ?');
+    this.deleteRollupsByUuid = this.db.prepare('DELETE FROM telemetry_rollups_daily WHERE install_uuid = ?');
+    this.deleteOldEvents = this.db.prepare('DELETE FROM telemetry_events WHERE received_at < ?');
+
+    // Day-range range scans use the (install_uuid, ts_minute) index when filtered by
+    // install_uuid, otherwise fall back to a sequential scan -- the housekeeper's
+    // selectUuidsForDayRange materialises the DISTINCT uuid list first to keep this hot.
+    this.aggregateRollupForUuidDay = this.db.prepare(
+      'SELECT install_uuid, SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out, MAX(active_agent_count) AS max_active_agents, COUNT(*) AS event_count FROM telemetry_events WHERE ts_minute >= ? AND ts_minute < ? AND install_uuid = ? GROUP BY install_uuid'
+    );
+    this.selectUuidsForDayRange = this.db.prepare(
+      'SELECT DISTINCT install_uuid FROM telemetry_events WHERE ts_minute >= ? AND ts_minute < ?'
+    );
+    this.selectGlobalForDayRange = this.db.prepare(
+      'SELECT COUNT(DISTINCT install_uuid) AS unique_installs, SUM(tokens_in) AS tokens_in_sum, SUM(tokens_out) AS tokens_out_sum, SUM(active_agent_count) AS agents_active_sum FROM telemetry_events WHERE ts_minute >= ? AND ts_minute < ?'
+    );
+    this.selectPopularMcpForDayRange = this.db.prepare(
+      'SELECT mcp_client, COUNT(DISTINCT install_uuid) AS uniq FROM telemetry_events WHERE ts_minute >= ? AND ts_minute < ? GROUP BY mcp_client ORDER BY uniq DESC'
+    );
+
+    this.selectTodaySalt = this.db.prepare('SELECT salt_hex, minted_at FROM telemetry_daily_salt WHERE day_utc = ?');
+    this.insertTodaySalt = this.db.prepare('INSERT INTO telemetry_daily_salt (day_utc, salt_hex, minted_at) VALUES (?, ?, ?)');
+    this.deleteOldSalts = this.db.prepare('DELETE FROM telemetry_daily_salt WHERE day_utc < ?');
+
+    // Phase 274 / AGG-01..09 -- public aggregates read paths (no writes).
+    // Each is hand-built from typed fields per T-274-01; no SELECT *. The lifetime
+    // statements (total_users / lifetime tokens) scan tables the housekeeper rolls
+    // up nightly; reads are O(rows-per-day) for ~365 days, well under SQLite's
+    // millisecond ceiling.
+    this.aggregateTotalUsers = this.db.prepare(
+      'SELECT COUNT(DISTINCT install_uuid) AS n FROM telemetry_rollups_daily'
+    );
+    this.aggregateTotalAgentsLifetime = this.db.prepare(
+      'SELECT COALESCE(SUM(max_active_agents), 0) AS n FROM telemetry_rollups_daily'
+    );
+    this.aggregateTokensLifetime = this.db.prepare(
+      'SELECT COALESCE(SUM(tokens_in_sum + tokens_out_sum), 0) AS n FROM telemetry_global_aggregates'
+    );
+    this.aggregateTokens24h = this.db.prepare(
+      "SELECT COALESCE(SUM(tokens_in_sum + tokens_out_sum), 0) AS n FROM telemetry_global_aggregates WHERE day_utc >= date('now', '-1 day')"
+    );
+    this.selectLatestGlobalAggregate = this.db.prepare(
+      'SELECT popular_mcp_json, popular_agent_json FROM telemetry_global_aggregates ORDER BY day_utc DESC LIMIT 1'
+    );
+    this.selectSeriesForWindow = this.db.prepare(
+      "SELECT day_utc, unique_installs, tokens_in_sum, tokens_out_sum, agents_active_sum FROM telemetry_global_aggregates WHERE day_utc >= date('now', ?) ORDER BY day_utc ASC"
+    );
   }
 
   // Hash key operations
@@ -261,6 +340,81 @@ class Queries {
       totalCost: Math.round((allTime.total_cost || 0) * 10000) / 10000,
       totalCostSaved: Math.round((allTime.total_cost_saved || 0) * 10000) / 10000,
       totalDuration: allTime.total_duration || 0
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase 273 / INGEST-07/08/11/12 -- anonymous telemetry pipeline helpers.
+  // Each method is a small wrapper around the prepared statement; business
+  // logic lives in routes/telemetry.js, telemetry/housekeeper.js, and utils/.
+  // -----------------------------------------------------------------------
+  insertTelemetryEventRow(eventId, installUuid, tsMinute, mcpClient, model, tokensIn, tokensOut, activeAgentCount, eventType, ipHash, receivedAt) {
+    return this.insertTelemetryEvent.run(
+      eventId, installUuid, tsMinute, mcpClient, model || null,
+      tokensIn, tokensOut, activeAgentCount, eventType, ipHash, receivedAt
+    );
+  }
+
+  forgetInstallUuid(installUuid) {
+    // Order: events first, then rollups. (No FK between them; either order is
+    // fine, but events is the larger table and the obvious user-visible target.)
+    const a = this.deleteEventsByUuid.run(installUuid);
+    const b = this.deleteRollupsByUuid.run(installUuid);
+    return { eventsDeleted: a.changes, rollupsDeleted: b.changes };
+  }
+
+  pruneOldTelemetryEvents(beforeMs) {
+    return this.deleteOldEvents.run(beforeMs).changes;
+  }
+
+  listUuidsForDayRange(startMs, endMs) {
+    return this.selectUuidsForDayRange.all(startMs, endMs).map((r) => r.install_uuid);
+  }
+
+  aggregateForUuidDay(startMs, endMs, installUuid) {
+    return this.aggregateRollupForUuidDay.get(startMs, endMs, installUuid) || null;
+  }
+
+  upsertRollupDailyRow(installUuid, dayUtc, tokensIn, tokensOut, maxActiveAgents, eventCount) {
+    return this.upsertRollupDaily.run(installUuid, dayUtc, tokensIn || 0, tokensOut || 0, maxActiveAgents || 0, eventCount || 0);
+  }
+
+  aggregateGlobalForDayRange(startMs, endMs) {
+    return this.selectGlobalForDayRange.get(startMs, endMs) || null;
+  }
+
+  popularMcpForDayRange(startMs, endMs) {
+    return this.selectPopularMcpForDayRange.all(startMs, endMs);
+  }
+
+  upsertGlobalAggregateRow(dayUtc, uniqueInstalls, tokensInSum, tokensOutSum, agentsActiveSum, popularMcpJson, popularAgentJson) {
+    return this.upsertGlobalAggregate.run(
+      dayUtc, uniqueInstalls || 0, tokensInSum || 0, tokensOutSum || 0, agentsActiveSum || 0,
+      popularMcpJson || '[]', popularAgentJson || '[]'
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase 274 / AGG-01..09 -- public-stats helpers.
+  // Each method returns plain JS numbers (better-sqlite3 INTEGER -> number
+  // when <= 2^53; for our scale this is safe). Defensive defaults handle the
+  // empty-database case so the public endpoint never returns null fields.
+  // -----------------------------------------------------------------------
+  getPublicHeadlineRows() {
+    return {
+      total_users:           this.aggregateTotalUsers.get()?.n || 0,
+      total_agents_lifetime: this.aggregateTotalAgentsLifetime.get()?.n || 0,
+      tokens_total_lifetime: this.aggregateTokensLifetime.get()?.n || 0,
+      tokens_24h:            this.aggregateTokens24h.get()?.n || 0,
+      latest_global:         this.selectLatestGlobalAggregate.get() || { popular_mcp_json: '[]', popular_agent_json: '[]' },
+    };
+  }
+
+  getPublicSeriesRows() {
+    return {
+      d30:  this.selectSeriesForWindow.all('-30 days'),
+      d90:  this.selectSeriesForWindow.all('-90 days'),
+      d365: this.selectSeriesForWindow.all('-365 days'),
     };
   }
 }

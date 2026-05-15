@@ -1,566 +1,693 @@
-# Architecture Research: OpenClaw FSB Skill (v0.9.61)
+# Architecture Research: v0.9.69 Anonymous Telemetry Pipeline + Dashboard Streaming Fix
 
-**Domain:** OpenClaw skill package integrating into existing FSB monorepo (Chrome MV3 extension + `fsb-mcp-server` npm package + Angular showcase)
-**Researched:** 2026-05-08
-**Mode:** Project Research (subsequent milestone v0.9.61, branch `Claw`)
-**Confidence:** HIGH on FSB-side integration points (codebase walked); MEDIUM on exact OpenClaw `metadata.openclaw` schema (per PROJECT.md it requires live-build verification before SKILL.md is finalized)
-
----
-
-## 1. Scope and Constraints
-
-This document answers a single question: **how does the new OpenClaw FSB skill plug into FSB's existing architecture?** It deliberately does not re-derive the extension/MCP/showcase architecture (covered in prior milestone research) and assumes the following invariants from `PROJECT.md`, `mcp/README.md`, `mcp/src/install.ts`, and root `README.md`:
-
-- The MCP bridge contract (`ws://localhost:7225` extension <-> hub, `http://127.0.0.1:7226/mcp` Streamable HTTP) is fixed for this milestone. The skill consumes it; it does not change it.
-- `fsb-mcp-server@0.8.0` is tag-ready but not yet published. `npm publish` remains user-gated.
-- `mcp/src/install.ts` lines 412-421 declare OpenClaw status as `manual / unsupported`. Auto-writing into an OpenClaw config file is explicitly out of scope; the skill must print stdio config and let the user paste it.
-- The 60 MCP tools (visual-session 2 + autopilot 4 + manual 37 + read-only 8 + observability 5 + vault 4) are the public surface the skill teaches. The skill does not register new tools.
-- Multi-agent contract from v0.9.60 is mandatory boilerplate the skill must surface: callers must not pass `agent_id`; typed errors `TAB_NOT_OWNED` / `AGENT_CAP_REACHED` / `TAB_INCOGNITO_NOT_SUPPORTED` / `TAB_OUT_OF_SCOPE` must be explained; `back` tool replaces `execute_js("history.back()")`.
-- Chrome extension is distributed via Web Store ID `badgafnfchcihdfnjneklogedcdkmjfk`. The skill cannot install it; it can only deep-link.
-- Vault boundary: secrets never appear in chat; `fill_credential` and `use_payment_method` are the only legal autofill paths.
-
-The skill is, by design, the thinnest possible adapter: a markdown spec with a few shell scripts that orchestrate calls into already-shipped FSB CLIs. It owns no new server logic, no new bridge messages, and no new MCP tools.
+**Milestone:** v0.9.69 (subsequent milestone; existing FSB architecture preserved)
+**Researched:** 2026-05-14
+**Branch:** `Refinements`
+**Confidence:** HIGH (codebase walked end-to-end for every integration point)
 
 ---
 
-## 2. Recommended Repo Layout
+## 0. Scope
 
-### Recommendation: top-level `skills/FSB Skill/`
+This document is exclusively about the NEW v0.9.69 features layered onto the existing FSB stack. The Chrome MV3 extension structure, Express + SQLite showcase server, Angular 20 standalone components, `ws` library at `/ws`, `LZString` envelope contract, and `chrome.storage.local` analytics store are **assumed**, not re-researched.
 
-The monorepo currently has these top-level peers:
+What we add:
 
-```
-FSB/
-├── extension/          # MV3 Chrome extension
-├── mcp/                # fsb-mcp-server npm package (TypeScript)
-├── showcase/           # Angular 20 marketing site + Express relay
-├── server/             # (untracked, present in working tree)
-├── server-py/          # legacy FastAPI prototype
-├── tests/              # root-level tests covering all packages
-├── scripts/            # repo maintenance + validate-extension.mjs
-├── store-assets/       # (untracked, Chrome Web Store assets)
-├── site-guides/        # (untracked, site-guide markdown corpus)
-├── mcp-server/         # (untracked, transitional or legacy)
-└── .planning/          # GSD planning + research
-```
-
-The skill should live at `FSB/skills/FSB Skill/` (note the literal space in the folder name, per milestone scope). Inside:
-
-```
-skills/FSB Skill/
-├── SKILL.md                    # frontmatter: name: FSB, OpenClaw metadata
-├── USAGE.md                    # user-facing one-pager (3-step install + try-it prompts)
-├── references/
-│   ├── tool-decision-tree.md   # read-only first → typed events → run_task last
-│   ├── multi-agent-contract.md # TAB_NOT_OWNED / AGENT_CAP_REACHED / back tool / no agent_id
-│   ├── restricted-tab-recovery.md  # list_tabs/navigate/open_tab/switch_tab playbook
-│   ├── vault-boundary.md       # fill_credential / use_payment_method only
-│   └── default-to-fsb.md       # soft preference + hard escalation rule
-└── scripts/
-    ├── doctor.sh               # wraps `npx -y fsb-mcp-server doctor`, parses layer, branches
-    ├── install-host.sh         # optional: `npx -y fsb-mcp-server install --<host>`
-    └── print-stdio.sh          # emits the OpenClaw stdio config block
-```
-
-### Pros and cons of each layout option
-
-| Layout | Pros | Cons | Verdict |
-|--------|------|------|---------|
-| **`skills/FSB Skill/`** (top-level peer) | Matches OpenClaw's first-class concept of "skills"; symmetric with `extension/`, `mcp/`, `showcase/`; future skills (Claude Code, Codex) drop in alongside; easy to add to `package.json` `files` for any future skill bundle; clean ownership boundary in `CODEOWNERS` | Folder name has a space, which forces quoted paths in shell + CI; one more top-level entry to ignore in `.gitignore`/`tsconfig` includes | **Recommended.** Space-in-name is non-negotiable per milestone scope (matches what OpenClaw scans). |
-| **`mcp/skills/FSB Skill/`** (under MCP) | Co-located with the binary the skill calls (`fsb-mcp-server`); easier to keep skill version aligned with MCP version | Conflates packaging boundaries: `mcp/` publishes to npm and uses `mcp/build/`; nesting a non-TS, non-published skill inside it adds noise to `.npmignore` and `npm pack` filtering; if OpenClaw later scans `<repo>/skills/`, this hides the skill | Reject. |
-| **`FSB Skill/`** (top-level, no `skills/` parent) | Flattest possible | No room for additional skills later; folder name with space at top-level is the most disruptive variant; harder to glob (`skills/*/SKILL.md`) | Reject. |
-| **`.planning/skills/`** | Keeps it out of shipping artifacts | Wrong semantics — `.planning/` is for GSD planning, not deliverables; OpenClaw cannot find it | Reject. |
-
-The `skills/` parent gives a future-proof glob target (`skills/*/SKILL.md`) that the skill discovery code, CI lint, and any "list our skills" docs page can rely on without hardcoding the FSB skill name.
+1. **MCP request logger** in the extension (single source of truth for "an MCP tool was just dispatched").
+2. **API pricing module** mapping `(MCP client label, tool, model) -> USD cost`.
+3. **Anonymous telemetry collector** that batches events and POSTs them to the showcase server.
+4. **Server ingest** at `/api/telemetry/*` with daily-salt IP hashing, raw event table, daily rollups, public aggregates.
+5. **Public `/api/public-stats/*` endpoint** consumed by the existing `/stats` Easter-egg page via a new `FSBTelemetryService` paralleling `GitHubStatsService`.
+6. **DOM-streaming-fix diagnosis** (last phase) of the `dash:dom-stream-*` pipeline.
 
 ---
 
-## 3. First-Run Boot Sequence
+## 1. Extension-side Data Flow for MCP Logging
 
-The skill's first-run flow is a **doctor-first branch tree**. The skill never blindly runs `install`; every branch is gated on the layer that `fsb-mcp-server doctor` reports failing. This matches the doctrine codified in `mcp/README.md` Diagnostics ("Only restart or reinstall the client when the reported layer points there") and is the same posture v0.9.35 hardened.
+### 1.1 The hook point: ONE chokepoint, both dispatchers
 
-### 3.1 Ordered call graph
+There are two dispatch entry points for an MCP request, and we must hook **both** (or hook a common upstream point that both call):
 
-```
-[user invokes "FSB" skill in OpenClaw]
-        │
-        ▼
-[OpenClaw loader] reads SKILL.md
-        │
-        │ injects metadata.openclaw.requires.env (PATH, HOME, etc.)
-        ▼
-[scripts/doctor.sh]
-        │
-        ▼
-   exec: npx -y fsb-mcp-server doctor
-        │
-        │ parses output → identifies failing layer
-        ▼
-   ┌────────────────────────────────────────────────┐
-   │  Layer reported by doctor                      │
-   ├────────────────────────────────────────────────┤
-   │  package    → npm + Node available?            │── if no → stop, tell user to install Node 18+
-   │  bridge     → ws://localhost:7225 reachable?   │── if no → instruct: ensure no other hub
-   │  extension  → extension connected to bridge?   │── if no → branch A (Web Store install)
-   │  active-tab → normal http(s) tab in foreground?│── if no → branch B (open a real tab)
-   │  content-script → script injected on tab?     │── if no → instruct: refresh tab
-   │  config     → host MCP config present?         │── if no → branch C (print stdio block)
-   │  ALL GREEN  →                                   │── branch D (try-it prompt + USAGE.md)
-   └────────────────────────────────────────────────┘
-        │
-        ▼
-   ┌──────────────────────────────────────────┐
-   │  Branch A: extension missing             │
-   │  - print Web Store URL                   │
-   │  - URL: chromewebstore.google.com/.../   │
-   │           badgafnfchcihdfnjneklogedcdkmjfk│
-   │  - run `wait-for-extension` (poll bridge) │
-   │  - re-run doctor on connection           │
-   └──────────────────────────────────────────┘
-   ┌──────────────────────────────────────────┐
-   │  Branch B: restricted active tab         │
-   │  - tell user to focus a normal tab       │
-   │  - retry doctor                          │
-   └──────────────────────────────────────────┘
-   ┌──────────────────────────────────────────┐
-   │  Branch C: OpenClaw stdio config missing │
-   │  - print exactly:                        │
-   │      command: npx                        │
-   │      args:    -y fsb-mcp-server          │
-   │  - tell user to paste into OpenClaw cfg  │
-   │  - (optional) detect other MCP hosts on  │
-   │    the same machine and offer            │
-   │    `npx -y fsb-mcp-server install --<x>` │
-   │    using install.ts flag matrix          │
-   └──────────────────────────────────────────┘
-   ┌──────────────────────────────────────────┐
-   │  Branch D: all green — ready             │
-   │  - read USAGE.md                         │
-   │  - suggest 2-3 try-it prompts            │
-   │  - reminder: start_visual_session(client │
-   │    ="OpenClaw") for any sequence         │
-   └──────────────────────────────────────────┘
+| Entry point | File / line | Used by |
+|-------------|-------------|---------|
+| `dispatchMcpToolRoute({ tool, params, client, tab, payload })` | `extension/ws/mcp-tool-dispatcher.js:285-301` | Tool-name routes (`navigate`, `open_tab`, `execute_js`, `run_task`, `read_page`, `get_dom_snapshot`, etc.) -- 28 entries in `MCP_PHASE199_TOOL_ROUTES` |
+| `dispatchMcpMessageRoute({ type, payload, client, mcpMsgId })` | `extension/ws/mcp-tool-dispatcher.js:303-331` | Raw `mcp:` message types from `MCPBridgeClient._routeMessage` -- agent lifecycle, get-tabs, get-diagnostics, get-status, list-sessions, etc. |
+
+Both are called from `MCPBridgeClient._routeMessage` in `extension/ws/mcp-bridge-client.js:373-485` -- some cases call `dispatchMcpMessageRoute` directly (lines 381, 384, 387, 390, 393), others call helper methods that ultimately call `dispatchMcpToolRoute` (line 851 inside `_handleExecuteBackground`, line 523 inside `_handleGetTabs`).
+
+**Recommended hook point: `dispatchMcpToolRoute` and `dispatchMcpMessageRoute` themselves**, with a thin `MCPMetricsRecorder.recordDispatch({ surface, tool|type, params, payload, startedAt, result, durationMs })` invoked AFTER the route handler resolves but BEFORE returning to the caller.
+
+Specifically:
+
+```javascript
+// extension/ws/mcp-tool-dispatcher.js:285
+async function dispatchMcpToolRoute({ tool, params, client, tab, payload }) {
+  // ... existing route lookup + ownership gate ...
+  const startedAt = Date.now();
+  let result, error;
+  try {
+    result = await route.handler({ tool, params: params || {}, client, tab, payload, route });
+    return result;
+  } catch (e) {
+    error = e;
+    throw e;
+  } finally {
+    // NEW (Phase v0.9.69):
+    try {
+      if (typeof globalThis.MCPMetricsRecorder !== 'undefined') {
+        globalThis.MCPMetricsRecorder.recordDispatch({
+          surface: 'tool',
+          tool,
+          params,
+          payload,
+          client,
+          startedAt,
+          durationMs: Date.now() - startedAt,
+          result,
+          error,
+          routeFamily: route.routeFamily
+        });
+      }
+    } catch (_e) { /* never let metrics break dispatch */ }
+  }
+}
 ```
 
-### 3.2 Data flow per branch
+The same `try/finally` pattern fires in `dispatchMcpMessageRoute` (line 303) with `surface: 'message'`.
 
-| Step | Producer | Consumer | Payload |
-|------|----------|----------|---------|
-| 1 | OpenClaw loader | `scripts/doctor.sh` | env vars from `metadata.openclaw.requires.env` (PATH, HOME, NODE_PATH) |
-| 2 | `scripts/doctor.sh` | `npx -y fsb-mcp-server doctor` (child process) | none (CLI invocation) |
-| 3 | `fsb-mcp-server doctor` | parser in `doctor.sh` | stdout containing primary failing layer label |
-| 4 | parser | branch dispatcher | `{layer: 'package'\|'bridge'\|'extension'\|'active-tab'\|'content-script'\|'config'\|'ok'}` |
-| 5 (Branch A) | dispatcher | user (stdout) | Web Store URL + `wait-for-extension` instruction |
-| 5 (Branch C) | dispatcher | user (stdout) | OpenClaw stdio block + (optional) detected-host install offers |
-| 5 (Branch D) | dispatcher | user (stdout) | `USAGE.md` content + try-it prompts |
-| 6 | user | OpenClaw runtime | (after manual paste/install) restart; on next invocation, doctor returns `ok` |
-| 7 | OpenClaw runtime | FSB MCP tools | tool calls wrapped with `client="OpenClaw"` visual session |
+**Why this is the right hook point** (not `MCPBridgeClient._handleMessage` and not the per-route handlers):
 
-### 3.3 Why doctor-first, not install-first
+- **One chokepoint, both inbound flows.** Phase 199's existing architecture (D-06: "single dispatch chokepoint") already guarantees these two functions are the only ways an MCP call can reach a route handler. Anything that bypasses them is a contract violation that fails loud elsewhere.
+- **Post-resolve, pre-return = success/failure both captured.** The `finally` block runs whether the route handler resolved successfully, returned an `{ success: false }` envelope, or threw. Token cost can only be estimated from the result envelope (see `change_report` / `result.tokensUsed` shapes that already exist on `run_task` outputs).
+- **No double-counting risk.** A single MCP tool call enters the extension via the WebSocket, is parsed once in `_handleMessage`, routed once to either `dispatchMcpToolRoute` or `dispatchMcpMessageRoute` (never both -- they're mutually exclusive by `type` vs `tool` discriminator), and the result envelope is returned to `_handleMessage` exactly once for `mcp:result` / `mcp:error` emit. One dispatch -> one metrics record.
+- **AI-side cost-tracker (`extension/ai/cost-tracker.js`) is orthogonal.** That tracker hooks `agent-loop.js` API calls. MCP-side metrics hook MCP dispatch. They cover disjoint surfaces (AI provider API call vs MCP tool dispatch). No overlap.
 
-Three reasons that come directly from existing design decisions logged in `PROJECT.md`:
+### 1.2 The new module: `MCPMetricsRecorder`
 
-1. **v0.9.35 Phase 200** classified failures into `package/config/bridge/extension/content-script/tool-routing` and codified "guide operators through `doctor` and `status --watch` first". Re-running `install` when the bridge is the actual problem is the most common failure-multiplier.
-2. **OpenClaw's status is `manual / unsupported`** in `mcp/src/install.ts:413-420`. There is no safe write target for `install --openclaw`, so the skill cannot install for OpenClaw the way it can for Claude Desktop. It must instruct the user.
-3. **MV3 service-worker reality:** the bridge can be down because Chrome put the SW to sleep, not because the config is broken. Doctor distinguishes those; `install` cannot.
+**Location:** `extension/utils/mcp-metrics-recorder.js`
+**Registered:** Imported via `importScripts('utils/mcp-metrics-recorder.js')` in `background.js`, ordered AFTER `analytics.js` (`background.js:31`) and BEFORE `ws/mcp-bridge-client.js` (`background.js:40`).
 
----
+**Shape (mirroring `CostTracker` in `extension/ai/cost-tracker.js:111` -- function/prototype pattern, NOT ES class, for `importScripts` compatibility):**
 
-## 4. Cross-Tool Boundary
+```javascript
+// extension/utils/mcp-metrics-recorder.js
+function MCPMetricsRecorder() {
+  this._loaded = false;
+  this._init();
+}
+MCPMetricsRecorder.prototype._init = async function() { /* hydrate from chrome.storage.local.fsbMcpUsageData */ };
+MCPMetricsRecorder.prototype.recordDispatch = async function({ surface, tool, type, params, payload, client, startedAt, durationMs, result, error, routeFamily }) {
+  // 1. Resolve client label from MCPBridgeClient.getConnectionId() + payload metadata
+  //    (See Section 2.2 -- the bridge-side client label allowlist already exists at
+  //    extension/utils/mcp-visual-session.js MCPVisualSessionUtils.normalizeMcpVisualClientLabel)
+  // 2. Resolve cost via globalThis.MCP_PRICING.estimate({ client, tool, tokensIn, tokensOut })
+  //    -- tokens harvested from result.tokensUsed for run_task; for non-run_task tools tokens=0,
+  //    cost=0 (only the call count and tool name matter).
+  // 3. Append to chrome.storage.local.fsbMcpUsageData (mirrors FSBAnalytics.usageData in utils/analytics.js:108)
+  // 4. Broadcast { type: 'MCP_METRICS_UPDATE' } via chrome.runtime.sendMessage (mirrors
+  //    broadcastAnalyticsUpdate at background.js:11440)
+  // 5. Enqueue an anonymous summary into TelemetryCollector.enqueue(...) -- see Section 3.
+};
+MCPMetricsRecorder.prototype.getRecentCalls = function(limit) { /* read-back for control-panel UI */ };
+MCPMetricsRecorder.prototype.getAggregates = function(timeRange) { /* totals for the hero */ };
 
-This table is the single source of truth for "who does what" during the skill lifecycle.
-
-| Action | Who | How | Notes |
-|--------|-----|-----|-------|
-| Detect Node 18+ available | OpenClaw | `metadata.openclaw.requires.bins: [npx, node]` | Fail-fast at skill load if missing; skill never runs |
-| Inject `PATH`, `HOME` | OpenClaw | `metadata.openclaw.requires.env` | Skill scripts assume these are present |
-| Run preflight diagnostics | **Skill (direct)** | `scripts/doctor.sh` → spawns `npx -y fsb-mcp-server doctor` | Direct subprocess; parses stdout |
-| Detect other MCP hosts | **Skill (direct)** | filesystem checks for known config paths (mirrors `install --list`) | Optional; `install --list` already does this — skill can shell out and parse |
-| Install FSB MCP into other hosts | **Skill (direct, opt-in)** | `npx -y fsb-mcp-server install --<host>` per detected host, with user confirmation | Reuses existing 21-platform installer in `mcp/src/install.ts` |
-| Install FSB MCP into OpenClaw itself | **User (manual)** | skill prints `command: npx`, `args: -y fsb-mcp-server`; user pastes into OpenClaw config | Forced by OpenClaw "manual / unsupported" entry at `install.ts:413-420` |
-| Install Chrome extension | **User (manual)** | skill prints Web Store URL; user clicks "Add to Chrome" | Browser security: extensions cannot be sideloaded by a CLI |
-| Wait for extension to come online | **Skill (direct)** | `npx -y fsb-mcp-server wait-for-extension` | Existing CLI; polls the bridge |
-| Wrap a tool sequence with the trusted overlay | **Skill (instructs OpenClaw model)** | "before any sequence call `start_visual_session(client="OpenClaw", task=..., detail=...)`" | `OpenClaw` is on the v0.9.36 trusted-label allowlist (per `mcp/README.md`); end with `end_visual_session(session_token)` |
-| Pick the right MCP tool for a step | **OpenClaw model (taught by skill)** | references/tool-decision-tree.md prompts: read-only first, typed events over `.value`, `run_task` only on explicit delegation | The skill is mostly a prompt-engineering artifact at this layer |
-| Surface multi-agent typed errors | **Skill (instructs OpenClaw model)** | references/multi-agent-contract.md teaches: do not pass `agent_id`; on `TAB_NOT_OWNED` switch to a tab the agent already owns; on `AGENT_CAP_REACHED` increase cap or end an idle agent; never enter incognito | All error codes already shipped in v0.9.60 |
-| Recover a restricted tab | **Skill (instructs OpenClaw model)** | references/restricted-tab-recovery.md prescribes the `list_tabs` → `navigate` / `open_tab` / `switch_tab` ladder | Bootstrap-safe per v0.9.60 Phase 247 |
-| Autofill credentials | **Skill (instructs OpenClaw model)** | "always `fill_credential` / `use_payment_method`; never type the password into chat" | Vault boundary already enforced server-side; skill rule prevents accidental leak in transcripts |
-| Default web-automation requests to FSB | **Skill (instructs OpenClaw model)** | references/default-to-fsb.md: soft preference if FSB tool fits; hard escalation for click/type/auth/multi-tab | Pure prompt rule; no runtime gate exists in OpenClaw to enforce it |
-
-The clean separation: **the skill calls FSB CLIs as a subprocess; it tells the user what only the user can do; everything else is prompt content that travels with OpenClaw's invocation.**
-
----
-
-## 5. Build/CI Integration
-
-### 5.1 Does the skill need a build step?
-
-No. The skill is markdown + shell. Treat it like `site-guides/` corpus: source-of-truth = filesystem; no transpile, no bundle.
-
-If `metadata.openclaw.install[]` ever needs JSON injection from `mcp/src/version.ts` (e.g. to pin `fsb-mcp-server@0.8.0` in the printed stdio block), add a tiny templating step to `scripts/`. As of this milestone scope it is sufficient to hardcode `npx -y fsb-mcp-server` (no version pin), matching the pattern `mcp/src/install.ts` already uses for every host.
-
-### 5.2 Should `npm run test:*` cover it?
-
-Yes, with a minimal new test file:
-
-```
-tests/skill-fsb-spec.test.js
+// Expose on globalThis like FSBAnalytics does
+globalThis.MCPMetricsRecorder = new MCPMetricsRecorder();
 ```
 
-Verify:
+### 1.3 Write into the existing analytics store -- data flow
 
-- `skills/FSB Skill/SKILL.md` exists, has frontmatter `name: FSB`
-- `metadata.openclaw.requires.bins` includes `npx`
-- Stdio block printed by `scripts/print-stdio.sh` matches the canonical line `npx -y fsb-mcp-server` from `getSetupSections()` in `mcp/src/install.ts`
-- Web Store URL (`chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk`) is referenced in SKILL.md and USAGE.md
-- All four reference files exist and are non-empty
-- USAGE.md mentions all four typed errors and the `back` tool
+The existing AI analytics store is `chrome.storage.local.fsbUsageData` (`extension/utils/analytics.js:148`). It contains entries shaped `{ timestamp, model, provider, inputTokens, outputTokens, success, source, cost }`.
 
-This is a static-content lint, not a runtime test. It belongs in the existing root `npm test` chain (the long string in `package.json` line ~26) so the `ci / all-green` gate naturally covers the skill on PRs to `main`.
+**DO NOT mix MCP entries into `fsbUsageData`.** Two different surfaces, two different schemas. Instead:
 
-A second smoke that actually shells out to `doctor` is desirable but should be opt-in: it depends on a live extension and a live bridge, which CI doesn't have. Mirror the existing `npm run test:mcp-smoke` pattern — keep it as a separate script for local/manual runs.
+- New key: `chrome.storage.local.fsbMcpUsageData` (parallel to `fsbUsageData`).
+- Entry shape: `{ timestamp, mcpClient, tool, routeFamily, surface, durationMs, success, errorCode, estimatedCost, estimatedTokensIn, estimatedTokensOut, modelAssumed }`.
+- Read-back: control-panel UI reads BOTH `fsbUsageData` (AI calls) AND `fsbMcpUsageData` (MCP calls) and renders separately.
 
-### 5.3 Packaging for ClawHub distribution
+**Control-panel rendering flow** (mirrors existing `FSBAnalytics.updateDashboard` at `extension/utils/analytics.js:657-676`):
 
-If/when ClawHub becomes a real distribution channel, packaging is a `zip` of `skills/FSB Skill/`. Add to `package.json`:
+1. `chrome.runtime.onMessage` listener on `MCP_METRICS_UPDATE` (new, paralleling existing `ANALYTICS_UPDATE` listener) -- listener lives in `extension/ui/control_panel.html`'s page script.
+2. On receipt, fetches `chrome.storage.local.fsbMcpUsageData`, computes aggregates, updates new hero tiles "MCP Calls", "MCP Cost", "Active MCP Clients" alongside the existing four (lines `extension/ui/control_panel.html:106-122`).
+3. New section below the four hero tiles: "Per-MCP-Client Log" table -- timestamp, client badge, tool name, duration, cost. Mirrors the existing per-call table pattern that lives in the analytics section below the chart canvas (`#usageChart`, line 149).
 
-```json
-"package:skill": "cd skills && zip -r ../fsb-skill-v0.9.61.zip 'FSB Skill' -x '*.DS_Store'"
-```
+### 1.4 Avoiding double-counting -- single source of truth
 
-This mirrors the existing `package` and `package:extension` scripts. No npm publish is needed: the skill is not a Node package.
-
-For the milestone, a `package:skill` script + a one-line section in the release notes is enough; a real ClawHub publish workflow is out of scope until ClawHub itself stabilizes.
-
-### 5.4 CI job in `ci / all-green`
-
-No new job. Add the skill spec test to the existing `npm test` invocation in CI. The validation is fast (filesystem reads + frontmatter parse) and adds ~50ms. Creating a separate job introduces orchestration cost without corresponding signal value.
-
-If the user later decides to split `tests/` per-package (already on the deferred list in `PROJECT.md`), then a `tests/skill/` subfolder lands naturally; for v0.9.61, keep it flat.
-
----
-
-## 6. Versioning Alignment
-
-### Recommendation: track the extension milestone (`0.9.61`), not the MCP package (`0.8.0`)
-
-Three options were considered:
-
-| Option | Pros | Cons |
-|--------|------|------|
-| Track `fsb-mcp-server` (`0.8.0`) | Skill is most tightly coupled to MCP tool surface; tool changes are exactly what would break the skill | MCP version moves slowly relative to skill content; skill copy will drift earlier than `0.8.x` rolls |
-| **Track milestone (`0.9.61`)** | Aligns skill ship cadence with the rest of the FSB monorepo; users see one version when they look at the project; future skill bumps happen at milestone close, same as the rest | Skill version may be ahead of `fsb-mcp-server` semver — that is a feature, not a bug |
-| Independent semver (`skill@1.0.0`) | OpenClaw norm if every skill author uses semver | One more version stream to keep in sync; no benefit if the only skill maintainer is the FSB project |
-
-**Pick option 2.** Encode it in SKILL.md frontmatter as `version: 0.9.61` and bump it whenever the milestone version bumps. When MCP tool contracts change in a way that affects the skill, the milestone version will move anyway (per the existing release-sanity-checks rule in `README.md` "Change Guidelines").
-
-### Upgrade story
-
-When FSB MCP tools change:
-
-1. The `mcp/README.md` "tool count contract" line forces a doc update.
-2. Tests in `tests/tool-definitions-parity.test.js` and `tests/mcp-tool-routing-contract.test.js` catch contract drift.
-3. The new skill spec test (`tests/skill-fsb-spec.test.js`) should include a check that any tool referenced by name in `references/*.md` still exists in `mcp/ai/tool-definitions.cjs`. This is the same shared-contract pattern `mcp/src/tools/schema-bridge.ts` already uses.
-
-That trio means a tool rename or removal cannot ship without flagging the skill.
-
----
-
-## 7. Documentation Surfaces — Every Doc That Must Change
-
-| Doc | Why | What to change |
-|-----|-----|----------------|
-| `README.md` (root) | Quick Start TL;DR currently lists 7 MCP host install commands; OpenClaw is not in that table | Add an "OpenClaw users" line below the install table referencing the new skill (no `install --openclaw` command — it remains manual); link to `skills/FSB Skill/USAGE.md`. Also update the "Repository Layout" table to include `skills/`. |
-| `README.md` (root) | Quick Start references "OpenCode and OpenClaw are supported through manual or unsupported fallback setup paths" (line ~322) | Augment with: "FSB also ships an OpenClaw skill at `skills/FSB Skill/` that automates the doctor → install → Web Store → ready flow." |
-| `mcp/README.md` | OpenClaw is currently mentioned only in the trusted-label allowlist | Add a sentence pointing OpenClaw users at the skill instead of `install --openclaw` (which is intentionally unsupported). |
-| `mcp/src/install.ts` line 413-420 | Currently says "Status: manual / unsupported for now" | Update fallback line to: "Use the FSB OpenClaw skill in `skills/FSB Skill/` for guided setup." Optional but valuable for users who run `install --list` first. |
-| `skills/FSB Skill/SKILL.md` | NEW | Full skill spec with `name: FSB` frontmatter and OpenClaw metadata block |
-| `skills/FSB Skill/USAGE.md` | NEW | 3-step user-facing install + try-it prompts + doctor recovery recipe |
-| `skills/FSB Skill/references/*.md` | NEW | Five reference files per Section 2 layout |
-| `skills/FSB Skill/scripts/*.sh` | NEW | doctor.sh, install-host.sh, print-stdio.sh |
-| `.planning/MILESTONES.md` | Existing milestone log | Add v0.9.61 entry on milestone close (handled by `/gsd:complete-milestone`, not in research scope) |
-| `showcase/.../llms.txt` (showcase) | Crawler-visible site map | Mention the OpenClaw skill as an integration path. Low priority — only if showcase content already cross-references MCP host install lines. |
-| `showcase/.../llms-full.txt` | Same as above | Same as above |
-| `store-assets/` | Untracked Web Store assets | Out of scope unless screenshots advertise OpenClaw integration. |
-| `extension/manifest.json` | NO change | Skill does not change the extension. |
-| `mcp/package.json` | NO change | Skill does not change the MCP server. The `0.8.0` ship plan is independent. |
-| `extension/version.ts` / root version | NO change in research scope | The milestone close decides whether the extension version moves to 0.9.61; the skill ships under whichever number it lands on. |
-
-The "must change" set is small: two READMEs, one TS string in `install.ts`, plus all NEW skill files. No existing test rewrites.
-
----
-
-## 8. Dependency Graph for Build Order
-
-This is the dependency graph between artifacts produced in this milestone. Read it as: "X must exist (or be confirmed unchanged) before Y can be authored without rework."
+This is THE critical quality-gate constraint. The architecture:
 
 ```
-                    ┌───────────────────────────────────────┐
-                    │ A. OpenClaw schema verification        │
-                    │    (live build of OpenClaw)           │
-                    │    Confirms metadata.openclaw.{       │
-                    │      install[], requires.bins,        │
-                    │      command-arg-mode}                │
-                    └────────────────┬──────────────────────┘
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────────┐
-                    │ B. SKILL.md frontmatter               │
-                    │    Depends on: A (schema)             │
-                    │    Depends on: existing               │
-                    │      mcp/src/install.ts stdio cmd     │
-                    │      = `npx -y fsb-mcp-server`        │
-                    └────────────────┬──────────────────────┘
-                                     │
-                ┌────────────────────┼────────────────────┐
-                ▼                    ▼                    ▼
-   ┌────────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-   │ C. scripts/        │  │ D. references/   │  │ E. USAGE.md      │
-   │   doctor.sh        │  │   tool-decision- │  │   user-facing    │
-   │   install-host.sh  │  │   tree.md and    │  │   3-step + try-it│
-   │   print-stdio.sh   │  │   peers          │  │                  │
-   │ Deps:              │  │ Deps:            │  │ Deps:            │
-   │ - doctor CLI       │  │ - mcp/README.md  │  │ - SKILL.md       │
-   │   stdout shape     │  │   tool list      │  │ - scripts/       │
-   │ - install --list   │  │ - v0.9.60 multi- │  │ - Web Store URL  │
-   │   format           │  │   agent contract │  │                  │
-   │ - getSetupSections │  │ - v0.9.36 trusted│  │                  │
-   │   stdio command    │  │   label list     │  │                  │
-   │ - chromewebstore   │  │ - v0.9.60 Phase  │  │                  │
-   │   URL              │  │   247 recovery   │  │                  │
-   └────────────────────┘  └──────────────────┘  └──────────────────┘
-                ▼                    ▼                    ▼
-            ┌─────────────────────────────────────────────────┐
-            │ F. tests/skill-fsb-spec.test.js                 │
-            │    Deps: B, C, D, E all in place                │
-            │    Runs in existing `npm test` chain            │
-            └─────────────────────┬───────────────────────────┘
-                                  ▼
-            ┌─────────────────────────────────────────────────┐
-            │ G. Doc updates: README.md, mcp/README.md,       │
-            │    mcp/src/install.ts:413-420                   │
-            │    Deps: skill exists at known path             │
-            └─────────────────────────────────────────────────┘
+                                  +------------------------------+
+                                  |   MCPMetricsRecorder         |
+                                  |   .recordDispatch(...)       |
+                                  |  [extension/utils/mcp-       |
+                                  |   metrics-recorder.js]       |
+                                  +-------------+----------------+
+                                                |
+                       +------------------------+--------------------------+
+                       |                        |                          |
+                       v                        v                          v
+        chrome.storage.local.        chrome.runtime.sendMessage   TelemetryCollector
+        fsbMcpUsageData              ({type:'MCP_METRICS_UPDATE'})  .enqueue(summary)
+        (local persistence;          (broadcast to control-panel)   (outbound batch)
+         drives control-panel hero)
 ```
 
-Key observation: **A (OpenClaw schema verification) gates everything.** Per `PROJECT.md`, the milestone explicitly calls this out as a target requirement ("OpenClaw skill spec verification: confirm exact schema of `metadata.openclaw.install[]`, `requires.bins` accepted values, and `command-arg-mode` behavior against a live OpenClaw build before finalizing SKILL.md frontmatter"). Doing A late means SKILL.md may need a rewrite.
+Both "control panel local analytics" AND "outbound telemetry beat" derive from the same `recordDispatch` call. The collector receives an in-memory summary directly from `recordDispatch` (NOT by re-reading storage; storage is a side effect, not a source). Single fact -> two consumers. No double-count possible because there's only one fact-generation site: the `finally` block of `dispatchMcpToolRoute` / `dispatchMcpMessageRoute`.
 
 ---
 
-## 9. Suggested Phase Decomposition
+## 2. Anonymous Identity Bootstrap
 
-Five phases. Ordering follows the dependency graph in Section 8. Each phase ends with a green-test checkpoint so the milestone can land incrementally.
+### 2.1 Where the UUID lives
 
-### Phase 248: OpenClaw Spec Pin + Repo Scaffolding
+**File:** `extension/utils/install-identity.js` (new, registered via `importScripts` in `background.js` at the TOP of the dependency chain, BEFORE `analytics.js`, `mcp-bridge-client.js`, `ws-client.js`, and the new `mcp-metrics-recorder.js`).
 
-**Goal:** lock the schema; create empty skill skeleton.
+**Init pattern** (mirrors the existing `FSBAnalytics.initialize` lazy-init at `extension/utils/analytics.js:121`):
 
-- Verify against a live OpenClaw build:
-  - exact key path `metadata.openclaw.install[]` (or whatever it actually is)
-  - accepted values for `requires.bins`
-  - behavior of `command-arg-mode`
-- Create `skills/FSB Skill/` with empty SKILL.md (frontmatter only), USAGE.md, references/, scripts/.
-- Add `skills/` to `.gitignore` exclusions (it should be tracked) and to any tsconfig include patterns that need to skip it.
-- No tests yet.
+```javascript
+// extension/utils/install-identity.js
+const FSB_INSTALL_UUID_KEY = 'fsb_install_uuid';
+const FSB_TELEMETRY_OPT_OUT_KEY = 'fsb_telemetry_opt_out';
 
-**Exit:** schema captured in a short note inside `.planning/`; `git status` shows the new tree; nothing breaks existing CI.
+async function getOrCreateInstallUuid() {
+  try {
+    const data = await chrome.storage.local.get([FSB_INSTALL_UUID_KEY]);
+    if (data && typeof data[FSB_INSTALL_UUID_KEY] === 'string' && data[FSB_INSTALL_UUID_KEY].length === 36) {
+      return data[FSB_INSTALL_UUID_KEY];
+    }
+    const uuid = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : _fallbackUuid(); // hex(now) + hex(Math.random) -- never trigger in practice; mirrors mcp-bridge-client.js:124-126
+    await chrome.storage.local.set({ [FSB_INSTALL_UUID_KEY]: uuid });
+    return uuid;
+  } catch (_e) {
+    return null; // chrome.storage.local unavailable -- see 2.3
+  }
+}
 
-### Phase 249: SKILL.md + scripts/
+async function isTelemetryOptedOut() {
+  const data = await chrome.storage.local.get([FSB_TELEMETRY_OPT_OUT_KEY]);
+  return data && data[FSB_TELEMETRY_OPT_OUT_KEY] === true;
+}
 
-**Goal:** make the skill executable end-to-end against an existing FSB install.
-
-- Write SKILL.md with full `metadata.openclaw` block, `name: FSB`, `version: 0.9.61`.
-- Write `scripts/doctor.sh` with branch dispatcher (Section 3.1).
-- Write `scripts/print-stdio.sh` (echoes the literal block from `getSetupSections()`).
-- Write `scripts/install-host.sh` (wraps `npx -y fsb-mcp-server install --<host>` with confirmation; reuses `install --list` for detection).
-- Hand-test on local machine: invoke skill in OpenClaw, confirm doctor → branch C prints stdio block, paste into OpenClaw, restart, re-run, see Branch D.
-
-**Exit:** end-to-end happy path works locally; no automated tests yet.
-
-### Phase 250: USAGE.md + references/
-
-**Goal:** ship the prompt content that teaches OpenClaw to use FSB correctly.
-
-- Write USAGE.md (3-step install, try-it prompts, doctor recovery recipe).
-- Write the five references in `references/`:
-  - `tool-decision-tree.md` (read-only first; typed events over `.value`; `run_task` only on explicit delegation)
-  - `multi-agent-contract.md` (no `agent_id`; typed errors; `back` over `execute_js("history.back()")`)
-  - `restricted-tab-recovery.md` (the `list_tabs` → recover ladder)
-  - `vault-boundary.md` (`fill_credential` / `use_payment_method` only)
-  - `default-to-fsb.md` (soft preference + hard escalation)
-- All references must wrap any tool sequence example with `start_visual_session(client="OpenClaw")` / `end_visual_session(session_token)`.
-
-**Exit:** skill can be read top-to-bottom and gives an LLM the right priors.
-
-### Phase 251: Tests + CI Integration
-
-**Goal:** lock the skill into the `ci / all-green` gate.
-
-- Author `tests/skill-fsb-spec.test.js` per Section 5.2.
-- Add it to the `npm test` chain in root `package.json`.
-- Optional: author a separate `tests/skill-fsb-doctor-smoke.test.js` for local-only runs (mirrors `test:mcp-smoke` posture).
-- Confirm CI green on a draft PR.
-
-**Exit:** PR-blocking lint passes; skill content cannot regress silently.
-
-### Phase 252: Doc Updates + Milestone Close
-
-**Goal:** make the skill discoverable.
-
-- Update `README.md` Quick Start TL;DR + Repository Layout.
-- Update `mcp/README.md` OpenClaw paragraph.
-- Update `mcp/src/install.ts:413-420` "OpenClaw" section to point at the skill.
-- Update `showcase/.../llms.txt` and `llms-full.txt` if they cross-reference MCP host install lines.
-- Optional: `package:skill` script in root `package.json` for ClawHub-ready zip.
-- Run full `npm run ci`.
-- Milestone audit + archive (handled by `/gsd:complete-milestone`).
-
-**Exit:** v0.9.61 ships; users searching "OpenClaw FSB" find a single canonical entry point.
-
-### Why five phases and not seven
-
-- Splitting "scripts" from "SKILL.md" creates two PRs that can't ship independently — both are needed for end-to-end skill execution. Combined into Phase 249.
-- Splitting "references" from "USAGE.md" similarly: USAGE.md links to references; they ship together. Combined into Phase 250.
-- No phase for "extension changes" because there are none.
-- No phase for "MCP changes" because there are none.
-
-If the user prefers smaller phases, the natural further split is Phase 250 → 250a (USAGE.md) and 250b (references/). I would not split below that granularity.
-
----
-
-## 10. Cross-Platform Implications
-
-The skill ships shell scripts. The existing `mcp/src/install.ts` has Windows guards (`WINDOWS_STDIO_COMMAND = 'cmd /c npx -y fsb-mcp-server'` at line 29) that the skill must mirror.
-
-| Surface | macOS / Linux | Windows | Mitigation |
-|---------|---------------|---------|------------|
-| `scripts/doctor.sh` | bash, runs as-is | needs WSL or a `.cmd` sibling | Ship `scripts/doctor.cmd` alongside, or use a Node entrypoint (`scripts/doctor.mjs`) that picks the right invocation |
-| Stdio block printed | `npx -y fsb-mcp-server` | `cmd /c npx -y fsb-mcp-server` | Skill should detect `process.platform` and print the right line, mirroring `getSetupSections()` |
-| Folder name with space | quoted paths in shell | quoted paths in cmd/PowerShell | Document in USAGE.md; CI on `ubuntu-latest` will catch any shell-quoting regressions |
-
-**Recommendation:** prefer Node-based entrypoints (`scripts/*.mjs`) over `.sh`/`.cmd` pairs. OpenClaw already requires Node 18+ (it runs `npx`), so a Node script is portable by definition and matches how `mcp/` ships. Rewriting bash to Node is half a day of work and avoids permanent maintenance of two script families.
-
----
-
-## 11. Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Shipping `install --openclaw` as a real installer
-
-**What people do:** add a new platform entry to `mcp/src/platforms.ts` that writes into a guessed OpenClaw config path.
-**Why it's wrong:** the entry at `install.ts:413-420` is `manual / unsupported` for a reason — OpenClaw config schema is not stable. A bad write would corrupt user state.
-**Do this instead:** keep the print-the-stdio-block flow. Let the user paste. Revisit when/if OpenClaw publishes a stable config contract.
-
-### Anti-Pattern 2: Re-implementing diagnostics in the skill
-
-**What people do:** the skill probes `localhost:7225` directly, scans `chrome.storage`, etc.
-**Why it's wrong:** duplicates `fsb-mcp-server doctor` logic; will drift as the diagnostics layer evolves; adds bugs the MCP server already solved (v0.9.35).
-**Do this instead:** spawn `doctor` and parse its output. One source of truth.
-
-### Anti-Pattern 3: Letting the skill register MCP tools
-
-**What people do:** SKILL.md declares a new tool surface ("OpenClaw fsb_search" etc.).
-**Why it's wrong:** breaks the tool-count contract in `mcp/README.md`; bypasses the canonical registry copied into `mcp/ai/tool-definitions.cjs`; multi-agent contract enforcement (`tab_id` ownership) sits in the dispatcher, which is invisible to skill-level tools.
-**Do this instead:** the skill teaches the model how to call existing FSB tools. Period.
-
-### Anti-Pattern 4: Hardcoding a pinned `fsb-mcp-server@X.Y.Z` in the stdio block
-
-**What people do:** SKILL.md prints `npx -y fsb-mcp-server@0.8.0`.
-**Why it's wrong:** `mcp/src/install.ts` deliberately uses unpinned `npx -y fsb-mcp-server` everywhere — users get the latest published version, which is the contract they expect. Pinning in the skill creates a third place that has to be bumped on every MCP release.
-**Do this instead:** print unpinned. If pinning is ever needed, generate the version string from `mcp/src/version.ts` at script-runtime, not at skill-author-time.
-
-### Anti-Pattern 5: Auto-installing into other MCP hosts without consent
-
-**What people do:** Branch C automatically runs `install --all` after detecting other hosts.
-**Why it's wrong:** writes user config files without confirmation; violates the principle of least surprise; the user already chose OpenClaw as their primary.
-**Do this instead:** detect hosts (via `install --list`), present a list, require explicit `y/n` per host before invoking `install --<host>`.
-
----
-
-## 12. Integration Points Summary
-
-This is the table the orchestrator and downstream researchers should treat as authoritative.
-
-### NEW components (skill ships these)
-
-| Path | Type | Owner |
-|------|------|-------|
-| `skills/FSB Skill/SKILL.md` | markdown spec | skill |
-| `skills/FSB Skill/USAGE.md` | markdown user-facing | skill |
-| `skills/FSB Skill/references/tool-decision-tree.md` | markdown prompt content | skill |
-| `skills/FSB Skill/references/multi-agent-contract.md` | markdown prompt content | skill |
-| `skills/FSB Skill/references/restricted-tab-recovery.md` | markdown prompt content | skill |
-| `skills/FSB Skill/references/vault-boundary.md` | markdown prompt content | skill |
-| `skills/FSB Skill/references/default-to-fsb.md` | markdown prompt content | skill |
-| `skills/FSB Skill/scripts/doctor.{sh,mjs}` | script | skill |
-| `skills/FSB Skill/scripts/install-host.{sh,mjs}` | script | skill |
-| `skills/FSB Skill/scripts/print-stdio.{sh,mjs}` | script | skill |
-| `tests/skill-fsb-spec.test.js` | Node test | root tests |
-
-### MODIFIED files (existing — minimal touches)
-
-| Path | Change |
-|------|--------|
-| `README.md` | add OpenClaw skill row to Quick Start TL;DR; add `skills/` row to Repository Layout |
-| `mcp/README.md` | one-line pointer to the skill from the OpenClaw mention |
-| `mcp/src/install.ts:413-420` | update OpenClaw fallback text to point at the skill (still no auto-install) |
-| `package.json` (root) | append `node tests/skill-fsb-spec.test.js` to the `test` script chain; optional new `package:skill` script |
-| `showcase/.../llms.txt` and `llms-full.txt` | optional one-line addition |
-
-### UNCHANGED (intentional non-touch list)
-
-- `extension/**` — no manifest, content-script, or background changes
-- `mcp/src/server.ts`, `mcp/src/tools/**` — no new tools, no schema changes
-- `mcp/src/platforms.ts` — no new platform entry (OpenClaw stays manual)
-- `mcp/package.json` — version stays at `0.8.0`
-- `tests/mcp-*.test.js` — existing MCP contract tests untouched
-- All AI provider, vault, memory, site-guide modules
-- Showcase Angular app and Express relay
-
-### Data flow changes
-
-None at the runtime layer. The skill sits entirely above the MCP boundary:
-
-```
-[OpenClaw runtime] ──spawns──► [scripts/doctor.{mjs,sh}] ──spawns──► [npx -y fsb-mcp-server doctor]
-                                                                              │
-[OpenClaw runtime] ──MCP stdio──► [npx -y fsb-mcp-server] ──ws──► [extension] ──CDP──► [page]
-       ▲
-       │ (trusted client="OpenClaw" via start_visual_session)
-       │
-   reads: SKILL.md + USAGE.md + references/*.md  (prompt context)
+globalThis.FSBInstallIdentity = { getOrCreateInstallUuid, isTelemetryOptedOut, FSB_INSTALL_UUID_KEY, FSB_TELEMETRY_OPT_OUT_KEY };
 ```
 
-The bridge protocol, MCP tool surface, and extension internals are untouched.
+**Bootstrap call site:** `chrome.runtime.onInstalled` listener in `background.js:13015-13048`. Add `await FSBInstallIdentity.getOrCreateInstallUuid()` between `initializeAnalytics()` (line 13019) and `loadDebugMode()` (line 13022). Also fire in `chrome.runtime.onStartup` listener at line 13051 (idempotent -- the get-or-create is a no-op when the UUID already exists).
+
+### 2.2 Sharing the UUID across surfaces
+
+**Pattern: single getter on `globalThis`, never duplicated.** All three downstream consumers (`MCPMetricsRecorder`, `TelemetryCollector`, control-panel privacy UI) call `globalThis.FSBInstallIdentity.getOrCreateInstallUuid()` lazily on first use AND cache the value in-module for the lifetime of the service-worker incarnation.
+
+Why one getter, not one cached top-level constant: the service worker can be evicted at any moment in MV3. A constant initialized at top-of-file would lose its value across eviction-revival. The getter pattern means each module fetches once-per-incarnation (cheap) without depending on module load order.
+
+**Control panel UI** (`extension/ui/control_panel.html`) is a separate document context, NOT a service-worker context, so it must read the UUID directly via `chrome.storage.local.get('fsb_install_uuid')`. Mirrors the same direct-storage-read pattern that the existing analytics dashboard uses (`extension/utils/analytics.js:148` runs in document context when the page-side script loads).
+
+### 2.3 Fallback when `chrome.storage.local` is unavailable
+
+This is rare but real -- corrupted profiles, certain enterprise policy configurations. **Recommendation:**
+
+| Scenario | Behaviour |
+|----------|-----------|
+| `chrome.storage.local` throws / returns undefined | `getOrCreateInstallUuid()` returns `null`; `TelemetryCollector.enqueue()` becomes a no-op when UUID is null; MCP local analytics still work (in-memory only, won't survive SW eviction but that's an existing limitation across all FSB storage paths). |
+| User in incognito | The extension is not configured for `incognito: 'split'`, so service worker is not spawned for incognito windows -- moot. |
+| `fsb_telemetry_opt_out === true` | UUID is still minted (needed for control-panel display "Your install ID: ..." so user can verify what's NOT being sent); `TelemetryCollector` checks `isTelemetryOptedOut()` at every enqueue and short-circuits. |
+
+**Don't do "session-only UUID" -- it has no purpose.** A session UUID can't be correlated across beats so it offers no aggregation value, and re-minting per session pollutes the global "active installs" count. Either we have a stable UUID or we send nothing.
 
 ---
 
-## 13. Open Questions for Downstream Researchers
+## 3. Telemetry Beat Schedule
 
-These deliberately stay open because they require live OpenClaw artifacts, not training-data inference:
+### 3.1 Queue architecture
 
-1. **Exact `metadata.openclaw.install[]` schema:** is it a list of `{step, command, args}` objects, or a flat list of shell commands, or something host-specific? Confirm against a current OpenClaw build before SKILL.md ships. (PROJECT.md target requirement.)
-2. **`requires.bins` enum:** what values does the loader accept? `npx`? `node`? `npm`? Or arbitrary strings resolved via `PATH`? (PROJECT.md target requirement.)
-3. **`command-arg-mode` semantics:** does it concatenate args or pass them through? Affects whether `print-stdio.sh` should print `npx -y fsb-mcp-server` as one string or `["npx", "-y", "fsb-mcp-server"]`. (PROJECT.md target requirement.)
-4. **First-invocation hook:** does OpenClaw run a script automatically when a skill is loaded, or only when invoked? Determines whether `doctor.sh` is the "main" or whether SKILL.md must instruct the user to type a command. Empirical only.
-5. **ClawHub publish format:** if the user wants ClawHub distribution, what is the package shape? Tarball, zip, git-repo, registry entry? Out of scope for this milestone but informs the optional `package:skill` script.
+**Module:** `extension/utils/telemetry-collector.js` (new, `importScripts`'d after `install-identity.js` and `mcp-metrics-recorder.js`).
 
-These are flagged in the PHASES section above as Phase 248 work.
+**Queue storage:** `chrome.storage.local.fsbTelemetryQueue` -- array of events, capped at 200 entries (~20 KB at typical event sizes). New events shift oldest if cap hit. Mirrors the `usageData` cleanup pattern at `extension/utils/analytics.js:189-192` (30-day rolling window there; here a 200-event hard cap).
+
+**Why `chrome.storage.local` not in-memory:** MV3 service workers evict after 30s of idle. An in-memory queue would lose events on every eviction. `chrome.storage.local` persists across SW lifecycle and (separately from telemetry) is `unlimitedStorage`-permission-backed already (`extension/manifest.json:10`).
+
+### 3.2 Beat trigger
+
+**Recommended schedule: "every N events OR every M minutes, whichever fires first" with the following values:**
+
+| Trigger | Value | Rationale |
+|---------|-------|-----------|
+| Event-count threshold | 20 events queued | Keeps payload size small enough to fit in a single 1MB Express body (`server.js:85`) with massive room to spare. |
+| Time-based interval | Every 15 minutes | Long enough that idle installs barely contact the server (privacy + cost), short enough that "active users right now" aggregate (5-min window on server) catches active installs reliably. |
+| Cold-start trigger | On `chrome.runtime.onStartup`, flush any queue from prior SW life | Recovers the "user uninstalled mid-beat" edge where the prior service worker queued events but never sent them. |
+| Pre-eviction trigger | NO explicit pre-eviction flush | MV3 doesn't expose a pre-eviction hook; `chrome.alarms` is the only reliable scheduler -- see 3.3. |
+
+### 3.3 Surviving MV3 service-worker eviction
+
+Critical pitfall. The existing `MCPBridgeClient` already solves this via `chrome.alarms` (see `mcp-bridge-client.js:14` `MCP_RECONNECT_ALARM` + `_scheduleReconnectAlarm` at line 291-303). Mirror that pattern.
+
+**Recommendation:**
+
+```javascript
+// extension/utils/telemetry-collector.js
+const TELEMETRY_BEAT_ALARM = 'fsb-telemetry-beat';
+chrome.alarms.create(TELEMETRY_BEAT_ALARM, { periodInMinutes: 15 });
+
+// In background.js, add to chrome.alarms.onAlarm listener (chrome.alarms minimum is 30s
+// but periodInMinutes:15 is well above that floor):
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === TELEMETRY_BEAT_ALARM) {
+    globalThis.TelemetryCollector?.flushBeat({ trigger: 'alarm' });
+  }
+});
+```
+
+The alarm fires whether the service worker is awake or not -- Chrome wakes the SW to deliver the alarm, the SW imports scripts, `TelemetryCollector` re-hydrates queue from storage, sends, marks sent, sleeps. This is the same lifecycle pattern that MCP bridge reconnect uses; it's proven.
+
+### 3.4 Offline retry without leaking timing data
+
+**Privacy concern:** if the server is unreachable and the queue grows, an attacker who later compromises the server could correlate "first received event at time T" with "queue contained events from time T-Xh" and infer when the user was offline.
+
+**Mitigation:**
+
+- On send-failure: leave the queue intact, retry on next 15-min alarm tick. Exponential backoff is NOT needed -- 15 min is already coarse.
+- On send-success: clear ONLY the events that were successfully POSTed (server returns event IDs it accepted).
+- **Per-event timestamps are batched at WHOLE-MINUTE resolution server-side** (see Section 4 schema). The event itself carries `tsMinute = Math.floor(Date.now() / 60000) * 60000` not `Date.now()`. A 60-second resolution is sufficient for "active users in last 5 min" and removes sub-minute fingerprinting.
+- Hard upper bound: events older than 24 hours are dropped client-side at queue-load time (not sent), preventing infinite backlog from a long-offline install masquerading as a recent active user.
 
 ---
 
-## Sources
+## 4. Server-side Ingestion Architecture
 
-| Source | Confidence | Used for |
-|--------|------------|----------|
-| `/Users/lakshmanturlapati/Desktop/FSB/.planning/PROJECT.md` (read full) | HIGH | Milestone scope, target features, validated capabilities, key decisions, multi-agent contract details |
-| `/Users/lakshmanturlapati/Desktop/FSB/mcp/README.md` (read full) | HIGH | 60-tool surface breakdown, doctor/status/wait-for-extension CLI shape, multi-agent error codes, 21-platform installer behavior, trusted-label allowlist (includes `OpenClaw`) |
-| `/Users/lakshmanturlapati/Desktop/FSB/mcp/src/install.ts` (read full) | HIGH | Stdio command literal `npx -y fsb-mcp-server`, Windows variant, 21-platform flag matrix, OpenClaw "manual / unsupported" entry at lines 412-421, `getSetupSections()` print format |
-| `/Users/lakshmanturlapati/Desktop/FSB/README.md` (read full) | HIGH | Repository Layout, CI gate (`ci / all-green`), test chain composition, Web Store URL `badgafnfchcihdfnjneklogedcdkmjfk`, OpenClaw current treatment |
-| `/Users/lakshmanturlapati/Desktop/FSB/package.json` (root, partial) | HIGH | Existing `npm test` chain shape, `test:mcp-smoke` posture, `package`/`package:extension` script convention |
-| `.github/workflows/` directory listing | MEDIUM | Existence of `ci.yml`, `deploy.yml`, `npm-publish.yml`, `chrome-extension.yml` — confirms CI gate split |
-| Live OpenClaw `metadata.openclaw.*` schema | LOW (deferred) | Phase 248 verification target — not done in this research, explicitly flagged in PROJECT.md |
+### 4.1 SQLite schema (new tables, added to `showcase/server/src/db/schema.js`)
+
+The existing `initializeDatabase` function (`schema.js:5-87`) already follows an "additive only" migration pattern (lines 76-84 do `ALTER TABLE ADD COLUMN` inside `try/catch`). Add the new telemetry tables to the same function:
+
+```sql
+-- Raw events table: append-only, kept for 7 days, then deleted by daily housekeeper.
+CREATE TABLE IF NOT EXISTS telemetry_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  install_uuid TEXT NOT NULL,           -- UUID v4 from extension; NEVER joined with hash_keys
+  event_type TEXT NOT NULL,             -- 'mcp_call' | 'session_summary' | 'install_announce'
+  ts_minute INTEGER NOT NULL,           -- floor(Date.now() / 60000) * 60000 -- minute-precision
+  ip_hash TEXT NOT NULL,                -- SHA256(IP + daily_salt), 64 hex chars
+  daily_salt_version INTEGER NOT NULL,  -- rotation counter so we can detect cross-day hashes
+  payload TEXT NOT NULL,                -- JSON: tokens_in, tokens_out, mcp_client, model, tool, etc.
+  received_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+);
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_ts_minute ON telemetry_events(ts_minute);
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_install_uuid ON telemetry_events(install_uuid);
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_ip_hash ON telemetry_events(ip_hash);
+
+-- Per-UUID per-day rollups: populated by an hourly cron-like timer that reads from
+-- telemetry_events and aggregates. Used to compute "most-popular agent / MCP client"
+-- without scanning raw events.
+CREATE TABLE IF NOT EXISTS telemetry_rollups_daily (
+  install_uuid TEXT NOT NULL,
+  day TEXT NOT NULL,                    -- 'YYYY-MM-DD' UTC
+  mcp_client TEXT NOT NULL,             -- 'claude-code' | 'codex' | 'openclaw' | 'cursor' | 'unknown'
+  model TEXT NOT NULL,                  -- 'claude-sonnet-4-5-20250929' etc.
+  total_tokens_in INTEGER NOT NULL DEFAULT 0,
+  total_tokens_out INTEGER NOT NULL DEFAULT 0,
+  total_cost_usd REAL NOT NULL DEFAULT 0,
+  total_calls INTEGER NOT NULL DEFAULT 0,
+  active_agents_peak INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (install_uuid, day, mcp_client, model)
+);
+
+-- Global daily aggregates: the public stats page reads from here.
+-- Recomputed by the same hourly timer.
+CREATE TABLE IF NOT EXISTS telemetry_global_aggregates (
+  day TEXT PRIMARY KEY,                 -- 'YYYY-MM-DD' UTC
+  total_tokens INTEGER NOT NULL DEFAULT 0,
+  total_cost_usd REAL NOT NULL DEFAULT 0,
+  active_users INTEGER NOT NULL DEFAULT 0,        -- distinct install_uuid in this day
+  total_users_lifetime INTEGER NOT NULL DEFAULT 0,
+  active_agents_now INTEGER NOT NULL DEFAULT 0,   -- snapshot at recompute time
+  total_agents_lifetime INTEGER NOT NULL DEFAULT 0,
+  most_popular_mcp_client TEXT,
+  most_popular_agent_label TEXT,
+  avg_agents_per_user REAL NOT NULL DEFAULT 0,
+  computed_at INTEGER NOT NULL
+);
+
+-- Live in-flight cache (in-memory only, not persisted): seen_in_last_5_min for
+-- "active users right now" aggregate. Implemented as a Map<install_uuid, last_seen_ts>
+-- in showcase/server/src/telemetry/active-users.js. NOT SQLite -- it churns too fast.
+```
+
+**Why a separate rollup table** (and not just SQL aggregation queries against raw events on every read): the public `/stats` page is polled at 5-minute cadence by potentially many concurrent visitors. Each query scanning a multi-day raw events table is expensive. Pre-aggregating into `telemetry_rollups_daily` keeps the public read path on a tiny table (< 10K rows even at significant adoption).
+
+**Why keep raw events for 7 days, not forever:** the rollups capture everything the public page needs. Raw events are kept short-term only for re-aggregation (if we discover a bucketing bug) and for the ip_hash rate-limit check. After 7 days, the rollups are authoritative; raw events are dropped by the daily housekeeper.
+
+### 4.2 Daily salt rotation
+
+**Location:** `showcase/server/data/salt.json` (gitignored; created with 0600 perms on first start by `showcase/server/src/telemetry/salt-rotator.js`).
+
+```javascript
+// showcase/server/src/telemetry/salt-rotator.js
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const SALT_PATH = path.join(__dirname, '..', '..', 'data', 'salt.json');
+
+function _readOrCreate() {
+  try {
+    const raw = fs.readFileSync(SALT_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    // Rotate if last_rotated_at is older than 24 hours
+    const ageMs = Date.now() - (parsed.last_rotated_at || 0);
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      return _rotate(parsed.version || 1);
+    }
+    return parsed;
+  } catch {
+    return _rotate(0);
+  }
+}
+
+function _rotate(prevVersion) {
+  const next = {
+    salt: crypto.randomBytes(32).toString('hex'),
+    version: prevVersion + 1,
+    last_rotated_at: Date.now()
+  };
+  fs.mkdirSync(path.dirname(SALT_PATH), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(SALT_PATH, JSON.stringify(next, null, 2), { mode: 0o600 });
+  return next;
+}
+
+function hashIp(ip) {
+  const s = _readOrCreate();
+  const h = crypto.createHash('sha256').update(ip + s.salt).digest('hex');
+  return { hash: h, version: s.version };
+}
+
+module.exports = { hashIp };
+```
+
+**Why file (not env var):** the salt has to persist across restarts (otherwise yesterday's hashes are unverifiable), but must NOT be committed (otherwise the hash is reversible). A gitignored file with 0600 perms beside the SQLite DB is the cleanest fit; the same `data/` directory pattern is used for `DB_PATH` in `server.js:24`. An env var works but requires a separate persistence layer the user has to wire (env file -> deployment config) and doesn't auto-rotate.
+
+**Don't rotate more often than daily.** The whole point of the daily salt is that hashes from the same IP yesterday and today look different to a database snooper. Sub-daily rotation buys no extra privacy and complicates the cron / "have we already rotated today" check.
+
+### 4.3 Rate limiting
+
+**Per `ip_hash` + per `install_uuid` -- belt-and-suspenders:**
+
+- Max events per `install_uuid` per minute: 100 (one event per ~600ms, generous for a fast-running test session).
+- Max events per `ip_hash` per minute: 500 (allows multiple installs behind the same NAT, e.g. a household).
+- Implemented as a sliding-window counter in `showcase/server/src/telemetry/rate-limiter.js` (in-memory `Map<key, [ts1, ts2, ...]>`, sweep older-than-60s entries on each insert). For larger scale we'd swap to Redis, but for the current showcase server scale this is right-sized.
+- On rate-limit hit: respond `429 Too Many Requests`. Client backs off via the 15-minute alarm cadence (it would normally retry the queue contents on next alarm -- no special-case code needed).
+- Replay protection: events with `received_at - ts_minute > 24h` are rejected at ingest. The 24h client-side drop in 3.4 means honest clients never hit this; it bounds replay-attack value to 24 hours.
+
+### 4.4 Retention
+
+| Table | Retention | Reason |
+|-------|-----------|--------|
+| `telemetry_events` | 7 days | Re-aggregation buffer + ip_hash rate-limit; longer is creep |
+| `telemetry_rollups_daily` | 365 days | Year-over-year comparisons on `/stats` |
+| `telemetry_global_aggregates` | Forever (one row per day, ~365 rows/year, trivial) | Historical chart |
+| `active_users` (in-memory) | 5 min sliding window | "Active right now" semantic |
+
+Housekeeper: a single `setInterval` in `showcase/server/src/telemetry/housekeeper.js`, runs hourly, executes:
+
+1. `DELETE FROM telemetry_events WHERE received_at < (now - 7d)`.
+2. Re-aggregate `telemetry_rollups_daily` for today and yesterday (idempotent upsert).
+3. Recompute `telemetry_global_aggregates` for today.
+4. (Daily, separately) `SaltRotator.checkAndRotate()`.
 
 ---
 
-*Architecture research for: OpenClaw FSB skill milestone v0.9.61*
-*Researched: 2026-05-08 on branch `Claw`*
+## 5. Public `/stats` Aggregates Endpoint
+
+### 5.1 Route choice
+
+**NEW public path: `/api/public-stats/global` (no auth).** Do NOT extend the existing `/api/stats` (`server.js:106-113`) -- that path is gated by `authMiddleware` and ties to a hash key. The new endpoint serves global aggregates that have no per-user identity, so it must NOT carry the auth middleware.
+
+```javascript
+// showcase/server/src/routes/public-stats.js (new)
+const express = require('express');
+
+function createPublicStatsRouter(queries) {
+  const router = express.Router();
+
+  router.get('/global', (req, res) => {
+    // queries.getGlobalTelemetryAggregates() reads from telemetry_global_aggregates +
+    // active_users in-memory map (Section 4.1)
+    const aggregates = queries.getGlobalTelemetryAggregates();
+    res.set('Cache-Control', 'public, max-age=60');  // 60-second edge cache
+    res.json(aggregates);
+  });
+
+  router.get('/global/series', (req, res) => {
+    // Last 30 days of telemetry_global_aggregates rows for line charts
+    const series = queries.getGlobalTelemetrySeries({ days: 30 });
+    res.set('Cache-Control', 'public, max-age=300'); // 5-min edge cache; data is daily-stable
+    res.json(series);
+  });
+
+  return router;
+}
+module.exports = createPublicStatsRouter;
+```
+
+Mount in `server.js` AFTER the auth-protected routes (so an accidental future change can't shadow public-stats with an auth wrapper):
+
+```javascript
+// server.js, after line 113:
+app.use('/api/public-stats', createPublicStatsRouter(queries));
+```
+
+### 5.2 Caching strategy
+
+| Layer | TTL | Reason |
+|-------|-----|--------|
+| HTTP `Cache-Control` header | 60s on `/global`, 5min on `/global/series` | Browser + any CDN respect the freshness. The 60s cadence matches the "active users in last 5 min" granularity perfectly -- a 60s-stale snapshot can't say someone is active who left 6 minutes ago. |
+| In-process: SQLite query memo | 30s `Map<routeName, {data, expiresAt}>` in `routes/public-stats.js` | Burst-protection for many concurrent visitors hitting `/stats` -- one SQLite query per 30s window regardless of visitor count. |
+| Server-side recompute | Hourly housekeeper (Section 4.4) | The underlying rollup tables are recomputed hourly anyway; in-process memo just avoids re-running aggregation reads. |
+
+**No materialized views needed.** SQLite doesn't natively support them; the housekeeper-maintained `telemetry_global_aggregates` IS our materialized view, just via explicit row writes.
+
+### 5.3 CORS stance
+
+Existing CORS config at `server.js:80-84` is `cors({ origin: true, credentials: true })`. This reflects whatever Origin sends -- effectively any-origin with credentials.
+
+**Recommendation for `/api/public-stats/*`: do not change anything.** The data is already public-by-design; allowing any origin to fetch is correct. If the `/stats` page is later embedded on a third-party blog as a widget, it'll just work.
+
+**Privacy callout:** because `credentials: true` is on globally, the public-stats endpoint will reflect cookies that don't exist on a public visit anyway. Worth a one-line code comment in `public-stats.js` documenting that this endpoint does not use cookies (route is auth-free) and doesn't change behaviour based on session.
+
+### 5.4 Angular consumer: `FSBTelemetryService`
+
+**Location:** `showcase/angular/src/app/core/stats/fsb-telemetry.service.ts` (new, mirrors `github-stats.service.ts` exactly).
+
+Copy the GitHubStatsService skeleton:
+
+- `@Injectable({ providedIn: 'root' })`
+- `PLATFORM_ID` injection + `isPlatformBrowser` SSR gate (mirror lines 74, 105 of github-stats.service.ts)
+- `BehaviorSubject<DatasetState<...>>` per dataset -- four subjects: `globalAggregates$`, `globalSeries$`, `mostPopular$`, `activeNow$`
+- `POLL_INTERVAL_MS = 5 * 60 * 1000` matching GitHub's 5-minute cadence
+- Visibility-aware polling (mirror lines 116-138)
+- `start()` / `stop()` lifecycle
+- Endpoints: `${API_BASE}/api/public-stats/global` and `${API_BASE}/api/public-stats/global/series`
+- ETag caching follows the existing pattern at lines 295-332 -- the new public-stats Express route should add ETag headers via Express's built-in support (`server.js:160` already has `etag: true` for static).
+
+The stats page (`showcase/angular/src/app/pages/stats/stats-page.component.ts`) gains a toggle group "FSB Telemetry" -- subscribe to the same four BehaviorSubjects and render in chart/table widgets. No new chart libraries needed; reuse Chart.js the page already lazy-loads.
+
+---
+
+## 6. DOM-Streaming Fix -- Diagnostic Architecture
+
+**Constraint:** the user wants this phase **last**. We do not fix in research -- we map the surface, identify suspected break points, and recommend an inspection order.
+
+### 6.1 The actual message flow (extension -> server -> dashboard)
+
+```
+                                    EXTENSION SIDE
++--------------------------------------------------------------------------+
+| extension/ws/ws-client.js                                                |
+|                                                                          |
+|   Outbound: ext:dom-snapshot / ext:dom-mutations / ext:dom-scroll /      |
+|             ext:dom-overlay / ext:dom-dialog / ext:stream-state /        |
+|             ext:page-ready                                               |
+|   Inbound:  dash:dom-stream-start (line 1081) ->                         |
+|             _handleDashboardStreamStart (line 1029) ->                   |
+|             _forwardToContentScript('domStreamStart') (line 1054) ->     |
+|             chrome.tabs.sendMessage(tabId, {action:'domStreamStart'})    |
+|                                       |                                   |
+|                                       v                                   |
+|   extension/content/dom-stream.js (content-script side, mutation tap)    |
++--------------------------------------------------------------------------+
+                                       |
+                                       | WebSocket frames (LZ-compressed)
+                                       v
++--------------------------------------------------------------------------+
+|                          SHOWCASE SERVER                                  |
+| showcase/server/src/ws/handler.js                                        |
+|                                                                          |
+|  rooms: Map<hashKey, {extensions: Set, dashboards: Set}>                 |
+|  relayToRoom(hashKey, senderWs, rawMessage, messageType) line 251-259    |
+|    - senderWs._fsbRole === 'extension' -> targets = room.dashboards      |
+|    - senderWs._fsbRole === 'dashboard' -> targets = room.extensions      |
+|  sendToClients(...) line 66-111: iterates ws.send() on each target       |
+|                                                                          |
+|  ! DEBUG log at line 202 already prints every relay's deliveredCount     |
+|  ! and droppedCount per type -- this is the diagnostic surface to read   |
+|    when reproducing the bug. Note: it's marked `TEMP DEBUG (Phase 212    |
+|    diagnosis)` in a comment -- it's been there since the prior streaming |
+|    work.                                                                  |
++--------------------------------------------------------------------------+
+                                       |
+                                       v
+                                  DASHBOARD SIDE
++--------------------------------------------------------------------------+
+| showcase/angular/src/app/pages/dashboard/dashboard-page.component.ts     |
+|                                                                          |
+|  ws.onmessage (line 3315-3334) ->                                        |
+|    LZ envelope decompression (line 3319-3325) ->                         |
+|    handleWSMessage (line 3393) ->                                        |
+|      ext:dom-snapshot -> handleDOMSnapshot (line 2802, srcdoc iframe)    |
+|      ext:dom-mutations -> handleDOMMutations (line 3129, patch iframe)   |
+|      ext:dom-scroll   -> handleDOMScroll (line 3193)                     |
+|      ext:dom-overlay  -> handleDOMOverlay (line 3201)                    |
+|      ext:dom-dialog   -> handleDOMDialog (line 3252)                     |
+|      ext:stream-state -> handleRecoveredStreamState (line 2691)          |
+|      ext:page-ready   -> auto-fires dash:dom-stream-start (line 3517)    |
++--------------------------------------------------------------------------+
+```
+
+### 6.2 Suspected break points (ranked by probability)
+
+**HIGH PROBABILITY (read these first):**
+
+1. **Pair handshake gating the room match.** `handler.js:151` requires `wss.handleUpgrade` to have been called with `{ hashKey, role }` from the URL params (server.js:241-262). If the dashboard's hashKey differs from the extension's hashKey -- because the user paired with a stale session or the auth middleware (`server.js:103-105` line `authMiddleware(queries)`) doesn't validate the same key both ends -- the dashboard and extension end up in DIFFERENT rooms and the relay log line at handler.js:202 will show `deliveredCount=0` for every extension->dashboard frame. **Inspection order #1: read the server logs while the bug repros and verify both extension and dashboard log connect events with the SAME `hashKey.substring(0,8)` prefix at lines 152 + 156.**
+
+2. **Stream-tab resolution returns "not-ready" silently.** `extension/ws/ws-client.js:1029 _handleDashboardStreamStart` calls `_resolveStreamCandidate()` first (line 1030). If the candidate isn't ready, it emits `ext:stream-state` with `not-ready` and returns without calling `_forwardToContentScript` (lines 1032-1046). The dashboard's `handleRecoveredStreamState` (component line 2691) then renders the disconnected pane. **Inspection order #2: in dev tools network panel, watch for an outbound `ext:stream-state` message right after pressing the wake button -- if it carries `status: 'not-ready'`, the extension side never started the content-script tap.**
+
+3. **`_forwardToContentScript` hits "no tab resolved" branch.** Line 1359-1376 of ws-client.js: if neither `_streamingTabId` nor `_dashboardTaskTabId` is set, the fallback `chrome.tabs.query({active:true})` runs but is famously unreliable from a service worker. Records `recordFSBTransportFailure('dom-forward-failed', {readyState: 'no-tab'})` and silently returns. **Inspection order #3: check `chrome.storage.local.fsbDiagnostics_ring` for `dom-forward-failed` entries (the Phase 211 diagnostics ring buffer at `extension/utils/diagnostics-ring-buffer.js` captures these).**
+
+**MEDIUM PROBABILITY:**
+
+4. **`ext:status` broadcast is missing or arrives before the dashboard's listener is wired.** `handler.js:158-163` broadcasts `ext:status {online:true}` when an extension connects. If the dashboard connects AFTER the extension, lines 166-172 send the snapshot. If the dashboard's `handleWSMessage` (component line 3411) is not yet registered (component constructor hasn't finished), the `extensionOnline = false` state persists, blocking `scheduleStreamRecovery` (component line 3425). **Inspection order #4: trace the order of `[WS] dashboard connected` and `[WS] extension connected` log lines from server.js console output.**
+
+5. **LZ decompression failure on the dashboard side.** Component line 3319-3325 silently returns on decompress-failure with only a transport-error record. The user wouldn't see anything in the UI -- the frame appears to never arrive. **Inspection order #5: in the dashboard's transport-event ring (visible via the dashboard's existing diagnostic export, see component `recordTransportError` calls), look for `message-parse-failed` events with context `'parse'`.**
+
+**LOW PROBABILITY:**
+
+6. **Stale-mutation auto-resync loop.** Component lines 3144-3146 / 3162 / 3168 / 3175 trigger `requestPreviewResync` after 3 stale mutations. If the iframe doc is wiped between snapshot and a mutation arriving, every mutation goes stale, and the resync request itself is dropped by 1/2/3/4 above -- net result: dashboard sits at a stale snapshot forever. This is downstream of 1-5; fixing those should re-establish the chain.
+
+7. **Mutation `data-fsb-nid` selector contract drift.** Lines 3142, 3153, 3161, 3167, 3174 of the dashboard use `'[data-fsb-nid="' + m.parentNid + '"]'` to find target nodes. If the content-script side (extension/content/dom-stream.js) emits a snapshot with a different attribute name or numbering scheme than the mutations, every patch fails. Worth grepping both files for `data-fsb-nid` once the upstream chain is verified intact.
+
+### 6.3 Recommended inspection / fix order
+
+Phase ordering (within the final fix phase, not across the milestone):
+
+1. **Repro + capture three logs simultaneously:** server stdout (handler.js:152, 156, 202), extension diagnostics ring (`fsb_diagnostics_ring`), and dashboard transport events.
+2. **Confirm hashKey parity** across the two `connected` lines (Break-point 1).
+3. **Confirm `dash:dom-stream-start` reaches the extension** by reading server log line 202 -- look for `extension->dashboard ... type=ext:stream-state delivered=1` followed by the dashboard's reaction.
+4. **If 2-3 are clean,** trace the content-script side: is `dom-stream.js` emitting `ext:dom-snapshot`? Add temporary logging at `extension/content/dom-stream.js:1063` (the `ext:page-ready -> dash:dom-stream-start auto-start chain` comment is already there).
+5. **If snapshot arrives at dashboard** but iframe doesn't render: check `handleDOMSnapshot` line 2851-2856 iframe load handler -- a CSP block on the showcase domain could deny `srcdoc` content.
+
+**Do NOT fix** anything outside the surface diagnosed by the above chain. The break-point ranking is hypotheses, not solutions; the actual root cause is one of these 7 points and must be confirmed by the inspection chain before code changes ship.
+
+---
+
+## 7. Phase Build Order Recommendation
+
+### 7.1 Hard constraint
+
+The milestone goal explicitly fixes the dashboard streaming fix LAST. Everything else must precede it.
+
+### 7.2 Dependency graph
+
+```
+        Phase A: install-identity.js + opt-out plumbing
+                    |
+                    | (UUID available)
+                    v
+        Phase B: MCPMetricsRecorder + dispatcher hooks            +-- Phase C: mcp-pricing.js
+                    |                                              |   (independent;
+                    | (recordDispatch emits)                       |    pure data table)
+                    +--------------------------+-------------------+
+                                               |
+                                               | (record + pricing both live)
+                                               v
+                            Phase D: TelemetryCollector + alarms + queue
+                                               |
+                                               | (events queueing)
+                                               v
+                            Phase E: Server ingest (/api/telemetry/* + schema + salt + rate-limit)
+                                               |
+                                               | (events accepted + rolled up)
+                                               v
+                            Phase F: Public aggregates endpoint + FSBTelemetryService Angular consumer
+                                               |
+                                               | (stats page renders aggregates)
+                                               v
+                            Phase G: Control-panel MCP analytics UI + opt-out toggle + first-run banner
+                                               |
+                                               | (operator can see + control everything)
+                                               v
+                            Phase H: Dashboard DOM-streaming fix (diagnostic + repair)
+```
+
+### 7.3 Parallelism opportunities
+
+| Parallel pair | Why safe |
+|---------------|----------|
+| Phase A and Phase C | Pure data + storage bootstrap; no shared writes. UUID gen doesn't depend on pricing table; pricing table doesn't read storage. |
+| Phase B and Phase E (after A, C done) | The extension-side recorder writes to chrome.storage; the server-side ingest creates SQLite tables. No coupling until Phase D wires the network call. |
+| Phase F and Phase G | Different surfaces (Angular page vs control-panel HTML). Both read from already-existing data plumbing. |
+
+### 7.4 Recommended phase numbering (continuing existing FSB phase counter)
+
+Last phase shipped was **268** (v0.9.63 close). Suggested:
+
+| # | Phase | Mode | Parallel-with |
+|---|-------|------|---------------|
+| 269 | Install identity + opt-out scaffold | Sequential | -- |
+| 270 | API pricing module (`extension/ai/mcp-pricing.js`) | Parallel with 269 | 269 |
+| 271 | MCPMetricsRecorder + dispatcher hooks + control-panel hero wiring | Sequential | -- |
+| 272 | TelemetryCollector + alarm scheduling + queue persistence | Sequential | -- |
+| 273 | Server schema + telemetry routes + salt rotator + rate limiter + housekeeper | Sequential | -- |
+| 274 | Public aggregates endpoint + FSBTelemetryService Angular + `/stats` toggle group | Sequential | -- |
+| 275 | First-run privacy banner + opt-out UX polish + integration smoke | Sequential | -- |
+| 276 | Dashboard DOM-streaming diagnostic + fix | Sequential | -- (LAST per constraint) |
+
+### 7.5 Phases that can shift if research surfaces new info
+
+- **270 (pricing)** has the lowest risk and can move earlier or be folded into 271 if the pricing table proves trivial.
+- **275 (privacy UX polish)** could fold into 274 if the toggle is a one-line addition to the existing control-panel; treat as optional split.
+- **271-272 cannot merge** -- the metrics recorder writes a record-shape on every dispatch, the telemetry collector batches OUTBOUND. Conflating them would mean an outbound HTTP call on every MCP tool dispatch -- pathologically chatty and breaks the privacy story (the user expects batched anonymization, not real-time POSTs).
+
+---
+
+## 8. Integration Points Summary (for ROADMAP.md consumption)
+
+| Touch point | Existing file | New code | Phase |
+|-------------|---------------|----------|-------|
+| MCP dispatch chokepoint -- tool routes | `extension/ws/mcp-tool-dispatcher.js:285-301` | `try/finally` around `route.handler(...)` call | 271 |
+| MCP dispatch chokepoint -- message routes | `extension/ws/mcp-tool-dispatcher.js:303-331` | `try/finally` around `route.handler(...)` and `client[route.helperName](...)` | 271 |
+| Service-worker boot | `extension/background.js:13015` (onInstalled) + `:13051` (onStartup) | `await FSBInstallIdentity.getOrCreateInstallUuid()` | 269 |
+| Service-worker boot importScripts chain | `extension/background.js:4-65` | Insert `utils/install-identity.js`, `utils/mcp-metrics-recorder.js`, `utils/telemetry-collector.js`, `ai/mcp-pricing.js` | 269-272 |
+| Analytics broadcast pattern (mirror) | `extension/background.js:11440-11447 broadcastAnalyticsUpdate` | New `broadcastMcpMetricsUpdate` -- emits `MCP_METRICS_UPDATE` | 271 |
+| chrome.alarms beat scheduler (mirror) | `extension/ws/mcp-bridge-client.js:291-303 _scheduleReconnectAlarm` | `TELEMETRY_BEAT_ALARM` periodInMinutes:15 | 272 |
+| Control panel analytics hero (additive) | `extension/ui/control_panel.html:104-122` | New "MCP Calls/Cost/Active Clients" tiles + per-call log section | 271, 275 |
+| Server schema | `showcase/server/src/db/schema.js:9-73` | Add `telemetry_events`, `telemetry_rollups_daily`, `telemetry_global_aggregates` to the single `db.exec` block | 273 |
+| Server queries | `showcase/server/src/db/queries.js:11-136 _prepareStatements` | New `insertTelemetryEvent`, `getGlobalTelemetryAggregates`, `getGlobalTelemetrySeries` prepared statements | 273 |
+| Server routes mount | `showcase/server/server.js:99-113` | Add `app.use('/api/telemetry', createTelemetryRouter(queries))` (auth-NOT-required), `app.use('/api/public-stats', createPublicStatsRouter(queries))` | 273-274 |
+| Salt + housekeeper init | `showcase/server/server.js:27-29` (post DB init) | `setInterval(housekeeper, 60*60*1000); housekeeper()` | 273 |
+| Stats page consumer | `showcase/angular/src/app/pages/stats/stats-page.component.ts:32 import GitHubStatsService` | Add `import { FSBTelemetryService }`, new toggle group + view widgets | 274 |
+| Existing dashboard streaming surface to diagnose | `showcase/server/src/ws/handler.js:175-203` (relay) + `extension/ws/ws-client.js:1029-1055` (start) + `showcase/angular/src/app/pages/dashboard/dashboard-page.component.ts:2802-3505` (consume) | Read-only diagnosis; targeted fix in one of these three files | 276 |
+
+---
+
+## 9. Outstanding Open Questions (to resolve during CONTEXT.md scoping)
+
+1. **MCP client label allowlist.** The existing visual-session allowlist (`extension/utils/mcp-visual-session.js MCPVisualSessionUtils.normalizeMcpVisualClientLabel`) already covers "Claude Code", "Codex", "OpenClaw". Telemetry should reuse this exact list so the badge surface and the telemetry aggregation use identical labels. Verify the function is callable from `MCPMetricsRecorder` (it should be -- it's already imported by the dispatcher at `mcp-tool-dispatcher.js:42`).
+
+2. **Should the first beat fire immediately or wait for the 15-min alarm?** Recommendation: fire on `chrome.runtime.onInstalled` and `onStartup` (after a 30-second idle grace so install_announce isn't conflated with first-actual-use) with a single `install_announce` event. Lets the server count total installs even from users who never use an MCP tool.
+
+3. **`run_task` token harvesting shape.** The result envelope from `dispatchMcpToolRoute({tool:'run_task'})` ultimately resolves with `{sessionId, status, result, ...}` (from `_handleStartAutomation` in mcp-bridge-client.js:1196-1202). Where exactly inside `result` are token counts? Looks like they go through `automationComplete` message details -- verify path during Phase 271.
+
+4. **Dashboard streaming fix scope.** The 7 break-points in Section 6.2 are an analytic ranking; the actual fix may be a one-liner OR may require a structural change to the pair-handshake. Final scope only knowable post-Phase-275 diagnostic. **Phase 276 must include a CONTEXT.md "diagnostic-first" plan** that decides scope after step 1-2 of Section 6.3.
+
+---
+
+**End of v0.9.69 architecture research.**
