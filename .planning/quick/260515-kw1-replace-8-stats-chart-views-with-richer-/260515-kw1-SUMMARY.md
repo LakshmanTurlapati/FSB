@@ -65,7 +65,7 @@ Replaced the 8 near-identical Chart.js bar/line views on /stats with 9 view-appr
   - `showcase/angular/src/app/pages/stats/stats-page.component.html` -- conditional branch around the canvas to render the big-number tile instead of `<canvas>` for `fsb-avg-agents-per-user`.
   - `showcase/angular/src/app/pages/stats/stats-page.component.scss` -- `.big-number-tile` + `.sankey-svg` styles appended without touching any pre-existing rule.
   - `showcase/angular/src/locale/messages*.xlf` (en source + es/de/ja/zh-CN/zh-TW) -- new `SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL` trans-unit (6 files).
-  - `tests/stats-chart-overhaul.test.js` -- new 16-assertion regression test (commitPunchcard bucketing + ring-buffer cap behaviour + source-text snapshots).
+  - `tests/stats-chart-overhaul.test.js` -- new 16-assertion regression test (commitPunchcard bucketing + ring-buffer cap behaviour + source-text snapshots). Test contract updated by quick task 260515-mfs: PunchcardPoint now includes a c (raw count) field; tests assert c is independent of the sqrt-scaled r.
   - `package.json` -- new test wired into the root `npm test` chain immediately after `tests/showcase-csp-allows-github-api.test.js`.
 
 ## Commit log (feat/stats-chart-overhaul, 5 atomic commits)

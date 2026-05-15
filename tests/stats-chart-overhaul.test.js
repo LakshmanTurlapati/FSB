@@ -64,7 +64,7 @@ function commitPunchcardLocal(commits) {
     if (count <= 0) continue;
     const [wdStr, hrStr] = key.split('-');
     const r = Math.max(3, Math.min(20, Math.sqrt(count) * 4));
-    out.push({ x: Number(hrStr), y: Number(wdStr), r });
+    out.push({ x: Number(hrStr), y: Number(wdStr), r, c: count });
   }
   return out;
 }
@@ -144,6 +144,54 @@ function commitPunchcardLocal(commits) {
   check('commitPunchcard: Math.sqrt scaling present',
     /Math\.sqrt\s*\(\s*count\s*\)/.test(src),
     'Math.sqrt(count) scaling not found -- did someone switch to linear?');
+}
+
+// ---- Quick task 260515-mfs (P2) -- raw count `c` plumbing ----
+
+// A7. Single commit -> c === 1 (raw count, independent of sqrt-scaled r).
+{
+  const result = commitPunchcardLocal([
+    { commit: { author: { date: '2024-06-05T14:30:00Z' } } },
+  ]);
+  check('commitPunchcard: single commit -> c=1 (raw count field)',
+    result.length === 1 && result[0].c === 1,
+    `expected c:1, got ${JSON.stringify(result)}`);
+}
+
+// A8. 5 commits same bucket -> c === 5 even though r is sqrt-scaled.
+{
+  const same = [];
+  for (let i = 0; i < 5; i++) {
+    same.push({ commit: { author: { date: '2024-06-05T14:00:00Z' } } });
+  }
+  const result = commitPunchcardLocal(same);
+  check('commitPunchcard: 5 commits same bucket -> c=5 (raw, unaffected by sqrt scaling)',
+    result.length === 1 && result[0].c === 5,
+    `expected c:5, got ${JSON.stringify(result)}`);
+}
+
+// A9. 50 commits same bucket -> c === 50 (radius clamp at 20 does NOT touch c).
+{
+  const many = [];
+  for (let i = 0; i < 50; i++) {
+    many.push({ commit: { author: { date: '2024-06-05T14:00:00Z' } } });
+  }
+  const result = commitPunchcardLocal(many);
+  check('commitPunchcard: 50 commits same bucket -> c=50 (radius clamp does not affect c)',
+    result.length === 1 && result[0].c === 50 && result[0].r === 20,
+    `expected c:50 r:20, got ${JSON.stringify(result)}`);
+}
+
+// A10. Source snapshot -- production helper still emits the `c` field.
+{
+  let src = '';
+  try { src = fs.readFileSync(SERVICE_PATH, 'utf8'); } catch { /* swallow */ }
+  check('commitPunchcard: PunchcardPoint interface declares c: number',
+    /export\s+interface\s+PunchcardPoint\s*\{[^}]*\bc\s*:\s*number\b/.test(src),
+    'PunchcardPoint c: number field not found in interface declaration');
+  check('commitPunchcard: production push includes c: count',
+    /out\.push\(\s*\{[^}]*\bc\s*:\s*count\b/.test(src),
+    'commitPunchcard push site does not include c: count -- did someone drop the raw count field?');
 }
 
 // -----------------------------------------------------------------------------

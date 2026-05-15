@@ -407,10 +407,12 @@ export class GitHubStatsService {
 /**
  * Punchcard cell -- one bubble in the GitHub-style "commits by hour of day +
  * weekday" view. `x` is the UTC hour (0-23), `y` is the UTC weekday
- * (0=Sun..6=Sat), and `r` is the sqrt-scaled commit count clamped to 3..20 px
- * so a busy bucket does not dominate the canvas.
+ * (0=Sun..6=Sat), `r` is the sqrt-scaled commit count clamped to 3..20 px so
+ * a busy bucket does not dominate the canvas, and `c` is the raw un-scaled
+ * commit count for that bucket -- used by the tooltip so users see
+ * "5 commits" instead of the meaningless radius value (Codex P2 on PR #58).
  */
-export interface PunchcardPoint { x: number; y: number; r: number }
+export interface PunchcardPoint { x: number; y: number; r: number; c: number }
 
 // --- Pure aggregator implementations (exported for unit-test reuse). ---
 
@@ -642,7 +644,7 @@ export function commitPunchcard(commits: CommitEvent[]): PunchcardPoint[] {
     const weekday = Number(wdStr);
     const hour = Number(hrStr);
     const r = Math.max(3, Math.min(20, Math.sqrt(count) * 4));
-    out.push({ x: hour, y: weekday, r });
+    out.push({ x: hour, y: weekday, r, c: count });
   }
   return out;
 }

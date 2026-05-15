@@ -809,8 +809,17 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
                 enabled: true,
                 callbacks: {
                   label: (ctx: any) => {
-                    const r = ctx?.raw?.r ?? 0;
-                    return `Radius: ${r.toFixed?.(1) ?? r}`;
+                    // Quick task 260515-mfs (P2) -- show raw commit count from `c`,
+                    // not the sqrt-scaled `r` (which is just a bubble-size hint).
+                    // Codex P2 on PR #58.
+                    const raw = ctx?.raw ?? {};
+                    const count = typeof raw.c === 'number' ? raw.c : 0;
+                    const x = typeof raw.x === 'number' ? Math.round(raw.x) : 0;
+                    const y = typeof raw.y === 'number' ? Math.round(raw.y) : 0;
+                    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][y] ?? '';
+                    const hour = String(x).padStart(2, '0');
+                    const noun = count === 1 ? 'commit' : 'commits';
+                    return `${weekday} ${hour}:00 -- ${count} ${noun}`;
                   },
                 },
               },
