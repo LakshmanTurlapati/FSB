@@ -91,27 +91,7 @@ Final HEAD on `feat/stats-chart-overhaul`: `ea9f85c2`.
 
   - `npm --prefix showcase/angular run build` -> exit 0. stats-page chunk: 39.02 kB raw / 9.67 kB transfer (within +5KB headroom vs pre-overhaul baseline, well inside the "informational not blocking" budget called out in the plan).
   - `node tests/stats-chart-overhaul.test.js` -> exit 0, 16/16 assertions PASS.
-  - `npm test` -> blocked by an environmental pre-existing failure in `mcp/src/tools/pricing.ts` (see "Pre-existing test-chain failure" below). The new stats test passes standalone.
-
-### Pre-existing test-chain failure (NOT caused by this task)
-
-`npm test` fails at the `npm --prefix mcp run build` step (early in the chain, long before our new `tests/stats-chart-overhaul.test.js` would run) with:
-
-```
-src/tools/pricing.ts(39,60): error TS1005: ';' expected.
-src/tools/pricing.ts(39,65): error TS1005: '(' expected.
-src/tools/pricing.ts(39,81): error TS1005: ')' expected.
-```
-
-Line 39 of `mcp/src/tools/pricing.ts`:
-
-```ts
-import pricingData from '../../data/mcp-pricing-data.json' with { type: 'json' };
-```
-
-This is the modern `with { type: 'json' }` import-attributes syntax. The locally-installed `tsc` for `mcp/` does not support it in the current Node v25.9.0 environment. The file was last touched in commit `b8d30638` (PR #50, well before this branch) and reproduces identically on the base commit `cd07d9b6` with no working-tree changes -- confirmed via `git stash` round-trip. Not stats-related; not caused by anything in this quick task; per the task constraints "if a non-stats test fails for reasons unrelated to your changes, note it in the SUMMARY but do not chase it." Recommended follow-up: upgrade `mcp/`'s TypeScript dep or replace the import-attribute with a `fs.readFileSync`/`JSON.parse` pattern -- both unrelated to /stats.
-
-The new test passes cleanly when run standalone (`node tests/stats-chart-overhaul.test.js` -> 16/16 PASS), and is correctly wired into the root `npm test` script immediately after `tests/showcase-csp-allows-github-api.test.js`.
+  - `npm test` -> exit 0 (full suite green) once `mcp/` and `showcase/server/` deps are installed locally. The earlier `pricing.ts` "blocker" was an env mis-config (global `tsc 5.1.6` in PATH didn't support import-attributes; project-pinned `^5.9.3` in `mcp/node_modules` does). Resolved with `npm --prefix mcp install` + `npm --prefix showcase/server install`. CI was always green.
 
 ## Deviations from plan
 
@@ -133,7 +113,7 @@ The plan's Task 6 push + PR steps are deferred to the orchestrator's docs commit
     - Switching from Sankey to any Chart.js view re-shows the canvas correctly (the SVG should be removed and the canvas should reappear).
     - Switching to fsb-avg-agents-per-user shows the big-number tile (no canvas) with the delta arrow appearing after the second poll cycle (5 min wait).
     - Theme toggle (if applicable) changes chart colors via `readChartTokens()`.
-  - Optional follow-up unrelated to this task: unblock `npm test` by fixing `mcp/src/tools/pricing.ts` line 39 import-attributes syntax (env upgrade or rewrite to `fs.readFileSync` + `JSON.parse`).
+  - (resolved) Earlier "pricing.ts blocker" was env-only -- `npm test` runs green locally after `npm --prefix mcp install` + `npm --prefix showcase/server install`. No code change required.
 
 ## Self-Check: PASSED
 
