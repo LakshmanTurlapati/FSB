@@ -15,6 +15,7 @@ export type StatsViewId =
   | 'issues-open-vs-closed'
   | 'forks-growth'
   | 'prs-opened-vs-merged'
+  | 'commits-cumulative'
   | 'commits-over-time'
   | 'maintenance';
 
