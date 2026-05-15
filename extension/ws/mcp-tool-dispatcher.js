@@ -282,6 +282,30 @@ function checkOwnershipGate({ tool, params, payload }) {
   return null; // pass
 }
 
+// Extracts the canonical MCP client label from a bridge payload.
+//
+// Callers of dispatchMcpToolRoute / dispatchMcpMessageRoute pass `client: this`
+// (the MCPBridgeClient INSTANCE OBJECT) for downstream helper invocation,
+// restricted-response synthesis, etc. The telemetry recorder
+// (extension/utils/mcp-metrics-recorder.js) expects a STRING client label and
+// falls back to 'unknown' when given anything else -- which silently turned
+// every production telemetry_events.mcp_client into 'unknown'.
+//
+// The canonical normalised label is carried on the bridge payload as
+// `payload.visualSession.client`. The MCP server attaches it in
+// mcp/src/tools/manual.ts buildVisualSessionSidecar after the
+// normalizeMcpVisualClientLabel allowlist gate (mcp/src/tools/visual-session.ts).
+// This helper extracts it for the recordDispatch call sites so telemetry
+// records the real client name without changing the bridge-object semantics
+// the rest of the dispatch flow relies on.
+function extractMcpClientLabel(payload) {
+  if (payload && payload.visualSession && typeof payload.visualSession.client === 'string') {
+    const label = payload.visualSession.client.trim();
+    if (label.length > 0) return label;
+  }
+  return 'unknown';
+}
+
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
   const route = MCP_PHASE199_TOOL_ROUTES[tool];
   if (!route) {
@@ -338,7 +362,7 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
         // Fire-and-forget; intentionally NOT awaited so a slow storage write
         // never blocks the dispatcher's return to the WS client.
         globalThis.fsbMcpMetricsRecorder.recordDispatch({
-          client,
+          client: extractMcpClientLabel(payload),
           tool,
           requestPayload: payload,
           response,
@@ -422,7 +446,7 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
           typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
         ) {
           globalThis.fsbMcpMetricsRecorder.recordDispatch({
-            client,
+            client: extractMcpClientLabel(payload),
             tool: type,
             requestPayload: payload,
             response,
@@ -2608,7 +2632,10 @@ const _mcp_dispatcher_exports = {
   // Phase 245: change_report harvest wrap-around + toggle accessors (test-only).
   wrapWithChangeReport,
   _getChangeReportsEnabled,
-  _setChangeReportsEnabledForTest
+  _setChangeReportsEnabledForTest,
+  // Telemetry client-label extraction (regression guard against the
+  // bridge-object-as-client leak that recorded every event as 'unknown').
+  extractMcpClientLabel
 };
 
 if (typeof globalThis !== 'undefined') {
