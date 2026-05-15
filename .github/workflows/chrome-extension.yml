@@ -39,6 +39,12 @@ jobs:
       - name: Install mcp deps
         run: npm --prefix mcp install --no-audit --no-fund
 
+      - name: Install showcase/server deps (needed by server-telemetry tests in npm test chain)
+        run: npm --prefix showcase/server install --no-audit --no-fund
+
+      - name: Install showcase/angular deps (needed by fsb-telemetry-service + build-smoke + privacy-page tests in npm test chain)
+        run: npm --prefix showcase/angular install --no-audit --no-fund
+
       - name: Validate extension
         run: npm run validate:extension
 
