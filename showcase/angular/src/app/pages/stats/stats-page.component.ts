@@ -1056,33 +1056,11 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
       case 'fsb-avg-agents-per-user': {
-        const v = this.latestFsbHeadline?.avg_agents_per_user ?? 0;
-        // Bar chart with a soft Y-max so the single bar reads as a "big number"
-        // visually -- avoids the axis auto-ranging to the value (which would
-        // make every reading look identical).
-        const baseOptsWithMaxY = {
-          ...baseOpts,
-          scales: {
-            ...baseScales,
-            y: { ...baseScales.y, suggestedMax: 5 },
-          },
-        };
-        return {
-          type: 'bar',
-          data: {
-            labels: [$localize`:@@SHOWCASE_STATS_FSB_CHART_AVG_AGENTS:Avg agents per active user`],
-            datasets: [
-              {
-                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND:Avg active agents per active user`,
-                data: [v],
-                backgroundColor: tokens.primarySoft,
-                borderColor: tokens.primary,
-                borderWidth: 1,
-              },
-            ],
-          },
-          options: baseOptsWithMaxY,
-        };
+        // Quick task 260515-kw1 -- rendered by the template's big-number tile
+        // branch (HTML, not canvas). redrawChart() early-returns for this view
+        // so this arm is never actually reached at runtime; kept for switch
+        // exhaustiveness over AnyViewId.
+        return null;
       }
     }
     // TypeScript exhaustiveness: every case in the AnyViewId union is handled

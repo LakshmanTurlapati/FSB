@@ -55,7 +55,23 @@
     }
     @if (viewState === 'ready') {
       <div class="chart-mount">
-        <canvas #chartCanvas></canvas>
+        @if (selectedView === 'fsb-avg-agents-per-user') {
+          <!-- Quick task 260515-kw1 -- big-number tile (HTML, not canvas). The
+               template branches here so the chart-mount slot is reused without
+               creating a canvas; redrawChart() early-returns for this view. -->
+          <div class="big-number-tile" role="status" aria-live="polite">
+            <div class="big-number-label" i18n="@@SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL">Avg agents per active user</div>
+            <div class="big-number-value">{{ fsbHeadline?.avg_agents_per_user ?? 0 | number:'1.1-2' }}</div>
+            @if (avgAgentsDelta !== null) {
+              <div class="big-number-delta" [class.up]="avgAgentsDelta > 0" [class.down]="avgAgentsDelta < 0">
+                <span class="delta-arrow" aria-hidden="true">{{ avgAgentsDelta > 0 ? '\u25B2' : (avgAgentsDelta < 0 ? '\u25BC' : '\u00B7') }}</span>
+                {{ avgAgentsDelta > 0 ? '+' : '' }}{{ avgAgentsDelta | number:'1.1-2' }}
+              </div>
+            }
+          </div>
+        } @else {
+          <canvas #chartCanvas></canvas>
+        }
       </div>
     }
     @if (viewState === 'rate-limited') {
