@@ -82,6 +82,7 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 | 260514-1nv | Showcase /stats Easter-egg page with live GitHub graphs, footer-only entry, 5-min visibility-aware polling | 2026-05-14 | 7d9e449 | [260514-1nv-showcase-stats-page-footer-only-easter-e](./quick/260514-1nv-showcase-stats-page-footer-only-easter-e/) |
 | 260514-pu4 | Wire showcase/server + showcase/angular deps into ci.yml extension job for v0.9.69 PR checks | 2026-05-14 | fbbdae2 | [260514-pu4-wire-showcase-server-showcase-angular-de](./quick/260514-pu4-wire-showcase-server-showcase-angular-de/) |
 | 260514-r6i | Fix showcase CSP `connect-src` so /stats Easter-egg page can fetch from api.github.com (cumulative-stars + commits + forks + issues + PRs + maintenance charts were dark in prod) | 2026-05-15 | a70d550 | [260514-r6i-fix-csp-on-showcase-server-to-unblock-st](./quick/260514-r6i-fix-csp-on-showcase-server-to-unblock-st/) |
+| 260514-rm4 | Fix two Codex P1 telemetry bugs from PR #50 review: (1) serialize recordDispatch fsbUsageData rmw to stop concurrent-dispatch row loss; (2) strip `attempts` from POST body so server allowlist doesn't 400 retried events | 2026-05-15 | 2e514c1 | [260514-rm4-fix-two-p1-telemetry-bugs-from-codex-pr-](./quick/260514-rm4-fix-two-p1-telemetry-bugs-from-codex-pr-/) |
 
 ## Pending User-Gated Actions (carry-forward)
 

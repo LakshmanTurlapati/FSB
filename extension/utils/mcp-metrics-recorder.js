@@ -197,6 +197,38 @@ function _unknownPricingEnvelope() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Concurrency lock for the fsbUsageData read-modify-write cycle.
+// ---------------------------------------------------------------------------
+//
+// Two `recordDispatch` calls that fire close in time (both started before
+// either has resolved its `storage.get -> arr.push -> storage.set` triple)
+// race against each other: each reads the same prior array, pushes its
+// own row onto that local snapshot, and writes back -- the second write
+// overwrites the first row. The result is a silent row drop, which
+// violates COST-05 ("no double count / no dropped row") and BEAT-04
+// ("INSERT OR IGNORE dedup on retry") because rows that never reached
+// storage cannot be aggregated by the next Phase 272 flush.
+//
+// Pattern mirrors `_flushLock` + `_withLock` in
+// extension/utils/telemetry-collector.js lines 142-150. Each new caller
+// chains onto the previous task; both branches of `.then(fn, fn)` route
+// to the same handler so a rejection does not skip the next caller. The
+// `.catch` on the assignment side keeps the chain alive for subsequent
+// callers even if the in-flight task rejects -- the returned promise
+// (handed to recordDispatch) still rejects, so the outer try/catch can
+// log it.
+//
+// `_recordLock` / `_withRecordLock` are intentionally NOT exported -- they
+// are private serialization machinery, not part of the public surface.
+var _recordLock = Promise.resolve();
+
+function _withRecordLock(fn) {
+  var next = _recordLock.then(fn, fn);
+  _recordLock = next.catch(function () { /* keep chain alive */ });
+  return next;
+}
+
 /**
  * Record a single MCP tool dispatch.
  *
@@ -317,26 +349,35 @@ async function recordDispatch(input) {
     // Append to fsbUsageData. Use get->push->set so existing AI-provider
     // rows from extension/ai/cost-tracker.js are preserved. If the existing
     // value is missing or not an array, start fresh.
-    var existing = await storage.get([FSB_USAGE_DATA_KEY]);
-    var arr = (existing && Array.isArray(existing[FSB_USAGE_DATA_KEY])) ? existing[FSB_USAGE_DATA_KEY] : [];
-    arr.push(row);
-    var write = {};
-    write[FSB_USAGE_DATA_KEY] = arr;
-    await storage.set(write);
+    //
+    // Serialised via `_withRecordLock` so two concurrent recordDispatch()
+    // calls cannot interleave their get->push->set cycles (which would
+    // silently lose the second writer's row). The broadcast stays INSIDE
+    // the locked region, AFTER the set, so the Control Panel hero
+    // re-render order matches storage-write order per row (a row reaches
+    // storage immediately before its matching ANALYTICS_UPDATE fires).
+    await _withRecordLock(async function () {
+      var existing = await storage.get([FSB_USAGE_DATA_KEY]);
+      var arr = (existing && Array.isArray(existing[FSB_USAGE_DATA_KEY])) ? existing[FSB_USAGE_DATA_KEY] : [];
+      arr.push(row);
+      var write = {};
+      write[FSB_USAGE_DATA_KEY] = arr;
+      await storage.set(write);
 
-    // Fire-and-forget broadcast so the Control Panel hero refresh listener
-    // re-renders (existing handler at extension/ui/options.js:567-585).
-    try {
-      if (typeof chrome !== 'undefined' && chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
-        var sendResult = chrome.runtime.sendMessage({ type: 'ANALYTICS_UPDATE' });
-        if (sendResult && typeof sendResult.catch === 'function') {
-          sendResult.catch(function () { /* no listeners is fine */ });
+      // Fire-and-forget broadcast so the Control Panel hero refresh listener
+      // re-renders (existing handler at extension/ui/options.js:567-585).
+      try {
+        if (typeof chrome !== 'undefined' && chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+          var sendResult = chrome.runtime.sendMessage({ type: 'ANALYTICS_UPDATE' });
+          if (sendResult && typeof sendResult.catch === 'function') {
+            sendResult.catch(function () { /* no listeners is fine */ });
+          }
         }
+      } catch (_broadcastErr) {
+        // Sending without listeners throws synchronously in some chrome
+        // versions; swallow silently per fire-and-forget contract.
       }
-    } catch (_broadcastErr) {
-      // Sending without listeners throws synchronously in some chrome
-      // versions; swallow silently per fire-and-forget contract.
-    }
+    });
   } catch (outerErr) {
     // Whole-body safety net -- never throw out of the recorder. Best-effort
     // diagnostic at console.debug only so we never spam the SW console on

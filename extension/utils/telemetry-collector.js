@@ -570,6 +570,36 @@ async function _runFlush() {
     var snapshotIds = Object.create(null);
     for (var s = 0; s < snapshot.length; s++) snapshotIds[snapshot[s].event_id] = true;
 
+    // Build the wire payload: an array of events containing EXACTLY the 9
+    // ALLOWED_EVENT_KEYS, in the order the server's allowlist Set lists
+    // them (showcase/server/src/routes/telemetry.js line 41-44). The
+    // explicit field-by-field copy is intentional -- spread (`{...src}`)
+    // or `Object.assign({}, src)` would silently leak in-memory queue
+    // fields (notably `attempts`, set by _bumpAttempts on retry) and the
+    // server's per-event allowlist check returns 400 unknown_field on the
+    // first extra key, which causes retried events to burn through the
+    // 5-attempt cap and be permanently dropped.
+    //
+    // Loop index `w` avoids shadowing the surrounding `i`, `s`, `r` in
+    // _runFlush. The projection is read-only over `snapshot`: the
+    // in-memory queue retains `attempts` (and any future internal
+    // bookkeeping) so _bumpAttempts continues to function on POST failure.
+    var wireEvents = [];
+    for (var w = 0; w < snapshot.length; w++) {
+      var src = snapshot[w];
+      wireEvents.push({
+        event_id:           src.event_id,
+        install_uuid:       src.install_uuid,
+        ts_minute:          src.ts_minute,
+        mcp_client:         src.mcp_client,
+        model:              src.model,
+        tokens_in:          src.tokens_in,
+        tokens_out:         src.tokens_out,
+        active_agent_count: src.active_agent_count,
+        event_type:         src.event_type
+      });
+    }
+
     var ok = false;
     var status = 0;
     try {
@@ -577,7 +607,7 @@ async function _runFlush() {
         keepalive: true,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: snapshot })
+        body: JSON.stringify({ events: wireEvents })
       });
       status = (response && typeof response.status === 'number') ? response.status : 0;
       ok = !!(response && response.ok);
