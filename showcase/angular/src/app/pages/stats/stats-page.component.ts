@@ -843,22 +843,64 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
       case 'maintenance': {
-        const series = this.statsService.maintenanceSignal(this.latestReleases, this.latestCommits);
+        // Quick task 260515-kw1 -- GANTT TIMELINE STRIP. Every point sits at
+        // y=0 on a hidden y axis; x is a continuous linear timestamp. When the
+        // repo has releases we plot one point per release with the tag name +
+        // date in the tooltip; otherwise we fall back to commits (mirrors the
+        // pre-overhaul fallback behaviour but as a strip, not a bar chart).
+        const hasReleases = this.latestReleases.length > 0;
+        const points = hasReleases
+          ? this.latestReleases
+              .filter((r) => r?.published_at && !Number.isNaN(Date.parse(r.published_at)))
+              .map((r) => ({ x: Date.parse(r.published_at), y: 0, _tag: r.tag_name, _date: r.published_at }))
+          : this.latestCommits
+              .filter((c) => c?.commit?.author?.date && !Number.isNaN(Date.parse(c.commit.author.date)))
+              .map((c) => ({ x: Date.parse(c.commit.author.date), y: 0, _sha: c.sha.slice(0, 7), _date: c.commit.author.date }));
         return {
-          type: 'bar',
+          type: 'scatter',
           data: {
-            labels: series.map((p) => p.t),
             datasets: [
               {
-                label: this.latestReleases.length ? 'Releases per month' : 'Commits per week (no releases yet)',
-                data: series.map((p) => p.y),
-                backgroundColor: tokens.primarySoft,
-                borderColor: tokens.primary,
-                borderWidth: 1,
+                label: hasReleases ? 'Releases' : 'Commits (no releases yet)',
+                data: points,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: tokens.primary,
+                pointBorderColor: tokens.primary,
+                showLine: false,
               },
             ],
           },
-          options: baseOpts,
+          options: {
+            ...baseOpts,
+            plugins: {
+              ...baseOpts.plugins,
+              tooltip: {
+                enabled: true,
+                callbacks: {
+                  label: (ctx: any) => {
+                    const raw = ctx?.raw ?? {};
+                    if (raw._tag) return `${raw._tag} (${String(raw._date).slice(0, 10)})`;
+                    if (raw._sha) return `${raw._sha} @ ${String(raw._date).slice(0, 10)}`;
+                    return '';
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                type: 'linear',
+                ticks: {
+                  color: tokens.muted,
+                  callback: (v: number) => {
+                    try { return new Date(v).toISOString().slice(0, 10); } catch { return ''; }
+                  },
+                },
+                grid: { color: tokens.border },
+              },
+              y: { display: false },
+            },
+          },
         };
       }
       // -----------------------------------------------------------------
@@ -867,22 +909,43 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
       // Chart.js never crashes on null inputs.
       // -----------------------------------------------------------------
       case 'fsb-active-now': {
+        // Quick task 260515-kw1 -- RADIAL HALF-DOUGHNUT GAUGE with center text.
+        // `v` is the live active-users count; `max` adapts so the gauge sits
+        // mid-range early on (Math.max(10, v * 2)). Half-doughnut via the
+        // rotation: -90 + circumference: 180 trick; the locally-registered
+        // fsbCenterText plugin draws the number in the doughnut hole.
         const v = this.latestFsbHeadline?.active_users_now ?? 0;
+        const max = Math.max(10, v * 2);
+        const filler = Math.max(0, max - v);
         return {
-          type: 'bar',
+          type: 'doughnut',
           data: {
-            labels: [$localize`:@@SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW:Active users right now`],
+            labels: [
+              $localize`:@@SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW:Active users right now`,
+              'Headroom',
+            ],
             datasets: [
               {
                 label: $localize`:@@SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW_LEGEND:Active users (5 min window)`,
-                data: [v],
-                backgroundColor: tokens.primarySoft,
+                data: [v, filler],
+                backgroundColor: [tokens.primary, tokens.border],
                 borderColor: tokens.primary,
-                borderWidth: 1,
+                borderWidth: 0,
               },
             ],
           },
-          options: baseOpts,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '75%',
+            rotation: -90,
+            circumference: 180,
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false },
+              fsbCenterText: { enabled: true, value: String(v), color: tokens.text },
+            },
+          },
         };
       }
       case 'fsb-tokens': {
@@ -906,27 +969,42 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
       case 'fsb-agents-running': {
+        // Quick task 260515-kw1 -- SPARKLINE from agentHistoryRing (capped at
+        // 288 samples = 24h @ 5-min poll). slice() copies so Chart.js can't
+        // mutate the canonical buffer. Axes hidden so the line reads as a
+        // sparkline; bucket label still appears in the legend for context.
         const headline = this.latestFsbHeadline;
-        const v = headline?.active_agents_now ?? 0;
         const bucket = headline?.active_agents_bucket ?? '0';
+        const ring = this.agentHistoryRing.slice();
         return {
-          type: 'bar',
+          type: 'line',
           data: {
-            labels: [$localize`:@@SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING:Agents running right now`],
+            labels: ring.map((_, i) => String(i)),
             datasets: [
               {
-                // The bucket label is appended in brackets so the legend stays
-                // single-language-safe -- only the leading phrase is translated,
-                // the bucket string (e.g. "5-8") is a code-like identifier.
                 label: $localize`:@@SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING_LEGEND:Active agents (10 min window)` + ` [${bucket}]`,
-                data: [v],
-                backgroundColor: tokens.primarySoft,
+                data: ring,
                 borderColor: tokens.primary,
-                borderWidth: 1,
+                backgroundColor: tokens.primarySoft,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 2,
               },
             ],
           },
-          options: baseOpts,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false },
+            },
+            scales: {
+              x: { display: false },
+              y: { display: false, beginAtZero: true },
+            },
+          },
         };
       }
       case 'fsb-popular-agents': {
