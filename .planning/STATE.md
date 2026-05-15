@@ -31,7 +31,7 @@ See: .planning/research/ (SUMMARY, STACK, FEATURES, ARCHITECTURE, PITFALLS -- sy
 Phase: 276 of 276 (complete -- human_needed for browser repro confirmation)
 Plan: implicit-from-context
 Status: Phases 269+270+271+272+273+274+275+276 complete; ALL 3 RELEASE BLOCKERS RESOLVED; final milestone phase landed; awaiting user-gated repro pass per .planning/phases/276-.../276-VERIFICATION.md
-Last activity: 2026-05-14 -- Phase 276 (dashboard DOM-streaming diagnostic + minimum defensive patches) human_needed: 4 atomic commits (647df1c DIAGNOSTIC scaffold + hashKey room-state logs, 7005823 readiness ping replacing setTimeout(300) + parked-intent re-arm, 4b9d992 stream-state tooltip with 4 new counters + Resync button + scss, 634c0e7 watchdog auto-resnapshot + WS backpressure drop counter) + this metadata commit. 3 new test files (16+14+22 = 52 assertions) all PASS. Full showcase-build-smoke 134/134 PASS (Angular build green in 14s). Regression sweep on 10 existing tests: all clean. STREAM-04 + STREAM-05 + STREAM-06 requirements complete; STREAM-01/02 satisfied via 276-DIAGNOSTIC.md template; STREAM-07 honoured (this counts as 1 of 5 attempts). The actual confirmation of streaming-bug-fix is reserved for the user post-merge per the 8-step manual repro documented in .planning/phases/276-.../276-VERIFICATION.md <human_verification>.
+Last activity: 2026-05-15 -- Completed quick task 260514-r6i: Fix showcase CSP `connect-src` to allow https://api.github.com so /stats Easter-egg charts (cumulative stars + commits + forks + issues + PRs + releases + maintenance) populate. Root cause: `connect-src 'self'` in SHOWCASE_CSP was silently blocking browser fetches from GitHubStatsService — user reported "I don't see anything" on https://full-selfbrowsing.com/stats. One-line directive change + 8-line explanatory comment block above SHOWCASE_CSP + new regression test `tests/showcase-csp-allows-github-api.test.js` wired into the root `npm test` chain (6 assertions, exits 0). Commit `a70d550` on branch `fix/csp-allow-github-api-for-stats`. Full npm test suite green. Production smoke verified once Fly.io redeploys post-merge.
 
 Progress: [██████████] 100% (8/8 milestone phases complete after Phase 276)
 
@@ -81,6 +81,7 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 |---|-------------|------|--------|-----------|
 | 260514-1nv | Showcase /stats Easter-egg page with live GitHub graphs, footer-only entry, 5-min visibility-aware polling | 2026-05-14 | 7d9e449 | [260514-1nv-showcase-stats-page-footer-only-easter-e](./quick/260514-1nv-showcase-stats-page-footer-only-easter-e/) |
 | 260514-pu4 | Wire showcase/server + showcase/angular deps into ci.yml extension job for v0.9.69 PR checks | 2026-05-14 | fbbdae2 | [260514-pu4-wire-showcase-server-showcase-angular-de](./quick/260514-pu4-wire-showcase-server-showcase-angular-de/) |
+| 260514-r6i | Fix showcase CSP `connect-src` so /stats Easter-egg page can fetch from api.github.com (cumulative-stars + commits + forks + issues + PRs + maintenance charts were dark in prod) | 2026-05-15 | a70d550 | [260514-r6i-fix-csp-on-showcase-server-to-unblock-st](./quick/260514-r6i-fix-csp-on-showcase-server-to-unblock-st/) |
 
 ## Pending User-Gated Actions (carry-forward)
 
