@@ -1,46 +1,36 @@
-// GitHub stats service for the /stats Easter-egg page (quick task 260514-1nv).
+// GitHub stats service for the /stats Easter-egg page.
 //
-// Design notes (mirror these in any future tweaks):
+// Design notes (quick task 260516-7l5 server-side-cache rewrite):
 //
-//  * Unauthenticated GitHub REST: the rate limit is 60 requests / hour / IP
-//    (https://docs.github.com/en/rest/overview/resources-in-the-rest-api).
-//    We hard-cap pagination at MAX_PAGES = 30 (bumped from 2 in quick task
-//    260514-wdy so the all-time cumulative-commits chart covers the repo's
-//    full history). Other endpoints early-exit at page 1 because they sit
-//    under PER_PAGE = 100 (stars/forks/issues/pulls/releases), so the per-
-//    cycle budget is `1 (summary) + 5 (early-exit endpoints) + up to 30
-//    (commits)` = ~36 worst-case. ETag 304s short-circuit steady-state
-//    polling (counted as 0 toward the limit per GitHub docs), so a quiet
-//    repo costs effectively 0 requests/cycle after the cold start.
+//  * Source: same-origin /api/public-stats/github/<endpoint_id> served by
+//    showcase/server/src/routes/public-stats.js. The server polls GitHub
+//    once per 5 min into a SQLite cache (showcase/server/src/telemetry/
+//    github-poller.js) so individual visitors do not burn their own per-IP
+//    GitHub rate limit. Pagination, vendor Accept types, and 403 rate-limit
+//    handling all live server-side now -- this client only consumes JSON.
 //
-//  * Polling: every POLL_INTERVAL_MS = 5 min, but only while the document is
-//    visible. We pause via `visibilitychange` (clear the interval, skip the
-//    refresh) and resume with an immediate refresh + new interval when the
-//    tab comes back. ngOnDestroy from the page component calls stop() to
-//    guarantee no leak across route changes.
+//  * Polling: every POLL_INTERVAL_MS = 5 min while the document is visible.
+//    visibilitychange pauses + resumes via clear/setInterval. ngOnDestroy
+//    calls stop() to guarantee no leak across route changes.
 //
-//  * SSR safety: every fetch and every `document` reference is gated by
-//    `isPlatformBrowser(PLATFORM_ID)`. On the Node SSR pass start() is a
-//    no-op and every BehaviorSubject stays at { kind: 'loading' }. The page
-//    component bootstraps start() inside `afterNextRender` which never runs
-//    on the server, so this gate is belt-and-suspenders.
+//  * SSR safety: every fetch + every `document` reference is gated by
+//    `isPlatformBrowser(PLATFORM_ID)`. Server-side rendering stays at
+//    { kind: 'loading' } for all subjects -- afterNextRender bootstraps
+//    start() only on the browser.
 //
-//  * ETag cache: every endpoint is keyed by full URL (path + page) and gets
-//    an If-None-Match header on subsequent fetches. A 304 short-circuit
-//    returns the cached body without re-parsing. Saves both bytes and
-//    rate-limit budget (304 still costs 0 toward the rate limit per GitHub
-//    docs, but the cache also lets us skip the JSON parse + aggregator work).
+//  * ETag cache: per-URL If-None-Match round-trip against the server's
+//    sha256-based ETag (showcase/server/.../public-stats.js etagFor). A 304
+//    returns the cached body without re-parsing.
 //
-//  * Rate-limit handling: HTTP 403 + X-RateLimit-Remaining=0 emits a
-//    `rate-limited` state on all subjects with `resetAt = Reset * 1000` and
-//    aborts the rest of refreshAll() for that cycle. No throw, no retry
-//    loop -- the next 5-min cycle will retry once budget refills.
+//  * First-boot 503: when the server cache row is cold (poller not yet
+//    completed its first tick), the endpoint returns 503 + Retry-After. The
+//    client treats 503 as transient (returns null, leaves the subject as-is
+//    or loading); the next 5-min poll cycle retries automatically.
 //
-//  * Maintenance signal: releases-per-month over last 12 months from
-//    /releases. If the repo has no releases (empty array), we fall back to
-//    commits-per-week over last 12 weeks from /commits (already fetched
-//    elsewhere). This keeps the dashboard meaningful for very young repos
-//    while preferring the cleaner releases signal when available.
+//  * Maintenance signal: same as before -- releases-per-month over 12 months
+//    when releases is non-empty; falls back to commits-per-week from
+//    /commits. Aggregator logic in this file is UNCHANGED post-rewrite; only
+//    the source URLs moved.
 
 import { Injectable, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
@@ -59,22 +49,15 @@ import {
   WeeklyDelta,
 } from './github-stats.types';
 
-const OWNER = 'LakshmanTurlapati';
-const REPO = 'FSB';
-const API_BASE = 'https://api.github.com';
-// MAX_PAGES = 30 covers ~3000 commits with ~30% headroom over the repo's
-// current 23-page /commits history -- needed by the all-time cumulative-commits
-// view (quick task 260514-wdy). Other endpoints are NOT affected because
-// `fetchPaginated` early-exits when `body.length < PER_PAGE` (see ~line 279):
-// stars (66), forks (4), issues (50), pulls (47), releases (17) all sit well
-// under PER_PAGE = 100 and exit at page 1, so they still cost 1 request/cycle.
-// The per-URL ETag cache returns 304 on steady-state polling (counted as 0
-// toward the unauth 60-req/hr limit per GitHub docs) so the rate-limit
-// budget stays preserved. If the repo grows past 3000 commits the cumulative
-// chart truncates to the most-recent 3000 -- graceful degradation, not a crash.
-const MAX_PAGES = 30;
-const PER_PAGE = 100;
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+// Quick task 260516-7l5 -- same-origin server-side cache. The server polls
+// GitHub once per 5 min into showcase/server/.../github_cache and serves each
+// endpoint_id at /api/public-stats/github/<endpoint_id>. The browser never
+// hits api.github.com directly, so the 60-req/hr per-IP unauth limit no
+// longer applies to individual visitors. Pagination, vendor Accept types, and
+// rate-limit handling all live server-side now; this client just consumes
+// JSON and feeds the same aggregator functions (cumulativeStarsSeries etc.).
+const API_ROOT = '/api/public-stats/github';
+const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 min (matches server poll cadence)
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
@@ -88,7 +71,7 @@ interface EtagCacheEntry {
 export class GitHubStatsService {
   private readonly platformId = inject(PLATFORM_ID);
 
-  /** ETag store keyed by full request URL (path + ?page=N). */
+  /** ETag store keyed by full request URL. */
   private readonly etagCache = new Map<string, EtagCacheEntry>();
 
   /** Active polling timer handle; null when polling is paused or stopped. */
@@ -191,10 +174,9 @@ export class GitHubStatsService {
   // --- Endpoint fetches. Each updates its own subject; errors stay scoped. ---
 
   private async fetchRepoSummary(): Promise<void> {
-    const url = `${API_BASE}/repos/${OWNER}/${REPO}`;
     try {
-      const data = await this.fetchJson<RepoSummary>(url);
-      if (data === null) return; // rate-limited or skipped; subject already updated.
+      const data = await this.fetchJson<RepoSummary>(`${API_ROOT}/repo-summary`);
+      if (data === null) return;
       this.repoSummary$.next({ kind: 'ready', data, fetchedAt: Date.now() });
     } catch (err) {
       this.repoSummary$.next({ kind: 'error', message: humanError(err) });
@@ -202,12 +184,10 @@ export class GitHubStatsService {
   }
 
   private async fetchStars(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/stargazers`;
     try {
-      const stars = await this.fetchPaginated<StarEvent>(path, 'application/vnd.github.v3.star+json');
+      const stars = await this.fetchJson<StarEvent[]>(`${API_ROOT}/stars`);
       if (stars === null) return;
       this.stars$.next({ kind: 'ready', data: stars, fetchedAt: Date.now() });
-      // Pre-compute weekly delta from the same dataset.
       this.weeklyStars$.next({ kind: 'ready', data: weeklyStarsDelta(stars), fetchedAt: Date.now() });
     } catch (err) {
       const msg = humanError(err);
@@ -217,9 +197,8 @@ export class GitHubStatsService {
   }
 
   private async fetchIssues(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/issues?state=all`;
     try {
-      const issues = await this.fetchPaginated<IssueEvent>(path);
+      const issues = await this.fetchJson<IssueEvent[]>(`${API_ROOT}/issues`);
       if (issues === null) return;
       this.issues$.next({ kind: 'ready', data: issues, fetchedAt: Date.now() });
     } catch (err) {
@@ -228,9 +207,8 @@ export class GitHubStatsService {
   }
 
   private async fetchForks(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/forks?sort=oldest`;
     try {
-      const forks = await this.fetchPaginated<ForkEvent>(path);
+      const forks = await this.fetchJson<ForkEvent[]>(`${API_ROOT}/forks`);
       if (forks === null) return;
       this.forks$.next({ kind: 'ready', data: forks, fetchedAt: Date.now() });
     } catch (err) {
@@ -239,9 +217,8 @@ export class GitHubStatsService {
   }
 
   private async fetchPulls(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/pulls?state=all`;
     try {
-      const pulls = await this.fetchPaginated<PullEvent>(path);
+      const pulls = await this.fetchJson<PullEvent[]>(`${API_ROOT}/pulls`);
       if (pulls === null) return;
       this.prs$.next({ kind: 'ready', data: pulls, fetchedAt: Date.now() });
     } catch (err) {
@@ -250,9 +227,8 @@ export class GitHubStatsService {
   }
 
   private async fetchCommits(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/commits`;
     try {
-      const commits = await this.fetchPaginated<CommitEvent>(path);
+      const commits = await this.fetchJson<CommitEvent[]>(`${API_ROOT}/commits`);
       if (commits === null) return;
       this.commits$.next({ kind: 'ready', data: commits, fetchedAt: Date.now() });
     } catch (err) {
@@ -261,9 +237,8 @@ export class GitHubStatsService {
   }
 
   private async fetchReleases(): Promise<void> {
-    const path = `/repos/${OWNER}/${REPO}/releases`;
     try {
-      const releases = await this.fetchPaginated<ReleaseEvent>(path);
+      const releases = await this.fetchJson<ReleaseEvent[]>(`${API_ROOT}/releases`);
       if (releases === null) return;
       this.releases$.next({ kind: 'ready', data: releases, fetchedAt: Date.now() });
     } catch (err) {
@@ -271,71 +246,33 @@ export class GitHubStatsService {
     }
   }
 
-  // --- Low-level paginated fetch + ETag cache. ---
+  // --- Low-level fetch + ETag cache. ---
 
   /**
-   * Paginated fetch with hard cap (MAX_PAGES). Stops early when the response
-   * array is shorter than PER_PAGE. Returns null if the cycle was aborted
-   * due to a rate-limit hit (subjects already updated).
-   */
-  private async fetchPaginated<T>(path: string, accept?: string): Promise<T[] | null> {
-    const collected: T[] = [];
-    const sep = path.includes('?') ? '&' : '?';
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const url = `${API_BASE}${path}${sep}page=${page}&per_page=${PER_PAGE}`;
-      const body = await this.fetchJson<T[]>(url, accept);
-      if (body === null) return null; // rate-limited; halt this cycle.
-      if (!Array.isArray(body)) {
-        // Defensive: GitHub should always return an array here. Skip.
-        console.warn(`[github-stats] expected array from ${url}, got`, typeof body);
-        break;
-      }
-      collected.push(...body);
-      if (body.length < PER_PAGE) break; // last page reached.
-    }
-    return collected;
-  }
-
-  /**
-   * Fetch a single JSON resource with ETag support and rate-limit handling.
+   * Fetch a single JSON resource same-origin with ETag round-trip support.
    * Returns:
    *  - the parsed body on 200 or 304 (cache hit),
-   *  - null on rate-limit (subjects already updated to `rate-limited`).
+   *  - null on 503 (server cache cold; transient -- next poll cycle retries).
    * Throws on any other non-OK status.
    */
-  private async fetchJson<T>(url: string, accept?: string): Promise<T | null> {
+  private async fetchJson<T>(url: string): Promise<T | null> {
     if (!isPlatformBrowser(this.platformId)) return null;
 
-    const headers: Record<string, string> = {
-      Accept: accept ?? 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
     const cached = this.etagCache.get(url);
-    if (cached) {
-      headers['If-None-Match'] = cached.etag;
-    }
+    if (cached) headers['If-None-Match'] = cached.etag;
 
-    const response = await fetch(url, { headers, credentials: 'omit' });
-
-    // Rate-limit check first: 403 + Remaining=0.
-    if (response.status === 403) {
-      const remaining = response.headers.get('X-RateLimit-Remaining');
-      const resetRaw = response.headers.get('X-RateLimit-Reset');
-      if (remaining === '0') {
-        const resetAt = Number(resetRaw) * 1000;
-        console.warn(`[github-stats] rate-limited; reset at ${new Date(resetAt).toISOString()}`);
-        this.emitRateLimited(resetAt);
-        return null;
-      }
-    }
+    const response = await fetch(url, { headers, credentials: 'same-origin' });
 
     if (response.status === 304 && cached) {
-      // ETag match: reuse cached body, don't read response (per fetch contract).
       return cached.body as T;
     }
-
+    if (response.status === 503) {
+      // Server cache cold (first boot). Treat as transient error -- next poll cycle retries.
+      return null;
+    }
     if (!response.ok) {
-      throw new Error(`GitHub ${response.status} on ${url}`);
+      throw new Error(`stats ${response.status} on ${url}`);
     }
 
     const parsed = (await response.json()) as T;
@@ -344,19 +281,6 @@ export class GitHubStatsService {
       this.etagCache.set(url, { etag, body: parsed, fetchedAt: Date.now() });
     }
     return parsed;
-  }
-
-  /** Emit `rate-limited` to every active subject. */
-  private emitRateLimited(resetAt: number): void {
-    const state = { kind: 'rate-limited' as const, resetAt };
-    this.repoSummary$.next(state);
-    this.stars$.next(state);
-    this.weeklyStars$.next(state);
-    this.issues$.next(state);
-    this.forks$.next(state);
-    this.prs$.next(state);
-    this.commits$.next(state);
-    this.releases$.next(state);
   }
 
   // --- Pure aggregators (public so the page component can re-derive on view
