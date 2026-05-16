@@ -136,6 +136,22 @@ function initializeDatabase(db) {
       salt_hex TEXT NOT NULL,
       minted_at INTEGER NOT NULL
     );
+
+    -- Quick task 260516-7l5 -- server-side GitHub stats cache (one row per endpoint_id from the
+    -- 7-key allowlist in src/telemetry/github-poller.js). Populated by the 5-min poller; read by
+    -- the /api/public-stats/github/:endpoint_id route. payload_json holds raw GitHub JSON verbatim
+    -- (object for repo-summary; concatenated array for paginated endpoints). etag is GitHub's
+    -- ETag for If-None-Match round-trips on the next tick. fetched_at + http_status are for
+    -- diagnostics + the first-boot 503 detection (NULL row == cache cold).
+    CREATE TABLE IF NOT EXISTS github_cache (
+      endpoint_id TEXT PRIMARY KEY,
+      payload_json TEXT NOT NULL,
+      etag TEXT,
+      fetched_at INTEGER NOT NULL,
+      http_status INTEGER NOT NULL,
+      rate_limit_remaining INTEGER,
+      rate_limit_reset INTEGER
+    );
   `);
 
   // Migration: add replay columns to existing databases
