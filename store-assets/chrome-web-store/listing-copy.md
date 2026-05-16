@@ -2,7 +2,7 @@
 
 ## Title
 
-FSB v0.9.66
+FSB v0.9.67
 
 ## Summary
 
