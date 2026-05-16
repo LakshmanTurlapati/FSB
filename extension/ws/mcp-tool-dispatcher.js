@@ -306,6 +306,52 @@ function extractMcpClientLabel(payload) {
   return 'unknown';
 }
 
+// Per-bridge-connect cache of the last canonical MCP client label observed on
+// an action-tool payload. Non-action message routes (agent:register,
+// mcp:get-tabs, mcp:get-dom, mcp:get-diagnostics, mcp:read-page) never carry
+// a `visualSession.client` -- the sidecar is built only by manual-tool
+// dispatch in mcp/src/tools/manual.ts. Without this cache every non-action
+// recordDispatch row lands on 'unknown' even when a real client is connected.
+//
+// Lifecycle:
+//   - cleared by clearLastKnownMcpClientLabel() from mcp-bridge-client.js
+//     `_ws.onopen` so a different MCP client reconnecting on the same port
+//     never inherits the prior client's label.
+//   - written by resolveMcpClientLabel(payload) whenever it sees a real
+//     allowlist label on the payload.
+//   - read by resolveMcpClientLabel(payload) when the payload itself does
+//     not carry a label (fallback BEFORE 'unknown').
+//
+// Module-level (NOT instance-level) because the dispatcher functions are
+// standalone exports; the bridge-client instance is not always in scope at
+// the recordDispatch call sites. The bridge runs single-connection per
+// extension (only one MCP server can hold the localhost:7225 port), so a
+// module-level slot models the same scope a per-instance field would.
+let _lastKnownMcpClientLabel = null;
+
+function resolveMcpClientLabel(payload) {
+  const fromPayload = extractMcpClientLabel(payload);
+  if (fromPayload !== 'unknown') {
+    _lastKnownMcpClientLabel = fromPayload;
+    return fromPayload;
+  }
+  if (typeof _lastKnownMcpClientLabel === 'string' && _lastKnownMcpClientLabel.length > 0) {
+    return _lastKnownMcpClientLabel;
+  }
+  return 'unknown';
+}
+
+function clearLastKnownMcpClientLabel() {
+  _lastKnownMcpClientLabel = null;
+}
+
+// Test-only accessor so the unit test can assert the cache slot directly
+// without depending on the resolver's return value (which already covers
+// the cache via fallback). Kept underscored to discourage runtime callers.
+function _peekLastKnownMcpClientLabel() {
+  return _lastKnownMcpClientLabel;
+}
+
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
   const route = MCP_PHASE199_TOOL_ROUTES[tool];
   if (!route) {
@@ -362,7 +408,7 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
         // Fire-and-forget; intentionally NOT awaited so a slow storage write
         // never blocks the dispatcher's return to the WS client.
         globalThis.fsbMcpMetricsRecorder.recordDispatch({
-          client: extractMcpClientLabel(payload),
+          client: resolveMcpClientLabel(payload),
           tool,
           requestPayload: payload,
           response,
@@ -446,7 +492,7 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
           typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
         ) {
           globalThis.fsbMcpMetricsRecorder.recordDispatch({
-            client: extractMcpClientLabel(payload),
+            client: resolveMcpClientLabel(payload),
             tool: type,
             requestPayload: payload,
             response,
@@ -2635,7 +2681,13 @@ const _mcp_dispatcher_exports = {
   _setChangeReportsEnabledForTest,
   // Telemetry client-label extraction (regression guard against the
   // bridge-object-as-client leak that recorded every event as 'unknown').
-  extractMcpClientLabel
+  extractMcpClientLabel,
+  // Connection-scoped fallback resolver + cache reset (regression guard
+  // against the non-action message route 'unknown' leak: agent:register,
+  // mcp:get-tabs, mcp:get-dom, mcp:get-diagnostics, mcp:read-page).
+  resolveMcpClientLabel,
+  clearLastKnownMcpClientLabel,
+  _peekLastKnownMcpClientLabel
 };
 
 if (typeof globalThis !== 'undefined') {
@@ -2652,6 +2704,10 @@ if (typeof globalThis !== 'undefined') {
   // the same SW global scope) so action-tool dispatch can opt into the
   // change_report wrap-around without a circular import.
   globalThis.wrapWithChangeReport = wrapWithChangeReport;
+  // Surface the connection-scoped client-label cache reset so the bridge
+  // client can clear it on every fresh _ws.onopen (different MCP client
+  // attaching on the same port must not inherit the prior client's label).
+  globalThis.clearLastKnownMcpClientLabel = clearLastKnownMcpClientLabel;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
