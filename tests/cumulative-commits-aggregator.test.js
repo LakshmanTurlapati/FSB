@@ -2,17 +2,20 @@
  * cumulative-commits-aggregator -- regression guard for the /stats Easter-egg
  * page's all-time cumulative-commits chart (quick task 260514-wdy).
  *
- * Covers two diff surfaces in showcase/angular/src/app/core/stats/github-stats.service.ts:
- *   (a) `MAX_PAGES` was bumped from 2 to 30 so the /commits pagination covers
- *       the repo's full history (~2300 commits as of the bump). A silent
- *       revert back to 2 would re-truncate the chart to the most-recent 200
- *       commits, producing a visually misleading all-time series.
- *   (b) A new exported pure function `cumulativeCommitsSeries(commits)` mirrors
- *       the existing `cumulativeStarsSeries` template, reading
- *       `c.commit.author.date` (NOT a top-level `created_at` -- the latter
- *       does not exist on the /commits response shape). A future refactor
- *       that switches access paths or breaks the filter/sort/bucket/running-
- *       cumulative shape would fail CI here.
+ * Covers the cumulativeCommitsSeries pure aggregator in
+ * showcase/angular/src/app/core/stats/github-stats.service.ts. The exported
+ * function mirrors the existing `cumulativeStarsSeries` template, reading
+ * `c.commit.author.date` (NOT a top-level `created_at` -- the latter does
+ * not exist on the /commits response shape). A future refactor that switches
+ * access paths or breaks the filter/sort/bucket/running-cumulative shape
+ * would fail CI here.
+ *
+ * Historical note: this test originally guarded `MAX_PAGES = 30` (quick task
+ * 260514-wdy) when the Angular client paginated `/commits` directly against
+ * api.github.com. After 260516-7l5 the client reads pre-aggregated commits
+ * from the same-origin /api/public-stats/github/commits endpoint and the
+ * server-side poller owns the pagination walk. The `MAX_PAGES` assertions
+ * moved to tests/server-github-poller.test.js where the invariant now lives.
  *
  * Test is Node-only: it text-parses github-stats.service.ts, extracts the
  * exported function body via regex, strips TypeScript-only annotations, and
@@ -64,13 +67,8 @@ if (readErr || !src) {
 // 1-5. Static source assertions.
 // -----------------------------------------------------------------------------
 
-check('MAX_PAGES bumped to 30',
-  /MAX_PAGES\s*=\s*30\b/.test(src),
-  'MAX_PAGES = 30 not found in github-stats.service.ts');
-
-check('MAX_PAGES = 2 no longer present',
-  !/MAX_PAGES\s*=\s*2\b/.test(src),
-  'old MAX_PAGES = 2 still present -- bump was reverted or never applied (incl. stale doc comments)');
+// MAX_PAGES assertions retired after 260516-7l5 -- pagination moved
+// server-side; the invariant lives in tests/server-github-poller.test.js.
 
 check('cumulativeCommitsSeries exported function exists',
   /export\s+function\s+cumulativeCommitsSeries\s*\(/.test(src),

@@ -17,6 +17,10 @@
  *   T6: Pagination for commits: page 1+2 full, page 3 partial -> upserted row
  *       contains the concatenated 250 elements.
  *   T7: GITHUB_ENDPOINT_IDS contains exactly the 7 expected strings.
+ *   T8: Source-grep regression guard -- MAX_PAGES_COMMITS >= 30 so the
+ *       commits walk still covers the full repo history (~2300 commits as
+ *       of v0.9.66). Invariant migrated from the now-retired
+ *       tests/cumulative-commits-aggregator.test.js MAX_PAGES check.
  *
  * Run: node tests/server-github-poller.test.js
  */
@@ -240,6 +244,26 @@ function freshPoller() {
     commitsParsed && commitsParsed[249] && commitsParsed[249].sha === 'p3-49',
     `got ${commitsParsed && commitsParsed[249] && commitsParsed[249].sha}`);
   db6.close();
+
+  // --- T8: pagination depth invariant (regression guard) ---
+  //
+  // Source-grep guard that the commits walk still caps at >= 30 pages. The
+  // previous client-side guard (tests/cumulative-commits-aggregator.test.js)
+  // retired after pagination moved server-side; the invariant lives here now.
+  // A silent revert to a smaller ceiling would re-truncate the all-time
+  // cumulative-commits chart on /stats.
+  const fs = require('fs');
+  const pollerSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'showcase', 'server', 'src', 'telemetry', 'github-poller.js'),
+    'utf8',
+  );
+  const maxPagesMatch = pollerSrc.match(/MAX_PAGES_COMMITS\s*=\s*(\d+)/);
+  check('T8: MAX_PAGES_COMMITS declared in github-poller.js', !!maxPagesMatch,
+    'MAX_PAGES_COMMITS constant not found');
+  const maxPages = maxPagesMatch ? Number(maxPagesMatch[1]) : 0;
+  check('T8: MAX_PAGES_COMMITS >= 30 (full repo history coverage)',
+    maxPages >= 30,
+    `MAX_PAGES_COMMITS = ${maxPages}; must be >= 30 so the commits walk covers full history`);
 
   // Restore console fns.
   console.error = origErr;
