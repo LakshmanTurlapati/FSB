@@ -212,6 +212,33 @@ class Queries {
     this.selectSeriesForWindow = this.db.prepare(
       "SELECT day_utc, unique_installs, tokens_in_sum, tokens_out_sum, agents_active_sum FROM telemetry_global_aggregates WHERE day_utc >= date('now', ?) ORDER BY day_utc ASC"
     );
+
+    // Quick task 260516-7l5 -- GitHub stats cache.
+    // One row per endpoint_id (7 total). Populated by src/telemetry/github-poller.js
+    // every 5 minutes. Read by src/routes/public-stats.js (/github/:endpoint_id sub-route).
+    this.upsertGithubCache = this.db.prepare(`
+      INSERT INTO github_cache (endpoint_id, payload_json, etag, fetched_at, http_status, rate_limit_remaining, rate_limit_reset)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(endpoint_id) DO UPDATE SET
+        payload_json = excluded.payload_json,
+        etag = excluded.etag,
+        fetched_at = excluded.fetched_at,
+        http_status = excluded.http_status,
+        rate_limit_remaining = excluded.rate_limit_remaining,
+        rate_limit_reset = excluded.rate_limit_reset
+    `);
+    // 304 path: bump fetched_at + http_status but keep payload_json and etag unchanged.
+    this.touchGithubCacheOn304 = this.db.prepare(`
+      UPDATE github_cache
+      SET fetched_at = ?, http_status = ?, rate_limit_remaining = ?, rate_limit_reset = ?
+      WHERE endpoint_id = ?
+    `);
+    this.selectGithubCache = this.db.prepare(
+      'SELECT endpoint_id, payload_json, etag, fetched_at, http_status FROM github_cache WHERE endpoint_id = ?'
+    );
+    this.selectGithubEtag = this.db.prepare(
+      'SELECT etag FROM github_cache WHERE endpoint_id = ?'
+    );
   }
 
   // Hash key operations
@@ -416,6 +443,47 @@ class Queries {
       d90:  this.selectSeriesForWindow.all('-90 days'),
       d365: this.selectSeriesForWindow.all('-365 days'),
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Quick task 260516-7l5 -- GitHub stats cache helpers.
+  // The poller (src/telemetry/github-poller.js) calls upsertGithubCacheRow
+  // on 200 and touchGithubCacheRow on 304. The route handler
+  // (src/routes/public-stats.js /github/:endpoint_id) calls
+  // getGithubCachePayload to serve the cached JSON STRING verbatim (no
+  // JSON.parse + JSON.stringify round-trip on the hot path).
+  // -----------------------------------------------------------------------
+  upsertGithubCacheRow(endpointId, payloadJson, etag, fetchedAt, httpStatus, rlRemaining, rlReset) {
+    this.upsertGithubCache.run(
+      endpointId,
+      payloadJson,
+      etag,
+      fetchedAt,
+      httpStatus,
+      rlRemaining == null ? null : Number(rlRemaining),
+      rlReset == null ? null : Number(rlReset)
+    );
+  }
+
+  touchGithubCacheRow(endpointId, fetchedAt, httpStatus, rlRemaining, rlReset) {
+    this.touchGithubCacheOn304.run(
+      fetchedAt,
+      httpStatus,
+      rlRemaining == null ? null : Number(rlRemaining),
+      rlReset == null ? null : Number(rlReset),
+      endpointId
+    );
+  }
+
+  getGithubCachePayload(endpointId) {
+    const row = this.selectGithubCache.get(endpointId);
+    if (!row) return null;
+    return { payload: row.payload_json, etag: row.etag, fetchedAt: row.fetched_at, status: row.http_status };
+  }
+
+  getGithubEtag(endpointId) {
+    const row = this.selectGithubEtag.get(endpointId);
+    return row ? row.etag : null;
   }
 }
 

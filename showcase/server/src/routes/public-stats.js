@@ -209,10 +209,64 @@ function createPublicStatsRouter(db, queries) {
   router.get('/global', makeHandler('/global', () => buildHeadlineJson(queries), memo));
   router.get('/global/series', makeHandler('/global/series', () => buildSeriesJson(queries), memo));
 
+  // Quick task 260516-7l5 -- server-side GitHub stats cache route.
+  // The poller (src/telemetry/github-poller.js) populates github_cache every
+  // 5 min; this handler serves the cached JSON STRING verbatim with the same
+  // memo + ETag + Cache-Control + no-Set-Cookie posture as /global. First-boot
+  // empty-cache case returns 503 + Retry-After: 60 (NOT 404) so the client
+  // recognises "data not ready yet" vs "endpoint does not exist".
+  const { GITHUB_ENDPOINT_IDS } = require('../telemetry/github-poller');
+  const GITHUB_ALLOW = new Set(GITHUB_ENDPOINT_IDS);
+
+  router.get('/github/:endpoint_id', (req, res) => {
+    const endpointId = req.params.endpoint_id;
+
+    // Always strip Set-Cookie before any send (defensive parity with line above).
+    res.removeHeader('Set-Cookie');
+
+    if (!GITHUB_ALLOW.has(endpointId)) {
+      return res.status(400).json({ error: 'unknown endpoint_id' });
+    }
+
+    const memoKey = `github:${endpointId}`;
+    const now = Date.now();
+    let entry = memo.get(memoKey);
+
+    if (!entry || entry.expiresAt <= now) {
+      // Rebuild from DB. If cache row absent, return 503 (first-boot pending).
+      const row = queries.getGithubCachePayload(endpointId);
+      if (!row) {
+        res.set('Retry-After', '60');
+        return res.status(503).json({ error: 'cache pending', endpoint_id: endpointId });
+      }
+      // LRU eviction (mirrors the existing makeHandler behavior).
+      if (memo.size >= MEMO_MAX_ENTRIES) {
+        const oldest = memo.keys().next().value;
+        if (oldest !== undefined) memo.delete(oldest);
+      }
+      // payload_json is already a JSON STRING; etag is sha256 over it (matches
+      // /global path's etag-over-stringified-body contract).
+      const body = row.payload;
+      const etag = etagFor(body);
+      entry = { body, etag, expiresAt: now + MEMO_TTL_MS };
+      memo.set(memoKey, entry);
+    }
+
+    res.set('ETag', entry.etag);
+    res.set('Cache-Control', CACHE_CONTROL);
+
+    const inm = req.get('If-None-Match');
+    if (inm && inm === entry.etag) return res.status(304).end();
+
+    res.set('Content-Type', 'application/json; charset=utf-8');
+    return res.status(200).send(entry.body);
+  });
+
   // Test-only attachments. Kept on the router so a test holding the router
   // reference can reach them without re-importing this module.
   router._memo = memo;
   router._resetMemoForTest = () => memo.clear();
+  router._GITHUB_ALLOW = GITHUB_ALLOW;
 
   return router;
 }

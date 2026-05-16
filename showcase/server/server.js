@@ -49,14 +49,10 @@ app.disable('x-powered-by');
 // stuck at media="print" so its @import for Font Awesome / Phosphor never
 // applies to screen rendering -- icons disappear. Without an explicit
 // script-src-attr, it falls back to script-src which permits 'unsafe-inline'.
-// connect-src allows api.github.com so the /stats Easter-egg page's
-// GitHubStatsService (showcase/angular/src/app/core/stats/github-stats.service.ts)
-// can fetch repo metrics directly from the browser. GitHub's public-read
-// endpoints return `access-control-allow-origin: *`, so no server-side
-// proxy is required. If you tighten this back to 'self', the /stats charts
-// (cumulative stars / weekly stars / issues / forks / PRs / commits-over-time
-// / maintenance) will surface no data. See tests/showcase-csp-allows-github-api.test.js
-// for the regression guard.
+// connect-src is restricted to 'self'; same-origin endpoint
+// /api/public-stats/github/:endpoint_id serves cached GitHub stats so the
+// browser never reaches api.github.com directly. Server-side polling lives in
+// showcase/server/src/telemetry/github-poller.js (quick task 260516-7l5).
 const SHOWCASE_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://unpkg.com",
@@ -64,7 +60,7 @@ const SHOWCASE_CSP = [
   "font-src 'self' data: https://cdnjs.cloudflare.com https://unpkg.com",
   "img-src 'self' data: blob: https://i.ytimg.com",
   "media-src 'self' blob:",
-  "connect-src 'self' https://api.github.com",
+  "connect-src 'self'",
   // YouTube embeds on the /about page require frame-src; without this it falls
   // back to default-src 'self' and the demo videos render as a blocked iframe.
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
@@ -305,10 +301,16 @@ server.listen(PORT, () => {
 const { startHousekeeper } = require('./src/telemetry/housekeeper');
 const housekeeperInterval = startHousekeeper(db);
 
+// Quick task 260516-7l5 -- 5-min GitHub stats poller. Same lifecycle as housekeeper:
+// boot via setImmediate, interval = 5min, clearInterval on SIGINT/SIGTERM.
+const { startGithubPoller } = require('./src/telemetry/github-poller');
+const githubPollerInterval = startGithubPoller(db);
+
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[FSB Server] Shutting down...');
   clearInterval(housekeeperInterval);
+  clearInterval(githubPollerInterval);
   wss.close();
   server.close();
   db.close();
@@ -317,6 +319,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   clearInterval(housekeeperInterval);
+  clearInterval(githubPollerInterval);
   wss.close();
   server.close();
   db.close();
