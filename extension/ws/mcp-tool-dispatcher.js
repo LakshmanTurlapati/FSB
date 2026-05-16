@@ -306,50 +306,74 @@ function extractMcpClientLabel(payload) {
   return 'unknown';
 }
 
-// Per-bridge-connect cache of the last canonical MCP client label observed on
-// an action-tool payload. Non-action message routes (agent:register,
-// mcp:get-tabs, mcp:get-dom, mcp:get-diagnostics, mcp:read-page) never carry
-// a `visualSession.client` -- the sidecar is built only by manual-tool
-// dispatch in mcp/src/tools/manual.ts. Without this cache every non-action
-// recordDispatch row lands on 'unknown' even when a real client is connected.
+// Per-agent cache of the last canonical MCP client label observed on an
+// action-tool payload. Non-action message routes (agent:register, mcp:get-tabs,
+// mcp:get-dom, mcp:get-diagnostics, mcp:read-page) never carry a
+// `visualSession.client` -- the sidecar is built only by manual-tool dispatch
+// in mcp/src/tools/manual.ts. Without this cache every non-action recordDispatch
+// row lands on 'unknown' even when a real client is connected.
+//
+// Why keyed by agentId, NOT a single module-wide slot:
+//   The bridge runs in hub mode (mcp/src/bridge.ts) and serves MULTIPLE
+//   concurrent relay clients (one per MCP-client process: Claude, Codex,
+//   Cursor, ...) across the same extension WebSocket. A single global slot
+//   would let Client A's action seed the cache, then misattribute Client B's
+//   payload-less get-tabs / get-dom call as Client A. Codex review on PR #59
+//   (P2) called this out; we key by `payload.agentId` (injected by
+//   mcp/src/agent-bridge.ts buildAgentPayload on every post-register message)
+//   so each relay client's fallback is isolated.
 //
 // Lifecycle:
 //   - cleared by clearLastKnownMcpClientLabel() from mcp-bridge-client.js
 //     `_ws.onopen` so a different MCP client reconnecting on the same port
-//     never inherits the prior client's label.
-//   - written by resolveMcpClientLabel(payload) whenever it sees a real
-//     allowlist label on the payload.
-//   - read by resolveMcpClientLabel(payload) when the payload itself does
-//     not carry a label (fallback BEFORE 'unknown').
+//     never inherits the prior client's labels.
+//   - written by resolveMcpClientLabel(payload) whenever the payload carries
+//     BOTH a real allowlist label AND an agentId.
+//   - read by resolveMcpClientLabel(payload) when the payload itself does not
+//     carry a label but DOES carry an agentId (fallback BEFORE 'unknown').
 //
-// Module-level (NOT instance-level) because the dispatcher functions are
-// standalone exports; the bridge-client instance is not always in scope at
-// the recordDispatch call sites. The bridge runs single-connection per
-// extension (only one MCP server can hold the localhost:7225 port), so a
-// module-level slot models the same scope a per-instance field would.
-let _lastKnownMcpClientLabel = null;
+// The very first agent:register message has neither agentId nor
+// visualSession.client (the MCP server learns its agent_id from the response),
+// so it still records 'unknown' -- acceptable since exactly one such message
+// fires per relay-client session.
+const _agentClientLabelCache = new Map();
+
+function _payloadAgentId(payload) {
+  if (payload && typeof payload.agentId === 'string' && payload.agentId.length > 0) {
+    return payload.agentId;
+  }
+  return null;
+}
 
 function resolveMcpClientLabel(payload) {
   const fromPayload = extractMcpClientLabel(payload);
+  const agentId = _payloadAgentId(payload);
   if (fromPayload !== 'unknown') {
-    _lastKnownMcpClientLabel = fromPayload;
+    if (agentId) {
+      _agentClientLabelCache.set(agentId, fromPayload);
+    }
     return fromPayload;
   }
-  if (typeof _lastKnownMcpClientLabel === 'string' && _lastKnownMcpClientLabel.length > 0) {
-    return _lastKnownMcpClientLabel;
+  if (agentId) {
+    const cached = _agentClientLabelCache.get(agentId);
+    if (typeof cached === 'string' && cached.length > 0) {
+      return cached;
+    }
   }
   return 'unknown';
 }
 
 function clearLastKnownMcpClientLabel() {
-  _lastKnownMcpClientLabel = null;
+  _agentClientLabelCache.clear();
 }
 
-// Test-only accessor so the unit test can assert the cache slot directly
-// without depending on the resolver's return value (which already covers
-// the cache via fallback). Kept underscored to discourage runtime callers.
-function _peekLastKnownMcpClientLabel() {
-  return _lastKnownMcpClientLabel;
+// Test-only accessor for the per-agent slot. Kept underscored to discourage
+// runtime callers; the resolver's return value is the supported surface.
+function _peekLastKnownMcpClientLabel(agentId) {
+  if (typeof agentId === 'string' && agentId.length > 0) {
+    return _agentClientLabelCache.has(agentId) ? _agentClientLabelCache.get(agentId) : null;
+  }
+  return _agentClientLabelCache.size === 0 ? null : Object.fromEntries(_agentClientLabelCache);
 }
 
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
