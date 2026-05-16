@@ -306,6 +306,76 @@ function extractMcpClientLabel(payload) {
   return 'unknown';
 }
 
+// Per-agent cache of the last canonical MCP client label observed on an
+// action-tool payload. Non-action message routes (agent:register, mcp:get-tabs,
+// mcp:get-dom, mcp:get-diagnostics, mcp:read-page) never carry a
+// `visualSession.client` -- the sidecar is built only by manual-tool dispatch
+// in mcp/src/tools/manual.ts. Without this cache every non-action recordDispatch
+// row lands on 'unknown' even when a real client is connected.
+//
+// Why keyed by agentId, NOT a single module-wide slot:
+//   The bridge runs in hub mode (mcp/src/bridge.ts) and serves MULTIPLE
+//   concurrent relay clients (one per MCP-client process: Claude, Codex,
+//   Cursor, ...) across the same extension WebSocket. A single global slot
+//   would let Client A's action seed the cache, then misattribute Client B's
+//   payload-less get-tabs / get-dom call as Client A. Codex review on PR #59
+//   (P2) called this out; we key by `payload.agentId` (injected by
+//   mcp/src/agent-bridge.ts buildAgentPayload on every post-register message)
+//   so each relay client's fallback is isolated.
+//
+// Lifecycle:
+//   - cleared by clearLastKnownMcpClientLabel() from mcp-bridge-client.js
+//     `_ws.onopen` so a different MCP client reconnecting on the same port
+//     never inherits the prior client's labels.
+//   - written by resolveMcpClientLabel(payload) whenever the payload carries
+//     BOTH a real allowlist label AND an agentId.
+//   - read by resolveMcpClientLabel(payload) when the payload itself does not
+//     carry a label but DOES carry an agentId (fallback BEFORE 'unknown').
+//
+// The very first agent:register message has neither agentId nor
+// visualSession.client (the MCP server learns its agent_id from the response),
+// so it still records 'unknown' -- acceptable since exactly one such message
+// fires per relay-client session.
+const _agentClientLabelCache = new Map();
+
+function _payloadAgentId(payload) {
+  if (payload && typeof payload.agentId === 'string' && payload.agentId.length > 0) {
+    return payload.agentId;
+  }
+  return null;
+}
+
+function resolveMcpClientLabel(payload) {
+  const fromPayload = extractMcpClientLabel(payload);
+  const agentId = _payloadAgentId(payload);
+  if (fromPayload !== 'unknown') {
+    if (agentId) {
+      _agentClientLabelCache.set(agentId, fromPayload);
+    }
+    return fromPayload;
+  }
+  if (agentId) {
+    const cached = _agentClientLabelCache.get(agentId);
+    if (typeof cached === 'string' && cached.length > 0) {
+      return cached;
+    }
+  }
+  return 'unknown';
+}
+
+function clearLastKnownMcpClientLabel() {
+  _agentClientLabelCache.clear();
+}
+
+// Test-only accessor for the per-agent slot. Kept underscored to discourage
+// runtime callers; the resolver's return value is the supported surface.
+function _peekLastKnownMcpClientLabel(agentId) {
+  if (typeof agentId === 'string' && agentId.length > 0) {
+    return _agentClientLabelCache.has(agentId) ? _agentClientLabelCache.get(agentId) : null;
+  }
+  return _agentClientLabelCache.size === 0 ? null : Object.fromEntries(_agentClientLabelCache);
+}
+
 async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = null, payload = {} }) {
   const route = MCP_PHASE199_TOOL_ROUTES[tool];
   if (!route) {
@@ -362,7 +432,7 @@ async function dispatchMcpToolRoute({ tool, params = {}, client = null, tab = nu
         // Fire-and-forget; intentionally NOT awaited so a slow storage write
         // never blocks the dispatcher's return to the WS client.
         globalThis.fsbMcpMetricsRecorder.recordDispatch({
-          client: extractMcpClientLabel(payload),
+          client: resolveMcpClientLabel(payload),
           tool,
           requestPayload: payload,
           response,
@@ -446,7 +516,7 @@ async function dispatchMcpMessageRoute({ type, payload = {}, client = null, mcpM
           typeof globalThis.fsbMcpMetricsRecorder.recordDispatch === 'function'
         ) {
           globalThis.fsbMcpMetricsRecorder.recordDispatch({
-            client: extractMcpClientLabel(payload),
+            client: resolveMcpClientLabel(payload),
             tool: type,
             requestPayload: payload,
             response,
@@ -2635,7 +2705,13 @@ const _mcp_dispatcher_exports = {
   _setChangeReportsEnabledForTest,
   // Telemetry client-label extraction (regression guard against the
   // bridge-object-as-client leak that recorded every event as 'unknown').
-  extractMcpClientLabel
+  extractMcpClientLabel,
+  // Connection-scoped fallback resolver + cache reset (regression guard
+  // against the non-action message route 'unknown' leak: agent:register,
+  // mcp:get-tabs, mcp:get-dom, mcp:get-diagnostics, mcp:read-page).
+  resolveMcpClientLabel,
+  clearLastKnownMcpClientLabel,
+  _peekLastKnownMcpClientLabel
 };
 
 if (typeof globalThis !== 'undefined') {
@@ -2652,6 +2728,10 @@ if (typeof globalThis !== 'undefined') {
   // the same SW global scope) so action-tool dispatch can opt into the
   // change_report wrap-around without a circular import.
   globalThis.wrapWithChangeReport = wrapWithChangeReport;
+  // Surface the connection-scoped client-label cache reset so the bridge
+  // client can clear it on every fresh _ws.onopen (different MCP client
+  // attaching on the same port must not inherit the prior client's label).
+  globalThis.clearLastKnownMcpClientLabel = clearLastKnownMcpClientLabel;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

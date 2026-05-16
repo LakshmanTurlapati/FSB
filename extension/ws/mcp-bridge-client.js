@@ -139,6 +139,20 @@ class MCPBridgeClient {
         }
       } catch (_e) { /* best-effort */ }
       this._lastKnownConnectionId = this._connectionId;
+      // v0.9.69 telemetry follow-up: reset the dispatcher's connection-scoped
+      // MCP client label cache. The cache fallback fills in non-action route
+      // recordDispatch rows (agent:register / mcp:get-tabs / mcp:get-dom /
+      // mcp:get-diagnostics / mcp:read-page) which never carry a
+      // visualSession.client sidecar. Clearing on every fresh open prevents
+      // a prior client's label from leaking across reconnects to a different
+      // MCP client process holding the localhost:7225 port. Best-effort:
+      // the dispatcher is loaded into the same SW global scope, but defend
+      // against a load-order race by feature-checking the function.
+      try {
+        if (typeof globalThis.clearLastKnownMcpClientLabel === 'function') {
+          globalThis.clearLastKnownMcpClientLabel();
+        }
+      } catch (_e) { /* best-effort */ }
       // Phase 239 plan 03 -- best-effort reconciliation of any in-flight
       // run_task snapshots that survived an SW eviction. Authoritative
       // settle still lives server-side in autopilot.ts via sw_evicted.
