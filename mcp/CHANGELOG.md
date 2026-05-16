@@ -2,6 +2,23 @@
 
 All notable changes to `fsb-mcp-server` are documented in this file. Each entry corresponds to a published npm release; FSB extension milestones map to MCP package versions in the entry header.
 
+<a id="v0.9.1"></a>
+
+## 0.9.1 (2026-05-16)
+
+Milestone: FSB v0.9.69 follow-up. Patch release adding `Hermes` to the v0.9.36 shared MCP client allowlist so the implicit visual-session contract (v0.9.0) accepts `client: "Hermes"` without raising `BADGE_NOT_ALLOWED`.
+
+### Fixes
+
+- **Add `Hermes` to the MCP client allowlist.** Action-tool calls that pass `client: "Hermes"` previously rejected at the schema layer with the typed `BADGE_NOT_ALLOWED` error (see the v0.9.0 entry for the contract). `Hermes` is now an approved client label alongside Claude, Codex, ChatGPT, Perplexity, Windsurf, Cursor, Antigravity, OpenCode, OpenClaw, Grok, and Gemini. Closes #47 via PR #49 (commit `1512cb48`).
+
+### Anti-scope (NOT in 0.9.1)
+
+- No dependency bumps; `@modelcontextprotocol/sdk`, `ws`, `zod`, `strip-json-comments`, `smol-toml`, and `yaml` are unchanged from 0.9.0.
+- No protocol changes; the v0.9.0 implicit visual-session contract (`visual_reason` + `client` required, sliding 60s window, `is_final: true` early-clear) is byte-identical.
+- No new typed errors; `VISUAL_FIELDS_REQUIRED`, `BADGE_NOT_ALLOWED`, and `TOOL_REMOVED` retain their v0.9.0 shape.
+- Final `npm publish fsb-mcp-server@0.9.1` remains user-gated post-merge per the v0.9.0 precedent.
+
 <a id="v0.9.0"></a>
 
 ## 0.9.0 (2026-05-11)
