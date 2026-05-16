@@ -5,8 +5,12 @@
  *   1. DELETE telemetry_events older than 7 days (retention policy).
  *   2. Re-aggregate today + yesterday per install_uuid into telemetry_rollups_daily.
  *   3. Recompute telemetry_global_aggregates for today + yesterday, applying
- *      a k>=5 anonymity floor on the mcp_client popular list (below-k labels
- *      bucket as "Other (N=<count>)").
+ *      a k>=2 anonymity floor on the mcp_client popular list (below-k labels
+ *      bucket as "Other (N=<count>)"). The floor was 5 in v0.9.69 but at
+ *      single-digit total install counts no label can mathematically clear
+ *      k=5, so /stats showed only "Other". Floor lowered to 2 for the
+ *      dev-phase visibility tradeoff -- raise back to 5 once total install
+ *      count comfortably exceeds 50.
  *   4. Nudge salt rotation by calling hashIp('0.0.0.0', db) -- the result is
  *      discarded; '0.0.0.0' is a harmless throwaway literal; the side effect
  *      is the lazy getOrMintTodaySalt() inside hashIp.
@@ -24,7 +28,7 @@ const { hashIp } = require('../utils/telemetry-hash');
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const K_ANONYMITY_FLOOR = 5;
+const K_ANONYMITY_FLOOR = 2;
 
 function floorToUtcDayMs(ms) {
   const d = new Date(ms);
@@ -73,13 +77,16 @@ function runHousekeeperTick(db, queries, nowMs = Date.now()) {
       const g = queries.selectGlobalForDayRange.get(dayStart, dayEnd) || {};
       const popularMcpRaw = queries.selectPopularMcpForDayRange.all(dayStart, dayEnd);
 
-      // k>=5 anonymity floor per D-07 (WR-01 fix from Phase 273 review).
+      // k>=K_ANONYMITY_FLOOR anonymity floor per D-07 (WR-01 fix from Phase 273
+      // review). Floor was 5 at milestone v0.9.69; lowered to 2 in v0.9.70 once
+      // it became clear that no real client could clear k=5 at single-digit
+      // install totals (every popular_mcp_clients entry collapsed to "Other").
       //
       // Each row's `uniq` is already `COUNT(DISTINCT install_uuid)` per mcp_client
-      // (see queries.js:selectPopularMcpForDayRange). Labels with uniq >= 5 surface
-      // unchanged; labels with uniq < 5 collapse into a single "Other" bucket
-      // whose count is the SUM of below-k install counts (NOT the number of
-      // distinct below-k labels). This corrects two bugs in the prior code:
+      // (see queries.js:selectPopularMcpForDayRange). Labels with uniq >= floor
+      // surface unchanged; labels with uniq < floor collapse into a single "Other"
+      // bucket whose count is the SUM of below-k install counts (NOT the number
+      // of distinct below-k labels). This corrects two bugs in the prior code:
       //
       //   1. The "Other" bucket previously reported the count of distinct LABELS
       //      below k (e.g. 4 if four labels each had uniq=1..4). Downstream

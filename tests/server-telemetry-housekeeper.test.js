@@ -128,14 +128,19 @@ check('global aggregate exists for yesterday', !!globalYesterday, `got ${JSON.st
 check('global yesterday.unique_installs === 1 (A)', globalYesterday && globalYesterday.unique_installs === 1, `got ${JSON.stringify(globalYesterday)}`);
 
 // popular_mcp_json: today has Claude (1 distinct install, A) and Codex (1 distinct install, B).
-// Both labels are below the k=5 floor. The fix in WR-01 (Phase 273 review) sums installs
-// across below-k labels (1 + 1 = 2). Since the aggregate below-k install count (2) is itself
-// < k=5, the "Other" bucket is SUPPRESSED entirely and popular_mcp_json is []. This is the
-// privacy-correct behaviour: surfacing "Other (uniq=2)" would still leak that exactly 2
-// installs used unusual clients today, which violates k-anonymity at k=5.
+// Both labels are below the k=2 floor (uniq=1 < 2). The fix in WR-01 (Phase 273 review) sums
+// installs across below-k labels (1 + 1 = 2). The aggregate below-k install count (2) is
+// >= k=2, so the "Other" bucket SURFACES with uniq=2. Per-label names are still suppressed
+// (each label's uniq=1 < k=2) so anonymity at the chosen k is preserved.
+//
+// History: this assertion was originally written against k=5 (bucket SUPPRESSED -> empty
+// array). Floor lowered to k=2 in v0.9.70 once it became clear no real client could clear
+// k=5 at single-digit total install counts -- /stats showed only "Other" forever.
 const popularToday = JSON.parse(globalToday.popular_mcp_json);
-check('popular_mcp_json applies k=5 floor: all below-k labels collapsed, aggregate < k -> bucket SUPPRESSED (empty array)',
-  Array.isArray(popularToday) && popularToday.length === 0,
+check('popular_mcp_json applies k=2 floor: per-label below k, aggregate 2 >= k -> single "Other" bucket with uniq=2',
+  Array.isArray(popularToday) && popularToday.length === 1
+    && popularToday[0].mcp_client === 'Other'
+    && popularToday[0].uniq === 2,
   `got ${JSON.stringify(popularToday)}`
 );
 

@@ -297,7 +297,9 @@ server.listen(PORT, () => {
 });
 
 // Phase 273 / INGEST-11 -- start hourly maintenance: delete events >7d,
-// re-aggregate rollups + globals (k>=5 anonymity floor), nudge salt rotation.
+// re-aggregate rollups + globals (k>=K_ANONYMITY_FLOOR anonymity floor;
+// floor lowered from 5 to 2 in v0.9.70 -- see housekeeper.js header),
+// nudge salt rotation.
 const { startHousekeeper } = require('./src/telemetry/housekeeper');
 const housekeeperInterval = startHousekeeper(db);
 
