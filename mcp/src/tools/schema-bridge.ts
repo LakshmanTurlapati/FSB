@@ -91,8 +91,20 @@ export function jsonSchemaToZod(
           : z.string();
         break;
       case 'number':
+        // Phase 260516-mq4: coerce string-encoded JSON numbers (Claude Code's
+        // MCP transport stringifies numbers). z.preprocess maps "" -> NaN so
+        // .finite() rejects empty strings (Number("") === 0 ambiguity).
+        zodType = z.preprocess(
+          (v) => (v === '' ? NaN : v),
+          z.coerce.number().finite(),
+        );
+        break;
       case 'integer':
-        zodType = z.number();
+        // Phase 260516-mq4: same coercion + .int() to reject fractional strings.
+        zodType = z.preprocess(
+          (v) => (v === '' ? NaN : v),
+          z.coerce.number().int().finite(),
+        );
         break;
       case 'boolean':
         zodType = z.boolean();
