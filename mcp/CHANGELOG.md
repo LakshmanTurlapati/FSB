@@ -2,6 +2,24 @@
 
 All notable changes to `fsb-mcp-server` are documented in this file. Each entry corresponds to a published npm release; FSB extension milestones map to MCP package versions in the entry header.
 
+<a id="v0.9.2"></a>
+
+## 0.9.2 (2026-05-16)
+
+Milestone: FSB v0.9.69 follow-up. Patch release that coerces string-encoded numeric tool params (`tabId`, `tab_id`, `count`, `limit`, `topN`, etc.) so MCP clients that serialize integers as JSON strings can call the tools without being rejected at the schema gate.
+
+### Fixes
+
+- **Coerce string-encoded numeric params.** Some MCP clients (observed: Claude Code) serialize integer tool params as JSON strings on the wire. The server's Zod input schemas previously declared bare `z.number()`, so `mcp__fsb__switch_tab({ tabId: "695936610" })` and any other tool with a numeric field rejected with `Expected number, received string`. The `jsonSchemaToZod` translator (`mcp/src/tools/schema-bridge.ts`) now emits `z.coerce.number().finite()` for `'number'` and `z.coerce.number().int().finite()` for `'integer'`, both wrapped in a `z.preprocess` that maps `""` to `NaN` so empty-string never silently coerces to `0`. Seven hand-rolled Zod sites that bypass the translator received the same swap: `agents.ts:35` (back), `vault.ts:60` + `vault.ts:110` (fill_credential, use_payment_method), `visual-session.ts:50` (start_visual_session), `observability.ts:27/68/91` (limit, count, topN). PR #63 (commit `fae2aa01`).
+
+### Anti-scope (NOT in 0.9.2)
+
+- No dependency bumps; `@modelcontextprotocol/sdk`, `ws`, `zod`, `strip-json-comments`, `smol-toml`, and `yaml` are unchanged from 0.9.1.
+- No protocol changes; the implicit visual-session contract (v0.9.0) is byte-identical.
+- No new typed errors; the existing schema-failure error shape is preserved.
+- No JSON-Schema-source edits (`mcp/ai/tool-definitions.cjs` untouched; byte-identity parity test stays green).
+- Final `npm publish fsb-mcp-server@0.9.2` remains user-gated post-merge per the v0.9.0 / v0.9.1 precedent.
+
 <a id="v0.9.1"></a>
 
 ## 0.9.1 (2026-05-16)
