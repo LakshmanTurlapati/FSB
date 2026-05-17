@@ -193,18 +193,6 @@
       <h2 i18n="@@privacy.history.title">Policy History</h2>
       <p i18n="@@privacy.history.intro" class="policy-version-intro">Each entry below is a snapshot of the privacy policy as it stood on the date shown. Older versions are kept verbatim so you can audit what we promised at any point in time. Snapshots are English-only.</p>
 
-      <!-- May 2026 (v0.9.69) - current -->
-      <details class="policy-version">
-        <summary>
-          <span class="policy-version-date" i18n="@@privacy.history.v0969.date">May 2026</span>
-          <span i18n="@@privacy.history.v0969.label"><span [attr.translate]="'no'">v0.9.69</span> &mdash; Anonymous Usage Telemetry, Speech-to-Text, Payment Methods, expanded permissions, Background Agents deprecated</span>
-        </summary>
-        <div class="policy-version-body">
-          <p i18n="@@privacy.history.v0969.body">Reconciled the "No Tracking" section, which previously claimed no telemetry, with the v0.9.69 opt-out Anonymous Usage Telemetry pipeline. Added dedicated sections for Speech-to-Text (browser <span [attr.translate]="'no'">SpeechRecognition</span> default, optional <span [attr.translate]="'no'">OpenAI</span> Whisper) and Payment Methods (encrypted vault with the same <span [attr.translate]="'no'">AI</span> isolation as Auto-Passwords). Expanded Data Collection with a full disclosure of the <span [attr.translate]="'no'">Chrome</span> manifest permissions and what each one enables. Marked Background Agents as deprecated in <span [attr.translate]="'no'">v0.9.45rc1</span> while retaining the original disclosures for older builds. Replaced the static "50+ tools" claim with "fixed allowlist". Updated meta description so search previews stop saying "no telemetry".</p>
-          <p class="archive-note" i18n="@@privacy.history.v0969.archiveNote">The body of the May 2026 policy is the live page above; this entry summarizes what changed since the March 2026 snapshot.</p>
-        </div>
-      </details>
-
       <app-privacy-history-archive />
 
     </div>
