@@ -10,7 +10,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.63 Showcase i18n -- 2026-05-13. Phases 261, 262, 264, 265, 266, 267, 268 translated the FSB marketing site (`showcase/angular`) into en/es/de/ja/zh-CN/zh-TW. `LocaleService` + 6-locale registry mirrored Angular ESM <-> Express CJS with `verify-locale-sync.mjs` parity invariant; 420 trans-units in `messages.xlf` (7 namespaces); AI-filled target XLIFFs for all 5 non-en locales with `i18nMissingTranslation: error` enforcing build-time completeness; `lint:i18n` and `extract-i18n-clean` promoted to hard-fail CI gates; 30 prerendered HTMLs (6 marketing routes x 5 locale subpaths + en root) with `<link rel="alternate" hreflang>` + canonical fan-out and `<html lang>` reflecting the served locale; `verify:hreflang` CI assertion gates the count; Express middleware on `/` does BCP-47 Accept-Language parsing with 302-redirect to matching locale subpath, cookie-respecting and bot-safe. Phase 268 (post-audit cleanup) deduplicated the server.js literal locale list against the CJS registry and backfilled six per-phase `VERIFICATION.md` artifacts. Audit status `passed` (14/14 requirements, 7/7 phases, 12/12 integration points, 3/3 E2E flows). `feat/showcase-i18n` branch + `v0.9.63` tag remain user-gated for push and merge.
+**Last shipped:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- 2026-05-14. 8 phases (269-276), 9 plans, 67/68 v0.9.69 REQs Complete (STREAM-03 Partial / `human_needed` by design per locked D-16; defensive Phase-276 patches were attempt 1 of the STREAM-07 5-attempt cap — actual repro confirmation deferred to v0.9.70). Anonymous UUIDv4 install identity + opt-out kill-switch; MCP pricing module + cost-surfacing chokepoint at both dispatch routes; TelemetryCollector 5-min alarm beat surviving MV3 SW eviction; SQLite ingest with 8-layer abuse defenses, HMAC-SHA256 daily-rotated IP hashing, k>=2 anonymity floor (lowered from 5 in post-milestone fix to surface client labels at single-digit install counts); `/api/public-stats/global` + `/global/series` aggregates rendered as 6 new chart toggles on `/stats` Easter-egg page; privacy disclosure section + CWS listing copy + `verify-store-listing.mjs` gate; server-side GitHub stats cache to keep visitor browsers off the 60-req/hr unauth rate limit (5-min poller backed by SQLite `github_cache` table); MCP transport `z.coerce.number()` fix so MCP clients can pass tabId/tab_id as either string or number. All 3 release-gating BLOCKERs RESOLVED. Released artifacts: extension v0.9.67 zip on GitHub, mcp-v0.9.2 auto-published to npm, Fly auto-deployed.
 
 **Recent shipping cadence:**
 - v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- shipped 2026-05-14
@@ -28,15 +28,26 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **CI:** PRs to `main` gated by `ci / all-green` status check (extension + mcp + showcase jobs).
 
-## Current Milestone
+## Current Milestone: v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport)
 
-None active. Most recent milestone (v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix) shipped 2026-05-14 on branch `Refinements`; tag `v0.9.69` created locally, push user-gated.
+**Goal:** Make the showcase dashboard preview pane actually work — diagnose and fix the broken DOM-streaming pipeline, restore the broken Sync-tab remote-control flow, and lock the preview pane to a fixed 16:10 desktop viewport.
 
-**Next milestone candidates (carry-forward backlog):**
-- **v0.9.70 (telemetry follow-up)** — first-run banner, "View what we send" preview, "Reset anonymous ID" button, in-extension "Wipe my data" UI, region-gated opt-IN for EU/UK/CA, public versioned `/api/public-stats` documentation, per-day spark lines, geo heatmap.
-- **v0.9.70 (streaming)** — full dashboard streaming rewrite if STREAM-07 5-attempt cap is hit during Phase 276 browser repro.
-- v0.9.64 (UX, carry-forward) — picker-cookie short-circuit on bare-`/` Accept-Language redirect.
-- v0.9.65 (dashboard i18n, carry-forward) — translate `showcase/angular/src/app/pages/dashboard/**`.
+**Target features:**
+- **Dashboard DOM-streaming fix.** Reproduce the `dash:dom-stream-*` break in a live browser to validate or invalidate the four unfired hypotheses (#3, #5, #6, #7) from v0.9.69 Phase 276. If a single hypothesis is the root cause, ship the minimum patch. If the architecture is the root cause, escalate to a rewrite of the dom-stream transport within this milestone (this counts as attempt 2 of the STREAM-07 5-attempt cap).
+- **Sync tab remote control fix.** Investigate why the showcase dashboard "Sync" tab (the v0.9.45rc1 remote-from-website pairing surface that pairs a browser session to an extension install) is currently broken; restore pairing + remote-command dispatch end-to-end on `full-selfbrowsing.com`.
+- **16:10 desktop viewport for preview pane.** Lock the showcase dashboard preview pane (the dom-stream viewport surface) to a fixed 16:10 aspect ratio on desktop screens regardless of source viewport. Mobile layout intentionally untouched.
+
+**Key constraints:**
+- Diagnose-first on the stream fix: no patch lands without a browser-confirmed hypothesis. STREAM-07 from v0.9.69 (5-attempt cap) governs escalation budget; defensive Phase-276 patches were attempt 1.
+- Mobile dashboard layout out of scope for the aspect-ratio work — desktop-only fix.
+- Carry-forward telemetry-follow-up backlog (sparklines, first-run banner, "View what we send", region-gated opt-in, public API docs, geo heatmap) **deferred again** — not in this milestone.
+- Carry-forward v0.9.64 (picker-cookie short-circuit) and v0.9.65 (dashboard i18n) also **deferred again**.
+- Server-side extension where needed continues to extend `showcase/server/` (Express + SQLite); no new microservice.
+
+**Other deferred candidates (not in this milestone, but on deck):**
+- Telemetry follow-up surface (first-run banner, "View what we send", "Reset anonymous ID", "Wipe my data", region-gated EU opt-IN, public versioned `/api/public-stats` docs, sparklines, geo heatmap).
+- v0.9.64 carry-forward — WARNING-02 picker-cookie short-circuit on bare-`/` Accept-Language redirect.
+- v0.9.65 carry-forward — translate `showcase/angular/src/app/pages/dashboard/**` (currently `--ignore-pattern`'d in `lint:i18n`).
 
 ## Previous Milestone: v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix (shipped 2026-05-14)
 
@@ -560,4 +571,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-14 -- milestone v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix SHIPPED on branch Refinements; tag v0.9.69 created locally (push user-gated)*
+*Last updated: 2026-05-16 -- milestone v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport) STARTED; goals: diagnose-first stream fix, Sync-tab remote control restoration, 16:10 desktop viewport for preview pane*
