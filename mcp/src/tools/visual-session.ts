@@ -47,7 +47,7 @@ export function registerVisualSessionTools(
       client: z.string().describe('Trusted MCP client label, for example Codex, ChatGPT, Claude, or Gemini. Must be on the approved allowlist.'),
       task: z.string().describe('Short task title shown in the visible automation surface.'),
       detail: z.string().optional().describe('Optional initial detail line for the overlay, such as "Preparing checkout flow".'),
-      tab_id: z.number().optional().describe('Optional. Tab id the visual session attaches to. Omit when this agent owns exactly one tab; required to disambiguate when this agent owns multiple. Legacy popup/sidepanel/autopilot do not need to pass this.'),
+      tab_id: z.coerce.number().int().positive().finite().optional().describe('Optional. Tab id the visual session attaches to. Omit when this agent owns exactly one tab; required to disambiguate when this agent owns multiple. Legacy popup/sidepanel/autopilot do not need to pass this.'),
     },
     async () => {
       // Phase 258 Plan 01 -- TOOL_REMOVED stub. Synchronous rejection

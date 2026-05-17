@@ -24,7 +24,7 @@ export function registerObservabilityTools(
   server.tool(
     'list_sessions',
     'List all past FSB automation sessions with summary info (task, status, duration, action count, cost). Use to find session IDs for deeper inspection with get_session_detail. Related: get_session_detail (inspect a specific session), get_logs (get raw logs).',
-    { limit: z.number().optional().describe('Max sessions to return (default: all, max 50)') },
+    { limit: z.coerce.number().int().nonnegative().finite().optional().describe('Max sessions to return (default: all, max 50)') },
     async ({ limit }) => {
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
@@ -65,7 +65,7 @@ export function registerObservabilityTools(
     'Get recent automation logs or logs for a specific session. Includes error/warning summary report. Use to debug issues or understand what FSB has been doing.',
     {
       sessionId: z.string().optional().describe('If provided, get logs only for this session. Otherwise get most recent logs.'),
-      count: z.number().optional().describe('Number of recent logs to return (default: 50, max: 200). Ignored when sessionId is provided.'),
+      count: z.coerce.number().int().nonnegative().finite().optional().describe('Number of recent logs to return (default: 50, max: 200). Ignored when sessionId is provided.'),
     },
     async ({ sessionId, count }) => {
       if (!bridge.isConnected) {
@@ -88,7 +88,7 @@ export function registerObservabilityTools(
       query: z.string().describe('Natural language search query'),
       domain: z.string().optional().describe('Filter by domain (e.g., "amazon.com")'),
       type: z.enum(['task', 'episodic', 'semantic', 'procedural']).optional().describe('Filter by memory type'),
-      topN: z.number().optional().describe('Max results to return (default: 5)'),
+      topN: z.coerce.number().int().positive().finite().optional().describe('Max results to return (default: 5)'),
     },
     async ({ query, domain, type, topN }) => {
       if (!bridge.isConnected) {
