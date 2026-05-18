@@ -3,7 +3,7 @@
     <div class="privacy-header">
       <div class="section-label" i18n="@@privacy.header.kicker">Legal</div>
       <h1 i18n="@@privacy.header.title">Privacy Policy</h1>
-      <p class="privacy-last-updated" i18n="@@privacy.header.updated">Last updated: March 2026</p>
+      <p class="privacy-last-updated" i18n="@@privacy.header.updated">Last updated: May 2026</p>
     </div>
 
     <div class="privacy-content">
@@ -21,6 +21,16 @@
         <li i18n="@@privacy.section.dataCollection.li.2">DOM data is analyzed locally and discarded after each automation step</li>
         <li i18n="@@privacy.section.dataCollection.li.3">No personal information is harvested from pages you visit</li>
       </ul>
+
+      <h3 i18n="@@privacy.section.dataCollection.permissions.title"><span [attr.translate]="'no'">Chrome</span> permissions <span [attr.translate]="'no'">FSB</span> requests</h3>
+      <p i18n="@@privacy.section.dataCollection.permissions.body">To run web automation, <span [attr.translate]="'no'">FSB</span> declares the following permissions in its <span [attr.translate]="'no'">Chrome</span> manifest. Each is used only for the documented purpose; nothing is sent off-device on the strength of any of them.</p>
+      <ul>
+        <li i18n="@@privacy.section.dataCollection.permissions.li.1"><strong>DOM and tabs</strong> &mdash; <code [attr.translate]="'no'">activeTab</code>, <code [attr.translate]="'no'">scripting</code>, <code [attr.translate]="'no'">tabs</code>, <code [attr.translate]="'no'">windows</code>, <code [attr.translate]="'no'">sidePanel</code>, and host permission <code [attr.translate]="'no'">&lt;all_urls&gt;</code>: read and write the active tab, inject the automation content script, list and switch tabs, and render the side panel</li>
+        <li i18n="@@privacy.section.dataCollection.permissions.li.2"><strong>Advanced automation</strong> &mdash; <code [attr.translate]="'no'">debugger</code>: attach the <span [attr.translate]="'no'">Chrome DevTools Protocol</span> for coordinate-based clicks, drag, and key-hold actions that the regular <span [attr.translate]="'no'">DOM</span> API cannot perform. <code [attr.translate]="'no'">webNavigation</code>: observe navigation start/finish events so automation waits for the right moment</li>
+        <li i18n="@@privacy.section.dataCollection.permissions.li.3"><strong>Local storage</strong> &mdash; <code [attr.translate]="'no'">storage</code>, <code [attr.translate]="'no'">unlimitedStorage</code>: store your settings, credentials, payment methods, and memory in <code [attr.translate]="'no'">chrome.storage.local</code> on your device. Unlimited storage lifts the default 10&nbsp;MB quota so memory and session logs can grow without hitting a wall</li>
+        <li i18n="@@privacy.section.dataCollection.permissions.li.4"><strong><span [attr.translate]="'no'">UX</span> helpers</strong> &mdash; <code [attr.translate]="'no'">clipboardWrite</code>: write copy-to-clipboard results from automation. <code [attr.translate]="'no'">alarms</code>: schedule background housekeeping. <code [attr.translate]="'no'">offscreen</code>: host the speech-to-text recorder in a hidden document because service workers cannot capture audio directly</li>
+      </ul>
+      <p i18n="@@privacy.section.dataCollection.permissions.note">Microphone access for speech-to-text is <em>not</em> declared in the manifest. <span [attr.translate]="'no'">Chrome</span> shows its own permission prompt the first time you use the mic button.</p>
 
       <!-- Data Storage -->
       <h2 i18n="@@privacy.section.dataStorage.title">Data Storage</h2>
@@ -43,9 +53,9 @@
         <li i18n="@@privacy.section.external.li.5">Each provider has their own privacy policy governing how they handle API requests</li>
       </ul>
 
-      <!-- No Tracking -->
-      <h2 i18n="@@privacy.section.noTracking.title">No Tracking</h2>
-      <p i18n="@@privacy.section.noTracking.body"><span [attr.translate]="'no'">FSB</span> does not include any analytics, telemetry, or tracking services. There are no cookies, no fingerprinting, and no third-party scripts beyond the AI provider APIs you explicitly configure.</p>
+      <!-- No Third-Party Tracking -->
+      <h2 i18n="@@privacy.section.noTracking.title">No Third-Party Tracking</h2>
+      <p i18n="@@privacy.section.noTracking.body"><span [attr.translate]="'no'">FSB</span> does not include any third-party analytics, ad trackers, or cross-site fingerprinting. There are no cookies and no third-party scripts beyond the <span [attr.translate]="'no'">AI</span> provider <span [attr.translate]="'no'">APIs</span> you explicitly configure. The one piece of first-party data <span [attr.translate]="'no'">FSB</span> sends home is the opt-out Anonymous Usage Telemetry described below, used solely to power the public <a href="/stats">/stats</a> dashboard.</p>
 
       <!-- API Keys -->
       <h2 i18n="@@privacy.section.apiKeys.title">API Keys</h2>
@@ -67,6 +77,29 @@
         <li i18n="@@privacy.section.autoPasswords.li.5">Credentials are stored per-domain with parent domain fallback (e.g., <span [attr.translate]="'no'">accounts.google.com</span> inherits from <span [attr.translate]="'no'">google.com</span>)</li>
       </ul>
 
+      <!-- Payment Methods -->
+      <h2 i18n="@@privacy.section.paymentMethods.title">Payment Methods</h2>
+      <p i18n="@@privacy.section.paymentMethods.body"><span [attr.translate]="'no'">FSB</span> includes an optional payment-method vault that stores card details on your device for checkout auto-fill. Cards are treated with the same encryption and AI isolation as login credentials, and the full card number is never sent to any AI model.</p>
+      <ul>
+        <li i18n="@@privacy.section.paymentMethods.li.1">Card details (number, expiry, cardholder, and zip) are encrypted at rest using <span [attr.translate]="'no'">AES-GCM</span> with the same vault-derived key used for credentials</li>
+        <li i18n="@@privacy.section.paymentMethods.li.2">When the AI analyzes a checkout page, any detected card-number field values are replaced with <code [attr.translate]="'no'">[hidden]</code> before the prompt is built. Card numbers, <span [attr.translate]="'no'">CVV</span>, and expiry are never included in any AI prompt</li>
+        <li i18n="@@privacy.section.paymentMethods.li.3">Auto-fill happens via the content script writing directly into the page's <span [attr.translate]="'no'">DOM</span> fields, bypassing the AI entirely</li>
+        <li i18n="@@privacy.section.paymentMethods.li.4">The list view shows only a card nickname and last-4 digits. Full numbers are decrypted in memory only at the moment of fill</li>
+        <li i18n="@@privacy.section.paymentMethods.li.5">An <span [attr.translate]="'no'">MCP</span> client can request a payment fill via <code [attr.translate]="'no'">use_payment_method</code>, but the user is shown an in-extension confirmation prompt before any card data is written into the page</li>
+        <li i18n="@@privacy.section.paymentMethods.li.6"><span [attr.translate]="'no'">CVV</span> is never persisted unless you opt in per-card, and even then it is encrypted alongside the rest of the record</li>
+      </ul>
+
+      <!-- Speech-to-Text -->
+      <h2 i18n="@@privacy.section.speechToText.title">Speech-to-Text</h2>
+      <p i18n="@@privacy.section.speechToText.body"><span [attr.translate]="'no'">FSB</span> includes an optional microphone input for the prompt box. The default provider runs entirely in your browser; an optional <span [attr.translate]="'no'">OpenAI</span> Whisper fallback can be enabled in settings if you want higher accuracy.</p>
+      <ul>
+        <li i18n="@@privacy.section.speechToText.li.1">Default provider: the browser's native <code [attr.translate]="'no'">SpeechRecognition</code> <span [attr.translate]="'no'">API</span>. Audio is processed by <span [attr.translate]="'no'">Chrome</span> and never leaves your device through <span [attr.translate]="'no'">FSB</span></li>
+        <li i18n="@@privacy.section.speechToText.li.2">Optional Whisper provider: when <code [attr.translate]="'no'">sttProvider</code> is set to <code [attr.translate]="'no'">whisper</code> and an <span [attr.translate]="'no'">OpenAI</span> key is configured, recorded audio chunks are uploaded directly from your browser to <span [attr.translate]="'no'">OpenAI</span>'s transcription endpoint. <span [attr.translate]="'no'">FSB</span> never sees or stores the audio</li>
+        <li i18n="@@privacy.section.speechToText.li.3">The microphone is only active while you are holding or have toggled the mic button. <span [attr.translate]="'no'">Chrome</span> prompts for permission the first time you use it; <span [attr.translate]="'no'">FSB</span> does not request microphone access in the extension manifest</li>
+        <li i18n="@@privacy.section.speechToText.li.4">Transcripts are inserted into the prompt textarea only and are never logged, persisted, or transmitted outside the active AI request you choose to send</li>
+        <li i18n="@@privacy.section.speechToText.li.5">Disable speech entirely by leaving the mic button untouched, or by clearing the optional Whisper provider in <span [attr.translate]="'no'">Chrome</span> extension storage</li>
+      </ul>
+
       <!-- Prompt Injection Prevention -->
       <h2 i18n="@@privacy.section.promptInjection.title">Prompt Injection Prevention</h2>
       <p i18n="@@privacy.section.promptInjection.body">Web pages can contain hidden text designed to hijack AI agents. <span [attr.translate]="'no'">FSB</span> implements multi-layered defenses to ensure the AI only follows your instructions, never instructions embedded in page content.</p>
@@ -74,13 +107,14 @@
         <li i18n="@@privacy.section.promptInjection.li.1">All page content is wrapped in <code [attr.translate]="'no'">[PAGE_CONTENT]</code> boundary markers, and the AI is instructed to never follow instructions found within these markers</li>
         <li i18n="@@privacy.section.promptInjection.li.2">A sanitization engine strips known injection patterns (e.g., "ignore previous instructions", fake system prompts, override attempts) from all page content before it reaches the AI</li>
         <li i18n="@@privacy.section.promptInjection.li.3">AI-generated actions are validated before execution. Dangerous URLs (<code [attr.translate]="'no'">javascript:</code>, <code [attr.translate]="'no'">data:</code>) and script injection attempts are blocked</li>
-        <li i18n="@@privacy.section.promptInjection.li.4">Only a strict allowlist of 50+ known tools can be executed. The AI cannot invent or call arbitrary actions</li>
+        <li i18n="@@privacy.section.promptInjection.li.4">Only a strict, fixed allowlist of known tools can be executed. The AI cannot invent or call arbitrary actions</li>
         <li i18n="@@privacy.section.promptInjection.li.5">Content size is capped (500 chars per value, 15K total prompt cap) to limit payload delivery</li>
         <li i18n="@@privacy.section.promptInjection.li.6">Invisible Unicode control characters that websites embed are stripped before processing</li>
       </ul>
 
       <!-- Background Agents & Server Sync -->
       <h2 i18n="@@privacy.section.bgAgents.title">Background Agents and Server Sync</h2>
+      <p i18n="@@privacy.section.bgAgents.deprecated"><strong>Deprecated in <span [attr.translate]="'no'">v0.9.45rc1</span>.</strong> <span [attr.translate]="'no'">FSB</span>'s built-in Background Agents have been superseded by <span [attr.translate]="'no'">OpenClaw</span> and Claude Routines, with remote control now handled by the Sync tab. The disclosures below are retained for users still running <span [attr.translate]="'no'">v0.9.44</span> or earlier; on current builds the relay server is only contacted when you pair a Sync session.</p>
       <p i18n="@@privacy.section.bgAgents.body">If you opt into Background Agents server sync or Remote Dashboard pairing, a relay server facilitates communication between your extension and the dashboard.</p>
       <ul>
         <li i18n="@@privacy.section.bgAgents.li.1">The server stores: agent definitions (name, schedule, target URL), run metrics (token count, cost, duration, success/fail status), and session pairing tokens</li>
@@ -157,24 +191,9 @@
 
       <!-- Policy History -->
       <h2 i18n="@@privacy.history.title">Policy History</h2>
-      <details class="policy-version">
-        <summary>
-          <span class="policy-version-date" i18n="@@privacy.history.v902.date">March 2026</span>
-          <span i18n="@@privacy.history.v902.label"><span [attr.translate]="'no'">v9.0.2</span> &mdash; Background Agents, Memory System, Server Sync</span>
-        </summary>
-        <div class="policy-version-body">
-          <p i18n="@@privacy.history.v902.body">Added sections for Background Agents and Server Sync (optional relay server for dashboard pairing and agent run metadata). Added Memory System section (all local storage). Updated External Services to acknowledge optional server, <span [attr.translate]="'no'">OpenRouter</span>, and <span [attr.translate]="'no'">LM Studio</span> local-provider support. Updated action count to 50+.</p>
-        </div>
-      </details>
-      <details class="policy-version">
-        <summary>
-          <span class="policy-version-date" i18n="@@privacy.history.v09.date">February 2026</span>
-          <span i18n="@@privacy.history.v09.label"><span [attr.translate]="'no'">v0.9</span> &mdash; Initial privacy policy</span>
-        </summary>
-        <div class="policy-version-body">
-          <p i18n="@@privacy.history.v09.body">Initial privacy policy covering data collection, storage, external services, API key encryption, auto-passwords, prompt injection prevention, and open source transparency. Four AI providers supported (<span [attr.translate]="'no'">xAI</span>, <span [attr.translate]="'no'">OpenAI</span>, <span [attr.translate]="'no'">Anthropic</span>, <span [attr.translate]="'no'">Google Gemini</span>).</p>
-        </div>
-      </details>
+      <p i18n="@@privacy.history.intro" class="policy-version-intro">Each entry below is a snapshot of the privacy policy as it stood on the date shown. Older versions are kept verbatim so you can audit what we promised at any point in time. Snapshots are English-only.</p>
+
+      <app-privacy-history-archive />
 
     </div>
   </div>

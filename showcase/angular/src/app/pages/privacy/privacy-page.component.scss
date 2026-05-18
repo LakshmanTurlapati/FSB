@@ -187,6 +187,29 @@
   font-size: 0.9rem;
 }
 
+.policy-version-body h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.policy-version-body h3:first-of-type {
+  margin-top: 8px;
+}
+
+.policy-version-body ul li {
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.policy-version-body .archive-note {
+  font-style: italic;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .privacy-page {
