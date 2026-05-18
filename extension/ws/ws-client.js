@@ -1158,6 +1158,34 @@ class FSBWebSocket {
       source: 'dash:dom-stream-start'
     });
 
+    // Phase 278.2 (commit follows): the source-tab is allowed to be a tab
+    // FSB has never previously acted on (e.g. a background tab the user
+    // opened but never invoked a tool against). Manifest auto-injects only
+    // `canvas-interceptor.js`; every other module including
+    // `content/dom-stream.js` requires explicit runtime injection. Without
+    // this, the readiness poll below sends `pingDomStream` to a tab whose
+    // pong-handler script was never loaded, so `_waitForContentScriptReady`
+    // always times out and the payload parks forever in
+    // `_pendingStreamStart`. Inject the canonical content-script bundle
+    // best-effort BEFORE the readiness poll. Errors here are non-fatal --
+    // the poll itself reports the readiness state.
+    try {
+      var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
+        ? CONTENT_SCRIPT_FILES
+        : ['utils/diagnostics-ring-buffer.js', 'utils/redactForLog.js', 'content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+      await chrome.scripting.executeScript({
+        target: { tabId: candidate.tabId, allFrames: false },
+        files: scriptFiles,
+        world: 'ISOLATED',
+        injectImmediately: true
+      });
+    } catch (injectErr) {
+      // Best-effort: the readiness poll below is the source of truth.
+      // Common benign failure: script was already injected by a prior
+      // action and Chrome rejects the duplicate -- in which case the
+      // readiness poll still succeeds.
+    }
+
     // Phase 276 STREAM-DEFENSIVE-02 + STREAM-DEFENSIVE-04: probe the content
     // script for readiness before issuing `domStreamStart`. If the content
     // script is not ready within the 5s budget, park the payload in
