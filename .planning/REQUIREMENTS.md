@@ -1,3 +1,36 @@
+# Active Milestone v0.9.70 Requirements
+
+**Milestone:** v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport)
+**Status:** Streaming and viewport requirements complete as of 2026-05-18; Sync remote-control restoration active.
+
+## v0.9.70 Requirements
+
+### Dashboard Streaming -- STREAM70
+
+- [x] **STREAM70-01:** Dashboard DOM streaming starts on a normal source tab after the extension is reloaded/sideloaded -- canonical content-script injection includes `content/dom-stream.js`, so `pingDomStream` is registered in the source tab.
+- [x] **STREAM70-02:** Dashboard stream candidate selection no longer reports the dashboard tab itself as the only restricted candidate when a streamable source tab exists.
+- [x] **STREAM70-03:** Runtime tests exercise behavior, not static identifier presence, for the DOM stream readiness path.
+- [x] **STREAM70-04:** User verified the deployed dashboard stream works live after PR #73 deployment.
+
+### Dashboard Viewport Fit -- VIEW70
+
+- [x] **VIEW70-01:** Desktop inline preview uses a fixed 16:10 viewport surface.
+- [x] **VIEW70-02:** PiP preview preserves 16:10 without resizing jitter.
+- [x] **VIEW70-03:** Maximized mode sizes to the actual dashboard viewer surface while preserving DOM scale.
+- [x] **VIEW70-04:** Browser fullscreen mode sizes to the actual fullscreen viewport while preserving DOM scale.
+- [x] **VIEW70-05:** Mobile dashboard layout remains untouched.
+
+### Sync Remote Control -- SYNC70
+
+- [ ] **SYNC70-01:** A user can open the showcase dashboard Sync tab and create or refresh a pairing session.
+- [ ] **SYNC70-02:** The extension can join the same pairing session from the Sync tab / remote-control surface.
+- [ ] **SYNC70-03:** A remote command sent from `full-selfbrowsing.com` reaches the paired extension session exactly once.
+- [ ] **SYNC70-04:** The extension acknowledges success/failure back to the dashboard, and the dashboard renders the current paired/ready state accurately.
+- [ ] **SYNC70-05:** Stale, expired, or mismatched pairing sessions fail visibly without breaking streaming or dashboard reconnect.
+- [ ] **SYNC70-06:** Regression coverage protects the fixed pairing and remote-command dispatch path.
+
+---
+
 # Milestone v0.9.69 Requirements
 
 **Milestone:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix

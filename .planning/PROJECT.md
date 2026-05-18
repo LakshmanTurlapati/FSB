@@ -10,7 +10,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-**Last shipped:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- 2026-05-14. 8 phases (269-276), 9 plans, 67/68 v0.9.69 REQs Complete (STREAM-03 Partial / `human_needed` by design per locked D-16; defensive Phase-276 patches were attempt 1 of the STREAM-07 5-attempt cap — actual repro confirmation deferred to v0.9.70). Anonymous UUIDv4 install identity + opt-out kill-switch; MCP pricing module + cost-surfacing chokepoint at both dispatch routes; TelemetryCollector 5-min alarm beat surviving MV3 SW eviction; SQLite ingest with 8-layer abuse defenses, HMAC-SHA256 daily-rotated IP hashing, k>=2 anonymity floor (lowered from 5 in post-milestone fix to surface client labels at single-digit install counts); `/api/public-stats/global` + `/global/series` aggregates rendered as 6 new chart toggles on `/stats` Easter-egg page; privacy disclosure section + CWS listing copy + `verify-store-listing.mjs` gate; server-side GitHub stats cache to keep visitor browsers off the 60-req/hr unauth rate limit (5-min poller backed by SQLite `github_cache` table); MCP transport `z.coerce.number()` fix so MCP clients can pass tabId/tab_id as either string or number. All 3 release-gating BLOCKERs RESOLVED. Released artifacts: extension v0.9.67 zip on GitHub, mcp-v0.9.2 auto-published to npm, Fly auto-deployed.
+**Last shipped:** v0.9.70 streaming/viewport slice -- 2026-05-18. Dashboard DOM streaming now reaches the showcase preview after the canonical content bundle injects `content/dom-stream.js`; the preview pane is fixed at 16:10 for inline desktop/PiP; maximized and browser-fullscreen modes fit the actual viewer surface without stretching the streamed DOM. PR #73 merged and Fly deployment passed. Earlier v0.9.69 shipped the anonymous telemetry pipeline, public `/stats` aggregates, privacy/CWS disclosure guard, server-side GitHub stats cache, MCP numeric-parameter coercion, extension v0.9.67 zip, and `fsb-mcp-server@0.9.2`.
 
 **Recent shipping cadence:**
 - v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- shipped 2026-05-14
@@ -33,13 +33,13 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 **Goal:** Make the showcase dashboard preview pane actually work — diagnose and fix the broken DOM-streaming pipeline, restore the broken Sync-tab remote-control flow, and lock the preview pane to a fixed 16:10 desktop viewport.
 
 **Target features:**
-- **Dashboard DOM-streaming fix.** Reproduce the `dash:dom-stream-*` break in a live browser to validate or invalidate the four unfired hypotheses (#3, #5, #6, #7) from v0.9.69 Phase 276. If a single hypothesis is the root cause, ship the minimum patch. If the architecture is the root cause, escalate to a rewrite of the dom-stream transport within this milestone (this counts as attempt 2 of the STREAM-07 5-attempt cap).
-- **Sync tab remote control fix.** Investigate why the showcase dashboard "Sync" tab (the v0.9.45rc1 remote-from-website pairing surface that pairs a browser session to an extension install) is currently broken; restore pairing + remote-command dispatch end-to-end on `full-selfbrowsing.com`.
-- **16:10 desktop viewport for preview pane.** Lock the showcase dashboard preview pane (the dom-stream viewport surface) to a fixed 16:10 aspect ratio on desktop screens regardless of source viewport. Mobile layout intentionally untouched.
+- **Dashboard DOM-streaming fix. COMPLETE.** Root cause was the canonical content-script bundle missing `content/dom-stream.js`, so the source tab never registered the `pingDomStream` readiness handler. The merged fix injects the module and the user verified live streaming works.
+- **Preview viewport fit. COMPLETE.** Inline desktop and PiP preview surfaces are fixed at 16:10. Maximized and browser-fullscreen modes now size to the actual viewer surface and preserve DOM scale without stretching. Mobile layout remains intentionally untouched.
+- **Sync tab remote control fix. ACTIVE.** Investigate why the showcase dashboard "Sync" tab (the v0.9.45rc1 remote-from-website pairing surface that pairs a browser session to an extension install) is currently broken; restore pairing + remote-command dispatch end-to-end on `full-selfbrowsing.com`.
 
 **Key constraints:**
-- Diagnose-first on the stream fix: no patch lands without a browser-confirmed hypothesis. STREAM-07 from v0.9.69 (5-attempt cap) governs escalation budget; defensive Phase-276 patches were attempt 1.
-- Mobile dashboard layout out of scope for the aspect-ratio work — desktop-only fix.
+- Streaming and viewport fixes are closed unless regression testing proves otherwise; do not reopen them while working the Sync-tab fix.
+- Mobile dashboard layout remains out of scope for the already-shipped aspect-ratio work.
 - Carry-forward telemetry-follow-up backlog (sparklines, first-run banner, "View what we send", region-gated opt-in, public API docs, geo heatmap) **deferred again** — not in this milestone.
 - Carry-forward v0.9.64 (picker-cookie short-circuit) and v0.9.65 (dashboard i18n) also **deferred again**.
 - Server-side extension where needed continues to extend `showcase/server/` (Express + SQLite); no new microservice.

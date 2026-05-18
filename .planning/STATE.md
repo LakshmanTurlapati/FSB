@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v0.9.70
 milestone_name: Showcase Dashboard Reliability (Streaming + Sync + Viewport)
 status: in_progress
-last_updated: "2026-05-16T00:00:00.000Z"
-last_activity: "2026-05-16 -- milestone v0.9.70 started; PROJECT.md + STATE.md updated; awaiting REQUIREMENTS.md + ROADMAP.md per new-milestone workflow"
+last_updated: "2026-05-18T00:00:00.000Z"
+last_activity: "2026-05-18 -- streaming and viewport slices marked complete after merged/deployed fixes; Sync-tab remote-control restoration is now active"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 3
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-16 -- v0.9.70 started)
+See: .planning/PROJECT.md (updated 2026-05-18 -- streaming/viewport complete; Sync remote control active)
 See: .planning/MILESTONES.md (v0.9.69 shipped 2026-05-14; v0.9.70 in flight)
-See: .planning/ROADMAP.md (v0.9.70 roadmap pending)
-See: .planning/REQUIREMENTS.md (v0.9.70 requirements pending)
+See: .planning/ROADMAP.md (v0.9.70 active supplement added above archived v0.9.69 roadmap)
+See: .planning/REQUIREMENTS.md (v0.9.70 active supplement added above archived v0.9.69 requirements)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely.
-**Current focus:** v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport). Diagnose-first dashboard DOM-streaming fix (continues STREAM-07 attempt 2 of 5 from v0.9.69 Phase 276), Sync-tab remote-control restoration, 16:10 desktop viewport for the dashboard preview pane. Mobile layout out of scope. Deploy target `https://full-selfbrowsing.com` (Fly.io).
+**Current focus:** v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport). Dashboard DOM streaming and preview viewport fitting are complete and deployed. Active focus is Sync-tab remote-control restoration on `https://full-selfbrowsing.com`. Deploy target remains Fly.io.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: --
-Status: Defining requirements
-Last activity: 2026-05-16 -- Milestone v0.9.70 started
+Phase: 279 -- Sync Tab Remote-Control Restoration
+Plan: 279-01 -- diagnose pairing + remote-command dispatch, then minimum patch
+Status: Investigating
+Last activity: 2026-05-18 -- Streaming and viewport fixes closed; moving to Sync remote control
 
 ## Performance Metrics
 
@@ -41,7 +41,8 @@ Last activity: 2026-05-16 -- Milestone v0.9.70 started
 
 ## Active Milestone Carry-Forward (from v0.9.69)
 
-- **STREAM-07 (Phase 276):** defensive patches landed as attempt 1 of the 5-attempt cap; browser repro confirmation never executed. v0.9.70 begins attempt 2 — diagnose-first, then minimum patch OR transport rewrite if a single hypothesis cannot explain the symptom.
+- **Streaming carry-forward CLOSED:** Phase 276 defensive work was followed by v0.9.70 fixes for content-script DOM stream injection, 16:10 desktop preview fit, and fullscreen actual-screen fit. User verified live streaming works after PR #73 deploy.
+- **Active remote-control carry-forward:** Sync-tab pairing / remote-command dispatch remains broken and is the only active v0.9.70 reliability item.
 - **CWS Developer Dashboard click-through (BLOCKER B3 follow-up):** in-repo CI guard shipped in v0.9.69 Phase 275; the manual dashboard click-through remains user-gated per D-15 (8-step checklist in `.planning/milestones/v0.9.69/phases/275-…/275-VERIFICATION.md`).
 
 ## Deferred Items

@@ -29,6 +29,13 @@ function getCurrentTransportTabId() {
   return null;
 }
 
+function _normalizeFsbServerUrl(value) {
+  var url = (typeof value === 'string' && value.trim())
+    ? value.trim()
+    : FSB_SERVER_URL;
+  return url.replace(/\/+$/, '');
+}
+
 function getFSBTransportDiagnostics() {
   if (!globalThis.__FSBTransportDiagnostics || typeof globalThis.__FSBTransportDiagnostics !== 'object') {
     globalThis.__FSBTransportDiagnostics = {
@@ -731,16 +738,19 @@ class FSBWebSocket {
    * Auto-registers a hash key on first run if none exists.
    */
   async connect() {
-    let { serverHashKey } = await chrome.storage.local.get(['serverHashKey']);
+    let { serverHashKey, serverUrl } = await chrome.storage.local.get(['serverHashKey', 'serverUrl']);
+    var resolvedServerUrl = _normalizeFsbServerUrl(serverUrl);
 
     // Auto-register with the server if no hash key exists
     if (!serverHashKey) {
       try {
-        const resp = await fetch(FSB_SERVER_URL + '/api/auth/register', { method: 'POST' });
+        const resp = await fetch(resolvedServerUrl + '/api/auth/register', { method: 'POST' });
         if (resp.ok) {
           const data = await resp.json();
           serverHashKey = data.hashKey;
-          await chrome.storage.local.set({ serverHashKey });
+          this.serverHashKey = serverHashKey;
+          this.serverUrl = resolvedServerUrl;
+          await chrome.storage.local.set({ serverHashKey, serverUrl: resolvedServerUrl });
           console.log('[FSB WS] Auto-registered with server');
         } else {
           console.warn('[FSB WS] Auto-register failed:', resp.status);
@@ -756,6 +766,7 @@ class FSBWebSocket {
 
     // Phase 223 MET-02: capture for metrics broadcast (truncated to 8 chars when emitted).
     this.serverHashKey = serverHashKey;
+    this.serverUrl = resolvedServerUrl;
 
     // Close any existing connection before opening a new one
     if (this.ws) {
@@ -763,7 +774,7 @@ class FSBWebSocket {
       this.ws = null;
     }
 
-    const wsUrl = FSB_SERVER_URL.replace(/^http/, 'ws') + '/ws?key=' + encodeURIComponent(serverHashKey) + '&role=extension';
+    const wsUrl = resolvedServerUrl.replace(/^http/, 'ws') + '/ws?key=' + encodeURIComponent(serverHashKey) + '&role=extension';
 
     this.intentionalClose = false;
 

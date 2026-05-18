@@ -86,22 +86,68 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngOnInit(): void {
     this.meta.updateTag({ name: 'robots', content: 'noindex, nofollow' });
-    this.loadDashboardCdnScripts();
+    void this.loadDashboardCdnScripts();
   }
 
-  private loadDashboardCdnScripts(): void {
-    const libs: ReadonlyArray<readonly [string, string]> = [
-      ['dash-html5-qrcode', 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'],
-      ['dash-lz-string',    'https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js'],
-    ];
-    for (const [id, src] of libs) {
-      if (this.doc.head.querySelector(`script[data-cdn="${id}"]`)) continue;
-      const s = this.renderer.createElement('script') as HTMLScriptElement;
-      this.renderer.setAttribute(s, 'src', src);
-      this.renderer.setAttribute(s, 'data-cdn', id);
-      this.renderer.setAttribute(s, 'defer', '');
-      this.renderer.appendChild(this.doc.body, s);
-    }
+  private loadDashboardCdnScripts(): Promise<void> {
+    return Promise.all([
+      this.ensureDashboardScript('dash-html5-qrcode', this.HTML5_QRCODE_SRC, 'Html5Qrcode'),
+      this.ensureDashboardScript('dash-lz-string', this.LZ_STRING_SRC, 'LZString'),
+    ]).then(() => undefined);
+  }
+
+  private ensureDashboardScript(id: string, src: string, globalName: string): Promise<void> {
+    const w = window as any;
+    if (w[globalName]) return Promise.resolve();
+
+    const existingPromise = this.dashboardScriptPromises.get(id);
+    if (existingPromise) return existingPromise;
+
+    const selector = `script[data-cdn="${id}"]`;
+    let script = this.doc.body.querySelector(selector) as HTMLScriptElement | null;
+    if (!script) script = this.doc.head.querySelector(selector) as HTMLScriptElement | null;
+
+    const promise = new Promise<void>((resolve, reject) => {
+      function cleanup() {
+        script?.removeEventListener('load', finish);
+        script?.removeEventListener('error', fail);
+      }
+      function finish() {
+        cleanup();
+        if (w[globalName]) {
+          script?.setAttribute('data-loaded', 'true');
+          resolve();
+        } else {
+          reject(new Error(globalName + ' did not initialize'));
+        }
+      }
+      function fail() {
+        cleanup();
+        reject(new Error('Failed to load ' + globalName));
+      }
+
+      if (script?.getAttribute('data-loaded') === 'true') {
+        finish();
+        return;
+      }
+
+      if (!script) {
+        script = this.renderer.createElement('script') as HTMLScriptElement;
+        this.renderer.setAttribute(script, 'src', src);
+        this.renderer.setAttribute(script, 'data-cdn', id);
+        this.renderer.setAttribute(script, 'async', 'true');
+        script.addEventListener('load', finish);
+        script.addEventListener('error', fail);
+        this.renderer.appendChild(this.doc.body, script);
+        return;
+      }
+
+      script.addEventListener('load', finish);
+      script.addEventListener('error', fail);
+    });
+
+    this.dashboardScriptPromises.set(id, promise);
+    return promise;
   }
 
   // ---- Constants ----
@@ -115,6 +161,9 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly TASK_RECOVERY_WAIT_TEXT = 'Waiting for task recovery...';
   private readonly TASK_RECOVERY_TIMEOUT_TEXT = 'Task recovery timed out';
   private readonly DASHBOARD_TRANSPORT_DIAGNOSTIC_LIMIT = 100;
+  private readonly HTML5_QRCODE_SRC = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+  private readonly LZ_STRING_SRC = 'https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js';
+  private readonly dashboardScriptPromises = new Map<string, Promise<void>>();
 
   // ---- Persistent state ----
   private hashKey = '';
@@ -123,6 +172,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
   // ---- Runtime state ----
   private qrScanner: any = null;
+  private qrScannerLoading = false;
   // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
   // private agents: any[] = [];
   // DEPRECATED v0.9.45rc1: superseded by OpenClaw / Claude Routines -- see PROJECT.md
@@ -1978,8 +2028,26 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private startQRScanner(): void {
     if (this.qrScanner) return;
     if (typeof Html5Qrcode === 'undefined') {
-      this.showScanError('QR scanner not available');
-      this.switchTab('paste');
+      if (this.qrScannerLoading) return;
+      this.qrScannerLoading = true;
+      if (this.scanError) {
+        this.scanError.textContent = 'Loading QR scanner...';
+        this.scanError.style.display = 'block';
+      }
+      this.ensureDashboardScript('dash-html5-qrcode', this.HTML5_QRCODE_SRC, 'Html5Qrcode')
+        .then(() => {
+          this.qrScannerLoading = false;
+          if (this.destroyed) return;
+          if (this.loginSection && this.loginSection.style.display !== 'none' && this.tabScan?.classList.contains('active')) {
+            if (this.scanError) this.scanError.style.display = 'none';
+            this.startQRScanner();
+          }
+        })
+        .catch(() => {
+          this.qrScannerLoading = false;
+          this.showScanError('QR scanner not available');
+          this.switchTab('paste');
+        });
       return;
     }
 
@@ -3423,6 +3491,22 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   // ==================== WEBSOCKET ====================
 
   private connectWS(): void {
+    if (typeof LZString === 'undefined') {
+      this.setWsState('reconnecting');
+      this.ensureDashboardScript('dash-lz-string', this.LZ_STRING_SRC, 'LZString')
+        .then(() => {
+          if (!this.destroyed && this.hashKey) this.connectWS();
+        })
+        .catch(() => {
+          this.recordTransportError('cdn-load-failed', 'Could not load LZString before WebSocket connect');
+          if (!this.destroyed && this.hashKey) this.openDashboardWebSocket();
+        });
+      return;
+    }
+    this.openDashboardWebSocket();
+  }
+
+  private openDashboardWebSocket(): void {
     this.disconnectWS();
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = proto + '//' + location.host + '/ws?key=' +
