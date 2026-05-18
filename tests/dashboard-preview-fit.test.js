@@ -64,6 +64,11 @@ near(metrics.scale, 1000 / 1600, 'tall scale uses height fit');
 near(metrics.offsetX, 518.75, 'tall pillarbox offsetX');
 near(metrics.offsetY, 0, 'tall offsetY');
 
+metrics = fit(1600, 1000, 1920, 1080);
+near(metrics.scale, 1080 / 1000, 'fullscreen 16:9 screen uses viewer height fit');
+near(metrics.offsetX, 96, 'fullscreen 16:9 screen pillarboxes 16:10 source');
+near(metrics.offsetY, 0, 'fullscreen 16:9 screen offsetY');
+
 console.log('--- remote coordinate mapping ---');
 
 metrics = fit(1920, 1080, 1600, 1000);
@@ -96,6 +101,12 @@ assert(/previewOffsetX/.test(TS) && /previewOffsetY/.test(TS), 'Angular stores p
 assert(/previewOffsetX/.test(JS) && /previewOffsetY/.test(JS), 'vanilla dashboard stores preview offsets');
 assert(/Math\.min\(stageWidth \/ pageWidth,\s*stageHeight \/ pageHeight\)/.test(TS), 'Angular uses uniform fit scale');
 assert(/Math\.min\(stageWidth \/ pageWidth,\s*stageHeight \/ pageHeight\)/.test(JS), 'vanilla dashboard uses uniform fit scale');
+assert(/isScreenPreviewLayout\(\)/.test(TS) && /getScreenPreviewStageSize\(\)/.test(TS), 'Angular has screen-layout sizing helpers');
+assert(/isScreenPreviewLayout\(\)/.test(JS) && /getScreenPreviewStageSize\(\)/.test(JS), 'vanilla dashboard has screen-layout sizing helpers');
+assert(/this\.previewStage\.style\.width = screenStage\.width \+ 'px'/.test(TS), 'Angular pins screen-mode stage width to viewer surface');
+assert(/previewStage\.style\.width = screenStage\.width \+ 'px'/.test(JS), 'vanilla pins screen-mode stage width to viewer surface');
+assert(/document\.fullscreenElement === this\.previewContainer/.test(TS), 'Angular recalculates on fullscreen entry');
+assert(/document\.fullscreenElement === previewContainer/.test(JS), 'vanilla recalculates on fullscreen entry');
 assert(/\(localX - this\.previewOffsetX\) \/ scale/.test(TS), 'Angular remote X subtracts letterbox offset');
 assert(/\(localX - previewOffsetX\) \/ scale/.test(JS), 'vanilla remote X subtracts letterbox offset');
 assert(/this\.previewOffsetX \+ payload\.glow\.x \* this\.previewScale/.test(TS), 'Angular glow X adds letterbox offset');

@@ -809,7 +809,13 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     // Fullscreen change
     this.listen(document, 'fullscreenchange', () => {
-      if (!document.fullscreenElement && this.previewLayoutMode === 'fullscreen') {
+      if (document.fullscreenElement === this.previewContainer) {
+        if (this.previewLayoutMode !== 'fullscreen') {
+          this.setPreviewLayout('fullscreen');
+        } else if (this.previewState === 'streaming') {
+          this.updatePreviewScale();
+        }
+      } else if (!document.fullscreenElement && this.previewLayoutMode === 'fullscreen') {
         this.setPreviewLayout('inline');
       }
     });
@@ -2868,6 +2874,29 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
   }
 
+  private isScreenPreviewLayout(): boolean {
+    return this.previewLayoutMode === 'maximized' || this.previewLayoutMode === 'fullscreen';
+  }
+
+  private getScreenPreviewStageSize(): { width: number; height: number } {
+    const rect = this.previewContainer?.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+    return {
+      width: Math.max(1, Math.round(rect?.width || viewportWidth)),
+      height: Math.max(1, Math.round(rect?.height || viewportHeight)),
+    };
+  }
+
+  private resetPreviewContainerFrame(): void {
+    if (!this.previewContainer) return;
+    this.previewContainer.style.left = '';
+    this.previewContainer.style.top = '';
+    this.previewContainer.style.bottom = '';
+    this.previewContainer.style.right = '';
+    this.previewContainer.style.height = '';
+  }
+
   private handleDOMSnapshot(payload: any): void {
     if (!payload || !payload.html) {
       this.recordTransportError('dom-snapshot-invalid', 'DOM snapshot missing html payload', { type: 'ext:dom-snapshot' });
@@ -2944,7 +2973,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (!this.previewIframe || !this.previewContainer || !this.previewStage || !this.previewSnapshotData) return;
     const pageWidth = Math.max(1, this.previewSnapshotData.viewportWidth || this.previewSnapshotData.pageWidth || 1920);
     const pageHeight = Math.max(1, this.previewSnapshotData.viewportHeight || 1080);
-    const stageWidth = Math.max(1, this.previewStage.clientWidth || this.previewContainer.clientWidth || 1);
+    let stageWidth = Math.max(1, this.previewStage.clientWidth || this.previewContainer.clientWidth || 1);
     let stageHeight = Math.max(1, this.previewStage.clientHeight || Math.round(stageWidth * 10 / 16));
 
     if (this.previewLayoutMode === 'inline' || this.previewLayoutMode === 'pip') {
@@ -2952,9 +2981,17 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
       const computedHeight = fixedStageRatio
         ? Math.round(stageWidth * 10 / 16)
         : Math.max(200, Math.min(Math.round((pageHeight / pageWidth) * stageWidth), window.innerHeight * 0.9));
+      this.previewStage.style.width = '';
       this.previewStage.style.height = computedHeight + 'px';
       stageHeight = computedHeight;
+    } else if (this.isScreenPreviewLayout()) {
+      const screenStage = this.getScreenPreviewStageSize();
+      this.previewStage.style.width = screenStage.width + 'px';
+      this.previewStage.style.height = screenStage.height + 'px';
+      stageWidth = screenStage.width;
+      stageHeight = screenStage.height;
     } else {
+      this.previewStage.style.width = '';
       this.previewStage.style.height = '';
       stageHeight = Math.max(1, this.previewStage.clientHeight || stageHeight);
     }
@@ -3019,6 +3056,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     switch (mode) {
       case 'maximized':
+        this.resetPreviewContainerFrame();
         if (this.previewContainer) this.previewContainer.classList.add('dash-preview-maximized');
         document.body.classList.add('dash-layout-maximized');
         if (this.previewMaximizeBtn) { this.previewMaximizeBtn.innerHTML = '<i class="fa-solid fa-compress"></i>'; this.previewMaximizeBtn.title = 'Minimize'; }
@@ -3028,6 +3066,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
         if (this.previewPipBtn) { this.previewPipBtn.innerHTML = '<i class="fa-solid fa-arrow-down-left-and-up-right-to-center"></i>'; this.previewPipBtn.title = 'Exit picture-in-picture'; }
         break;
       case 'fullscreen':
+        this.resetPreviewContainerFrame();
         if (this.previewFsExit) this.previewFsExit.style.display = 'block';
         if (this.previewFullscreenBtn) { this.previewFullscreenBtn.innerHTML = '<i class="fa-solid fa-down-left-and-up-right-to-center"></i>'; this.previewFullscreenBtn.title = 'Exit fullscreen'; }
         break;
@@ -3037,13 +3076,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
         if (this.previewPipBtn) { this.previewPipBtn.innerHTML = '<i class="fa-solid fa-window-restore"></i>'; this.previewPipBtn.title = 'Picture-in-picture'; }
         if (this.previewFullscreenBtn) { this.previewFullscreenBtn.innerHTML = '<i class="fa-solid fa-up-right-and-down-left-from-center"></i>'; this.previewFullscreenBtn.title = 'Fullscreen'; }
         if (this.previewFsExit) this.previewFsExit.style.display = 'none';
-        if (this.previewContainer) {
-          this.previewContainer.style.left = '';
-          this.previewContainer.style.top = '';
-          this.previewContainer.style.bottom = '';
-          this.previewContainer.style.right = '';
-          this.previewContainer.style.height = '';
-        }
+        this.resetPreviewContainerFrame();
         break;
     }
     setTimeout(() => this.updatePreviewScale(), 50);
@@ -3061,8 +3094,9 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (document.fullscreenElement === this.previewContainer) {
       document.exitFullscreen();
     } else if (this.previewContainer) {
-      this.previewContainer.requestFullscreen().catch(() => {});
-      this.setPreviewLayout('fullscreen');
+      this.previewContainer.requestFullscreen()
+        .then(() => this.setPreviewLayout('fullscreen'))
+        .catch(() => {});
     }
   }
 

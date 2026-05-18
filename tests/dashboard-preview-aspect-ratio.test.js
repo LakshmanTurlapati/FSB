@@ -1,6 +1,7 @@
 /**
  * Phase 280/281 VIEWPORT regression: dashboard stream stage must hold 16:10
- * on desktop, unset on mobile, unset in Maximized mode, and 16:10 in PiP.
+ * on desktop, unset on mobile, fill the viewer surface in Maximized/Fullscreen,
+ * and 16:10 in PiP.
  *
  * Run: node tests/dashboard-preview-aspect-ratio.test.js
  */
@@ -143,6 +144,43 @@ assert(maximizedBlock !== null, '.dash-preview-maximized block exists');
 assert(
   maximizedBlock && /aspect-ratio:\s*auto\s*!important/.test(maximizedBlock),
   'Maximized layout overrides aspect-ratio: auto !important (so 100vh fills the screen)'
+);
+
+const maximizedStageBlock = extractBlock(scss, /\.dash-preview-maximized\s+\.dash-preview-stage\s*\{/);
+assert(maximizedStageBlock !== null, '.dash-preview-maximized .dash-preview-stage block exists');
+assert(
+  maximizedStageBlock && /position:\s*absolute/.test(maximizedStageBlock) &&
+    /inset:\s*0/.test(maximizedStageBlock) &&
+    /width:\s*100%\s*!important/.test(maximizedStageBlock) &&
+    /height:\s*100%\s*!important/.test(maximizedStageBlock),
+  'Maximized stream stage fills the viewer surface'
+);
+
+const fullscreenStageBlock = extractBlock(scss, /\.dash-preview:fullscreen\s+\.dash-preview-stage\s*\{/);
+assert(fullscreenStageBlock !== null, '.dash-preview:fullscreen .dash-preview-stage block exists');
+assert(
+  fullscreenStageBlock && /position:\s*absolute/.test(fullscreenStageBlock) &&
+    /inset:\s*0/.test(fullscreenStageBlock) &&
+    /width:\s*100%\s*!important/.test(fullscreenStageBlock) &&
+    /height:\s*100%\s*!important/.test(fullscreenStageBlock),
+  'Fullscreen stream stage fills the actual fullscreen surface'
+);
+
+const fullscreenUrlbarBlock = extractBlock(scss, /\.dash-preview:fullscreen\s+\.dash-preview-urlbar\s*\{/);
+assert(fullscreenUrlbarBlock !== null, '.dash-preview:fullscreen .dash-preview-urlbar block exists');
+assert(
+  fullscreenUrlbarBlock && /position:\s*absolute/.test(fullscreenUrlbarBlock) &&
+    /z-index:\s*21/.test(fullscreenUrlbarBlock),
+  'Fullscreen keeps the existing URL bar as an overlay above the stream stage'
+);
+
+const vanillaFullscreenStageBlock = extractBlock(css, /\.dash-preview:fullscreen\s+\.dash-preview-stage\s*\{/);
+assert(vanillaFullscreenStageBlock !== null, 'vanilla fullscreen stage block exists');
+assert(
+  vanillaFullscreenStageBlock && /position:\s*absolute/.test(vanillaFullscreenStageBlock) &&
+    /width:\s*100%\s*!important/.test(vanillaFullscreenStageBlock) &&
+    /height:\s*100%\s*!important/.test(vanillaFullscreenStageBlock),
+  'vanilla fullscreen stream stage fills the viewer surface'
 );
 
 const pipStageBlock = extractBlock(scss, /\.dash-preview-pip\s+\.dash-preview-stage\s*\{/);
