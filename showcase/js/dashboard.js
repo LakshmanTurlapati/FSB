@@ -55,6 +55,8 @@
   var previewState = 'hidden'; // 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'frozen-disconnect' | 'frozen-complete' | 'error'
   var previewLayoutMode = 'inline'; // 'inline' | 'maximized' | 'pip' | 'fullscreen'
   var previewScale = 1;
+  var previewOffsetX = 0;
+  var previewOffsetY = 0;
   var previewHideTimer = null;
   var previewSnapshotData = null; // Last snapshot for reconnect
   var lastPreviewScroll = { x: 0, y: 0 }; // Last known scroll position for maintenance after mutations
@@ -530,8 +532,8 @@
   function clampRemotePreviewPoint(localX, localY) {
     var viewport = getRemoteViewportSize();
     var scale = previewScale > 0 ? previewScale : 1;
-    var x = Math.round(localX / scale);
-    var y = Math.round(localY / scale);
+    var x = Math.round((localX - previewOffsetX) / scale);
+    var y = Math.round((localY - previewOffsetY) / scale);
     return {
       x: Math.max(0, Math.min(viewport.width - 1, x)),
       y: Math.max(0, Math.min(viewport.height - 1, y))
@@ -620,6 +622,7 @@
 
   // DOM preview refs
   var previewContainer = document.getElementById('dash-preview');
+  var previewStage = document.getElementById('dash-preview-stage');
   var previewIframe = document.getElementById('dash-preview-iframe');
   var previewLoading = document.getElementById('dash-preview-loading');
   var previewGlow = document.getElementById('dash-preview-glow');
@@ -2665,6 +2668,35 @@
     renderRemoteControlState(lastRemoteControlState, { skipToggleSync: true });
   }
 
+  function escapePreviewAttribute(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function buildShellAttributeString(attrs, styleText) {
+    var parts = [];
+    if (attrs && typeof attrs === 'object') {
+      Object.keys(attrs).forEach(function(rawName) {
+        var name = String(rawName || '').toLowerCase();
+        if (!/^[a-z][a-z0-9_:.~-]*$/.test(name)) return;
+        if (name === 'style' || name.indexOf('on') === 0) return;
+        var value = attrs[rawName];
+        if (value === undefined || value === null) return;
+        parts.push(name + '="' + escapePreviewAttribute(value) + '"');
+      });
+    }
+    var style = String(styleText || '').trim();
+    if (style) parts.push('style="' + escapePreviewAttribute(style) + '"');
+    return parts.length ? ' ' + parts.join(' ') : '';
+  }
+
+  function isMobilePreviewStage() {
+    return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  }
+
   function handleDOMSnapshot(payload) {
     if (!payload || !payload.html) {
       recordDashboardTransportError('dom-snapshot-invalid', 'DOM snapshot missing html payload', {
@@ -2735,15 +2767,18 @@
         return '<style>' + css + '</style>';
       }).join('\n');
 
-      var fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+      var htmlAttrs = buildShellAttributeString(payload.htmlAttrs, payload.htmlStyle);
+      var bodyAttrs = buildShellAttributeString(payload.bodyAttrs, payload.bodyStyle);
+      var fullHTML = '<!DOCTYPE html><html' + htmlAttrs + '><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=' + (payload.viewportWidth || 1920) + '">' +
         stylesheetLinks +
         inlineStyleTags +
         '<style>body { margin: 0; overflow: hidden; } *::selection { background: transparent; } ::-webkit-scrollbar { display: none; }</style>' +
-        '</head><body>' + payload.html + '</body></html>';
+        '</head><body' + bodyAttrs + '>' + payload.html + '</body></html>';
 
       // Write to iframe via srcdoc
       if (previewIframe) {
+        if (previewContainer) previewContainer.style.display = '';
         previewIframe.srcdoc = fullHTML;
         previewIframe.onload = function() {
           // Calculate scale factor to fit container
@@ -2771,32 +2806,34 @@
   }
 
   function updatePreviewScale() {
-    if (!previewIframe || !previewContainer || !previewSnapshotData) return;
+    if (!previewIframe || !previewContainer || !previewStage || !previewSnapshotData) return;
 
-    var containerWidth = previewContainer.clientWidth;
-    var pageWidth = previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920;
-    var pageHeight = previewSnapshotData.viewportHeight || 1080;
-
-    // Dynamic container height from viewport aspect ratio (LAYOUT-03)
-    var computedHeight = (pageHeight / pageWidth) * containerWidth;
-    // Floor at 200px, cap at 90vh for inline mode
-    if (previewLayoutMode === 'inline') {
-      computedHeight = Math.max(200, Math.min(computedHeight, window.innerHeight * 0.9));
-    }
-    // In maximized/fullscreen, use full available height
-    if (previewLayoutMode === 'maximized' || previewLayoutMode === 'fullscreen') {
-      computedHeight = previewContainer.clientHeight; // CSS handles it (100vh)
-    }
+    var pageWidth = Math.max(1, previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920);
+    var pageHeight = Math.max(1, previewSnapshotData.viewportHeight || 1080);
+    var stageWidth = Math.max(1, previewStage.clientWidth || previewContainer.clientWidth || 1);
+    var stageHeight = Math.max(1, previewStage.clientHeight || Math.round(stageWidth * 10 / 16));
 
     if (previewLayoutMode === 'inline' || previewLayoutMode === 'pip') {
-      previewContainer.style.height = computedHeight + 'px';
+      var fixedStageRatio = previewLayoutMode === 'pip' || !isMobilePreviewStage();
+      var computedHeight = fixedStageRatio
+        ? Math.round(stageWidth * 10 / 16)
+        : Math.max(200, Math.min(Math.round((pageHeight / pageWidth) * stageWidth), window.innerHeight * 0.9));
+      previewStage.style.height = computedHeight + 'px';
+      stageHeight = computedHeight;
+    } else {
+      previewStage.style.height = '';
+      stageHeight = Math.max(1, previewStage.clientHeight || stageHeight);
     }
 
-    // Scale to fit width -- overflow clips bottom (prevents responsive text reflow)
-    previewScale = containerWidth / pageWidth;
+    previewScale = Math.min(stageWidth / pageWidth, stageHeight / pageHeight);
+    if (!Number.isFinite(previewScale) || previewScale <= 0) previewScale = 1;
+    previewOffsetX = Math.max(0, (stageWidth - (pageWidth * previewScale)) / 2);
+    previewOffsetY = Math.max(0, (stageHeight - (pageHeight * previewScale)) / 2);
 
     previewIframe.style.width = pageWidth + 'px';
     previewIframe.style.height = pageHeight + 'px';
+    previewIframe.style.left = previewOffsetX + 'px';
+    previewIframe.style.top = previewOffsetY + 'px';
     previewIframe.style.transform = 'scale(' + previewScale + ')';
   }
 
@@ -3308,8 +3345,8 @@
     // Update glow rect
     if (payload.glow && payload.glow.state === 'active' && previewGlow) {
       previewGlow.style.display = '';
-      previewGlow.style.top = (payload.glow.y * previewScale) + 'px';
-      previewGlow.style.left = (payload.glow.x * previewScale) + 'px';
+      previewGlow.style.top = (previewOffsetY + payload.glow.y * previewScale) + 'px';
+      previewGlow.style.left = (previewOffsetX + payload.glow.x * previewScale) + 'px';
       previewGlow.style.width = (payload.glow.w * previewScale) + 'px';
       previewGlow.style.height = (payload.glow.h * previewScale) + 'px';
     } else if (previewGlow) {
