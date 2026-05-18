@@ -2697,6 +2697,29 @@
     return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
   }
 
+  function isScreenPreviewLayout() {
+    return previewLayoutMode === 'maximized' || previewLayoutMode === 'fullscreen';
+  }
+
+  function getScreenPreviewStageSize() {
+    var rect = previewContainer ? previewContainer.getBoundingClientRect() : null;
+    var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+    return {
+      width: Math.max(1, Math.round((rect && rect.width) || viewportWidth)),
+      height: Math.max(1, Math.round((rect && rect.height) || viewportHeight))
+    };
+  }
+
+  function resetPreviewContainerFrame() {
+    if (!previewContainer) return;
+    previewContainer.style.left = '';
+    previewContainer.style.top = '';
+    previewContainer.style.bottom = '';
+    previewContainer.style.right = '';
+    previewContainer.style.height = '';
+  }
+
   function handleDOMSnapshot(payload) {
     if (!payload || !payload.html) {
       recordDashboardTransportError('dom-snapshot-invalid', 'DOM snapshot missing html payload', {
@@ -2818,9 +2841,17 @@
       var computedHeight = fixedStageRatio
         ? Math.round(stageWidth * 10 / 16)
         : Math.max(200, Math.min(Math.round((pageHeight / pageWidth) * stageWidth), window.innerHeight * 0.9));
+      previewStage.style.width = '';
       previewStage.style.height = computedHeight + 'px';
       stageHeight = computedHeight;
+    } else if (isScreenPreviewLayout()) {
+      var screenStage = getScreenPreviewStageSize();
+      previewStage.style.width = screenStage.width + 'px';
+      previewStage.style.height = screenStage.height + 'px';
+      stageWidth = screenStage.width;
+      stageHeight = screenStage.height;
     } else {
+      previewStage.style.width = '';
       previewStage.style.height = '';
       stageHeight = Math.max(1, previewStage.clientHeight || stageHeight);
     }
@@ -2895,6 +2926,7 @@
 
     switch (mode) {
       case 'maximized':
+        resetPreviewContainerFrame();
         if (previewContainer) previewContainer.classList.add('dash-preview-maximized');
         document.body.classList.add('dash-layout-maximized');
         if (previewMaximizeBtn) previewMaximizeBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
@@ -2908,6 +2940,7 @@
         break;
 
       case 'fullscreen':
+        resetPreviewContainerFrame();
         if (previewFsExit) previewFsExit.style.display = 'block';
         if (previewFullscreenBtn) previewFullscreenBtn.innerHTML = '<i class="fa-solid fa-down-left-and-up-right-to-center"></i>';
         if (previewFullscreenBtn) previewFullscreenBtn.title = 'Exit fullscreen';
@@ -2923,14 +2956,7 @@
         if (previewFullscreenBtn) previewFullscreenBtn.innerHTML = '<i class="fa-solid fa-up-right-and-down-left-from-center"></i>';
         if (previewFullscreenBtn) previewFullscreenBtn.title = 'Fullscreen';
         if (previewFsExit) previewFsExit.style.display = 'none';
-        // Reset PiP drag positioning
-        if (previewContainer) {
-          previewContainer.style.left = '';
-          previewContainer.style.top = '';
-          previewContainer.style.bottom = '';
-          previewContainer.style.right = '';
-          previewContainer.style.height = '';
-        }
+        resetPreviewContainerFrame();
         break;
     }
 
@@ -2959,16 +2985,23 @@
     if (document.fullscreenElement === previewContainer) {
       document.exitFullscreen();
     } else if (previewContainer) {
-      previewContainer.requestFullscreen().catch(function(err) {
-        console.warn('[FSB-DASH] Fullscreen request failed:', err.message);
-      });
-      setPreviewLayout('fullscreen');
+      previewContainer.requestFullscreen()
+        .then(function() { setPreviewLayout('fullscreen'); })
+        .catch(function(err) {
+          console.warn('[FSB-DASH] Fullscreen request failed:', err.message);
+        });
     }
   }
 
   // Exit fullscreen when user presses Escape or browser exits fullscreen
   document.addEventListener('fullscreenchange', function() {
-    if (!document.fullscreenElement && previewLayoutMode === 'fullscreen') {
+    if (document.fullscreenElement === previewContainer) {
+      if (previewLayoutMode !== 'fullscreen') {
+        setPreviewLayout('fullscreen');
+      } else if (previewState === 'streaming') {
+        updatePreviewScale();
+      }
+    } else if (!document.fullscreenElement && previewLayoutMode === 'fullscreen') {
       setPreviewLayout('inline');
     }
   });
