@@ -129,6 +129,147 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.latestFsbHeadline;
   }
 
+  /**
+   * Tab-aware metrics for the LHS of the headline row. Returns 2 cells
+   * computed from the currently loaded dataset relevant to selectedView.
+   * Empty arrays produce 0s / em-dashes; the row is always rendered so the
+   * layout does not jump as data arrives. Labels are English-only to match
+   * the page's pre-274 baseline (GitHub view labels are also English-only).
+   */
+  get tabMetrics(): ReadonlyArray<{ label: string; value: string }> {
+    const dayMs = 86_400_000;
+    const sinceDays = (n: number): number => Date.now() - n * dayMs;
+    const fh = this.latestFsbHeadline;
+
+    switch (this.selectedView) {
+      case 'stars-cumulative': {
+        const cutoff = sinceDays(7);
+        const last7 = this.latestStars.filter(
+          (s) => !Number.isNaN(Date.parse(s.starred_at)) && Date.parse(s.starred_at) >= cutoff
+        ).length;
+        return [
+          { label: 'total stars', value: this.formatNum(this.latestStars.length) },
+          { label: 'last 7 days', value: this.formatNum(last7) },
+        ];
+      }
+      case 'stars-weekly': {
+        const last = this.latestWeeklyStars.at(-1);
+        const delta = last?.deltaPct ?? null;
+        const deltaStr =
+          delta === null || delta === undefined
+            ? '—'
+            : `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`;
+        return [
+          { label: 'this week', value: this.formatNum(last?.count ?? 0) },
+          { label: 'vs last week', value: deltaStr },
+        ];
+      }
+      case 'issues-open-vs-closed': {
+        const issues = this.latestIssues.filter((i) => !i.pull_request);
+        const open = issues.filter((i) => !i.closed_at).length;
+        const closed = issues.length - open;
+        return [
+          { label: 'open', value: this.formatNum(open) },
+          { label: 'closed', value: this.formatNum(closed) },
+        ];
+      }
+      case 'forks-growth': {
+        const cutoff = sinceDays(30);
+        const last30 = this.latestForks.filter(
+          (f) => !Number.isNaN(Date.parse(f.created_at)) && Date.parse(f.created_at) >= cutoff
+        ).length;
+        return [
+          { label: 'total forks', value: this.formatNum(this.latestForks.length) },
+          { label: 'last 30 days', value: this.formatNum(last30) },
+        ];
+      }
+      case 'prs-opened-vs-merged': {
+        const merged = this.latestPrs.filter((p) => p.merged_at).length;
+        const open = this.latestPrs.filter((p) => !p.closed_at && !p.merged_at).length;
+        return [
+          { label: 'merged', value: this.formatNum(merged) },
+          { label: 'open', value: this.formatNum(open) },
+        ];
+      }
+      case 'commits-cumulative':
+      case 'commits-over-time': {
+        const windowDays = this.selectedView === 'commits-over-time' ? 7 : 30;
+        const cutoff = sinceDays(windowDays);
+        const recent = this.latestCommits.filter((c) => {
+          const t = Date.parse(c?.commit?.author?.date ?? '');
+          return !Number.isNaN(t) && t >= cutoff;
+        }).length;
+        return [
+          { label: 'total commits', value: this.formatNum(this.latestCommits.length) },
+          { label: `last ${windowDays} days`, value: this.formatNum(recent) },
+        ];
+      }
+      case 'maintenance': {
+        const latest = this.latestReleases[0];
+        const ts = latest ? Date.parse(latest.published_at) : NaN;
+        const daysAgo = Number.isNaN(ts) ? null : Math.floor((Date.now() - ts) / dayMs);
+        return [
+          { label: 'latest release', value: latest?.tag_name ?? '—' },
+          { label: 'released', value: daysAgo === null ? '—' : `${daysAgo}d ago` },
+        ];
+      }
+      case 'fsb-active-now':
+        return [
+          { label: 'active agents', value: this.formatNum(fh?.active_agents_now ?? 0) },
+          { label: 'avg per user', value: (fh?.avg_agents_per_user ?? 0).toFixed(1) },
+        ];
+      case 'fsb-tokens':
+        return [
+          { label: 'tokens lifetime', value: this.formatBig(fh?.tokens_total_lifetime ?? 0) },
+          { label: 'tokens 24h', value: this.formatBig(fh?.tokens_24h ?? 0) },
+        ];
+      case 'fsb-agents-running':
+        return [
+          { label: 'active agents', value: this.formatNum(fh?.active_agents_now ?? 0) },
+          { label: 'lifetime agents', value: this.formatNum(fh?.total_agents_lifetime ?? 0) },
+        ];
+      case 'fsb-popular-agents': {
+        const arr = fh?.popular_agents ?? [];
+        const top = arr[0];
+        return [
+          { label: 'tracked agents', value: this.formatNum(arr.length) },
+          { label: top ? `top: ${top.label}` : 'top', value: this.formatNum(top?.uniq ?? 0) },
+        ];
+      }
+      case 'fsb-popular-mcp': {
+        const arr = fh?.popular_mcp_clients ?? [];
+        const top = arr[0];
+        return [
+          { label: 'tracked clients', value: this.formatNum(arr.length) },
+          { label: top ? `top: ${top.label}` : 'top', value: this.formatNum(top?.uniq ?? 0) },
+        ];
+      }
+      case 'fsb-avg-agents-per-user': {
+        const delta = this.avgAgentsDelta;
+        const deltaStr =
+          delta === null
+            ? '—'
+            : `${delta > 0 ? '+' : ''}${delta.toFixed(2)}`;
+        return [
+          { label: 'avg agents', value: (fh?.avg_agents_per_user ?? 0).toFixed(1) },
+          { label: 'delta', value: deltaStr },
+        ];
+      }
+      default:
+        return [];
+    }
+  }
+
+  private formatNum(n: number): string {
+    return new Intl.NumberFormat('en-US').format(Math.round(n));
+  }
+
+  private formatBig(n: number): string {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+    return this.formatNum(n);
+  }
+
   // Chart.js Chart class -- captured from the dynamic import inside
   // afterNextRender. Typed `any` because we never import the type on the
   // server bundle.
