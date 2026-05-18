@@ -16,7 +16,16 @@
 }
 
 .stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 1.5rem;
+
+  .stats-header-text {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
 
   h1 {
     font-size: clamp(1.75rem, 3.2vw, 2.5rem);
@@ -323,20 +332,19 @@
 }
 
 .stats-live-badge {
+  flex: 0 0 auto;
+  align-self: center;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-left: 0.5rem;
-  padding: 0.2rem 0.55rem;
+  gap: 0.45rem;
+  padding: 0.3rem 0.7rem;
   background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-radius: 999px;
-  font-size: 0.55em;
+  font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
   color: var(--text-secondary);
-  vertical-align: middle;
 
   &::before {
     content: '';
