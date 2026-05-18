@@ -2494,6 +2494,62 @@
           <context context-type="linenumber">22,26</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.title" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> permissions <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> requests</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Berechtigungen, die <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> anfordert</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">25,26</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.body" datatype="html">
+        <source>To run web automation, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> declares the following permissions in its <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> manifest. Each is used only for the documented purpose; nothing is sent off-device on the strength of any of them.</source>
+        <target state="translated">Um Web-Automatisierung auszuführen, deklariert <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> die folgenden Berechtigungen in seinem <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Manifest. Jede wird nur für den dokumentierten Zweck verwendet; auf ihrer Grundlage wird nichts vom Gerät übertragen.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">26,28</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.li.1" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>DOM and tabs<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>activeTab<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>scripting<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>tabs<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>windows<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>sidePanel<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, and host permission <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>&lt;all_urls&gt;<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: read and write the active tab, inject the automation content script, list and switch tabs, and render the side panel</source>
+        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>DOM und Tabs<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>activeTab<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>scripting<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>tabs<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>windows<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>sidePanel<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> sowie die Host-Berechtigung <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>&lt;all_urls&gt;<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: aktiven Tab lesen und schreiben, das Automatisierungs-Content-Script injizieren, Tabs auflisten und wechseln sowie die Seitenleiste rendern</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">28,29</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.li.2" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Advanced automation<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>debugger<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: attach the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome DevTools Protocol<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> for coordinate-based clicks, drag, and key-hold actions that the regular <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> API cannot perform. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>webNavigation<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: observe navigation start/finish events so automation waits for the right moment</source>
+        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Erweiterte Automatisierung<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>debugger<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: bindet das <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome DevTools Protocol<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> für koordinatenbasierte Klicks, Drag- und Tastenhalte-Aktionen an, die die reguläre <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-API nicht ausführen kann. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>webNavigation<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: beobachtet Navigations-Start- und -Ende-Ereignisse, damit die Automatisierung den richtigen Moment abwartet</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">29,30</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.li.3" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Local storage<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>storage<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>unlimitedStorage<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: store your settings, credentials, payment methods, and memory in <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> on your device. Unlimited storage lifts the default 10 MB quota so memory and session logs can grow without hitting a wall</source>
+        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Lokaler Speicher<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>storage<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>unlimitedStorage<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: speichert Ihre Einstellungen, Zugangsdaten, Zahlungsmethoden und Speicherdaten auf Ihrem Gerät in <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>chrome.storage.local<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>. Unbegrenzter Speicher hebt das Standardlimit von 10 MB auf, damit Speicher- und Sitzungsprotokolle wachsen können, ohne an eine Grenze zu stoßen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">30,31</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.li.4" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UX<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> helpers<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>clipboardWrite<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: write copy-to-clipboard results from automation. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>alarms<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: schedule background housekeeping. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>offscreen<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: host the speech-to-text recorder in a hidden document because service workers cannot capture audio directly</source>
+        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>UX<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Hilfen<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>clipboardWrite<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: schreibt Kopier-in-die-Zwischenablage-Ergebnisse aus der Automatisierung. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>alarms<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: plant Hintergrund-Wartungsarbeiten. <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>offscreen<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>: hostet den Speech-to-Text-Rekorder in einem versteckten Dokument, weil Service Worker keine Audiodaten direkt aufnehmen können</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">31,33</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.dataCollection.permissions.note" datatype="html">
+        <source>Microphone access for speech-to-text is <x id="START_EMPHASISED_TEXT" ctype="x-em" equiv-text="&lt;em&gt;"/>not<x id="CLOSE_EMPHASISED_TEXT" ctype="x-em" equiv-text="&lt;/em&gt;"/> declared in the manifest. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> shows its own permission prompt the first time you use the mic button.</source>
+        <target state="translated">Der Mikrofonzugriff für Speech-to-Text ist <x id="START_EMPHASISED_TEXT" ctype="x-em" equiv-text="&lt;em&gt;"/>nicht<x id="CLOSE_EMPHASISED_TEXT" ctype="x-em" equiv-text="&lt;/em&gt;"/> im Manifest deklariert. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> zeigt beim ersten Klick auf die Mikrofon-Schaltfläche seine eigene Berechtigungsanfrage an.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">33,35</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="privacy.section.dataStorage.title" datatype="html">
         <source>Data Storage</source>
         <target state="translated">Datenspeicherung</target>
@@ -2599,19 +2655,19 @@
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.noTracking.title" datatype="html">
-        <source>No Tracking</source>
-        <target state="translated">Kein Tracking</target>
+        <source>No Third-Party Tracking</source>
+        <target state="translated">Kein Tracking durch Dritte</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">47,48</context>
+          <context context-type="linenumber">57,58</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.noTracking.body" datatype="html">
-        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> does not include any analytics, telemetry, or tracking services. There are no cookies, no fingerprinting, and no third-party scripts beyond the AI provider APIs you explicitly configure.</source>
-        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> enthält keinerlei Analytik-, Telemetrie- oder Tracking-Dienste. Es gibt keine Cookies, kein Fingerprinting und keine Drittanbieter-Skripte über die von Ihnen ausdrücklich konfigurierten KI-Anbieter-APIs hinaus.</target>
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> does not include any third-party analytics, ad trackers, or cross-site fingerprinting. There are no cookies and no third-party scripts beyond the <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> provider <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>APIs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> you explicitly configure. The one piece of first-party data <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> sends home is the opt-out Anonymous Usage Telemetry described below, used solely to power the public <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> dashboard.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> enthält keinerlei Drittanbieter-Analytik, Anzeigen-Tracker oder seitenübergreifendes Fingerprinting. Es gibt keine Cookies und keine Drittanbieter-Skripte über die von Ihnen ausdrücklich konfigurierten <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Anbieter-<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>APIs<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> hinaus. Die einzige First-Party-Datenmenge, die <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> übermittelt, ist die unten beschriebene Opt-out-Anonymous-Usage-Telemetry, die ausschließlich zur Bereitstellung des öffentlichen <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/stats&quot;&gt;"/>/stats<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>-Dashboards dient.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">48,50</context>
+          <context context-type="linenumber">58,60</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.apiKeys.title" datatype="html">
@@ -2710,6 +2766,126 @@
           <context context-type="linenumber">67,69</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.title" datatype="html">
+        <source>Payment Methods</source>
+        <target state="translated">Zahlungsmethoden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">81,82</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.body" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> includes an optional payment-method vault that stores card details on your device for checkout auto-fill. Cards are treated with the same encryption and AI isolation as login credentials, and the full card number is never sent to any AI model.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> enthält einen optionalen Zahlungsmethoden-Tresor, der Kartendaten auf Ihrem Gerät für das Auto-Ausfüllen beim Checkout speichert. Karten werden mit derselben Verschlüsselung und KI-Isolierung wie Zugangsdaten behandelt, und die vollständige Kartennummer wird niemals an ein KI-Modell gesendet.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">82,84</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.1" datatype="html">
+        <source>Card details (number, expiry, cardholder, and zip) are encrypted at rest using <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AES-GCM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> with the same vault-derived key used for credentials</source>
+        <target state="translated">Kartendaten (Nummer, Gültigkeit, Karteninhaber und PLZ) werden mit demselben aus dem Tresor abgeleiteten Schlüssel, der auch für Zugangsdaten verwendet wird, mit <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>AES-GCM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> ruhend verschlüsselt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">84,85</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.2" datatype="html">
+        <source>When the AI analyzes a checkout page, any detected card-number field values are replaced with <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>[hidden]<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> before the prompt is built. Card numbers, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>CVV<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, and expiry are never included in any AI prompt</source>
+        <target state="translated">Wenn die KI eine Checkout-Seite analysiert, werden alle erkannten Kartennummern-Feldwerte vor dem Bau des Prompts durch <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>[hidden]<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> ersetzt. Kartennummern, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>CVV<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> und Gültigkeit werden niemals in einen KI-Prompt aufgenommen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">85,86</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.3" datatype="html">
+        <source>Auto-fill happens via the content script writing directly into the page&apos;s <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> fields, bypassing the AI entirely</source>
+        <target state="translated">Das Auto-Ausfüllen erfolgt, indem das Content-Script direkt in die <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>DOM<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Felder der Seite schreibt und die KI dabei vollständig umgangen wird</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">86,87</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.4" datatype="html">
+        <source>The list view shows only a card nickname and last-4 digits. Full numbers are decrypted in memory only at the moment of fill</source>
+        <target state="translated">Die Listenansicht zeigt nur einen Kartenspitznamen und die letzten 4 Ziffern. Vollständige Nummern werden ausschließlich im Speicher und nur zum Zeitpunkt des Ausfüllens entschlüsselt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">87,88</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.5" datatype="html">
+        <source>An <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> client can request a payment fill via <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>use_payment_method<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, but the user is shown an in-extension confirmation prompt before any card data is written into the page</source>
+        <target state="translated">Ein <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>MCP<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Client kann ein Zahlungs-Auto-Ausfüllen über <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>use_payment_method<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> anfordern, dem Benutzer wird jedoch eine Bestätigungsaufforderung in der Erweiterung angezeigt, bevor Kartendaten in die Seite geschrieben werden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">88,89</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.paymentMethods.li.6" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>CVV<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> is never persisted unless you opt in per-card, and even then it is encrypted alongside the rest of the record</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>CVV<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> wird niemals dauerhaft gespeichert, es sei denn, Sie aktivieren dies pro Karte; selbst dann wird er zusammen mit dem restlichen Datensatz verschlüsselt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">89,91</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.title" datatype="html">
+        <source>Speech-to-Text</source>
+        <target state="translated">Speech-to-Text</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">93,94</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.body" datatype="html">
+        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> includes an optional microphone input for the prompt box. The default provider runs entirely in your browser; an optional <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Whisper fallback can be enabled in settings if you want higher accuracy.</source>
+        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> enthält eine optionale Mikrofoneingabe für das Prompt-Feld. Der Standardanbieter läuft vollständig in Ihrem Browser; in den Einstellungen können Sie optional einen <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> Whisper-Fallback aktivieren, wenn Sie höhere Genauigkeit wünschen.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">94,96</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.li.1" datatype="html">
+        <source>Default provider: the browser&apos;s native <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>SpeechRecognition<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>API<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>. Audio is processed by <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> and never leaves your device through <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></source>
+        <target state="translated">Standardanbieter: die native <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>SpeechRecognition<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>API<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> des Browsers. Audio wird von <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> verarbeitet und verlässt Ihr Gerät niemals über <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">96,97</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.li.2" datatype="html">
+        <source>Optional Whisper provider: when <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>sttProvider<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> is set to <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>whisper<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> and an <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> key is configured, recorded audio chunks are uploaded directly from your browser to <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s transcription endpoint. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> never sees or stores the audio</source>
+        <target state="translated">Optionaler Whisper-Anbieter: Wenn <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>sttProvider<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> auf <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>whisper<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> gesetzt ist und ein <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Key konfiguriert ist, werden aufgezeichnete Audioabschnitte direkt von Ihrem Browser an den Transkriptions-Endpunkt von <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> hochgeladen. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> sieht oder speichert das Audio niemals</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">97,98</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.li.3" datatype="html">
+        <source>The microphone is only active while you are holding or have toggled the mic button. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> prompts for permission the first time you use it; <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> does not request microphone access in the extension manifest</source>
+        <target state="translated">Das Mikrofon ist nur aktiv, während Sie die Mikrofon-Schaltfläche gedrückt halten oder umgeschaltet haben. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> fragt beim ersten Mal nach Berechtigung; <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> fordert im Erweiterungsmanifest keinen Mikrofonzugriff an</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">98,99</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.li.4" datatype="html">
+        <source>Transcripts are inserted into the prompt textarea only and are never logged, persisted, or transmitted outside the active AI request you choose to send</source>
+        <target state="translated">Transkripte werden ausschließlich in das Prompt-Textfeld eingefügt und niemals außerhalb der aktiven KI-Anfrage, die Sie selbst abschicken, protokolliert, gespeichert oder übertragen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">99,100</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.speechToText.li.5" datatype="html">
+        <source>Disable speech entirely by leaving the mic button untouched, or by clearing the optional Whisper provider in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> extension storage</source>
+        <target state="translated">Sie können die Sprachfunktion vollständig deaktivieren, indem Sie die Mikrofon-Schaltfläche unberührt lassen oder den optionalen Whisper-Anbieter im <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Chrome<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>-Erweiterungsspeicher löschen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">100,102</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="privacy.section.promptInjection.title" datatype="html">
         <source>Prompt Injection Prevention</source>
         <target state="translated">Schutz vor Prompt Injection</target>
@@ -2780,6 +2956,14 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
           <context context-type="linenumber">83,84</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="privacy.section.bgAgents.deprecated" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Deprecated in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9.45rc1<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>.<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>&apos;s built-in Background Agents have been superseded by <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenClaw<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> and Claude Routines, with remote control now handled by the Sync tab. The disclosures below are retained for users still running <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9.44<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> or earlier; on current builds the relay server is only contacted when you pair a Sync session.</source>
+        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Eingestellt in <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9.45rc1<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>.<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>FSB<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>s integrierte Hintergrund-Agenten wurden durch <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenClaw<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> und Claude Routines ersetzt, wobei die Fernsteuerung nun über den Sync-Tab erfolgt. Die nachstehenden Hinweise bleiben für Benutzer erhalten, die noch <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9.44<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> oder früher verwenden; in aktuellen Builds wird der Relay-Server nur kontaktiert, wenn Sie eine Sync-Sitzung pairen.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
+          <context context-type="linenumber">117,118</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.section.bgAgents.body" datatype="html">
@@ -2934,52 +3118,12 @@
           <context context-type="linenumber">118,119</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="privacy.history.v902.date" datatype="html">
-        <source>March 2026</source>
-        <target state="translated">März 2026</target>
+      <trans-unit id="privacy.history.intro" datatype="html">
+        <source>Each entry below is a snapshot of the privacy policy as it stood on the date shown. Older versions are kept verbatim so you can audit what we promised at any point in time. Snapshots are English-only.</source>
+        <target state="translated">Jeder Eintrag unten ist eine Momentaufnahme der Datenschutzrichtlinie zum angezeigten Datum. Ältere Versionen werden wortgetreu aufbewahrt, damit Sie jederzeit nachvollziehen können, was wir zugesagt haben. Die Momentaufnahmen sind nur auf Englisch verfügbar.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">121,122</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="privacy.history.v902.label" datatype="html">
-        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v9.0.2<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Background Agents, Memory System, Server Sync</source>
-        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v9.0.2<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Hintergrund-Agenten, Speichersystem, Server-Synchronisation</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">122,123</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="privacy.history.v902.body" datatype="html">
-        <source>Added sections for Background Agents and Server Sync (optional relay server for dashboard pairing and agent run metadata). Added Memory System section (all local storage). Updated External Services to acknowledge optional server, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenRouter<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, and <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>LM Studio<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> local-provider support. Updated action count to 50+.</source>
-        <target state="translated">Abschnitte für Hintergrund-Agenten und Server-Synchronisation hinzugefügt (optionaler Relay-Server für Dashboard-Pairing und Agenten-Lauf-Metadaten). Abschnitt Speichersystem hinzugefügt (vollständig lokal). Externe Dienste aktualisiert, um den optionalen Server, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenRouter<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> und die Unterstützung des lokalen Anbieters <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>LM Studio<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> aufzunehmen. Aktionsanzahl auf mehr als 50 aktualisiert.</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">125,126</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="privacy.history.v09.date" datatype="html">
-        <source>February 2026</source>
-        <target state="translated">Februar 2026</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">130,131</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="privacy.history.v09.label" datatype="html">
-        <source><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Initial privacy policy</source>
-        <target state="translated"><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>v0.9<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/> — Erste Datenschutzrichtlinie</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">131,132</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="privacy.history.v09.body" datatype="html">
-        <source>Initial privacy policy covering data collection, storage, external services, API key encryption, auto-passwords, prompt injection prevention, and open source transparency. Four AI providers supported (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>xAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Anthropic<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Google Gemini<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>).</source>
-        <target state="translated">Erste Datenschutzrichtlinie zu Datenerfassung, Speicherung, externen Diensten, API-Key-Verschlüsselung, Auto-Passwörtern, Prompt-Injection-Schutz und Open-Source-Transparenz. Vier KI-Anbieter unterstützt (<x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>xAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>OpenAI<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Anthropic<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>, <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span [attr.translate]=&quot;&apos;no&apos;&quot;&gt;"/>Google Gemini<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/>).</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.html</context>
-          <context context-type="linenumber">134,135</context>
+          <context context-type="linenumber">194,196</context>
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.meta.title" datatype="html">
@@ -2991,11 +3135,11 @@
         </context-group>
       </trans-unit>
       <trans-unit id="privacy.meta.description" datatype="html">
-        <source>How FSB handles your data: API keys encrypted in Chrome local storage, no telemetry, automation runs locally in your browser. BYO key, BYO browser.</source>
-        <target state="translated">So behandelt FSB Ihre Daten: API-Keys im lokalen Chrome-Speicher verschlüsselt, keine Telemetrie, Automatisierung lokal in Ihrem Browser. Eigenes Modell, eigener Browser.</target>
+        <source>How FSB handles your data: API keys encrypted in Chrome local storage, opt-out anonymous usage telemetry, automation runs locally in your browser. BYO key, BYO browser.</source>
+        <target state="translated">So behandelt FSB Ihre Daten: API-Keys im lokalen Chrome-Speicher verschlüsselt, Opt-out-Anonymous-Usage-Telemetry, Automatisierung lokal in Ihrem Browser. BYO key, BYO browser.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/privacy/privacy-page.component.ts</context>
-          <context context-type="linenumber">29</context>
+          <context context-type="linenumber">31</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_SECTION_ARIA" datatype="html">
