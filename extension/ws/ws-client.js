@@ -122,6 +122,60 @@ getFSBTransportDiagnostics();
 
 var _remoteControlActive = false;
 var _lastRemoteControlState = null;
+var _streamingTabId = null;
+var _dashboardTaskTabId = null;
+var _streamingActive = false;
+
+function _isRestrictedTabUrlForStream(url) {
+  if (!url || typeof url !== 'string') return true;
+  return /^(chrome|chrome-extension|moz-extension|edge|brave|about|file):/i.test(url);
+}
+
+function _isDashboardTabUrlForStream(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    var parsed = new URL(url);
+    var hostname = (parsed.hostname || '').toLowerCase();
+    var path = parsed.pathname || '/';
+    return (hostname === 'full-selfbrowsing.com' || hostname === 'www.full-selfbrowsing.com')
+      && (/^\/dashboard(?:\/|$)/.test(path) || path === '/dashboard.html');
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _isStreamableTabUrl(url) {
+  return !_isRestrictedTabUrlForStream(url) && !_isDashboardTabUrlForStream(url);
+}
+
+function _getStreamTabNotReadyReason(tab) {
+  if (!tab || !tab.url) return 'no-streamable-tab';
+  if (_isRestrictedTabUrlForStream(tab.url)) return 'restricted-tab';
+  return 'no-streamable-tab';
+}
+
+function _getContentScriptFilesForInjection() {
+  if (typeof CONTENT_SCRIPT_FILES !== 'undefined' && Array.isArray(CONTENT_SCRIPT_FILES)) {
+    return CONTENT_SCRIPT_FILES;
+  }
+  return [
+    'utils/diagnostics-ring-buffer.js',
+    'utils/redactForLog.js',
+    'utils/automation-logger.js',
+    'content/init.js',
+    'content/utils.js',
+    'content/dom-state.js',
+    'content/selectors.js',
+    'content/badge-combine.js',
+    'content/visual-feedback.js',
+    'content/accessibility.js',
+    'content/actions.js',
+    'content/dom-analysis.js',
+    'content/dom-stream.js',
+    'content/messaging.js',
+    'content/lifecycle.js'
+  ];
+}
 
 // =====================================================================
 // Phase 276 STREAM-DEFENSIVE-02 (hypothesis #2 stream-tab not-ready)
@@ -344,16 +398,36 @@ function _broadcastMetrics(wsInstance, serverHashKey) {
   }
 }
 
-function handleRemoteControlStart() {
+async function handleRemoteControlStart() {
   var tabId = _getRemoteControlTabId();
-  if (!tabId) {
+  var wsInstance = globalThis.__fsbWsInstance;
+  if (wsInstance && typeof wsInstance._resolveStreamCandidate === 'function') {
+    try {
+      var candidate = await wsInstance._resolveStreamCandidate();
+      if (candidate && candidate.ready && typeof candidate.tabId === 'number') {
+        tabId = candidate.tabId;
+        _streamingTabId = tabId;
+      } else if (typeof tabId !== 'number') {
+        console.warn('[FSB RC] Cannot start remote control:', candidate && candidate.reason ? candidate.reason : 'no-tab');
+        _broadcastRemoteControlState(wsInstance, false, (candidate && candidate.reason) || 'no-tab', null);
+        return;
+      }
+    } catch (err) {
+      if (typeof tabId !== 'number') {
+        console.warn('[FSB RC] Cannot start remote control:', err && err.message ? err.message : 'candidate resolution failed');
+        _broadcastRemoteControlState(wsInstance, false, 'no-tab', null);
+        return;
+      }
+    }
+  }
+  if (typeof tabId !== 'number') {
     console.warn('[FSB RC] Cannot start remote control: no active tab');
-    _broadcastRemoteControlState(globalThis.__fsbWsInstance, false, 'no-tab', null);
+    _broadcastRemoteControlState(wsInstance, false, 'no-tab', null);
     return;
   }
   _remoteControlActive = true;
   console.log('[FSB RC] Remote control started for tab', tabId);
-  _broadcastRemoteControlState(globalThis.__fsbWsInstance, true, 'ready', tabId);
+  _broadcastRemoteControlState(wsInstance, true, 'ready', tabId);
 }
 
 function handleRemoteControlStop() {
@@ -1014,6 +1088,19 @@ class FSBWebSocket {
       source: 'no-streamable-tab'
     };
     var preferredTabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
+    var rememberNonReadyTab = function (tab, source) {
+      var reason = _getStreamTabNotReadyReason(tab);
+      if (reason !== 'restricted-tab') return;
+      if (fallback.reason === 'no-streamable-tab' || fallback.reason === 'tab-closed') {
+        fallback = {
+          ready: false,
+          reason: reason,
+          tabId: tab && typeof tab.id === 'number' ? tab.id : null,
+          url: tab && tab.url ? tab.url : '',
+          source: source
+        };
+      }
+    };
 
     if (preferredTabId) {
       try {
@@ -1027,13 +1114,7 @@ class FSBWebSocket {
             source: 'streaming-tab'
           };
         }
-        fallback = {
-          ready: false,
-          reason: 'restricted-tab',
-          tabId: preferredTab.id || preferredTabId,
-          url: preferredTab.url || '',
-          source: 'streaming-tab'
-        };
+        rememberNonReadyTab(preferredTab, 'streaming-tab');
       } catch (err) {
         fallback = {
           ready: false,
@@ -1047,11 +1128,22 @@ class FSBWebSocket {
 
     var queries = [
       { source: 'last-focused-active', query: { active: true, lastFocusedWindow: true } },
-      { source: 'any-active', query: { active: true } }
+      { source: 'any-active', query: { active: true } },
+      { source: 'all-tabs', query: {} }
     ];
 
     for (var i = 0; i < queries.length; i++) {
       var tabs = await chrome.tabs.query(queries[i].query);
+      if (queries[i].source === 'all-tabs') {
+        tabs = (tabs || []).slice().sort(function (a, b) {
+          var aActive = a && a.active ? 1 : 0;
+          var bActive = b && b.active ? 1 : 0;
+          if (aActive !== bActive) return bActive - aActive;
+          var aLast = a && typeof a.lastAccessed === 'number' ? a.lastAccessed : 0;
+          var bLast = b && typeof b.lastAccessed === 'number' ? b.lastAccessed : 0;
+          return bLast - aLast;
+        });
+      }
       for (var j = 0; j < tabs.length; j++) {
         var tab = tabs[j];
         if (!tab || typeof tab.id !== 'number' || seenTabIds.has(tab.id)) continue;
@@ -1066,15 +1158,7 @@ class FSBWebSocket {
           };
         }
 
-        if (fallback.reason === 'no-streamable-tab' || fallback.reason === 'tab-closed') {
-          fallback = {
-            ready: false,
-            reason: 'restricted-tab',
-            tabId: tab.id,
-            url: tab.url || '',
-            source: queries[i].source
-          };
-        }
+        rememberNonReadyTab(tab, queries[i].source);
       }
     }
 
@@ -1085,9 +1169,7 @@ class FSBWebSocket {
     return !!tab
       && typeof tab.id === 'number'
       && !!tab.url
-      && (typeof _isStreamableTabUrl === 'function'
-        ? _isStreamableTabUrl(tab.url)
-        : !/^(chrome|about|edge|brave|chrome-extension):/.test(tab.url));
+      && _isStreamableTabUrl(tab.url);
   }
 
   _emitStreamState(status, reason, details) {
@@ -1157,6 +1239,28 @@ class FSBWebSocket {
       url: candidate.url || '',
       source: 'dash:dom-stream-start'
     });
+
+    // Inject the canonical content-script bundle into the source tab before
+    // the readiness poll. Manifest only auto-injects canvas-interceptor.js;
+    // everything else (including content/dom-stream.js which registers the
+    // pingDomStream handler) requires explicit runtime injection. Without
+    // this, the readiness poll sends pingDomStream to a tab whose pong
+    // handler script was never loaded, the poll times out, and the payload
+    // parks in _pendingStreamStart forever. Best-effort wrap: duplicate
+    // injection on a tab that already has the script is benign (Chrome
+    // returns an error which we swallow; the readiness poll is the source
+    // of truth).
+    try {
+      var scriptFiles = _getContentScriptFilesForInjection();
+      await chrome.scripting.executeScript({
+        target: { tabId: candidate.tabId, allFrames: false },
+        files: scriptFiles,
+        world: 'ISOLATED',
+        injectImmediately: true
+      });
+    } catch (injectErr) {
+      // Best-effort; readiness poll below is authoritative.
+    }
 
     // Phase 276 STREAM-DEFENSIVE-02 + STREAM-DEFENSIVE-04: probe the content
     // script for readiness before issuing `domStreamStart`. If the content
@@ -1344,6 +1448,7 @@ class FSBWebSocket {
         });
         return;
       }
+      _dashboardTaskTabId = tabId;
       chrome.runtime.sendMessage({
         action: 'startAutomation',
         task: task,
@@ -1523,9 +1628,7 @@ class FSBWebSocket {
           error: sendErr && sendErr.message ? sendErr.message : 'Content script not ready'
         });
         try {
-          var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
-            ? CONTENT_SCRIPT_FILES
-            : ['utils/diagnostics-ring-buffer.js', 'utils/redactForLog.js', 'content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+          var scriptFiles = _getContentScriptFilesForInjection();
           await chrome.scripting.executeScript({
             target: { tabId: tabId, allFrames: false },
             files: scriptFiles
