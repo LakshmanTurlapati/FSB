@@ -3,6 +3,39 @@
    Replicated from vanilla main.css (git ref eb99a46)
    ============================================= */
 
+/* Quick task 260517-fsf -- sticky-footer layout.
+   The shell renders <nav> (position: fixed), <main> (router-outlet sits inside
+   via <ng-content>), and <footer> as siblings inside :host. Without the flex
+   column + min-height: 100vh + flex:1 on main, short pages let the footer
+   ride up immediately below the last content row instead of being pinned to
+   the viewport bottom. This was most visible on /stats (compact page), but
+   any page with content shorter than the viewport benefits from this.
+
+   Notes:
+     - The fixed-position .nav does NOT consume layout space, so we do not
+       need padding-top here -- each page already accounts for the nav via
+       its own top padding (var(--section-padding) etc).
+     - We only set min-height: 100vh on :host, not on body, to keep the
+       blast radius minimal (body has overflow-x: hidden and other global
+       resets we do not want to disturb). */
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+:host > main {
+  // Grow to consume any leftover vertical space so the footer is pushed
+  // to the viewport bottom on short pages. We intentionally do NOT change
+  // <main>'s inner display mode (it stays in normal block flow) so existing
+  // page layouts inside <ng-content> are unaffected.
+  flex: 1 0 auto;
+}
+
+:host > .footer {
+  flex: 0 0 auto;
+}
+
 /* --- Navigation --- */
 .nav {
   position: fixed;

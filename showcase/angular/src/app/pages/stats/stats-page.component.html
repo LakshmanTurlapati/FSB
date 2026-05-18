@@ -61,32 +61,43 @@
         <span class="sr-only">Loading stats…</span>
       </div>
     }
-    @if (viewState === 'ready') {
-      <div class="chart-mount">
-        <!-- Quick task 260515-mfs (P1) -- canvas stays mounted under [hidden] so
-             @ViewChild('chartCanvas') always resolves and redrawChart() can find
-             the canvas without an extra change-detection tick. redrawChart()
-             early-returns for fsb-avg-agents-per-user (component.ts:391) and
-             destroys any prior chart instance, so nothing renders onto this
-             canvas while the big-number tile is active. -->
-        <canvas #chartCanvas [hidden]="selectedView === 'fsb-avg-agents-per-user'"></canvas>
-        @if (selectedView === 'fsb-avg-agents-per-user') {
-          <!-- Quick task 260515-kw1 -- big-number tile (HTML, not canvas). The
-               tile renders in parallel with the [hidden] canvas above so the
-               chart-mount slot is reused; redrawChart() early-returns for this view. -->
-          <div class="big-number-tile" role="status" aria-live="polite">
-            <div class="big-number-label" i18n="@@SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL">Avg agents per active user</div>
-            <div class="big-number-value">{{ fsbHeadline?.avg_agents_per_user ?? 0 | number:'1.1-2' }}</div>
-            @if (avgAgentsDelta !== null) {
-              <div class="big-number-delta" [class.up]="avgAgentsDelta > 0" [class.down]="avgAgentsDelta < 0">
-                <span class="delta-arrow" aria-hidden="true">{{ avgAgentsDelta > 0 ? '\u25B2' : (avgAgentsDelta < 0 ? '\u25BC' : '\u00B7') }}</span>
-                {{ avgAgentsDelta > 0 ? '+' : '' }}{{ avgAgentsDelta | number:'1.1-2' }}
-              </div>
-            }
-          </div>
-        }
-      </div>
-    }
+    <!-- Quick task 260517-fsf -- the chart-mount (and its canvas) MUST stay
+         mounted in the DOM independent of viewState so that @ViewChild('chartCanvas')
+         always resolves. Previously this was wrapped in `@if (viewState === 'ready')`,
+         which caused a first-load race: onDatasetUpdate / onFsbHeadlineUpdate
+         flipped viewState to 'ready' and synchronously called redrawChart() before
+         change-detection materialized the @if branch, so canvasRef was undefined
+         and the chart never drew. We now use [hidden] (the same workaround that
+         was already in place for the fsb-avg-agents-per-user big-number tile) so
+         the canvas is queryable from the moment the component mounts, and only
+         visually hidden while we are still in loading / rate-limited / error
+         states. The .chart-mount also stays out of the document flow when hidden
+         so the skeleton / rate-card / error-card branches above are still the
+         only visible content during their respective states. -->
+    <div class="chart-mount" [hidden]="viewState !== 'ready'">
+      <!-- Quick task 260515-mfs (P1) -- canvas stays mounted under [hidden] so
+           @ViewChild('chartCanvas') always resolves and redrawChart() can find
+           the canvas without an extra change-detection tick. redrawChart()
+           early-returns for fsb-avg-agents-per-user (component.ts:391) and
+           destroys any prior chart instance, so nothing renders onto this
+           canvas while the big-number tile is active. -->
+      <canvas #chartCanvas [hidden]="selectedView === 'fsb-avg-agents-per-user'"></canvas>
+      @if (selectedView === 'fsb-avg-agents-per-user') {
+        <!-- Quick task 260515-kw1 -- big-number tile (HTML, not canvas). The
+             tile renders in parallel with the [hidden] canvas above so the
+             chart-mount slot is reused; redrawChart() early-returns for this view. -->
+        <div class="big-number-tile" role="status" aria-live="polite">
+          <div class="big-number-label" i18n="@@SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL">Avg agents per active user</div>
+          <div class="big-number-value">{{ fsbHeadline?.avg_agents_per_user ?? 0 | number:'1.1-2' }}</div>
+          @if (avgAgentsDelta !== null) {
+            <div class="big-number-delta" [class.up]="avgAgentsDelta > 0" [class.down]="avgAgentsDelta < 0">
+              <span class="delta-arrow" aria-hidden="true">{{ avgAgentsDelta > 0 ? '\u25B2' : (avgAgentsDelta < 0 ? '\u25BC' : '\u00B7') }}</span>
+              {{ avgAgentsDelta > 0 ? '+' : '' }}{{ avgAgentsDelta | number:'1.1-2' }}
+            </div>
+          }
+        </div>
+      }
+    </div>
     @if (viewState === 'rate-limited') {
       <div class="rate-card" role="status">
         <h3>GitHub rate-limited</h3>
