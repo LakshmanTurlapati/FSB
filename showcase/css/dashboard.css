@@ -1792,6 +1792,15 @@
   transition: box-shadow 300ms ease, border-color 300ms ease;
 }
 
+.dash-preview-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 200px;
+  overflow: hidden;
+  background: #050505;
+}
+
 .dash-preview-automating {
   border-color: rgba(255, 140, 0, 0.6);
   box-shadow: 0 0 12px rgba(255, 140, 0, 0.4), 0 0 24px rgba(255, 140, 0, 0.2);
@@ -1804,6 +1813,9 @@
 }
 
 .dash-preview-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   border: none;
@@ -2226,13 +2238,17 @@
 
 /* Responsive: mobile */
 @media (max-width: 768px) {
-  .dash-preview {
+  .dash-preview,
+  .dash-preview-stage {
+    aspect-ratio: auto;
     min-height: 200px;
   }
 }
 
 @media (max-width: 480px) {
-  .dash-preview {
+  .dash-preview,
+  .dash-preview-stage {
+    aspect-ratio: auto;
     min-height: 200px;
   }
   .dash-preview-progress {
@@ -2244,11 +2260,19 @@
 .dash-preview-maximized {
   position: fixed !important;
   inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
   z-index: 100 !important;
   min-height: 100vh !important;
   border-radius: 0 !important;
   margin: 0 !important;
   border: none !important;
+}
+
+.dash-preview-maximized .dash-preview-stage {
+  flex: 1 1 auto;
+  aspect-ratio: auto !important;
+  min-height: 0;
 }
 
 .dash-preview-maximized .dash-preview-btn {
@@ -2286,16 +2310,27 @@ body.dash-layout-maximized #dash-task-progress {
   opacity: 1;
 }
 
+.dash-preview-pip .dash-preview-stage {
+  aspect-ratio: 16 / 10 !important;
+}
+
 .dash-preview-pip .dash-preview-header {
   cursor: grab;
 }
 
 /* --- Layout Mode: Fullscreen --- */
 .dash-preview:fullscreen {
+  display: flex;
+  flex-direction: column;
   background: #000;
 }
+.dash-preview:fullscreen .dash-preview-stage {
+  flex: 1 1 auto;
+  aspect-ratio: auto !important;
+  min-height: 0;
+}
 .dash-preview:fullscreen .dash-preview-iframe {
-  transform-origin: center center;
+  transform-origin: top left;
 }
 .dash-preview:fullscreen .dash-preview-header {
   position: absolute;

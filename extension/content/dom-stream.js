@@ -110,6 +110,16 @@
     'content', 'direction', 'unicode-bidi'
   ];
 
+  var SHELL_PROPS = [
+    'background-color', 'background-image', 'background-position', 'background-size',
+    'background-repeat', 'color', 'font-family', 'font-size', 'font-weight',
+    'font-style', 'font-variant', 'line-height', 'letter-spacing', 'word-spacing',
+    'text-align', 'text-transform', 'direction', 'unicode-bidi',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'overflow', 'overflow-x', 'overflow-y', 'box-sizing'
+  ];
+
   function createStreamSessionId() {
     return 'stream_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   }
@@ -304,13 +314,14 @@
    * @param {Element} original - The original DOM element (for getComputedStyle)
    * @param {Element} clone - The cloned element to set inline styles on
    */
-  function captureComputedStyles(original, clone) {
+  function collectComputedStyleText(original, props) {
     try {
       var computed = window.getComputedStyle(original);
       var styles = [];
+      var styleProps = props || CURATED_PROPS;
 
-      for (var i = 0; i < CURATED_PROPS.length; i++) {
-        var prop = CURATED_PROPS[i];
+      for (var i = 0; i < styleProps.length; i++) {
+        var prop = styleProps[i];
         var val = computed.getPropertyValue(prop);
         if (!val || val === '') continue;
         // Skip common defaults to reduce payload (per D-08)
@@ -322,12 +333,31 @@
         styles.push(prop + ':' + val);
       }
 
-      if (styles.length > 0) {
-        clone.setAttribute('style', styles.join(';'));
-      }
+      return styles.join(';');
     } catch (e) {
       // getComputedStyle can fail for detached elements
+      return '';
     }
+  }
+
+  function captureComputedStyles(original, clone) {
+    var styleText = collectComputedStyleText(original, CURATED_PROPS);
+    if (styleText) {
+      clone.setAttribute('style', styleText);
+    }
+  }
+
+  function serializeShellAttributes(el) {
+    var attrs = {};
+    if (!el || !el.attributes) return attrs;
+    for (var i = 0; i < el.attributes.length; i++) {
+      var attr = el.attributes[i];
+      if (!attr || !attr.name) continue;
+      var name = String(attr.name).toLowerCase();
+      if (name === 'style' || name.indexOf('on') === 0) continue;
+      attrs[name] = String(attr.value || '');
+    }
+    return attrs;
   }
 
   /**
@@ -561,6 +591,10 @@
       missingDescendants: missingDescendants,
       stylesheets: stylesheets,
       inlineStyles: inlineStyles,
+      htmlAttrs: serializeShellAttributes(document.documentElement),
+      bodyAttrs: serializeShellAttributes(document.body),
+      htmlStyle: collectComputedStyleText(document.documentElement, SHELL_PROPS),
+      bodyStyle: collectComputedStyleText(document.body, SHELL_PROPS),
       scrollX: window.scrollX,
       scrollY: window.scrollY,
       viewportWidth: window.innerWidth,

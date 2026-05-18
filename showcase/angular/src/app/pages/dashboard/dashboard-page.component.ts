@@ -170,6 +170,8 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private previewState: PreviewState = 'hidden';
   private previewLayoutMode: PreviewLayoutMode = 'inline';
   private previewScale = 1;
+  private previewOffsetX = 0;
+  private previewOffsetY = 0;
   private previewHideTimer: any = null;
   private previewSnapshotData: any = null;
   private lastPreviewScroll = { x: 0, y: 0 };
@@ -272,6 +274,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
   // DOM preview refs
   private previewContainer!: HTMLElement | null;
+  private previewStage!: HTMLElement | null;
   private previewIframe!: HTMLIFrameElement | null;
   private previewLoading!: HTMLElement | null;
   private previewGlow!: HTMLElement | null;
@@ -474,6 +477,7 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.taskStopBtn = this.el('dash-task-stop');
 
     this.previewContainer = this.el('dash-preview');
+    this.previewStage = this.el('dash-preview-stage');
     this.previewIframe = this.el('dash-preview-iframe') as HTMLIFrameElement | null;
     this.previewLoading = this.el('dash-preview-loading');
     this.previewGlow = this.el('dash-preview-glow');
@@ -1371,8 +1375,8 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private clampRemotePreviewPoint(localX: number, localY: number): { x: number; y: number } {
     const viewport = this.getRemoteViewportSize();
     const scale = this.previewScale > 0 ? this.previewScale : 1;
-    const x = Math.round(localX / scale);
-    const y = Math.round(localY / scale);
+    const x = Math.round((localX - this.previewOffsetX) / scale);
+    const y = Math.round((localY - this.previewOffsetY) / scale);
     return {
       x: Math.max(0, Math.min(viewport.width - 1, x)),
       y: Math.max(0, Math.min(viewport.height - 1, y)),
@@ -2835,6 +2839,35 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.renderRemoteControlState(this.lastRemoteControlState, { skipToggleSync: true });
   }
 
+  private escapePreviewAttribute(value: any): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  private buildShellAttributeString(attrs: any, styleText?: any): string {
+    const parts: string[] = [];
+    if (attrs && typeof attrs === 'object') {
+      Object.keys(attrs).forEach((rawName) => {
+        const name = String(rawName || '').toLowerCase();
+        if (!/^[a-z][a-z0-9_:.~-]*$/.test(name)) return;
+        if (name === 'style' || name.startsWith('on')) return;
+        const value = attrs[rawName];
+        if (value === undefined || value === null) return;
+        parts.push(name + '="' + this.escapePreviewAttribute(value) + '"');
+      });
+    }
+    const style = String(styleText || '').trim();
+    if (style) parts.push('style="' + this.escapePreviewAttribute(style) + '"');
+    return parts.length ? ' ' + parts.join(' ') : '';
+  }
+
+  private isMobilePreviewStage(): boolean {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  }
+
   private handleDOMSnapshot(payload: any): void {
     if (!payload || !payload.html) {
       this.recordTransportError('dom-snapshot-invalid', 'DOM snapshot missing html payload', { type: 'ext:dom-snapshot' });
@@ -2880,13 +2913,16 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
         '<link rel="stylesheet" href="' + url.replace(/"/g, '&quot;') + '">').join('\n');
       const inlineStyleTags = (payload.inlineStyles || []).map((css: string) =>
         '<style>' + css + '</style>').join('\n');
-      const fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+      const htmlAttrs = this.buildShellAttributeString(payload.htmlAttrs, payload.htmlStyle);
+      const bodyAttrs = this.buildShellAttributeString(payload.bodyAttrs, payload.bodyStyle);
+      const fullHTML = '<!DOCTYPE html><html' + htmlAttrs + '><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=' + (payload.viewportWidth || 1920) + '">' +
         stylesheetLinks + inlineStyleTags +
         '<style>body { margin: 0; overflow: hidden; } *::selection { background: transparent; } ::-webkit-scrollbar { display: none; }</style>' +
-        '</head><body>' + payload.html + '</body></html>';
+        '</head><body' + bodyAttrs + '>' + payload.html + '</body></html>';
 
       if (this.previewIframe) {
+        if (this.previewContainer) this.previewContainer.style.display = '';
         this.previewIframe.srcdoc = fullHTML;
         this.previewIframe.onload = () => {
           this.updatePreviewScale();
@@ -2905,25 +2941,32 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   private updatePreviewScale(): void {
-    if (!this.previewIframe || !this.previewContainer || !this.previewSnapshotData) return;
-    const containerWidth = this.previewContainer.clientWidth;
-    const pageWidth = this.previewSnapshotData.viewportWidth || this.previewSnapshotData.pageWidth || 1920;
-    const pageHeight = this.previewSnapshotData.viewportHeight || 1080;
+    if (!this.previewIframe || !this.previewContainer || !this.previewStage || !this.previewSnapshotData) return;
+    const pageWidth = Math.max(1, this.previewSnapshotData.viewportWidth || this.previewSnapshotData.pageWidth || 1920);
+    const pageHeight = Math.max(1, this.previewSnapshotData.viewportHeight || 1080);
+    const stageWidth = Math.max(1, this.previewStage.clientWidth || this.previewContainer.clientWidth || 1);
+    let stageHeight = Math.max(1, this.previewStage.clientHeight || Math.round(stageWidth * 10 / 16));
 
-    let computedHeight = (pageHeight / pageWidth) * containerWidth;
-    if (this.previewLayoutMode === 'inline') {
-      computedHeight = Math.max(200, Math.min(computedHeight, window.innerHeight * 0.9));
-    }
-    if (this.previewLayoutMode === 'maximized' || this.previewLayoutMode === 'fullscreen') {
-      computedHeight = this.previewContainer.clientHeight;
-    }
     if (this.previewLayoutMode === 'inline' || this.previewLayoutMode === 'pip') {
-      this.previewContainer.style.height = computedHeight + 'px';
+      const fixedStageRatio = this.previewLayoutMode === 'pip' || !this.isMobilePreviewStage();
+      const computedHeight = fixedStageRatio
+        ? Math.round(stageWidth * 10 / 16)
+        : Math.max(200, Math.min(Math.round((pageHeight / pageWidth) * stageWidth), window.innerHeight * 0.9));
+      this.previewStage.style.height = computedHeight + 'px';
+      stageHeight = computedHeight;
+    } else {
+      this.previewStage.style.height = '';
+      stageHeight = Math.max(1, this.previewStage.clientHeight || stageHeight);
     }
 
-    this.previewScale = containerWidth / pageWidth;
+    this.previewScale = Math.min(stageWidth / pageWidth, stageHeight / pageHeight);
+    if (!Number.isFinite(this.previewScale) || this.previewScale <= 0) this.previewScale = 1;
+    this.previewOffsetX = Math.max(0, (stageWidth - (pageWidth * this.previewScale)) / 2);
+    this.previewOffsetY = Math.max(0, (stageHeight - (pageHeight * this.previewScale)) / 2);
     this.previewIframe.style.width = pageWidth + 'px';
     this.previewIframe.style.height = pageHeight + 'px';
+    this.previewIframe.style.left = this.previewOffsetX + 'px';
+    this.previewIframe.style.top = this.previewOffsetY + 'px';
     this.previewIframe.style.transform = 'scale(' + this.previewScale + ')';
   }
 
@@ -3254,8 +3297,8 @@ export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy 
     if (!canRenderOverlay) return;
     if (payload.glow?.state === 'active' && this.previewGlow) {
       this.previewGlow.style.display = '';
-      this.previewGlow.style.top = (payload.glow.y * this.previewScale) + 'px';
-      this.previewGlow.style.left = (payload.glow.x * this.previewScale) + 'px';
+      this.previewGlow.style.top = (this.previewOffsetY + payload.glow.y * this.previewScale) + 'px';
+      this.previewGlow.style.left = (this.previewOffsetX + payload.glow.x * this.previewScale) + 'px';
       this.previewGlow.style.width = (payload.glow.w * this.previewScale) + 'px';
       this.previewGlow.style.height = (payload.glow.h * this.previewScale) + 'px';
     } else if (this.previewGlow) {
