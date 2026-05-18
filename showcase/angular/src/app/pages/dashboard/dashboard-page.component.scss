@@ -1646,6 +1646,7 @@
 .dash-preview {
   position: relative;
   width: 100%;
+  aspect-ratio: 16 / 10;
   min-height: 200px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
   border: 1px solid var(--fsb-border-subtle);
@@ -2120,12 +2121,14 @@
 /* Responsive: mobile */
 @media (max-width: 768px) {
   .dash-preview {
+    aspect-ratio: auto;
     min-height: 200px;
   }
 }
 
 @media (max-width: 480px) {
   .dash-preview {
+    aspect-ratio: auto;
     min-height: 200px;
   }
   .dash-preview-progress {
@@ -2138,6 +2141,7 @@
   position: fixed !important;
   inset: 0 !important;
   z-index: 100 !important;
+  aspect-ratio: auto !important;
   min-height: 100vh !important;
   border-radius: 0 !important;
   margin: 0 !important;
@@ -2168,6 +2172,7 @@ body.dash-layout-maximized #dash-task-progress {
   bottom: 16px !important;
   right: 16px !important;
   width: 400px !important;
+  aspect-ratio: 16 / 10 !important;
   min-height: auto !important;
   z-index: 50 !important;
   border-radius: var(--radius-lg) !important;
