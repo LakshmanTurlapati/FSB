@@ -1,7 +1,7 @@
 <section class="stats-page container">
   <header class="stats-header">
-    <h1>FSB <span class="dot">·</span> Stats <span class="muted">for nerds</span></h1>
-    <p class="stats-sub">Live signals from <code>LakshmanTurlapati/FSB</code>. Auto-refreshes every 5&nbsp;minutes while this tab is visible.</p>
+    <h1>FSB <span class="dot">·</span> Stats <span class="muted">for nerds</span> <span class="stats-live-badge" role="status" aria-label="Live data">Live</span></h1>
+    <p class="stats-sub">Live signals from <code>LakshmanTurlapati/FSB</code>.</p>
   </header>
 
   <nav class="view-switcher" role="tablist" aria-label="Stats view">
@@ -18,34 +18,39 @@
     }
   </nav>
 
-  <!-- Phase 274 / STATS-02 -- FSB Telemetry section heading + live headline row. -->
-  <div class="fsb-section-heading" role="region"
-       aria-label="FSB Telemetry"
-       i18n-aria-label="@@SHOWCASE_STATS_FSB_SECTION_ARIA">
-    <h2 i18n="@@SHOWCASE_STATS_FSB_SECTION_HEADING"><span [attr.translate]="'no'">FSB</span> Telemetry</h2>
-    <p class="fsb-section-sub" i18n="@@SHOWCASE_STATS_FSB_SECTION_SUB">Live anonymous usage from <span [attr.translate]="'no'">FSB</span> installs. Refreshes every 5&nbsp;minutes.</p>
-  </div>
-
-  @if (fsbHeadline) {
-    <div class="stats-headline" role="status" aria-live="polite"
-         aria-label="Live FSB metrics"
-         i18n-aria-label="@@SHOWCASE_STATS_FSB_HEADLINE_ARIA">
-      <span class="headline-cell">
-        <strong>{{ fsbHeadline.active_users_now }}</strong>
-        <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_ACTIVE">active right now</span>
-      </span>
-      <span class="headline-dot" aria-hidden="true">·</span>
-      <span class="headline-cell">
-        <strong>{{ fsbHeadline.total_users }}</strong>
-        <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_TOTAL">total users</span>
-      </span>
-      <span class="headline-dot" aria-hidden="true">·</span>
-      <span class="headline-cell">
-        <strong>{{ fsbHeadline.tokens_24h }}</strong>
-        <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_TOKENS">tokens (last 24h)</span>
-      </span>
+  <div class="stats-headline-row">
+    <div class="stats-tab-metrics" role="status" aria-live="polite" aria-label="Current tab metrics">
+      @for (m of tabMetrics; track m.label) {
+        <span class="headline-cell">
+          <strong>{{ m.value }}</strong>
+          <span>{{ m.label }}</span>
+        </span>
+        @if (!$last) {
+          <span class="headline-dot" aria-hidden="true">·</span>
+        }
+      }
     </div>
-  }
+    @if (fsbHeadline) {
+      <div class="stats-headline" role="status" aria-live="polite"
+           aria-label="Live FSB metrics"
+           i18n-aria-label="@@SHOWCASE_STATS_FSB_HEADLINE_ARIA">
+        <span class="headline-cell">
+          <strong>{{ fsbHeadline.active_users_now }}</strong>
+          <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_ACTIVE">active right now</span>
+        </span>
+        <span class="headline-dot" aria-hidden="true">·</span>
+        <span class="headline-cell">
+          <strong>{{ fsbHeadline.total_users }}</strong>
+          <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_TOTAL">total users</span>
+        </span>
+        <span class="headline-dot" aria-hidden="true">·</span>
+        <span class="headline-cell">
+          <strong>{{ fsbHeadline.tokens_24h }}</strong>
+          <span i18n="@@SHOWCASE_STATS_FSB_HEADLINE_TOKENS">tokens (last 24h)</span>
+        </span>
+      </div>
+    }
+  </div>
 
   <div class="chart-card" [attr.data-state]="viewState">
     @if (viewState === 'loading') {
@@ -97,7 +102,4 @@
     }
   </div>
 
-  <footer class="stats-foot">
-    <p>Live from the <a href="https://docs.github.com/en/rest" target="_blank" rel="noopener">GitHub REST API</a>. Auto-refreshes every 5&nbsp;minutes.</p>
-  </footer>
 </section>
