@@ -2142,6 +2142,12 @@ var _lastDomStreamStaleFlushCount = 0;
 // remains untouched at its original name.
 let _bgRemoteControlStateCache = null;
 
+function normalizeDashboardServerUrlForSync(value) {
+  const fallback = 'https://full-selfbrowsing.com';
+  const url = (typeof value === 'string' && value.trim()) ? value.trim() : fallback;
+  return url.replace(/\/+$/, '');
+}
+
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
@@ -5370,6 +5376,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         _bgRemoteControlStateCache = request.state;
       }
       sendResponse({ success: true });
+      break;
+    }
+
+    case 'reconnectDashboardWebSocket': {
+      try {
+        if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && typeof fsbWebSocket.connect === 'function') {
+          fsbWebSocket.connect();
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false, error: 'dashboard relay unavailable' });
+        }
+      } catch (error) {
+        sendResponse({ success: false, error: error && error.message ? error.message : 'reconnect failed' });
+      }
       break;
     }
 
@@ -13237,6 +13257,34 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       fsbWebSocket.connect();
     } else {
       fsbWebSocket.disconnect();
+    }
+  }
+
+  // React to Sync tab server/key changes. Pairing tokens are generated for a
+  // specific hash key; if the relay remains connected to an older key, the
+  // dashboard joins one room while the extension stays in another.
+  if (namespace === 'local' && (changes.serverHashKey || changes.serverUrl)) {
+    const nextKey = changes.serverHashKey
+      ? changes.serverHashKey.newValue
+      : (typeof fsbWebSocket !== 'undefined' && fsbWebSocket ? fsbWebSocket.serverHashKey : null);
+    const nextUrl = changes.serverUrl
+      ? normalizeDashboardServerUrlForSync(changes.serverUrl.newValue)
+      : (typeof fsbWebSocket !== 'undefined' && fsbWebSocket ? normalizeDashboardServerUrlForSync(fsbWebSocket.serverUrl) : null);
+    const currentKey = (typeof fsbWebSocket !== 'undefined' && fsbWebSocket) ? fsbWebSocket.serverHashKey : null;
+    const currentUrl = (typeof fsbWebSocket !== 'undefined' && fsbWebSocket) ? normalizeDashboardServerUrlForSync(fsbWebSocket.serverUrl) : null;
+    const keyChanged = !!nextKey && nextKey !== currentKey;
+    const urlChanged = !!nextUrl && nextUrl !== currentUrl;
+    if (keyChanged || urlChanged) {
+      chrome.storage.local.get(['serverSyncEnabled']).then(({ serverSyncEnabled }) => {
+        if (serverSyncEnabled === false) return;
+        if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && typeof fsbWebSocket.connect === 'function') {
+          fsbWebSocket.connect();
+        }
+      }).catch(() => {
+        if (typeof fsbWebSocket !== 'undefined' && fsbWebSocket && typeof fsbWebSocket.connect === 'function') {
+          fsbWebSocket.connect();
+        }
+      });
     }
   }
 

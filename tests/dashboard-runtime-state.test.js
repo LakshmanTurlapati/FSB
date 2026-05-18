@@ -210,6 +210,11 @@ assert(angularDashboardTsSource.includes('payload.progress.clientLabel') || angu
 assert(angularDashboardTsSource.includes('renderPreviewClientBadge'), 'Angular dashboard preview renders a dedicated client badge');
 assert(angularDashboardTsSource.includes('this.renderPreviewClientBadge(this.previewFrozenBadge, this.lastPreviewOverlayIdentity.clientLabel);'), 'Angular dashboard frozen preview preserves the last trusted client badge');
 assert(angularDashboardTsSource.includes("result: String(progressPayload.result || '').trim()"), 'Angular dashboard remembers structured final result metadata for frozen preview state');
+assert(/loadDashboardCdnScripts\(\): Promise<void>/.test(angularDashboardTsSource), 'Angular dashboard exposes awaitable CDN loader for QR and compressed WS dependencies');
+assert(angularDashboardTsSource.includes('ensureDashboardScript'), 'Angular dashboard has idempotent CDN script loader');
+assert(angularDashboardTsSource.includes('qrScannerLoading'), 'Angular dashboard tracks QR scanner load-in-flight state');
+assert(/ensureDashboardScript\('dash-html5-qrcode'[\s\S]*this\.startQRScanner\(\)/.test(angularDashboardTsSource), 'Angular dashboard waits for html5-qrcode before starting scanner');
+assert(/if \(typeof LZString === 'undefined'\)[\s\S]*ensureDashboardScript\('dash-lz-string'[\s\S]*openDashboardWebSocket/.test(angularDashboardTsSource), 'Angular dashboard loads LZString before opening compressed WS stream');
 assert(angularDashboardHtmlSource.includes('dash-preview-progress-badge'), 'Angular dashboard HTML exposes live preview badge markup');
 assert(angularDashboardHtmlSource.includes('dash-preview-frozen-badge'), 'Angular dashboard HTML exposes frozen preview badge markup');
 assert(angularDashboardScssSource.includes('.dash-preview-client-badge'), 'Angular dashboard SCSS styles the preview client badge');

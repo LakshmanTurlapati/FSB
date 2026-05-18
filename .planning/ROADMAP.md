@@ -1,5 +1,27 @@
 # Roadmap
 
+**Active supplement (2026-05-18):** v0.9.70 Showcase Dashboard Reliability (Streaming + Sync + Viewport) is now the active milestone. The historical v0.9.69 roadmap remains below for archive continuity until the next full GSD roadmap regeneration.
+
+## Active Milestone: v0.9.70 (Phases 277-279)
+
+**Goal:** Make the showcase dashboard reliable for live preview and remote control: streaming works, preview sizing is correct, and Sync-tab pairing can dispatch remote commands end-to-end.
+
+## v0.9.70 Phases
+
+- [x] **Phase 277: Dashboard DOM-Stream Runtime Restoration** -- canonical content-script bundle injects `content/dom-stream.js`; source tabs register `pingDomStream`; user verified dashboard streaming works live after reload/sideload. Completed 2026-05-18.
+- [x] **Phase 278: Dashboard Preview Viewport Fit** -- inline desktop/PiP preview fixed to 16:10; maximized and browser-fullscreen modes fit the actual viewer surface without stretching the streamed DOM. PR #73 merged and deployed 2026-05-18.
+- [ ] **Phase 279: Sync Tab Remote-Control Restoration** -- diagnose the current Sync-tab pairing / remote-command dispatch break; restore website-to-extension remote control on `full-selfbrowsing.com` with regression coverage.
+
+## v0.9.70 Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 277. Dashboard DOM-Stream Runtime Restoration | 1/1 | Complete | 2026-05-18 |
+| 278. Dashboard Preview Viewport Fit | 1/1 | Complete | 2026-05-18 |
+| 279. Sync Tab Remote-Control Restoration | 0/1 | Active | -- |
+
+---
+
 **Status:** v0.9.69 Anonymous Telemetry Pipeline + Showcase Dashboard Streaming Fix -- scoped 2026-05-14, roadmap approved, awaiting Phase 269 plan.
 
 **Branch posture:** v0.9.69 work continues on `Refinements` (already 6 commits ahead of `origin/main` from quick task 260514-1nv plus version bump). The milestone-close PR merges `Refinements` -> `main`. Deploy targets remain showcase Angular + Express on Fly.io at `https://full-selfbrowsing.com`.
