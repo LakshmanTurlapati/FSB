@@ -43,6 +43,14 @@
   display: block;
 }
 
+.agents-hero-mark[alt="Hermes"] {
+  filter: brightness(0) invert(1);
+}
+
+:host-context([data-theme="light"]) .agents-hero-mark[alt="Hermes"] {
+  filter: none;
+}
+
 .agents-hero-morph {
   display: inline-block;
   min-width: 4.5em;
