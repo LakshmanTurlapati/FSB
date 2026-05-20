@@ -27,6 +27,10 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
   currentToken: string = 'OpenClaw';
 
   private readonly tokens = ['OpenClaw', 'Hermes'] as const;
+  private readonly tokenMarks: Record<string, { file: string; alt: string }> = {
+    OpenClaw: { file: 'openclaw.svg', alt: 'OpenClaw' },
+    Hermes:   { file: 'hermes.png',   alt: 'Hermes' },
+  };
   // Points at the CURRENT displayed token; rotation advances to (tokenIndex + 1) % tokens.length.
   private tokenIndex = 0;
   private cycleTimerId: ReturnType<typeof setInterval> | null = null;
@@ -54,6 +58,10 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopTokenCycle();
+  }
+
+  get currentMark(): { file: string; alt: string } {
+    return this.tokenMarks[this.currentToken] ?? this.tokenMarks['OpenClaw'];
   }
 
   private startTokenCycle(): void {
