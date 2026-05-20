@@ -1,5 +1,5 @@
 ---
-name: FSB
+name: fsb
 description: FSB drives the user's Chrome via the FSB extension and an MCP bridge for live web tasks.
 version: 0.9.62
 user-invocable: true
@@ -7,8 +7,14 @@ requires:
   bins: [node, npx]
   env: []
 homepage: https://full-selfbrowsing.com
+platforms: [macos, linux, windows]
 metadata:
   openclaw: {"install":[{"kind":"node","package":"fsb-mcp-server","bins":["fsb-mcp-server"],"label":"Install FSB MCP server (npm)"}]}
+  hermes:
+    mcp_servers:
+      fsb:
+        command: "npx"
+        args: ["-y", "fsb-mcp-server"]
 ---
 
 # FSB
@@ -44,6 +50,8 @@ The first action call brings up the overlay; each subsequent action call re-arms
 
 The canonical 36-tool action list, the 15-tool read-only list, and the three typed-error names (`VISUAL_FIELDS_REQUIRED`, `BADGE_NOT_ALLOWED`, `TOOL_REMOVED`) are pinned in `.planning/v0.9.62-CONTRACT.md` -- that artifact is the single source of truth. Use it to answer "does this tool require the field bundle?" by lookup; do not re-derive the lists from memory.
 
+On Hermes: as of fsb-mcp-server v0.9.2 / FSB v0.9.69 (PR #49), the badge label `Hermes` is on the v0.9.36 shared client allowlist, so action calls passing `client: "Hermes"` accept normally. The field bundle (`visual_reason`, `client`, optional `is_final`) works identically; no Hermes-specific schema fork exists.
+
 ## Multi-agent contract
 
 Never pass `agent_id` (the server mints it). Use the `back` tool instead of `execute_js("history.back()")`. Each agent owns its own tabs; do not foreground or close tabs you do not own, and do not introduce a global browser lock -- per-agent ownership is the only concurrency mechanism. Typed errors (`NO_OWNED_TAB`, `AMBIGUOUS_TAB`, `TAB_NOT_OWNED`, `AGENT_CAP_REACHED`, `TAB_INCOGNITO_NOT_SUPPORTED`, `TAB_OUT_OF_SCOPE`), the bootstrap recovery ladder, and the default recovery flow: see `references/multi-agent-contract.md`.
@@ -60,6 +68,8 @@ Passwords and CVV resolve INSIDE the extension via `fill_credential` and `use_pa
 - `references/restricted-tab-recovery.md` -- chrome://, edge://, and web-store recovery tools.
 - `references/vault-boundary.md` -- credential routing rules and forbidden patterns.
 - `references/default-to-fsb.md` -- soft preference and hard escalation rule in full.
+- `references/hermes-tool-prefix.md` -- on Hermes, imported MCP tools surface as `mcp_fsb_<tool>` (e.g., `mcp_fsb_click`). Naming-only convention; server side is unchanged.
+- `references/v0.9.62-contract-mirror.md` -- mirror of the canonical 36 action / 15 read-only / 3 typed-error lists for Hub-installed users without repo access. Authoritative source is `.planning/v0.9.62-CONTRACT.md`.
 - `.planning/v0.9.62-CONTRACT.md` (repo) -- canonical 36 action tools, 15 read-only tools, three typed-error names; single source of truth for the v0.9.62 contract.
 
 ## Scripts (run as needed)
@@ -67,3 +77,4 @@ Passwords and CVV resolve INSIDE the extension via `fill_credential` and `use_pa
 - `scripts/doctor.mjs` -- diagnose the failing layer; prints [OK], [FAIL], and [WARN] markers per layer.
 - `scripts/print-stdio.mjs` -- print the OpenClaw stdio config block to paste into your MCP config.
 - `scripts/install-host.mjs` -- detect other MCP hosts on the machine; consent-gated per-host install.
+- `scripts/print-hermes-yaml.mjs` -- print the Hermes mcp_servers config block to paste into `~/.hermes/config.yaml`.
