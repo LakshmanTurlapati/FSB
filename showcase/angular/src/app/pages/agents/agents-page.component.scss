@@ -43,6 +43,14 @@
   display: block;
 }
 
+.agents-hero-morph {
+  display: inline-block;
+  min-width: 4.5em;
+  text-align: left;
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .agents-hero-actions {
   display: inline-flex;
   flex-wrap: wrap;
