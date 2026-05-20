@@ -7,6 +7,9 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import process from 'node:process';
+import os from 'node:os';
+import path from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const NPX = 'npx';
 const PKG = 'fsb-mcp-server';
@@ -16,6 +19,20 @@ const FILLER = new Set([
   'config', 'version', 'the', 'with', 'from', 'into', 'at', 'on'
 ]);
 const HOST_NAME_RE = /^[a-z0-9-]+$/;
+
+// Hermes Skills Hub branch (additive to the existing CLI-driven host loop).
+// Mirrors the OpenClaw skip pattern -- detection is filesystem-based, install
+// is fs.writeFileSync-based; we NEVER pass --hermes to the CLI (no such flag).
+const HERMES_CONFIG_PATH = path.join(os.homedir(), '.hermes', 'config.yaml');
+const HERMES_BLOCK = `mcp_servers:
+  fsb:
+    command: "npx"
+    args: ["-y", "fsb-mcp-server"]
+`;
+const HERMES_FSB_CHILD = `  fsb:
+    command: "npx"
+    args: ["-y", "fsb-mcp-server"]
+`;
 
 function runDetect() {
   return new Promise((resolve) => {
@@ -132,16 +149,74 @@ function runInstallHost(host) {
   });
 }
 
+async function maybeInstallHermes(rl, stdinClosed) {
+  if (!existsSync(HERMES_CONFIG_PATH)) {
+    process.stdout.write(
+      '[WARN] no Hermes config detected at ~/.hermes/config.yaml -- skipping Hermes branch\n'
+    );
+    return { status: 'skipped' };
+  }
+
+  let existing = '';
+  try {
+    existing = readFileSync(HERMES_CONFIG_PATH, 'utf8');
+  } catch (err) {
+    process.stdout.write(
+      '[FAIL] could not read ~/.hermes/config.yaml: ' + (err && err.message ? err.message : String(err)) + '\n'
+    );
+    return { status: 'failed' };
+  }
+
+  // Already-configured guard: top-level mcp_servers heading with a fsb child.
+  if (/^mcp_servers:[\s\S]*?\n {2}fsb:/m.test(existing)) {
+    process.stdout.write('[WARN] Hermes config already has mcp_servers.fsb -- not overwriting\n');
+    return { status: 'already_configured' };
+  }
+
+  process.stdout.write('Detected Hermes config at ~/.hermes/config.yaml\n');
+
+  let answer = '';
+  if (!stdinClosed) {
+    answer = await ask(rl, 'Inject fsb mcp_servers block? [y/N]: ');
+  } else {
+    process.stdout.write('Inject fsb mcp_servers block? [y/N]: (stdin closed -- treating as no)\n');
+  }
+  const trimmed = (answer || '').trim();
+  const yes = trimmed === 'y' || trimmed === 'Y';
+
+  if (!yes) {
+    process.stdout.write('Skipped Hermes\n');
+    return { status: 'skipped' };
+  }
+
+  let newContent;
+  if (/^mcp_servers:\s*$/m.test(existing)) {
+    // File has a bare `mcp_servers:` heading already -- inject the fsb child
+    // immediately after that heading line so other mcp_servers entries are preserved.
+    newContent = existing.replace(/^(mcp_servers:\s*)\n/m, '$1\n' + HERMES_FSB_CHILD);
+  } else {
+    // No existing mcp_servers heading -- append the full block, ensuring the
+    // file ends with a newline before the appended block.
+    const sep = existing.length === 0 || existing.endsWith('\n') ? '' : '\n';
+    newContent = existing + sep + HERMES_BLOCK;
+  }
+
+  try {
+    writeFileSync(HERMES_CONFIG_PATH, newContent, 'utf8');
+  } catch (err) {
+    process.stdout.write(
+      '[FAIL] could not write ~/.hermes/config.yaml: ' + (err && err.message ? err.message : String(err)) + '\n'
+    );
+    return { status: 'failed' };
+  }
+
+  process.stdout.write('[OK] wrote mcp_servers.fsb into ~/.hermes/config.yaml\n');
+  return { status: 'installed' };
+}
+
 async function main() {
   const { listOut } = await runDetect();
   const hosts = parseHosts(listOut);
-
-  if (hosts.length === 0) {
-    process.stdout.write(
-      '[WARN] no other MCP hosts detected. Re-run after installing one (Claude Desktop, Cursor, VS Code, etc.).\n'
-    );
-    process.exit(0);
-  }
 
   const installed = [];
   const skipped = [];
@@ -150,6 +225,12 @@ async function main() {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let stdinClosed = false;
   rl.on('close', () => { stdinClosed = true; });
+
+  if (hosts.length === 0) {
+    process.stdout.write(
+      '[WARN] no other MCP hosts detected via the CLI list. Re-run after installing one (Claude Desktop, Cursor, VS Code, etc.).\n'
+    );
+  }
 
   for (const host of hosts) {
     if (!HOST_NAME_RE.test(host)) {
@@ -184,6 +265,19 @@ async function main() {
     } else {
       failed.push(host + '(exit=' + result.code + ')');
     }
+  }
+
+  // Hermes Skills Hub branch: filesystem-based detection (no CLI flag). Runs
+  // independently after the CLI-driven host loop so it surfaces in the summary
+  // bucket alongside the other hosts.
+  const hermesResult = await maybeInstallHermes(rl, stdinClosed);
+  if (hermesResult.status === 'installed') {
+    installed.push('hermes');
+  } else if (hermesResult.status === 'failed') {
+    failed.push('hermes(write-failed)');
+  } else {
+    // 'skipped' and 'already_configured' both fall into the skipped bucket.
+    skipped.push('hermes');
   }
 
   rl.close();
