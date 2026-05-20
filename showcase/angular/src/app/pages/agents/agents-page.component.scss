@@ -44,11 +44,33 @@
 }
 
 .agents-hero-mark[alt="Hermes"] {
-  filter: brightness(0) invert(1);
+  filter: brightness(0) invert(1) blur(var(--glitch-blur, 0));
 }
 
 :host-context([data-theme="light"]) .agents-hero-mark[alt="Hermes"] {
-  filter: none;
+  filter: blur(var(--glitch-blur, 0));
+}
+
+/* Keep 700ms in sync with AgentsPageComponent.MORPH_DURATION_MS in agents-page.component.ts */
+@keyframes agents-hero-glitch {
+  0%   { transform: translate(0, 0)      scale(1);    opacity: 1;    --glitch-blur: 0px;   }
+  10%  { transform: translate(1px, -1px) scale(1.08); opacity: 0.85; --glitch-blur: 0.5px; }
+  25%  { transform: translate(-1px, 1px) scale(0.94); opacity: 0.6;  --glitch-blur: 1.5px; }
+  40%  { transform: translate(2px, 0)    scale(1.12); opacity: 0.4;  --glitch-blur: 2px;   }
+  55%  { transform: translate(-1px,-1px) scale(0.92); opacity: 0.7;  --glitch-blur: 1.5px; }
+  70%  { transform: translate(0, 1px)    scale(1.06); opacity: 0.85; --glitch-blur: 1px;   }
+  85%  { transform: translate(1px, 0)    scale(1.02); opacity: 0.95; --glitch-blur: 0.5px; }
+  100% { transform: translate(0, 0)      scale(1);    opacity: 1;    --glitch-blur: 0px;   }
+}
+
+.agents-hero-mark.is-morphing {
+  animation: agents-hero-glitch 700ms steps(14, end);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agents-hero-mark.is-morphing {
+    animation: none;
+  }
 }
 
 .agents-hero-morph {

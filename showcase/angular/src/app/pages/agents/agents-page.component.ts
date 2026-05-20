@@ -25,7 +25,11 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
 
   // SSR-safe initial token: this literal is what the prerenderer emits.
   currentToken: string = 'OpenClaw';
+  // True only during a scramble window; template binds [class.is-morphing] to it.
+  // Public + initialized false so SSR prerender emits the <img> without the morph class.
+  morphing: boolean = false;
 
+  private static readonly MORPH_DURATION_MS = 700;
   private readonly tokens = ['OpenClaw', 'Hermes'] as const;
   private readonly tokenMarks: Record<string, { file: string; alt: string }> = {
     OpenClaw: { file: 'openclaw.svg', alt: 'OpenClaw' },
@@ -129,8 +133,9 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
 
   private scramble(target: string): void {
     this.isCycling = true;
+    this.morphing = true;
     const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*+=<>';
-    const duration = 700;
+    const duration = AgentsPageComponent.MORPH_DURATION_MS;
     // Lock schedule: character i locks at ((i + 1) / target.length) * (duration * 0.85),
     // so all characters are locked by ~595ms, leaving ~105ms tail for the final settle frame.
     const lockTimes: number[] = [];
@@ -144,6 +149,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
         this.currentToken = target;
         this.rafId = null;
         this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
+        this.morphing = false;
         this.isCycling = false;
         return;
       }
@@ -152,6 +158,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
         this.currentToken = target;
         this.rafId = null;
         this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
+        this.morphing = false;
         this.isCycling = false;
         return;
       }
