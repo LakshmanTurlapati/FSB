@@ -34,6 +34,59 @@ const HERMES_FSB_CHILD = `  fsb:
     args: ["-y", "fsb-mcp-server"]
 `;
 
+// Detect the indent width used by direct children of `mcp_servers:`.
+// Walks lines after the heading; the first line that starts with whitespace +
+// an alphanumeric `key:` defines the indent unit. Returns 2 if none found
+// before EOF or a column-0 line.
+//
+// Worked example -- input:
+//   mcp_servers:
+//       other:        <- 4-space indent
+//         command: "x"
+// Returns: 4
+function detectMcpServersIndent(content) {
+  const lines = content.split('\n');
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^mcp_servers:\s*(?:#.*)?$/.test(lines[i])) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx === -1) return 2;
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    // Column-0 non-whitespace = end of mcp_servers block
+    if (line.length > 0 && !/^\s/.test(line)) return 2;
+    const m = /^(\s+)[A-Za-z0-9_-]+:/.exec(line);
+    if (m) return m[1].length;
+  }
+  return 2;
+}
+
+// Returns true only if `fsb:` exists as a DIRECT child of `mcp_servers:`
+// (matches the detected indent exactly, not deeper). Scoped to the
+// mcp_servers block; ends at first column-0 non-whitespace line or EOF.
+function findFsbInMcpServers(content) {
+  const lines = content.split('\n');
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^mcp_servers:\s*(?:#.*)?$/.test(lines[i])) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx === -1) return false;
+  const indent = detectMcpServersIndent(content);
+  const directChildRe = new RegExp('^' + ' '.repeat(indent) + 'fsb:\\s*$');
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.length > 0 && !/^\s/.test(line)) return false; // left the block
+    if (directChildRe.test(line)) return true;
+  }
+  return false;
+}
+
 function runDetect() {
   return new Promise((resolve) => {
     let listOut = '';
@@ -167,8 +220,9 @@ async function maybeInstallHermes(rl, stdinClosed) {
     return { status: 'failed' };
   }
 
-  // Already-configured guard: top-level mcp_servers heading with a fsb child.
-  if (/^mcp_servers:[\s\S]*?\n {2}fsb:/m.test(existing)) {
+  // Already-configured guard: only true when `fsb:` is a DIRECT child of
+  // `mcp_servers:` (avoids cross-section false positives like `other_thing.fsb:`).
+  if (findFsbInMcpServers(existing)) {
     process.stdout.write('[WARN] Hermes config already has mcp_servers.fsb -- not overwriting\n');
     return { status: 'already_configured' };
   }
@@ -190,10 +244,18 @@ async function maybeInstallHermes(rl, stdinClosed) {
   }
 
   let newContent;
-  if (/^mcp_servers:\s*$/m.test(existing)) {
-    // File has a bare `mcp_servers:` heading already -- inject the fsb child
-    // immediately after that heading line so other mcp_servers entries are preserved.
-    newContent = existing.replace(/^(mcp_servers:\s*)\n/m, '$1\n' + HERMES_FSB_CHILD);
+  if (/^mcp_servers:\s*(?:#.*)?$/m.test(existing)) {
+    // File has an `mcp_servers:` heading already (possibly with trailing comment) --
+    // inject the fsb child immediately after that heading line so other mcp_servers
+    // entries are preserved. Indent is detected from any existing children so we
+    // match the user's style rather than forcing 2 spaces.
+    const indent = detectMcpServersIndent(existing);
+    const indentStr = ' '.repeat(indent);
+    const fsbChild =
+      indentStr + 'fsb:\n' +
+      indentStr + indentStr + 'command: "npx"\n' +
+      indentStr + indentStr + 'args: ["-y", "fsb-mcp-server"]\n';
+    newContent = existing.replace(/^(mcp_servers:\s*(?:#.*)?)\n/m, '$1\n' + fsbChild);
   } else {
     // No existing mcp_servers heading -- append the full block, ensuring the
     // file ends with a newline before the appended block.

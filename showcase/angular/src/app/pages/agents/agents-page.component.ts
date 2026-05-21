@@ -25,6 +25,9 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
 
   // SSR-safe initial token: this literal is what the prerenderer emits.
   currentToken: string = 'OpenClaw';
+  // Logo state -- only flips on settle, so the icon does NOT scramble.
+  // Decoupled from `currentToken` (which holds the in-flight scrambled string).
+  private currentMarkToken: 'OpenClaw' | 'Hermes' = 'OpenClaw';
   // True only during a scramble window; template binds [class.is-morphing] to it.
   // Public + initialized false so SSR prerender emits the <img> without the morph class.
   morphing: boolean = false;
@@ -65,7 +68,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
   }
 
   get currentMark(): { file: string; alt: string } {
-    return this.tokenMarks[this.currentToken] ?? this.tokenMarks['OpenClaw'];
+    return this.tokenMarks[this.currentMarkToken];
   }
 
   private startTokenCycle(): void {
@@ -113,6 +116,10 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
         this.rafId = null;
       }
       this.isCycling = false;
+      this.morphing = false;
+      // If a scramble was mid-flight, snap visible text back to the settled
+      // mark so icon + label stay consistent (cleaner than freezing garbled text).
+      this.currentToken = this.currentMarkToken;
     } else if (this.cycleTimerId === null) {
       this.scheduleNextCycle();
     }
@@ -125,13 +132,14 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
     const next = this.tokens[(this.tokenIndex + 1) % this.tokens.length];
     if (this.prefersReducedMotion) {
       this.currentToken = next;
+      this.currentMarkToken = next;
       this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
       return;
     }
     this.scramble(next);
   }
 
-  private scramble(target: string): void {
+  private scramble(target: 'OpenClaw' | 'Hermes'): void {
     this.isCycling = true;
     this.morphing = true;
     const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*+=<>';
@@ -147,6 +155,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
       // Abort cleanly if the tab went hidden mid-scramble.
       if (this.doc.visibilityState === 'hidden') {
         this.currentToken = target;
+        this.currentMarkToken = target;
         this.rafId = null;
         this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
         this.morphing = false;
@@ -156,6 +165,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
       const elapsed = now - start;
       if (elapsed >= duration) {
         this.currentToken = target;
+        this.currentMarkToken = target;
         this.rafId = null;
         this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
         this.morphing = false;
