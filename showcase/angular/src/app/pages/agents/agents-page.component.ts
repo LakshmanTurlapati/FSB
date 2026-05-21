@@ -1,4 +1,5 @@
-import { Component, OnInit, Renderer2, inject, DOCUMENT, LOCALE_ID } from '@angular/core';
+import { Component, OnInit, OnDestroy, Renderer2, inject, DOCUMENT, LOCALE_ID, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { Title, Meta } from '@angular/platform-browser';
 
 import { HOST, buildLocaleUrl, emitLocaleHead } from '../../core/seo/locale-seo';
@@ -14,12 +15,37 @@ const SITE_NAME = 'FSB - Full Self-Browsing';
   templateUrl: './agents-page.component.html',
   styleUrl: './agents-page.component.scss',
 })
-export class AgentsPageComponent implements OnInit {
+export class AgentsPageComponent implements OnInit, OnDestroy {
   private readonly title = inject(Title);
   private readonly meta = inject(Meta);
   private readonly renderer = inject(Renderer2);
   private readonly doc = inject(DOCUMENT);
   private readonly localeId = inject(LOCALE_ID);
+  private readonly platformId = inject(PLATFORM_ID);
+
+  // SSR-safe initial token: this literal is what the prerenderer emits.
+  currentToken: string = 'OpenClaw';
+  // Logo state -- only flips on settle, so the icon does NOT scramble.
+  // Decoupled from `currentToken` (which holds the in-flight scrambled string).
+  private currentMarkToken: 'OpenClaw' | 'Hermes' = 'OpenClaw';
+  // True only during a scramble window; template binds [class.is-morphing] to it.
+  // Public + initialized false so SSR prerender emits the <img> without the morph class.
+  morphing: boolean = false;
+
+  private static readonly MORPH_DURATION_MS = 700;
+  private readonly tokens = ['OpenClaw', 'Hermes'] as const;
+  private readonly tokenMarks: Record<string, { file: string; alt: string }> = {
+    OpenClaw: { file: 'openclaw.svg', alt: 'OpenClaw' },
+    Hermes:   { file: 'hermes.png',   alt: 'Hermes' },
+  };
+  // Points at the CURRENT displayed token; rotation advances to (tokenIndex + 1) % tokens.length.
+  private tokenIndex = 0;
+  private cycleTimerId: ReturnType<typeof setInterval> | null = null;
+  private rafId: number | null = null;
+  private visibilityHandler: (() => void) | null = null;
+  private prefersReducedMotion = false;
+  // True while a scramble is in flight; prevents overlapping animations on visibility/interval races.
+  private isCycling = false;
 
   ngOnInit(): void {
     const url = buildLocaleUrl(this.localeId, ROUTE_PATH);
@@ -31,6 +57,133 @@ export class AgentsPageComponent implements OnInit {
     this.applyMeta(t, d, url);
     this.injectAgentsPageJsonLd();
     this.injectInstallHowToJsonLd();
+
+    if (isPlatformBrowser(this.platformId)) {
+      this.startTokenCycle();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopTokenCycle();
+  }
+
+  get currentMark(): { file: string; alt: string } {
+    return this.tokenMarks[this.currentMarkToken];
+  }
+
+  private startTokenCycle(): void {
+    // One-shot read at init is sufficient for this badge; we do not subscribe to media-query changes.
+    this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.visibilityHandler = () => this.handleVisibilityChange();
+    this.doc.addEventListener('visibilitychange', this.visibilityHandler);
+    this.scheduleNextCycle();
+  }
+
+  private stopTokenCycle(): void {
+    if (this.cycleTimerId !== null) {
+      clearInterval(this.cycleTimerId);
+      this.cycleTimerId = null;
+    }
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    if (this.visibilityHandler !== null) {
+      this.doc.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+    this.isCycling = false;
+  }
+
+  private scheduleNextCycle(): void {
+    if (this.cycleTimerId !== null) {
+      return;
+    }
+    if (this.doc.visibilityState === 'hidden') {
+      return;
+    }
+    this.cycleTimerId = setInterval(() => this.advanceToken(), 3000);
+  }
+
+  private handleVisibilityChange(): void {
+    if (this.doc.visibilityState === 'hidden') {
+      if (this.cycleTimerId !== null) {
+        clearInterval(this.cycleTimerId);
+        this.cycleTimerId = null;
+      }
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.isCycling = false;
+      this.morphing = false;
+      // If a scramble was mid-flight, snap visible text back to the settled
+      // mark so icon + label stay consistent (cleaner than freezing garbled text).
+      this.currentToken = this.currentMarkToken;
+    } else if (this.cycleTimerId === null) {
+      this.scheduleNextCycle();
+    }
+  }
+
+  private advanceToken(): void {
+    if (this.isCycling) {
+      return;
+    }
+    const next = this.tokens[(this.tokenIndex + 1) % this.tokens.length];
+    if (this.prefersReducedMotion) {
+      this.currentToken = next;
+      this.currentMarkToken = next;
+      this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
+      return;
+    }
+    this.scramble(next);
+  }
+
+  private scramble(target: 'OpenClaw' | 'Hermes'): void {
+    this.isCycling = true;
+    this.morphing = true;
+    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*+=<>';
+    const duration = AgentsPageComponent.MORPH_DURATION_MS;
+    // Lock schedule: character i locks at ((i + 1) / target.length) * (duration * 0.85),
+    // so all characters are locked by ~595ms, leaving ~105ms tail for the final settle frame.
+    const lockTimes: number[] = [];
+    for (let i = 0; i < target.length; i++) {
+      lockTimes.push(((i + 1) / target.length) * (duration * 0.85));
+    }
+    const start = performance.now();
+    const tick = (now: number): void => {
+      // Abort cleanly if the tab went hidden mid-scramble.
+      if (this.doc.visibilityState === 'hidden') {
+        this.currentToken = target;
+        this.currentMarkToken = target;
+        this.rafId = null;
+        this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
+        this.morphing = false;
+        this.isCycling = false;
+        return;
+      }
+      const elapsed = now - start;
+      if (elapsed >= duration) {
+        this.currentToken = target;
+        this.currentMarkToken = target;
+        this.rafId = null;
+        this.tokenIndex = (this.tokenIndex + 1) % this.tokens.length;
+        this.morphing = false;
+        this.isCycling = false;
+        return;
+      }
+      let frame = '';
+      for (let i = 0; i < target.length; i++) {
+        if (elapsed >= lockTimes[i]) {
+          frame += target[i];
+        } else {
+          frame += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+        }
+      }
+      this.currentToken = frame;
+      this.rafId = requestAnimationFrame(tick);
+    };
+    this.rafId = requestAnimationFrame(tick);
   }
 
   private applyMeta(t: string, d: string, url: string): void {

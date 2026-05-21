@@ -3,8 +3,8 @@
   <div class="container">
     <div class="agents-hero-badge reveal">
       <!-- eslint-disable-next-line @angular-eslint/template/i18n -->
-      <img src="assets/providers/openclaw.svg" alt="OpenClaw" class="agents-hero-mark" width="22" height="22" decoding="async">
-      <span i18n="@@agents.hero.badge"><span [attr.translate]="'no'">OpenClaw</span> Ready</span>
+      <img [src]="'assets/providers/' + currentMark.file" [alt]="currentMark.alt" [class.is-morphing]="morphing" class="agents-hero-mark" width="22" height="22" decoding="async">
+      <span i18n="@@agents.hero.badge"><span [attr.translate]="'no'" class="agents-hero-morph">{{ currentToken }}</span> Ready</span>
     </div>
     <h1 class="reveal delay-1" i18n="@@agents.hero.title">
       Give your agent a real <span class="text-orange">browser</span>.

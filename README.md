@@ -68,7 +68,9 @@ Preview before writing: append `--dry-run`. Sanity check with `npx -y fsb-mcp-se
 
 Want to run FSB standalone from the extension popup/side panel? Open settings, paste an API key (xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or custom), and start there — no MCP needed.
 
-**On OpenClaw?** Load the FSB skill from [`skills/FSB Skill/`](./skills/FSB%20Skill/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent-gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds; the skill prints + you paste, never auto-writes.
+**On OpenClaw?** Load the FSB skill from [`skills/fsb/`](./skills/fsb/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent-gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds; the skill prints + you paste, never auto-writes.
+
+**On Hermes?** Same skill, same dirname: load [`skills/fsb/`](./skills/fsb/SKILL.md). Run `node skills/fsb/scripts/print-hermes-yaml.mjs` to print the canonical `~/.hermes/config.yaml` `mcp_servers.fsb` block, or run `node skills/fsb/scripts/install-host.mjs` to detect a local Hermes config and consent-gate the injection. FSB v0.9.69 (PR #49) added `Hermes` to the v0.9.36 shared MCP client allowlist, so action calls passing `client: "Hermes"` work out of the box with no schema changes.
 
 ### What It Does
 
@@ -118,7 +120,7 @@ The core design goal is to keep the browser as the source of truth. The model re
 |------|---------|
 | [`extension/`](./extension/README.md) | Chrome extension package. Load this directory as an unpacked MV3 extension. |
 | [`mcp/`](./mcp/README.md) | npm package `fsb-mcp-server`, the local MCP bridge for external AI clients. |
-| [`skills/FSB Skill/`](./skills/FSB%20Skill/SKILL.md) | OpenClaw skill: doctor + stdio printer + consent-gated multi-host install. |
+| [`skills/fsb/`](./skills/fsb/SKILL.md) | OpenClaw + Hermes skill: doctor + stdio/YAML printers + consent-gated multi-host install. |
 | [`showcase/`](./showcase/README.md) | Marketing and dashboard site for full-selfbrowsing.com. Angular 20 static prerender + Express relay. |
 | `showcase/server/` | Node/Express deploy backend for pairing, relay, auth, and dashboard data. |
 | `server-py/` | Legacy Python/FastAPI-style backend prototype retained for reference. |
