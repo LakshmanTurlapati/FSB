@@ -99,7 +99,7 @@ export class AgentsPageComponent implements OnInit, OnDestroy {
     if (this.doc.visibilityState === 'hidden') {
       return;
     }
-    this.cycleTimerId = setInterval(() => this.advanceToken(), 5000);
+    this.cycleTimerId = setInterval(() => this.advanceToken(), 3000);
   }
 
   private handleVisibilityChange(): void {
