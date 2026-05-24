@@ -285,44 +285,6 @@
   }
 }
 
-// Quick task 260515-kw1 -- chart overhaul presentation additions.
-// big-number tile for fsb-avg-agents-per-user (HTML, not canvas). Lives
-// inside .chart-mount via a template @if branch.
-.big-number-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  padding: 1.5rem 1rem;
-
-  .big-number-label {
-    font-size: 0.85rem;
-    color: var(--text-secondary, #94a3b8);
-    letter-spacing: 0.02em;
-    margin-bottom: 0.5rem;
-  }
-  .big-number-value {
-    font-size: clamp(3.5rem, 12vw, 7rem);
-    font-weight: 700;
-    color: var(--text-primary, #f1f5f9);
-    line-height: 1;
-  }
-  .big-number-delta {
-    margin-top: 0.75rem;
-    font-size: 0.95rem;
-    color: var(--text-secondary, #94a3b8);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-
-    &.up   { color: var(--primary, #ff6b35); }
-    &.down { color: var(--text-secondary, #94a3b8); }
-    .delta-arrow { font-size: 0.85rem; }
-  }
-}
-
 // Inline-SVG Sankey host for issues-open-vs-closed. Stretches to the
 // chart-mount's fixed 360px height so the SVG viewBox scales correctly.
 .sankey-svg {

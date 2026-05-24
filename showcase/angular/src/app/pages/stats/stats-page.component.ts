@@ -25,7 +25,7 @@ import {
   afterNextRender,
   inject,
 } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
+import { CommonModule, DatePipe, isPlatformBrowser } from '@angular/common';
 import { Title, Meta } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
 
@@ -69,7 +69,7 @@ interface ViewOption {
 @Component({
   selector: 'app-stats-page',
   standalone: true,
-  imports: [CommonModule, DatePipe, DecimalPipe],
+  imports: [CommonModule, DatePipe],
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
 })
@@ -525,19 +525,6 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private redrawChart(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     if (!this.ChartCtor) return;
-
-    // Quick task 260515-kw1 -- the big-number tile branch has NO <canvas> in
-    // the template, so canvasRef will be undefined while this view is active.
-    // Destroy any prior chart so switching away from a canvas view cleans up.
-    if (this.selectedView === 'fsb-avg-agents-per-user') {
-      if (this.chartInstance) {
-        try { this.chartInstance.destroy(); } catch { /* swallow */ }
-        this.chartInstance = null;
-      }
-      // Also clear any stray Sankey SVG from a prior view.
-      this.clearSankeySvg();
-      return;
-    }
 
     const canvasRef = this.chartCanvas;
     if (!canvasRef) return; // template not yet in `ready` branch.
@@ -1211,11 +1198,36 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
       case 'fsb-avg-agents-per-user': {
-        // Quick task 260515-kw1 -- rendered by the template's big-number tile
-        // branch (HTML, not canvas). redrawChart() early-returns for this view
-        // so this arm is never actually reached at runtime; kept for switch
-        // exhaustiveness over AnyViewId.
-        return null;
+        // Quick task 260524-06b -- replaces the prior big-number tile path
+        // (which overflowed .chart-mount into the footer) with a time-series
+        // line chart mirroring the fsb-tokens arm structurally. Per-day avg
+        // agents per active user = agents_active / unique_installs; guarded
+        // for divide-by-zero by emitting 0 when unique_installs is 0 for that
+        // day. toFixed(2) keeps the line smooth without float jitter.
+        const pts = this.latestFsbSeries?.d30 ?? [];
+        const series = pts.map((p) => ({
+          t: p.day_utc,
+          y: p.unique_installs > 0
+            ? +(p.agents_active / p.unique_installs).toFixed(2)
+            : 0,
+        }));
+        return {
+          type: 'line',
+          data: {
+            labels: series.map((p) => p.t),
+            datasets: [
+              {
+                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND:Avg agents per active user (last 30 days)`,
+                data: series.map((p) => p.y),
+                borderColor: tokens.primary,
+                backgroundColor: tokens.primarySoft,
+                fill: true,
+                tension: 0.2,
+              },
+            ],
+          },
+          options: baseOpts,
+        };
       }
     }
     // TypeScript exhaustiveness: every case in the AnyViewId union is handled
