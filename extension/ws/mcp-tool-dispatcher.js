@@ -348,6 +348,32 @@ function extractMcpClientLabel(payload) {
 // fires per relay-client session.
 const _agentClientLabelCache = new Map();
 
+// Quick task 260524-8qv -- Codex PR #78 Findings 1 + 4 (P2). Serialize every
+// chrome.storage.session read/write/remove for the per-agent client-label map
+// so:
+//   (a) Finding 1 -- two concurrent resolveMcpClientLabel persists in hub
+//       mode cannot both read the prior map, mutate private copies, and race
+//       to set(). Without serialization the second write silently overwrites
+//       the first, dropping one client's label.
+//   (b) Finding 4 -- clearLastKnownMcpClientLabel's session.remove submitted
+//       AFTER an in-flight _persistAgentClientLabel cannot be re-populated by
+//       the persist's late-arriving set(), which would resurrect stale
+//       labels after a bridge reconnect.
+// Mirrors the agent-registry.js _registryChain pattern (lines 180..185)
+// verbatim shape: .then(fn, fn) so a rejection does not poison the chain;
+// .catch(() => {}) on assignment so _labelStorageChain itself never holds a
+// rejected promise (which would leak to UnhandledRejection). Module-scope
+// (NOT instance-scope); the MV3 service worker is single-threaded so one
+// chain serializes all callers. After SW eviction the chain is reborn as
+// Promise.resolve() -- correct because no operations are in-flight on a
+// freshly-spawned SW.
+var _labelStorageChain = Promise.resolve();
+function _withLabelStorageLock(fn) {
+  var next = _labelStorageChain.then(fn, fn);
+  _labelStorageChain = next.catch(function () { /* swallow so chain continues */ });
+  return next;
+}
+
 function _payloadAgentId(payload) {
   if (payload && typeof payload.agentId === 'string' && payload.agentId.length > 0) {
     return payload.agentId;
@@ -375,14 +401,21 @@ async function _persistAgentClientLabel(agentId, label) {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.session) return;
     if (typeof agentId !== 'string' || agentId.length === 0) return;
     if (typeof label !== 'string' || label.length === 0) return;
-    const prior = await chrome.storage.session.get([FSB_AGENT_CLIENT_LABELS_KEY]);
-    const existing = prior && prior[FSB_AGENT_CLIENT_LABELS_KEY];
-    const map = (existing && typeof existing === 'object' && !Array.isArray(existing)) ? existing : {};
-    if (map[agentId] === label) return; // no-op write -- avoid storm of identical writes on hot dispatch paths
-    map[agentId] = label;
-    const payload = {};
-    payload[FSB_AGENT_CLIENT_LABELS_KEY] = map;
-    await chrome.storage.session.set(payload);
+    // Quick task 260524-8qv -- Codex PR #78 Finding 1 (P2). The get/set pair
+    // MUST run inside _withLabelStorageLock so a concurrent persist for a
+    // different agentId cannot observe the same prior map, mutate its own
+    // copy, and race to set() (lost-update). The early-return guards above
+    // stay OUTSIDE the lock -- no reason to serialize a no-op.
+    return _withLabelStorageLock(async function () {
+      const prior = await chrome.storage.session.get([FSB_AGENT_CLIENT_LABELS_KEY]);
+      const existing = prior && prior[FSB_AGENT_CLIENT_LABELS_KEY];
+      const map = (existing && typeof existing === 'object' && !Array.isArray(existing)) ? existing : {};
+      if (map[agentId] === label) return; // no-op write -- avoid storm of identical writes on hot dispatch paths
+      map[agentId] = label;
+      const payload = {};
+      payload[FSB_AGENT_CLIENT_LABELS_KEY] = map;
+      await chrome.storage.session.set(payload);
+    });
   } catch (_e) { /* swallow -- diagnostic-only path */ }
 }
 
@@ -415,11 +448,22 @@ function clearLastKnownMcpClientLabel() {
   // fresh bridge reconnect does not inherit the prior bridge's persisted
   // labels. The in-memory _agentClientLabelCache.clear() above is the
   // authoritative reset; this storage.remove is the mirror.
+  //
+  // Quick task 260524-8qv -- Codex PR #78 Finding 4 (P2). The remove MUST
+  // run inside _withLabelStorageLock so submission order is honored relative
+  // to any in-flight _persistAgentClientLabel. A persist submitted BEFORE
+  // this clear writes first, then this clear wipes the map; a persist
+  // submitted AFTER this clear sees the cleared state. Either ordering ends
+  // in a correct invariant. The in-memory _agentClientLabelCache.clear()
+  // STAYS outside the lock -- it is synchronous and authoritative; the
+  // storage remove is a mirror.
   try {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session
         && typeof chrome.storage.session.remove === 'function') {
       // Fire-and-forget; bridge reconnect must not stall on storage.
-      chrome.storage.session.remove(FSB_AGENT_CLIENT_LABELS_KEY).catch(function() {});
+      _withLabelStorageLock(function () {
+        return chrome.storage.session.remove(FSB_AGENT_CLIENT_LABELS_KEY).catch(function () {});
+      });
     }
   } catch (_e) { /* swallow */ }
 }
