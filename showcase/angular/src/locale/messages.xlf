@@ -2963,116 +2963,109 @@
           <context context-type="linenumber">52,56</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="SHOWCASE_STATS_FSB_TILE_AVG_AGENTS_LABEL" datatype="html">
-        <source>Avg agents per active user</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/stats/stats-page.component.html</context>
-          <context context-type="linenumber">90,91</context>
-        </context-group>
-      </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_ACTIVE_NOW" datatype="html">
         <source>Active right now</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">99</context>
+          <context context-type="linenumber">98</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_TOKENS" datatype="html">
         <source>Tokens</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">100</context>
+          <context context-type="linenumber">99</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AGENTS_RUNNING" datatype="html">
         <source>Agents running</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">101</context>
+          <context context-type="linenumber">100</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_AGENTS" datatype="html">
         <source>Popular agents</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">102</context>
+          <context context-type="linenumber">101</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_POPULAR_MCP" datatype="html">
         <source>Popular MCP clients</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">103</context>
+          <context context-type="linenumber">102</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_VIEW_AVG_AGENTS" datatype="html">
         <source>Average agents per user</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">104</context>
+          <context context-type="linenumber">103</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW" datatype="html">
         <source>Active users right now</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1079</context>
+          <context context-type="linenumber">990</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_ACTIVE_NOW_LEGEND" datatype="html">
         <source>Active users (5 min window)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1084</context>
+          <context context-type="linenumber">995</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_TOKENS_LEGEND" datatype="html">
         <source>Tokens (last 30 days)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1114</context>
+          <context context-type="linenumber">1025</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_AGENTS_RUNNING_LEGEND" datatype="html">
         <source>Active agents (10 min window)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1140</context>
+          <context context-type="linenumber">1051</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING" datatype="html">
         <source>Pending (k&gt;=5 floor)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1171</context>
+          <context context-type="linenumber">1082</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_AGENTS_LEGEND" datatype="html">
         <source>Popular agents</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1178</context>
+          <context context-type="linenumber">1089</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_PENDING_MCP" datatype="html">
         <source>Pending (k&gt;=5 floor)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1194</context>
+          <context context-type="linenumber">1105</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_POPULAR_MCP_LEGEND" datatype="html">
         <source>Popular MCP clients</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1201</context>
+          <context context-type="linenumber">1112</context>
         </context-group>
       </trans-unit>
       <trans-unit id="SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND" datatype="html">
         <source>Avg agents per active user (last 30 days)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/stats/stats-page.component.ts</context>
-          <context context-type="linenumber">1220</context>
+          <context context-type="linenumber">1144</context>
         </context-group>
       </trans-unit>
       <trans-unit id="support.hero.title" datatype="html">
