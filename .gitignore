@@ -44,3 +44,4 @@ Research/
 .claude/worktrees/
 BUG-REPORT-*.md
 dist/skill/
+.secrets/
