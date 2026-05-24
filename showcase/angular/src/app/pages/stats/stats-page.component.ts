@@ -585,8 +585,8 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const VB_W = 600;
     const VB_H = 240;
     const nodeW = 18;
-    const leftX = 60;
-    const rightX = VB_W - 60 - nodeW;
+    const leftX = 110;
+    const rightX = VB_W - 110 - nodeW;
     const maxBar = VB_H - 60;
     const oH = O > 0 ? maxBar : 0;
     const total = closedFlow + backlog || 1;
