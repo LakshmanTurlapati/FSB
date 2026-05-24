@@ -73,6 +73,32 @@
   }
 
   /**
+   * Look up the canonical MCP client label (e.g. 'Claude', 'Codex', 'Cursor')
+   * for an ownerAgentId from the per-agent labels map that the dispatcher
+   * mirrors into chrome.storage.session under fsbAgentClientLabels.
+   *
+   * The map value is already a canonical allowlist label written by
+   * mcp-tool-dispatcher.js _persistAgentClientLabel (which only writes when
+   * resolveMcpClientLabel produced a non-'unknown' label). No trimming,
+   * normalisation, or sanitisation here -- that already happened upstream.
+   *
+   * Returns null in all "no canonical label available" cases so the caller
+   * can fall back to ownerLabelFor (the legacy 'agent_<hex>' formatter).
+   *
+   * @param {string|null|undefined} ownerAgentId
+   * @param {object|null|undefined} labelsMap - plain { agentId: label } map
+   *        (NOT an Array -- guard against array values masquerading as objects).
+   * @returns {string|null}
+   */
+  function clientLabelFor(ownerAgentId, labelsMap) {
+    if (!ownerAgentId || typeof ownerAgentId !== 'string') return null;
+    if (!labelsMap || typeof labelsMap !== 'object' || Array.isArray(labelsMap)) return null;
+    var label = labelsMap[ownerAgentId];
+    if (typeof label !== 'string' || label.length === 0) return null;
+    return label;
+  }
+
+  /**
    * Look up the owner of a given tabId in the persisted registry envelope.
    * The envelope shape (Phase 237 D-03 + Phase 240 D-04) is:
    *   { v: 1, records: { '<agentId>': { tabIds: number[], tabId?: number, ... }, ... } }
@@ -108,6 +134,7 @@
     shouldShowOwnerChip: shouldShowOwnerChip,
     buildChipText: buildChipText,
     ownerLabelFor: ownerLabelFor,
+    clientLabelFor: clientLabelFor,
     findOwnerInEnvelope: findOwnerInEnvelope
   };
 

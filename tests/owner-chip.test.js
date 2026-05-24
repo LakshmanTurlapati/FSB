@@ -19,7 +19,7 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 
-const { shouldShowOwnerChip, buildChipText, ownerLabelFor, findOwnerInEnvelope } =
+const { shouldShowOwnerChip, buildChipText, ownerLabelFor, clientLabelFor, findOwnerInEnvelope } =
   require('../extension/ui/owner-chip.js');
 const { formatAgentIdForDisplay } = require('../extension/utils/agent-registry.js');
 
@@ -89,6 +89,33 @@ ok(ownerLabelFor(fullId, formatAgentIdForDisplay) === expectedShort,
 
 ok(ownerLabelFor(null, formatAgentIdForDisplay) === '',
   'Test 6d: null -> ""');
+
+console.log('\n--- clientLabelFor (chrome.storage.session fsbAgentClientLabels lookup) ---');
+
+// Test 11a: happy path -- agentId present in labelsMap returns the canonical label verbatim
+ok(clientLabelFor('agent_aaa', { 'agent_aaa': 'Claude' }) === 'Claude',
+  'Test 11a: clientLabelFor("agent_aaa", { agent_aaa: "Claude" }) === "Claude"');
+
+// Test 11b: missing agentId returns null (chip falls back to ownerLabelFor)
+ok(clientLabelFor('agent_missing', { 'agent_aaa': 'Claude' }) === null,
+  'Test 11b: missing agentId -> null');
+
+// Test 11c: null labelsMap -> null
+ok(clientLabelFor('agent_aaa', null) === null,
+  'Test 11c: null labelsMap -> null');
+
+// Test 11d: undefined labelsMap -> null
+ok(clientLabelFor('agent_aaa', undefined) === null,
+  'Test 11d: undefined labelsMap -> null');
+
+// Test 11e: array labelsMap -> null (must be a plain map); string labelsMap -> null
+ok(clientLabelFor('agent_aaa', ['Claude']) === null
+   && clientLabelFor('agent_aaa', 'Claude') === null,
+  'Test 11e: array labelsMap and string labelsMap both -> null');
+
+// Test 11f: empty-string value rejected so chip never renders "owned by " with blank label
+ok(clientLabelFor('agent_aaa', { 'agent_aaa': '' }) === null,
+  'Test 11f: empty-string value -> null (so chip never shows "owned by " with blank label)');
 
 console.log('\n--- findOwnerInEnvelope storage scan ---');
 
