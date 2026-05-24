@@ -25,7 +25,7 @@ import {
   afterNextRender,
   inject,
 } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
+import { CommonModule, DatePipe, isPlatformBrowser } from '@angular/common';
 import { Title, Meta } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
 
@@ -69,7 +69,7 @@ interface ViewOption {
 @Component({
   selector: 'app-stats-page',
   standalone: true,
-  imports: [CommonModule, DatePipe, DecimalPipe],
+  imports: [CommonModule, DatePipe],
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
 })
@@ -89,8 +89,7 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'issues-open-vs-closed', label: 'Issues' },
     { id: 'forks-growth', label: 'Forks' },
     { id: 'prs-opened-vs-merged', label: 'Pull requests' },
-    { id: 'commits-cumulative', label: 'Cumulative commits' },
-    { id: 'commits-over-time', label: 'Commits' },
+    { id: 'commits-cumulative', label: 'Commits' },
     { id: 'maintenance', label: 'Maintenance' },
     // Phase 274 / STATS-01 -- 6 new FSB telemetry views appended. Only the
     // FSB-prefixed view labels are i18n-marked; the legacy GitHub view labels
@@ -191,17 +190,15 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
           { label: 'open', value: this.formatNum(open) },
         ];
       }
-      case 'commits-cumulative':
-      case 'commits-over-time': {
-        const windowDays = this.selectedView === 'commits-over-time' ? 7 : 30;
-        const cutoff = sinceDays(windowDays);
+      case 'commits-cumulative': {
+        const cutoff = sinceDays(30);
         const recent = this.latestCommits.filter((c) => {
           const t = Date.parse(c?.commit?.author?.date ?? '');
           return !Number.isNaN(t) && t >= cutoff;
         }).length;
         return [
           { label: 'total commits', value: this.formatNum(this.latestCommits.length) },
-          { label: `last ${windowDays} days`, value: this.formatNum(recent) },
+          { label: 'last 30 days', value: this.formatNum(recent) },
         ];
       }
       case 'maintenance': {
@@ -526,19 +523,6 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!isPlatformBrowser(this.platformId)) return;
     if (!this.ChartCtor) return;
 
-    // Quick task 260515-kw1 -- the big-number tile branch has NO <canvas> in
-    // the template, so canvasRef will be undefined while this view is active.
-    // Destroy any prior chart so switching away from a canvas view cleans up.
-    if (this.selectedView === 'fsb-avg-agents-per-user') {
-      if (this.chartInstance) {
-        try { this.chartInstance.destroy(); } catch { /* swallow */ }
-        this.chartInstance = null;
-      }
-      // Also clear any stray Sankey SVG from a prior view.
-      this.clearSankeySvg();
-      return;
-    }
-
     const canvasRef = this.chartCanvas;
     if (!canvasRef) return; // template not yet in `ready` branch.
     const canvas = canvasRef.nativeElement;
@@ -601,8 +585,8 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const VB_W = 600;
     const VB_H = 240;
     const nodeW = 18;
-    const leftX = 60;
-    const rightX = VB_W - 60 - nodeW;
+    const leftX = 110;
+    const rightX = VB_W - 110 - nodeW;
     const maxBar = VB_H - 60;
     const oH = O > 0 ? maxBar : 0;
     const total = closedFlow + backlog || 1;
@@ -924,79 +908,6 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
           options: baseOpts,
         };
       }
-      case 'commits-over-time': {
-        // Quick task 260515-kw1 -- PUNCHCARD via bubble chart: x = UTC hour,
-        // y = UTC weekday, r = sqrt-scaled commit count (3..20 px clamp). Two
-        // continuous linear axes with categorical tick callbacks.
-        const points = this.statsService.commitPunchcard(this.latestCommits);
-        return {
-          type: 'bubble',
-          data: {
-            datasets: [
-              {
-                label: 'Commits',
-                data: points,
-                backgroundColor: tokens.primarySoft,
-                borderColor: tokens.primary,
-                borderWidth: 1,
-              },
-            ],
-          },
-          options: {
-            ...baseOpts,
-            plugins: {
-              ...baseOpts.plugins,
-              tooltip: {
-                enabled: true,
-                callbacks: {
-                  label: (ctx: any) => {
-                    // Quick task 260515-mfs (P2) -- show raw commit count from `c`,
-                    // not the sqrt-scaled `r` (which is just a bubble-size hint).
-                    // Codex P2 on PR #58.
-                    const raw = ctx?.raw ?? {};
-                    const count = typeof raw.c === 'number' ? raw.c : 0;
-                    const x = typeof raw.x === 'number' ? Math.round(raw.x) : 0;
-                    const y = typeof raw.y === 'number' ? Math.round(raw.y) : 0;
-                    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][y] ?? '';
-                    const hour = String(x).padStart(2, '0');
-                    const noun = count === 1 ? 'commit' : 'commits';
-                    return `${weekday} ${hour}:00 -- ${count} ${noun}`;
-                  },
-                },
-              },
-            },
-            // Quick task 260515-mfs (P2) -- precision:0 + Math.round(v) guards against
-            // float drift on linear axes with non-integer min/max (Codex P2 on PR #58).
-            scales: {
-              x: {
-                type: 'linear',
-                min: -0.5,
-                max: 23.5,
-                ticks: {
-                  color: tokens.muted,
-                  stepSize: 3,
-                  precision: 0,
-                  callback: (v: number) => `${Math.round(v)}:00`,
-                },
-                grid: { color: tokens.border },
-              },
-              y: {
-                type: 'linear',
-                min: -0.5,
-                max: 6.5,
-                ticks: {
-                  color: tokens.muted,
-                  stepSize: 1,
-                  precision: 0,
-                  callback: (v: number) =>
-                    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][Math.round(v)] ?? '',
-                },
-                grid: { color: tokens.border },
-              },
-            },
-          },
-        };
-      }
       case 'maintenance': {
         // Quick task 260515-kw1 -- GANTT TIMELINE STRIP. Every point sits at
         // y=0 on a hidden y axis; x is a continuous linear timestamp. When the
@@ -1211,11 +1122,36 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
       case 'fsb-avg-agents-per-user': {
-        // Quick task 260515-kw1 -- rendered by the template's big-number tile
-        // branch (HTML, not canvas). redrawChart() early-returns for this view
-        // so this arm is never actually reached at runtime; kept for switch
-        // exhaustiveness over AnyViewId.
-        return null;
+        // Quick task 260524-06b -- replaces the prior big-number tile path
+        // (which overflowed .chart-mount into the footer) with a time-series
+        // line chart mirroring the fsb-tokens arm structurally. Per-day avg
+        // agents per active user = agents_active / unique_installs; guarded
+        // for divide-by-zero by emitting 0 when unique_installs is 0 for that
+        // day. toFixed(2) keeps the line smooth without float jitter.
+        const pts = this.latestFsbSeries?.d30 ?? [];
+        const series = pts.map((p) => ({
+          t: p.day_utc,
+          y: p.unique_installs > 0
+            ? +(p.agents_active / p.unique_installs).toFixed(2)
+            : 0,
+        }));
+        return {
+          type: 'line',
+          data: {
+            labels: series.map((p) => p.t),
+            datasets: [
+              {
+                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_AVG_AGENTS_LEGEND:Avg agents per active user (last 30 days)`,
+                data: series.map((p) => p.y),
+                borderColor: tokens.primary,
+                backgroundColor: tokens.primarySoft,
+                fill: true,
+                tension: 0.2,
+              },
+            ],
+          },
+          options: baseOpts,
+        };
       }
     }
     // TypeScript exhaustiveness: every case in the AnyViewId union is handled
