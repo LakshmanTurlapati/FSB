@@ -182,6 +182,26 @@ ok(popupHtmlSrc.indexOf('fsb-owner-chip') >= 0,
 ok(popupHtmlSrc.indexOf('owner-chip.js') >= 0,
   'Test 8e: popup.html loads owner-chip.js');
 
+// Test 8f -- popup.js mirrors sidepanel.js storage-change listener (Quick task
+// 260524-8qv, Codex PR #78 Finding 3, P2): popup.js installs a
+// chrome.storage.onChanged listener that refreshes the owner chip when
+// fsbAgentRegistry or fsbAgentClientLabels mutate in the session namespace.
+// Mirrors sidepanel.js:224..241 so an ownership flip mid-popup re-renders the
+// chip without waiting for a close/reopen. Source-text audit (popup.js source
+// already loaded above as `popupJsSrc`).
+ok(popupJsSrc.indexOf('chrome.storage.onChanged') >= 0,
+  'Test 8f-1: popup.js installs a chrome.storage.onChanged listener');
+ok(popupJsSrc.indexOf('fsbAgentClientLabels') >= 0,
+  'Test 8f-2: popup.js listener references fsbAgentClientLabels (canonical MCP client label map)');
+ok(popupJsSrc.indexOf('fsbAgentRegistry') >= 0,
+  'Test 8f-3: popup.js listener references fsbAgentRegistry (ownership envelope)');
+// Both keys must be in the SAME branch -- a regex over the listener body catches
+// a regression where the listener exists but only watches one key.
+ok(/chrome\.storage\.onChanged[\s\S]{0,800}fsbAgentRegistry[\s\S]{0,400}fsbAgentClientLabels|chrome\.storage\.onChanged[\s\S]{0,800}fsbAgentClientLabels[\s\S]{0,400}fsbAgentRegistry/.test(popupJsSrc),
+  'Test 8f-4: popup.js listener body covers BOTH fsbAgentRegistry and fsbAgentClientLabels (single branch)');
+ok(/area\s*===\s*['"]session['"]/.test(popupJsSrc),
+  'Test 8f-5: popup.js listener gates on area === "session"');
+
 // Sidepanel wiring
 ok(sidepanelJsSrc.indexOf('legacy:sidepanel') >= 0,
   'Test 9a: sidepanel.js references legacy:sidepanel surface id');

@@ -108,6 +108,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// Quick task 260524-8qv -- Codex PR #78 Finding 3 (P2). Mirrors the
+// sidepanel.js:224..241 listener so an ownership flip mid-popup re-renders
+// the chip without waiting for the user to close + reopen the popup. The
+// popup is short-lived (recreated each click) BUT can stay open for many
+// seconds during an automation; an MCP agent claiming the active tab during
+// that window currently leaves the chip stale until close/reopen.
+//
+// Refresh on EITHER:
+//   - fsbAgentRegistry (Phase 237 D-03 envelope mutation -- ownership
+//     claimed / released / transferred for the active tab);
+//   - fsbAgentClientLabels (Quick task 260524-7n9 canonical MCP client name
+//     landed for the owning agent -- chip text should flip from
+//     "owned by agent_<hex>" to "owned by Claude").
+//
+// Both keys live in the session namespace (write site:
+// extension/ws/mcp-tool-dispatcher.js _persistAgentClientLabel; envelope
+// write site: extension/utils/agent-registry.js).
+//
+// Defensive guards (outer try + chrome-availability checks) so popup boot is
+// NEVER poisoned even on test environments that throw on
+// chrome.storage.onChanged access. refreshOwnerChip already wraps its own
+// body in try/catch (popup.js:117..204), so the arrow body itself does not
+// need a second try.
+try {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged
+      && typeof chrome.storage.onChanged.addListener === 'function') {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'session' && changes && (changes.fsbAgentRegistry || changes.fsbAgentClientLabels)) {
+        refreshOwnerChip();
+      }
+    });
+  }
+} catch (_e) { /* listener best-effort -- never poison popup boot */ }
+
 // Phase 243 plan 03 (UI-02): refresh the read-only "owned by Agent X" chip.
 // Reads the persisted registry envelope from chrome.storage.session (Phase 237
 // D-03 write-through) and the active tab; uses the FSBOwnerChip pure helpers
