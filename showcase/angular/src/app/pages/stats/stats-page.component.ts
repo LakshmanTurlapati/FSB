@@ -56,7 +56,6 @@ export type FSBViewId =
   | 'fsb-active-now'
   | 'fsb-tokens'
   | 'fsb-agents-running'
-  | 'fsb-popular-agents'
   | 'fsb-popular-mcp'
   | 'fsb-avg-agents-per-user';
 export type AnyViewId = StatsViewId | FSBViewId;
@@ -98,8 +97,7 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'fsb-active-now', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_ACTIVE_NOW:Active right now` },
     { id: 'fsb-tokens', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_TOKENS:Tokens` },
     { id: 'fsb-agents-running', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_AGENTS_RUNNING:Agents running` },
-    { id: 'fsb-popular-agents', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_POPULAR_AGENTS:Popular agents` },
-    { id: 'fsb-popular-mcp', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_POPULAR_MCP:Popular MCP clients` },
+    { id: 'fsb-popular-mcp', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_POPULAR_AGENTS:Popular agents` },
     { id: 'fsb-avg-agents-per-user', label: $localize`:@@SHOWCASE_STATS_FSB_VIEW_AVG_AGENTS:Average agents per user` },
   ];
 
@@ -225,19 +223,11 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
           { label: 'active agents', value: this.formatNum(fh?.active_agents_now ?? 0) },
           { label: 'lifetime agents', value: this.formatNum(fh?.total_agents_lifetime ?? 0) },
         ];
-      case 'fsb-popular-agents': {
-        const arr = fh?.popular_agents ?? [];
-        const top = arr[0];
-        return [
-          { label: 'tracked agents', value: this.formatNum(arr.length) },
-          { label: top ? `top: ${top.label}` : 'top', value: this.formatNum(top?.uniq ?? 0) },
-        ];
-      }
       case 'fsb-popular-mcp': {
         const arr = fh?.popular_mcp_clients ?? [];
         const top = arr[0];
         return [
-          { label: 'tracked clients', value: this.formatNum(arr.length) },
+          { label: 'tracked agents', value: this.formatNum(arr.length) },
           { label: top ? `top: ${top.label}` : 'top', value: this.formatNum(top?.uniq ?? 0) },
         ];
       }
@@ -1073,31 +1063,6 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
           },
         };
       }
-      case 'fsb-popular-agents': {
-        const raw = this.latestFsbHeadline?.popular_agents ?? [];
-        // k-anonymity floor sometimes suppresses everything; render a single
-        // "Pending" slice so Chart.js has something to draw.
-        const list = raw.length > 0
-          ? raw
-          : [{ label: $localize`:@@SHOWCASE_STATS_FSB_CHART_PENDING:Pending (k>=5 floor)`, uniq: 1 }];
-        return {
-          type: 'doughnut',
-          data: {
-            labels: list.map((x) => x.label),
-            datasets: [
-              {
-                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_POPULAR_AGENTS_LEGEND:Popular agents`,
-                data: list.map((x) => x.uniq),
-                backgroundColor: [
-                  tokens.primary, tokens.primarySoft, tokens.muted,
-                  tokens.border, tokens.text, '#a78bfa', '#34d399',
-                ],
-              },
-            ],
-          },
-          options: baseOpts,
-        };
-      }
       case 'fsb-popular-mcp': {
         const raw = this.latestFsbHeadline?.popular_mcp_clients ?? [];
         const list = raw.length > 0
@@ -1109,7 +1074,7 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
             labels: list.map((x) => x.label),
             datasets: [
               {
-                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_POPULAR_MCP_LEGEND:Popular MCP clients`,
+                label: $localize`:@@SHOWCASE_STATS_FSB_CHART_POPULAR_AGENTS_LEGEND:Popular agents`,
                 data: list.map((x) => x.uniq),
                 backgroundColor: [
                   tokens.primary, tokens.primarySoft, tokens.muted,
