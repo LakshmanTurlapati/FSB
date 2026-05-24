@@ -549,6 +549,19 @@ async function _runFlush() {
     // showcase/server/src/routes/telemetry.js line 228..232 flips this
     // install into the active-now windows.
     //
+    // Quick task 260524-8qv -- Codex PR #78 Finding 2 (P2). The additional
+    // `queue.length === 0` clause below is REQUIRED. Without it the heartbeat
+    // fires whenever aggregation produced no new groups -- but the queue can
+    // already hold unsent retry events from a prior failed POST. At queue cap
+    // (200) _applyFifoCap below would then drop the OLDEST real event to make
+    // room for a redundant heartbeat (the retried event's POST would itself
+    // trigger server-side recordSeen for this install_uuid, so the heartbeat
+    // would be telemetry-loss for nothing). The queue length is read AFTER
+    // _applyStaleDrop and _applyAttemptsCap (both invoked earlier in
+    // _runFlush at lines ~522..523), so we count only events that will
+    // actually survive to the wire (a doomed retry that exceeded the 5-
+    // attempts cap is already gone).
+    //
     // Hard constants (NOT a flexibility/future-config knob -- the server's
     // hard-coded allowlists dictate every value here):
     //   - event_type:'periodic'   -- ALLOWED_EVENT_TYPES in routes/telemetry.js line 53
@@ -568,7 +581,7 @@ async function _runFlush() {
     // ~509 `if (!installUuid) return;`). Both early returns are upstream, so
     // opted-out installs and storage-unavailable installs never emit a
     // heartbeat -- privacy + crash invariants unchanged.
-    if (agg.groups.length === 0) {
+    if (agg.groups.length === 0 && queue.length === 0) {
       var beat = _buildEvent({
         install_uuid: installUuid,
         mcp_client: 'unknown',

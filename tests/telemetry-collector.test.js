@@ -311,22 +311,26 @@ function wireShims(mod, storage, fetchShim, identity) {
 
     await m.flush();
 
-    // The POST should contain the 2 fresh events (stale dropped) PLUS one
-    // PRESENCE-01 heartbeat (idle install: no MCP rows -> agg.groups.length=0).
+    // The POST should contain ONLY the 2 fresh events (stale dropped). Quick
+    // task 260524-8qv (Codex PR #78 Finding 2, P2) tightened the heartbeat
+    // guard to `agg.groups.length === 0 && queue.length === 0`, so a non-
+    // empty queue (the 2 fresh events here) suppresses the heartbeat. The
+    // retried events' own POST already triggers server-side recordSeen() for
+    // this install_uuid, so the heartbeat would be telemetry-loss for nothing.
     passAssertEqual(fetchShim._calls.length, 1, 'one POST issued');
     const body = fetchShim._calls[0].init.body;
-    passAssertEqual(body.events.length, 3,
-      '3 events in POST body (2 fresh from queue + 1 PRESENCE-01 heartbeat)');
+    passAssertEqual(body.events.length, 2,
+      '2 events in POST body (2 fresh from queue, NO heartbeat -- 260524-8qv Finding 2 suppression)');
     // Stale events ('s1','s2','s3') must be absent. Fresh ('f1','f2') must be
-    // present. The third event is the heartbeat, identified by mcp_client.
+    // present. NO heartbeat (suppressed by 260524-8qv when queue is non-empty).
     const ids = body.events.map(e => e.event_id);
     passAssert(ids.includes('f1'), 'fresh event_id "f1" preserved');
     passAssert(ids.includes('f2'), 'fresh event_id "f2" preserved');
     passAssert(!ids.includes('s1') && !ids.includes('s2') && !ids.includes('s3'),
       'stale event_ids s1/s2/s3 removed');
     const heartbeatEv = body.events.find(e => e.mcp_client === 'unknown' && e.event_type === 'periodic');
-    passAssert(heartbeatEv && heartbeatEv.tokens_in === 0 && heartbeatEv.tokens_out === 0,
-      'PRESENCE-01 heartbeat present (mcp_client=unknown, zero tokens)');
+    passAssert(!heartbeatEv,
+      'NO PRESENCE-01 heartbeat in POST -- queue.length > 0 suppresses heartbeat per 260524-8qv Finding 2');
     // Queue should be empty after successful POST.
     const after = await m.getPendingCount();
     passAssertEqual(after, 0, 'queue empty after successful POST');
@@ -800,6 +804,89 @@ function wireShims(mod, storage, fetchShim, identity) {
     // Queue should be empty (BEAT-07 writes [] on every opted-out flush).
     const pendingAfter = await m.getPendingCount();
     passAssertEqual(pendingAfter, 0, '11.c: queue cleared by opt-out flush (no heartbeat enqueued)');
+  }
+
+  // -------------------------------------------------------------------------
+  // Section 11.d -- Heartbeat does NOT enqueue when queue holds a pending
+  // retry event (Quick task 260524-8qv, Codex PR #78 Finding 2, P2).
+  //
+  // Closes the loophole missed by 11.a/b/c: those tests cover idle+empty,
+  // groups>0, and opted-out paths. They do NOT cover the case where the
+  // queue is non-empty because a prior POST failed and re-enqueued events
+  // with bumped attempts -- and aggregation produced zero NEW groups. With
+  // the old `if (agg.groups.length === 0)` guard the heartbeat would land
+  // on TOP of the pending retry; at queue cap _applyFifoCap would then drop
+  // the OLDEST real event to make room for a redundant heartbeat. The fix
+  // tightens the guard to `agg.groups.length === 0 && queue.length === 0`
+  // so a pending retry alone suppresses the heartbeat.
+  // -------------------------------------------------------------------------
+  console.log('\n--- Section 11.d: heartbeat does NOT fire when queue holds a pending retry ---');
+  {
+    const m = freshRequire();
+    const storage = makeShim();
+    const fetchShim = makeFetchShim();
+    const identity = makeIdentityShim(false);
+    wireShims(m, storage, fetchShim, identity);
+
+    // Pre-seed the queue with exactly ONE retry event from a prior failed
+    // POST (attempts:1, still under the 5-attempt cap, ts_minute recent so
+    // _applyStaleDrop does not eat it). No new MCP rows -> agg.groups.length
+    // will be 0. Without the fix, the heartbeat would land on top, producing
+    // a 2-event POST: [retry, heartbeat]. With the fix the POST has exactly
+    // ONE event (the retry).
+    storage._store.fsbUsageData = []; // no new aggregation groups
+    storage._store.fsbActiveAgentsCount = 1;
+    const now = Date.now();
+    storage._store.fsbTelemetryQueue = [{
+      event_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      install_uuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ts_minute: Math.floor((now - 60000) / 60000) * 60000, // 1 min ago, well within 24h
+      mcp_client: 'claude-code',
+      model: 'claude-opus-4-7',
+      tokens_in: 100,
+      tokens_out: 50,
+      active_agent_count: 1,
+      event_type: 'periodic',
+      attempts: 1
+    }];
+
+    // Default 200 OK fetch -- the retry succeeds so we can inspect the wire body.
+    await m.flush();
+
+    passAssertEqual(fetchShim._calls.length, 1, '11.d: exactly one POST issued');
+    const body = fetchShim._calls[0].init.body;
+    passAssert(body && Array.isArray(body.events), '11.d: POST body has events array');
+    passAssertEqual(body.events.length, 1,
+      '11.d: POST contains EXACTLY ONE event (the retried claude-code row), NOT 2 (no heartbeat appended)');
+    const ev = body.events[0];
+    passAssertEqual(ev.mcp_client, 'claude-code',
+      '11.d: surviving event is the retried real row, not a heartbeat');
+    passAssertEqual(ev.tokens_in, 100, '11.d: retried tokens_in preserved');
+    passAssertEqual(ev.tokens_out, 50, '11.d: retried tokens_out preserved');
+    const heartbeatLeaked = body.events.some(function (e) {
+      return e.mcp_client === 'unknown' && e.tokens_in === 0
+        && e.tokens_out === 0 && e.event_type === 'periodic';
+    });
+    passAssert(!heartbeatLeaked,
+      '11.d: no heartbeat event with mcp_client=unknown leaked into the POST when queue already had a retry');
+    passAssertEqual((await m.getPendingCount()), 0,
+      '11.d: queue empty after retry POST succeeds');
+
+    // Cross-check: re-run flush with an empty queue (just like Section 11.a)
+    // and confirm the heartbeat invariant still holds when the queue is
+    // genuinely empty. This verifies the tightened guard did not regress
+    // the original PRESENCE-01 behaviour.
+    storage._store.fsbUsageData = [];
+    // fsbTelemetryQueue is empty after the POST above; do not re-seed.
+    // Advance the watermark away so the next flush sees an empty aggregation.
+    await m.flush();
+    passAssertEqual(fetchShim._calls.length, 2,
+      '11.d cross-check: second flush issued a POST (heartbeat path still fires when queue empty)');
+    const body2 = fetchShim._calls[1].init.body;
+    passAssertEqual(body2.events.length, 1,
+      '11.d cross-check: second POST contains exactly ONE event (the heartbeat)');
+    passAssertEqual(body2.events[0].mcp_client, 'unknown',
+      '11.d cross-check: heartbeat is the unknown-client zero-token shape');
   }
 
   // -------------------------------------------------------------------------
