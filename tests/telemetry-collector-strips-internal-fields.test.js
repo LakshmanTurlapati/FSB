@@ -186,7 +186,11 @@ const ALLOWLIST_SORTED = [
     passAssertEqual(fetchShim._calls.length, 1, 'exactly one POST issued');
     const body = fetchShim._calls[0].init.body;
     passAssert(body && Array.isArray(body.events), 'POST body has events array');
-    passAssertEqual(body.events.length, 2, 'POST body contains both seeded events');
+    // Post-PRESENCE-01 (quick task 260524-62w): when fsbUsageData is empty,
+    // _runFlush enqueues a presence heartbeat alongside the 2 seeded events.
+    // The wire-strip contract still applies uniformly across all 3 events
+    // (the per-event loop below verifies the 9-key allowlist on EACH event).
+    passAssertEqual(body.events.length, 3, 'POST body contains 2 seeded events + 1 presence heartbeat');
 
     // For each event in the wire payload, the key set must be EXACTLY the
     // 9-key allowlist (sorted). NO `attempts`. NO other extras.
@@ -226,18 +230,23 @@ const ALLOWLIST_SORTED = [
     // the event with attempts bumped to 3.
     passAssertEqual(fetchShim._calls.length, 1, 'one POST attempted before failure');
     const wireBody = fetchShim._calls[0].init.body;
-    passAssert(wireBody && Array.isArray(wireBody.events) && wireBody.events.length === 1,
-      'POST body still contained the one event before failure');
-    passAssert(!Object.prototype.hasOwnProperty.call(wireBody.events[0], 'attempts'),
-      'POST body event did NOT include `attempts` (wire-payload strip still active on failure path)');
+    // Post-PRESENCE-01 (260524-62w): empty fsbUsageData -> 1 seeded + 1 heartbeat
+    // hits the wire. The wire-strip + re-enqueue contract still applies to BOTH.
+    passAssert(wireBody && Array.isArray(wireBody.events) && wireBody.events.length === 2,
+      'POST body had the seeded event + presence heartbeat before failure');
+    // Find the seeded event on the wire (heartbeat has mcp_client=unknown).
+    const wireSeed = wireBody.events.find(function (e) { return e.event_id === seedId; });
+    passAssert(wireSeed && !Object.prototype.hasOwnProperty.call(wireSeed, 'attempts'),
+      'POST body seeded event did NOT include `attempts` (wire-payload strip still active on failure path)');
 
     const residueQueue = storage._store.fsbTelemetryQueue;
     passAssert(Array.isArray(residueQueue), 'residue queue is an array after failure');
-    passAssertEqual(residueQueue.length, 1, 'residue queue retains the one re-enqueued event');
-    // The re-enqueued event must STILL carry `attempts`, bumped from 2 -> 3.
-    // This proves the projection is read-only -- in-memory queue retains the
-    // field so _bumpAttempts can see it on the next failure cycle.
-    const residueEvent = residueQueue[0];
+    // Both events re-enqueued on failure: the original seeded event + the heartbeat.
+    passAssertEqual(residueQueue.length, 2, 'residue queue retains both re-enqueued events (seeded + heartbeat)');
+    // The seeded event must STILL carry `attempts`, bumped from 2 -> 3. This
+    // proves the projection is read-only -- in-memory queue retains the field
+    // so _bumpAttempts can see it on the next failure cycle.
+    const residueEvent = residueQueue.find(function (e) { return e.event_id === seedId; });
     passAssertEqual(residueEvent.event_id, seedId,
       're-enqueued event has the same event_id (server INSERT OR IGNORE dedup)');
     passAssertEqual(typeof residueEvent.attempts, 'number',
