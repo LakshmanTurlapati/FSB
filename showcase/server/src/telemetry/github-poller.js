@@ -9,6 +9,20 @@
  * req/hr) and WITHOUT (60 req/hr per-IP). Logs single boot warning if absent.
  *
  * Errors NEVER crash the interval -- mirrors housekeeper.js try/catch posture.
+ *
+ * Bugfix 2026-05-26 (see .planning/debug/stars-graph-stuck-at-100.md):
+ *   The original implementation reused the cached page-1 ETag as an
+ *   If-None-Match sentinel for the entire paginated dataset. That is only
+ *   correct for endpoints that GitHub sorts newest-first (commits, releases,
+ *   pulls, issues default), because there page 1 mutates whenever anything
+ *   new appears. For endpoints sorted oldest-first (stargazers default,
+ *   `forks?sort=oldest`), once page 1 fills to 100 entries it becomes
+ *   immutable forever -- the ETag freezes and the poller treats every
+ *   subsequent 304 as "nothing changed", which silently strands all entries
+ *   appended past page 1. We now skip If-None-Match entirely on paginated
+ *   endpoints and always re-walk; the extra cost is ~14 GitHub req/hr, well
+ *   inside the 5000 req/hr authenticated cap. Non-paginated endpoints (just
+ *   `repo-summary`) keep the ETag round-trip since it's still correct there.
  */
 'use strict';
 
@@ -81,10 +95,12 @@ async function pollEndpoint(endpointId, queries, fetchImpl, nowMs) {
   try {
     const cfg = ENDPOINTS[endpointId];
     if (!cfg) return;
-    const existingEtag = queries.getGithubEtag(endpointId);
 
     if (!cfg.paginated) {
-      // Single-resource endpoint (repo-summary). One request, ETag round-trip.
+      // Single-resource endpoint (repo-summary). One request, ETag round-trip
+      // is safe here because the full resource's representation is exactly
+      // what the ETag is computed over -- no pagination wrinkle.
+      const existingEtag = queries.getGithubEtag(endpointId);
       const sep = cfg.query ? '?' : '';
       const url = `https://api.github.com${cfg.path}${sep}${cfg.query}`;
       const r = await fetchOnePage(url, cfg.accept, existingEtag, fetchImpl);
@@ -100,17 +116,27 @@ async function pollEndpoint(endpointId, queries, fetchImpl, nowMs) {
       return;
     }
 
-    // Paginated. Strategy: simple endpoint-level ETag against page 1; on 304
-    // assume nothing changed and touch the cache (cheap, correct for low-write
-    // repos). On 200, walk pages and concatenate; store the concatenated array
-    // with page 1's ETag. The "always-walk" cost only materializes when there
-    // is actually new data, which is the desired behavior.
+    // Paginated. Strategy: always re-walk from page 1 with NO If-None-Match.
+    // The prior implementation sent the cached page-1 ETag as If-None-Match and
+    // skipped the entire walk on 304, which is correct ONLY when page 1's
+    // contents mutate whenever new data appears (e.g. newest-first endpoints).
+    // For oldest-first endpoints (stargazers default; forks?sort=oldest), once
+    // page 1 fills to 100 entries it becomes immutable and the cache silently
+    // stops picking up new entries on pages 2+. See bugfix note in the module
+    // header. Cost of the always-walk: at most maxPages requests per endpoint
+    // per 5-min tick; for the 6 paginated endpoints with realistic page counts
+    // we expect well under 100 GitHub req/hr, comfortably inside the 5000/hr
+    // authenticated cap. With NO token the unauthenticated 60 req/hr per-IP
+    // cap will be exceeded -- the boot warning below already nudges operators
+    // to set GITHUB_TOKEN, which is now effectively required for production.
     const maxPages = cfg.maxPages || 30;
     const base = `https://api.github.com${cfg.path}`;
     const firstUrl = `${base}?${cfg.query}${cfg.query ? '&' : ''}page=1&per_page=${PER_PAGE}`;
 
-    const firstResp = await fetchOnePage(firstUrl, cfg.accept, existingEtag, fetchImpl);
+    const firstResp = await fetchOnePage(firstUrl, cfg.accept, null, fetchImpl);
     if (firstResp.status === 304) {
+      // Unreachable -- we did not send If-None-Match -- but keep the branch as
+      // a defensive no-op in case an intermediate cache injects 304.
       queries.touchGithubCacheRow(endpointId, nowMs, 304, firstResp.rlRemaining, firstResp.rlReset);
       return;
     }
@@ -133,7 +159,10 @@ async function pollEndpoint(endpointId, queries, fetchImpl, nowMs) {
     } else {
       for (let page = 2; page <= maxPages; page++) {
         const url = `${base}?${cfg.query}${cfg.query ? '&' : ''}page=${page}&per_page=${PER_PAGE}`;
-        // No ETag on inner pages -- the page-1 ETag already gated the whole walk.
+        // No ETag on inner pages either -- always-walk semantics require seeing
+        // the actual body to concatenate. (Pre-bugfix this comment said "the
+        // page-1 ETag already gated the whole walk", which was the broken
+        // assumption.)
         const r = await fetchOnePage(url, cfg.accept, null, fetchImpl);
         if (r.status !== 200 || !Array.isArray(r.body)) {
           console.warn(`[github-poller] ${endpointId} page=${page} HTTP ${r.status}; truncating walk`);
