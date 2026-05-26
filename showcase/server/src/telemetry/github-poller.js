@@ -14,15 +14,21 @@
  *   The original implementation reused the cached page-1 ETag as an
  *   If-None-Match sentinel for the entire paginated dataset. That is only
  *   correct for endpoints that GitHub sorts newest-first (commits, releases,
- *   pulls, issues default), because there page 1 mutates whenever anything
- *   new appears. For endpoints sorted oldest-first (stargazers default,
- *   `forks?sort=oldest`), once page 1 fills to 100 entries it becomes
- *   immutable forever -- the ETag freezes and the poller treats every
- *   subsequent 304 as "nothing changed", which silently strands all entries
- *   appended past page 1. We now skip If-None-Match entirely on paginated
- *   endpoints and always re-walk; the extra cost is ~14 GitHub req/hr, well
- *   inside the 5000 req/hr authenticated cap. Non-paginated endpoints (just
- *   `repo-summary`) keep the ETag round-trip since it's still correct there.
+ *   pulls, issues default) -- there page 1 mutates whenever anything new
+ *   appears, so its ETag is a valid whole-dataset freshness sentinel. For
+ *   endpoints sorted oldest-first (stargazers default, `forks?sort=oldest`),
+ *   once page 1 fills to 100 entries it becomes immutable forever -- the
+ *   ETag freezes and the poller treats every subsequent 304 as "nothing
+ *   changed", silently stranding all entries appended past page 1.
+ *
+ *   The fix opts oldest-first endpoints out of the ETag sentinel via
+ *   `oldestFirst: true` in their ENDPOINTS config; those endpoints always
+ *   re-walk. Newest-first endpoints keep the ETag round-trip, which is
+ *   important for tokenless deployments: GitHub's rate-limit policy doesn't
+ *   count 304 responses against the primary limit, so the ETag path is
+ *   effectively free and keeps unauthenticated installs (60 req/hr per-IP
+ *   cap) viable. Only `stars` and `forks` poll with always-walk semantics --
+ *   ~36 req/hr combined at current data shape, comfortably under 60/hr.
  */
 'use strict';
 
@@ -42,11 +48,14 @@ const GITHUB_ENDPOINT_IDS = [
 ];
 
 // Per-endpoint config: path template + query string + Accept override + paginated flag.
+// `oldestFirst: true` opts a paginated endpoint out of the page-1 ETag sentinel
+// (see module header bugfix note). Newest-first paginated endpoints omit the
+// flag and use the ETag round-trip (free 304s under GitHub's rate-limit policy).
 const ENDPOINTS = {
   'repo-summary': { path: `/repos/${OWNER}/${REPO}`,            query: '',            accept: null, paginated: false },
-  'stars':        { path: `/repos/${OWNER}/${REPO}/stargazers`, query: '',            accept: 'application/vnd.github.v3.star+json', paginated: true,  earlyExit: true },
+  'stars':        { path: `/repos/${OWNER}/${REPO}/stargazers`, query: '',            accept: 'application/vnd.github.v3.star+json', paginated: true,  earlyExit: true, oldestFirst: true },
   'issues':       { path: `/repos/${OWNER}/${REPO}/issues`,     query: 'state=all',   accept: null, paginated: true,  earlyExit: true },
-  'forks':        { path: `/repos/${OWNER}/${REPO}/forks`,      query: 'sort=oldest', accept: null, paginated: true,  earlyExit: true },
+  'forks':        { path: `/repos/${OWNER}/${REPO}/forks`,      query: 'sort=oldest', accept: null, paginated: true,  earlyExit: true, oldestFirst: true },
   'pulls':        { path: `/repos/${OWNER}/${REPO}/pulls`,      query: 'state=all',   accept: null, paginated: true,  earlyExit: true },
   'commits':      { path: `/repos/${OWNER}/${REPO}/commits`,    query: '',            accept: null, paginated: true,  earlyExit: true, maxPages: MAX_PAGES_COMMITS },
   'releases':     { path: `/repos/${OWNER}/${REPO}/releases`,   query: '',            accept: null, paginated: true,  earlyExit: true },
@@ -116,27 +125,24 @@ async function pollEndpoint(endpointId, queries, fetchImpl, nowMs) {
       return;
     }
 
-    // Paginated. Strategy: always re-walk from page 1 with NO If-None-Match.
-    // The prior implementation sent the cached page-1 ETag as If-None-Match and
-    // skipped the entire walk on 304, which is correct ONLY when page 1's
-    // contents mutate whenever new data appears (e.g. newest-first endpoints).
-    // For oldest-first endpoints (stargazers default; forks?sort=oldest), once
-    // page 1 fills to 100 entries it becomes immutable and the cache silently
-    // stops picking up new entries on pages 2+. See bugfix note in the module
-    // header. Cost of the always-walk: at most maxPages requests per endpoint
-    // per 5-min tick; for the 6 paginated endpoints with realistic page counts
-    // we expect well under 100 GitHub req/hr, comfortably inside the 5000/hr
-    // authenticated cap. With NO token the unauthenticated 60 req/hr per-IP
-    // cap will be exceeded -- the boot warning below already nudges operators
-    // to set GITHUB_TOKEN, which is now effectively required for production.
+    // Paginated. Two strategies, picked per endpoint by `oldestFirst`:
+    //  - newest-first (default): send the cached page-1 ETag as If-None-Match;
+    //    on 304 the whole dataset is unchanged (page 1's contents are a valid
+    //    sentinel because new entries land on page 1). Free under GitHub's
+    //    rate-limit policy (304 responses don't count) -- this keeps tokenless
+    //    deployments viable within the 60 req/hr per-IP cap.
+    //  - oldestFirst: true -- opt out of ETag entirely and always re-walk.
+    //    Required for stargazers / `forks?sort=oldest` where page 1 freezes
+    //    once it fills to 100 entries. See module header bugfix note.
+    const useEtagSentinel = !cfg.oldestFirst;
+    const existingEtag = useEtagSentinel ? queries.getGithubEtag(endpointId) : null;
     const maxPages = cfg.maxPages || 30;
     const base = `https://api.github.com${cfg.path}`;
     const firstUrl = `${base}?${cfg.query}${cfg.query ? '&' : ''}page=1&per_page=${PER_PAGE}`;
 
-    const firstResp = await fetchOnePage(firstUrl, cfg.accept, null, fetchImpl);
+    const firstResp = await fetchOnePage(firstUrl, cfg.accept, existingEtag, fetchImpl);
     if (firstResp.status === 304) {
-      // Unreachable -- we did not send If-None-Match -- but keep the branch as
-      // a defensive no-op in case an intermediate cache injects 304.
+      // Reachable only for newest-first endpoints (oldestFirst sent null).
       queries.touchGithubCacheRow(endpointId, nowMs, 304, firstResp.rlRemaining, firstResp.rlReset);
       return;
     }
@@ -159,10 +165,9 @@ async function pollEndpoint(endpointId, queries, fetchImpl, nowMs) {
     } else {
       for (let page = 2; page <= maxPages; page++) {
         const url = `${base}?${cfg.query}${cfg.query ? '&' : ''}page=${page}&per_page=${PER_PAGE}`;
-        // No ETag on inner pages either -- always-walk semantics require seeing
-        // the actual body to concatenate. (Pre-bugfix this comment said "the
-        // page-1 ETag already gated the whole walk", which was the broken
-        // assumption.)
+        // No ETag on inner pages -- once page 1 indicated a change (200) we
+        // need the actual bodies of pages 2+ to concatenate. (Per-page ETag
+        // round-trips would be valid but add state we don't currently track.)
         const r = await fetchOnePage(url, cfg.accept, null, fetchImpl);
         if (r.status !== 200 || !Array.isArray(r.body)) {
           console.warn(`[github-poller] ${endpointId} page=${page} HTTP ${r.status}; truncating walk`);
