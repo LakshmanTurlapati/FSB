@@ -18,6 +18,14 @@
           <context context-type="linenumber">10,12</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="shell.stats.back.aria" datatype="html">
+        <source>Go back</source>
+        <target state="translated">戻る</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/layout/showcase-shell/showcase-shell.component.html</context>
+          <context context-type="linenumber">3,4</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="shell.nav.brand.logo.alt" datatype="html">
         <source>FSB Logo</source>
         <target state="translated">FSB ロゴ</target>
