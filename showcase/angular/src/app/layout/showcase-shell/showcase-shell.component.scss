@@ -457,3 +457,17 @@
   position: relative;
   z-index: 1;
 }
+
+/* /stats-only: drop both divider lines around the minimized footer (the
+   outer .footer border-top that separates page from footer, and the inner
+   .footer-bottom border-top that was originally the column-row separator).
+   With .footer-inner hidden on /stats, both lines become stray artifacts
+   above the credit/version/lang row. Other routes keep both dividers. */
+.footer.stats-footer {
+  border-top: none;
+}
+
+.footer.stats-footer .footer-bottom {
+  border-top: none;
+  padding-top: 0;
+}
