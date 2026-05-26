@@ -458,13 +458,19 @@
   z-index: 1;
 }
 
-/* /stats-only: drop both divider lines around the minimized footer (the
-   outer .footer border-top that separates page from footer, and the inner
-   .footer-bottom border-top that was originally the column-row separator).
-   With .footer-inner hidden on /stats, both lines become stray artifacts
-   above the credit/version/lang row. Other routes keep both dividers. */
+/* /stats-only: make the footer seamless with the rest of the page.
+     - border-top: none drops the outer divider (page→footer line)
+     - background: transparent lets the fixed-position .stats-glow-bg show
+       through, AND lets the body background flow continuously through the
+       footer area instead of a visible darker --bg-card band
+     - .footer-bottom border-top + padding-top zero out the inner divider
+       and the spacing reserved for it (it was sized for the now-hidden
+       column block above)
+   Other routes keep both dividers, the card background, and the original
+   spacing. */
 .footer.stats-footer {
   border-top: none;
+  background: transparent;
 }
 
 .footer.stats-footer .footer-bottom {
