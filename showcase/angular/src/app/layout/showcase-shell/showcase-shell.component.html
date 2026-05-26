@@ -50,7 +50,7 @@
   <ng-content></ng-content>
 </main>
 
-<footer class="footer">
+<footer class="footer" [class.stats-footer]="isStatsRoute">
   <div class="container">
     @if (!isStatsRoute) {
       <div class="footer-inner">

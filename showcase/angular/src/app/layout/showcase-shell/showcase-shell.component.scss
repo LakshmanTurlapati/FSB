@@ -409,10 +409,21 @@
 }
 
 /* Subtle orange aurora background -- mirrors home-page .hero-bg exactly
-   (same rgba color stops, same 12s timing). Position-fixed + inset:0 so it
-   covers the entire viewport; z-index:0 + main.stats-main z-index:1 keeps
-   it behind page content; pointer-events:none guarantees zero click
-   interference. */
+   (same rgba color stops, same 12s timing). Position-fixed so it covers
+   the entire viewport; z-index:0 + main.stats-main z-index:1 keeps it
+   behind page content; pointer-events:none guarantees zero click
+   interference.
+
+   Edge-bleed note: home's .hero-bg is position:absolute inside a parent
+   .hero container with overflow:hidden + min-height:100vh, so the parent
+   masks the animated edges. Here .stats-glow-bg is position:fixed with no
+   clipping parent, so we instead oversize via inset:-10%. Without that,
+   the 66% keyframe (scale 0.95 + translate(-2%, 2%)) shrinks the element
+   inside the viewport AND shifts it down, exposing a sharp horizontal line
+   at the top edge where the still-tinted gradient meets the dark body bg.
+   With inset:-10% the element is 120% of the viewport in each dimension
+   and centered around it, so the worst-case shrunk + shifted edges stay
+   safely off-screen throughout the loop. */
 @keyframes statsGlow {
   0%, 100% { transform: scale(1) translate(0, 0); opacity: 1; }
   33%      { transform: scale(1.08) translate(2%, -3%); opacity: 0.85; }
@@ -421,7 +432,7 @@
 
 .stats-glow-bg {
   position: fixed;
-  inset: 0;
+  inset: -10%;
   z-index: 0;
   pointer-events: none;
   background:
@@ -445,4 +456,18 @@
 :host > main.stats-main {
   position: relative;
   z-index: 1;
+}
+
+/* /stats-only: drop both divider lines around the minimized footer (the
+   outer .footer border-top that separates page from footer, and the inner
+   .footer-bottom border-top that was originally the column-row separator).
+   With .footer-inner hidden on /stats, both lines become stray artifacts
+   above the credit/version/lang row. Other routes keep both dividers. */
+.footer.stats-footer {
+  border-top: none;
+}
+
+.footer.stats-footer .footer-bottom {
+  border-top: none;
+  padding-top: 0;
 }
