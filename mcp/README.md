@@ -454,7 +454,7 @@ graph TD
     C -->|"DOM analysis + action execution"| D["Active Web Page"]
 
     subgraph Surface["Tool Surface"]
-      V["Visual sessions"]
+      V["Visual badge stubs"]
       M["Manual tools"]
       R["Read-only tools"]
       O["Observability"]

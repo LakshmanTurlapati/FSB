@@ -8,7 +8,7 @@
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
 4. Select the repository's `extension/` directory.
-5. Pin FSB from the toolbar puzzle icon.
+5. Pin FSB from Chrome's extensions menu.
 6. Right-click the extension and choose **Open side panel**.
 
 After code changes, reload the extension from `chrome://extensions` and refresh any open tabs so content scripts re-inject.

@@ -178,12 +178,40 @@ Top level deploy and validation files:
 
 The showcase About page includes real videos of FSB doing browser work across direct automation and MCP driven agent loops.
 
-| Demo | What it shows |
-|------|---------------|
-| [FSB Ecommerce Autopilot by Grok 4.1](https://www.youtube.com/watch?v=_iQ4_LSXcTU) | A shopping workflow moving from instruction to browser actions. |
-| [Flight Booking Powered by Codex MCP](https://www.youtube.com/watch?v=WbpOrFwgGME) | Codex using FSB through MCP as the browser layer for a travel task. |
-| [OpenClaw Monitoring Doge Price](https://www.youtube.com/watch?v=PNTGCWGopf8) | OpenClaw providing the agent loop while FSB controls the live browser. |
-| [An Aha Moment by Claude Opus 4.7](https://www.youtube.com/watch?v=mD9oGB2JqVM) | Claude pairing reasoning with FSB browser execution and iteration. |
+<table>
+<tr>
+<td width="50%" align="center">
+<a href="https://www.youtube.com/watch?v=_iQ4_LSXcTU">
+<img src="https://i.ytimg.com/vi/_iQ4_LSXcTU/hqdefault.jpg" alt="FSB Ecommerce Autopilot by Grok 4.1 demo thumbnail" width="100%" />
+</a>
+<br/><strong>FSB Ecommerce Autopilot by Grok 4.1</strong>
+<br/><sub>A shopping workflow moving from instruction to browser actions.</sub>
+</td>
+<td width="50%" align="center">
+<a href="https://www.youtube.com/watch?v=WbpOrFwgGME">
+<img src="https://i.ytimg.com/vi/WbpOrFwgGME/hqdefault.jpg" alt="Flight Booking Powered by Codex MCP demo thumbnail" width="100%" />
+</a>
+<br/><strong>Flight Booking Powered by Codex MCP</strong>
+<br/><sub>Codex using FSB through MCP as the browser layer for a travel task.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<a href="https://www.youtube.com/watch?v=PNTGCWGopf8">
+<img src="https://i.ytimg.com/vi/PNTGCWGopf8/hqdefault.jpg" alt="OpenClaw Monitoring Doge Price demo thumbnail" width="100%" />
+</a>
+<br/><strong>OpenClaw Monitoring Doge Price</strong>
+<br/><sub>OpenClaw providing the agent loop while FSB controls the live browser.</sub>
+</td>
+<td width="50%" align="center">
+<a href="https://www.youtube.com/watch?v=mD9oGB2JqVM">
+<img src="https://i.ytimg.com/vi/mD9oGB2JqVM/hqdefault.jpg" alt="An Aha Moment by Claude Opus 4.7 demo thumbnail" width="100%" />
+</a>
+<br/><strong>An Aha Moment by Claude Opus 4.7</strong>
+<br/><sub>Claude pairing reasoning with FSB browser execution and iteration.</sub>
+</td>
+</tr>
+</table>
 
 For stats nerds, the showcase also has [live project and usage charts](https://full-selfbrowsing.com/stats) with GitHub activity, active users, token flow, running agents, and popular MCP clients.
 
@@ -370,25 +398,35 @@ Use `doctor` and `status --watch` before changing client configs. Most MCP failu
 
 ```mermaid
 graph TB
-    UI["Side Panel / Options"] --> BG["MV3 Background Worker"]
+    CLIENTS["MCP Clients<br/>Claude Code / Codex / Cursor / VS Code / Antigravity / OpenClaw"] --> SERVER["fsb-mcp-server<br/>stdio or Streamable HTTP"]
+    SERVER --> BRIDGE["Local WebSocket Bridge<br/>ws://localhost:7225"]
+    BRIDGE --> EXTBRIDGE["Extension MCP Bridge Client"]
+    SIDE["Side Panel"] --> BG["MV3 Background Worker"]
+    OPTIONS["Options / Control Panel"] --> BG
+    EXTBRIDGE --> BG
     BG --> AI["Universal Provider"]
-    BG --> CS["Content Scripts"]
-    BG --> MEM["Memory + Analytics"]
-    BG --> MCP["MCP Bridge"]
-    AI --> APIs["xAI / Gemini / OpenAI / Anthropic / OpenRouter / Local"]
-    CS --> PAGE["Web Page DOM"]
-    MCP --> CLIENTS["Claude Code / Codex / Cursor / VS Code / Others"]
+    AI --> APIs["xAI / Gemini / OpenAI / Anthropic / OpenRouter / LM Studio / Custom"]
+    BG --> CS["Injected Content Scripts"]
+    CS --> PAGE["Active Web Page DOM"]
+    BG --> STORAGE["Chrome Storage<br/>config / sessions / memory / analytics / vault"]
+    STORAGE --> MEMORY["Memory + Site Guides"]
+    BG --> TELEMETRY["Telemetry Collector"]
+    BG --> DASHRELAY["Dashboard Sync Client"]
+    TELEMETRY --> SHOWCASE["Showcase Server<br/>telemetry ingest / relay / stats"]
+    DASHRELAY --> SHOWCASE
 ```
 
 ### Main Runtime Pieces
 
-- **Background worker** (`extension/background.js`): owns sessions, model calls, tool execution, MCP routing, and storage orchestration.
+- **Background worker** (`extension/background.js`): owns sessions, model calls, tool execution, MCP routing, storage orchestration, telemetry flushing, and optional dashboard sync.
+- **MCP bridge client** (`extension/ws/mcp-bridge-client.js` plus `extension/ws/mcp-tool-dispatcher.js`): keeps the extension connected to the local `fsb-mcp-server`, routes tool calls, records MCP metrics, and enforces tab ownership.
 - **Content scripts** (`extension/content/`): analyze the DOM, create element references, execute actions, stream DOM state, wait for stable state, and render visual feedback.
 - **AI layer** (`extension/ai/`): universal OpenAI-compatible request engine, provider settings, model discovery, tool definitions, transcripts, and action history.
-- **Memory** (`extension/lib/memory/`): stores episodic, semantic, and procedural records, then retrieves relevant prior context for later tasks.
+- **Memory and site guides** (`extension/lib/memory/` plus `extension/site-guides/`): store prior task context and provide domain specific guidance.
 - **Visualization** (`extension/lib/visualization/`): D3/site graph views for guide and memory exploration.
 - **Vault** (`extension/config/secure-config.js` plus UI flows): encrypts API keys and saved user data in Chrome storage.
-- **MCP package** (`mcp/`): TypeScript server that translates MCP calls into extension bridge messages.
+- **Telemetry and dashboard sync** (`extension/utils/telemetry-collector.js`, `extension/ws/ws-client.js`, and `showcase/server/`): send anonymous aggregate beats, relay paired dashboard sessions, and power the public stats page.
+- **MCP package** (`mcp/`): TypeScript server that exposes stdio and optional Streamable HTTP, then translates MCP calls into extension bridge messages.
 
 ### Automation Flow
 
@@ -403,11 +441,13 @@ graph TB
 
 FSB stores configuration and runtime data in Chrome storage. API keys and saved sensitive values go through the secure configuration layer. Session logs, analytics, and memory records are kept locally unless a user explicitly enables server sync or uses the showcase dashboard pairing flow.
 
-During a task, the background worker owns the session state and talks to three main collaborators:
+During a task, the background worker owns the session state and talks to five main collaborators:
 
 - content scripts for page reads and browser actions
 - the selected provider for planning and response generation
-- local storage for config, analytics, memory, and logs
+- local storage for config, analytics, memory, vault records, and logs
+- the local MCP bridge when an external client is driving the browser
+- optional showcase services for paired dashboard sessions and anonymous aggregate stats
 
 The MCP server does not replace the extension runtime. It is a local bridge that translates MCP requests into the same background-worker routes used by FSB's own UI.
 
