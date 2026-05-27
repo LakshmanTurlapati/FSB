@@ -1,4 +1,4 @@
-# FSB v0.9.67 Full Self Browsing
+# FSB v0.9.72 Full Self Browsing
 
 <div align="center">
 
@@ -9,7 +9,7 @@
 </picture>
 
 ![FSB](https://img.shields.io/badge/FSB-Full_Self_Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-0.9.67-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.9.72-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-BSL_1.1-F5C518?style=for-the-badge)
 
@@ -18,7 +18,7 @@
 ![Issues](https://img.shields.io/github/issues/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Issues)
 ![Last Commit](https://img.shields.io/github/last-commit/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Last%20Commit)
 
-**AI-powered browser automation through natural language. Tell it what to do, and watch it browse for you.**
+**AI powered browser automation through natural language. Tell it what to do, and watch it browse for you.**
 
 *Pure structural intelligence. Zero vision. Zero guessing.*
 
@@ -30,9 +30,9 @@
 
 ## Overview
 
-FSB (Full Self Browsing) is an open source Chrome extension for AI powered browser automation. Describe a task in plain English; FSB reads the live DOM, builds a plan, executes browser actions, verifies results, and reports progress through the popup, side panel, or MCP.
+FSB (Full Self Browsing) is an open source Chrome extension for AI powered browser automation. Describe a task in plain English and FSB reads the live DOM, builds a plan, executes browser actions, verifies results, and reports progress through the popup, side panel, or MCP.
 
-> FSB v0.9.67 is functional and production ready for supervised automation. Browser automation can still behave unpredictably on complex or sensitive sites, so monitor actions and test on non critical pages first.
+> FSB v0.9.72 is functional and production ready for supervised automation. Browser automation can still behave unpredictably on complex or sensitive sites, so monitor actions and test on non critical pages first.
 
 ### Why DOM First
 
@@ -47,9 +47,9 @@ Project Mariner, Claude Computer Use, and OpenAI Operator rely heavily on visual
 
 ### Quick Start TL;DR
 
-**FSB shines when your AI client drives it directly.** Install the MCP server for your client of choice — one command, no manual config edits, and **no FSB API key needed** (your MCP client's model handles the reasoning):
+**FSB shines when your AI client drives it directly.** Install the MCP server for your client of choice with one command. There are no manual config edits, and **no FSB API key is needed** because your MCP client's model handles the reasoning:
 
-| Client | One-command install |
+| Client | Install command |
 |--------|---------------------|
 | Claude Code | `npx -y fsb-mcp-server install --claude-code` |
 | Claude Desktop | `npx -y fsb-mcp-server install --claude-desktop` |
@@ -66,18 +66,19 @@ Preview before writing: append `--dry-run`. Sanity check with `npx -y fsb-mcp-se
 1. Get **FSB** from the [Chrome Web Store](https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk).
 2. From your MCP client, try: `Search for cats on Google` or `Read this page and summarize it`.
 
-Want to run FSB standalone from the extension popup/side panel? Open settings, paste an API key (xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or custom), and start there — no MCP needed.
+Want to run FSB standalone from the extension popup or side panel? Open settings, paste an API key for xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or a custom endpoint, then start there. MCP is optional.
 
-**On OpenClaw?** Load the FSB skill from [`skills/fsb/`](./skills/fsb/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent-gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds; the skill prints + you paste, never auto-writes.
+**On OpenClaw?** Load the FSB skill from [`skills/fsb/`](./skills/fsb/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds. The skill prints the config and you paste it.
 
-**On Hermes?** Same skill, same dirname: load [`skills/fsb/`](./skills/fsb/SKILL.md). Run `node skills/fsb/scripts/print-hermes-yaml.mjs` to print the canonical `~/.hermes/config.yaml` `mcp_servers.fsb` block, or run `node skills/fsb/scripts/install-host.mjs` to detect a local Hermes config and consent-gate the injection. FSB v0.9.69 (PR #49) added `Hermes` to the v0.9.36 shared MCP client allowlist, so action calls passing `client: "Hermes"` work out of the box with no schema changes.
+**On Hermes?** Use the same skill at [`skills/fsb/`](./skills/fsb/SKILL.md). Run `node skills/fsb/scripts/print-hermes-yaml.mjs` to print the canonical `~/.hermes/config.yaml` `mcp_servers.fsb` block, or run `node skills/fsb/scripts/install-host.mjs` to detect a local Hermes config and gate the install on consent.
 
 ### What It Does
 
 - Runs natural language browser tasks from the popup or side panel.
-- Supports xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, and custom OpenAI-compatible endpoints.
+- Supports xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, and custom OpenAI compatible endpoints.
 - Discovers live provider model lists and falls back to bundled defaults.
-- Uses 50 canonical automation tools in the extension engine and 59 MCP tools for external clients.
+- Uses a 51 entry extension tool registry with 36 action tools and 15 read or lifecycle tools.
+- Exposes 59 registered MCP handlers for external clients, including manual actions, read tools, autopilot, observability, vault, and compatibility stubs.
 - Provides DOM snapshots, action verification, smart waiting, stuck detection, visual feedback, and session logs.
 - Maintains long term memory for past sites, workflows, selectors, and task outcomes.
 - Includes secure credential and payment vault flows for supervised autofill.
@@ -120,7 +121,7 @@ The core design goal is to keep the browser as the source of truth. The model re
 |------|---------|
 | [`extension/`](./extension/README.md) | Chrome extension package. Load this directory as an unpacked MV3 extension. |
 | [`mcp/`](./mcp/README.md) | npm package `fsb-mcp-server`, the local MCP bridge for external AI clients. |
-| [`skills/fsb/`](./skills/fsb/SKILL.md) | OpenClaw + Hermes skill: doctor + stdio/YAML printers + consent-gated multi-host install. |
+| [`skills/fsb/`](./skills/fsb/SKILL.md) | OpenClaw + Hermes skill: doctor + stdio/YAML printers + consent gated install for multiple hosts. |
 | [`showcase/`](./showcase/README.md) | Marketing and dashboard site for full-selfbrowsing.com. Angular 20 static prerender + Express relay. |
 | `showcase/server/` | Node/Express deploy backend for pairing, relay, auth, and dashboard data. |
 | `server-py/` | Legacy Python/FastAPI-style backend prototype retained for reference. |
@@ -251,7 +252,7 @@ The extension reads bundled scripts directly from `extension/`. The MCP package 
 
 ## MCP Server
 
-FSB ships [`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server), a local MCP server that lets external AI clients control the same browser extension. It exposes 59 tools across visual sessions, manual browser control, read-only page inspection, autopilot, vault, and observability.
+FSB ships [`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server), a local MCP server that lets external AI clients control the same browser extension. It exposes 59 registered handlers across manual browser control, read tools, autopilot, vault, observability, and visual session compatibility stubs.
 
 The extension connects to the MCP bridge on:
 
@@ -332,12 +333,13 @@ Manual tools are the default path for most external clients. They let the caller
 
 Recommended manual pattern:
 
-1. `start_visual_session` so the browser shows the trusted client badge.
-2. `read_page` or `get_dom_snapshot` to understand the current page.
-3. Use `execute_js` for safe DOM reads and simple DOM-triggered clicks.
-4. Use native tools such as `click`, `type_text`, `press_key`, and `drag` when real browser events matter.
-5. Verify with `read_page`, `get_page_snapshot`, or `get_dom_snapshot`.
-6. `end_visual_session` when done.
+1. Use `read_page` or `get_dom_snapshot` to understand the current page.
+2. Choose the smallest action tool that can make the change.
+3. Include `visual_reason` and `client` on every action tool call so the browser shows the trusted client badge.
+4. Use `execute_js` for safe DOM reads and simple DOM triggered clicks.
+5. Use native tools such as `click`, `type_text`, `press_key`, and `drag` when real browser events matter.
+6. Verify with `read_page`, `get_page_snapshot`, or `get_dom_snapshot`.
+7. Set `is_final: true` on the last action so the overlay clears immediately.
 
 Use `doctor` and `status --watch` before changing client configs. Most MCP failures are connection, extension wake, active-tab, or content-script readiness issues, not install problems.
 
@@ -390,20 +392,21 @@ The MCP server does not replace the extension runtime. It is a local bridge that
 
 ### Browser Action Surface
 
-The extension's canonical tool registry covers navigation, search, clicking, typing, keyboard events, scrolling, waiting, tabs, spreadsheets, coordinate interactions, DOM mutation helpers, read-only inspection, site guide lookup, memory search, and task finalization signals.
+The extension's canonical tool registry covers navigation, search, clicking, typing, keyboard events, scrolling, waiting, tabs, spreadsheets, coordinate interactions, DOM mutation helpers, read inspection, site guide lookup, memory search, and task finalization signals.
 
 The MCP server exposes a curated public surface around that registry:
 
 | Surface | Count | Examples |
 |---------|-------|----------|
-| Visual sessions | 2 | `start_visual_session`, `end_visual_session` |
+| Manual action tools | 36 | `execute_js`, `navigate`, `click`, `type_text`, `drag`, `set_attribute` |
+| Read tools | 8 | `read_page`, `get_dom_snapshot`, `get_site_guide`, `read_sheet` |
 | Autopilot | 3 | `run_task`, `stop_task`, `get_task_status` |
-| Manual control | 37 | `execute_js`, `navigate`, `click`, `type_text`, `drag`, `set_attribute` |
-| Read-only inspection | 8 | `read_page`, `get_dom_snapshot`, `get_site_guide`, `read_sheet` |
+| Browser history helper | 1 | `back` |
+| Visual session compatibility stubs | 2 | `start_visual_session`, `end_visual_session` return `TOOL_REMOVED` |
 | Observability | 5 | `list_sessions`, `get_logs`, `search_memory` |
 | Vault | 4 | `list_credentials`, `fill_credential`, `use_payment_method` |
 
-Read-only tools bypass the mutation queue where safe. Mutation tools are serialized so two clients do not click, type, or navigate at the same time.
+Read tools bypass the mutation queue where safe. Mutation tools are serialized so two clients do not click, type, or navigate at the same time.
 
 ---
 

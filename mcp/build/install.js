@@ -76,7 +76,7 @@ function printPlatformInstructions(platformKey) {
             break;
         case 'chatgpt':
             console.log('');
-            console.log('ChatGPT (Streamable HTTP -- remote only):');
+            console.log('ChatGPT (Streamable HTTP, remote only):');
             console.log('  1. Start the FSB HTTP server:');
             console.log('     npx -y fsb-mcp-server serve');
             console.log('  2. In ChatGPT, go to Settings > Connections > MCP');
@@ -86,7 +86,7 @@ function printPlatformInstructions(platformKey) {
             break;
         case 'claude-ai':
             console.log('');
-            console.log('Claude.ai (Streamable HTTP -- remote only):');
+            console.log('Claude.ai (Streamable HTTP, remote only):');
             console.log('  1. Start the FSB HTTP server:');
             console.log('     npx -y fsb-mcp-server serve');
             console.log('  2. In Claude.ai, open the integrations UI');
@@ -385,13 +385,13 @@ export function getSetupSections(httpEndpoint, cursorDeeplink) {
         {
             title: 'OpenClaw',
             lines: [
-                'Canonical install: load the FSB skill from skills/FSB Skill/ in this repo.',
+                'Canonical install: load the FSB skill from skills/fsb/ in this repo.',
                 '  The skill runs the doctor flow, prints the OpenClaw stdio config block,',
-                '  and offers consent-gated install for other detected MCP hosts.',
-                'Status of the --openclaw install flag: still manual / unsupported.',
+                '  and offers consent gated install for other detected MCP hosts.',
+                'Status of the --openclaw install flag: still manual. Automatic writes are unsupported.',
                 'Why:',
-                '  OpenClaw MCP config schema is unstable across builds; the skill prints',
-                '  and asks the user to paste, never auto-writes the OpenClaw config.',
+                '  OpenClaw MCP config schema is unstable across builds. The skill prints',
+                '  the config and asks the user to paste it.',
                 'Manual stdio fallback (if you cannot use the skill):',
                 '  ' + STDIO_COMMAND,
             ],
