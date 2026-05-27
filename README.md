@@ -96,6 +96,8 @@ Background agents are retired. Existing `chrome.storage.local['bgAgents']` data 
 - **Developer workflows**: drive GitHub, issue trackers, documentation sites, coding platforms, and browser-based tools.
 - **Accessibility and DOM inspection**: expose structure, labels, selectors, forms, and hidden controls for debugging.
 
+Short version: if you can do it in a browser, FSB can probably help you do it, repeat it, and show its work. It turns browser busywork into browse work, then goes beyond ordinary clicking with DOM structure, memory, verification, vault flows, and MCP agent control.
+
 FSB is most reliable when the task can be expressed as page structure and user actions. It is intentionally not a stealth browser, scraper farm, or unsupervised account operator.
 
 ### Feature Detail
