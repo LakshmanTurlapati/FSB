@@ -1035,17 +1035,26 @@ export class StatsPageComponent implements OnInit, AfterViewInit, OnDestroy {
         // with pointRadius:0 draws NOTHING -- Chart.js needs >=2 points to
         // stroke a line, and we hide point markers for the sparkline aesthetic.
         // Result: the canvas was visually empty for ~5 minutes after page load
-        // until the second poll arrived. Fix: when ring.length < 2, synthesize
-        // a 2-point flat-line dataset at the current `active_agents_now`
-        // headline value so the chart immediately reads as "currently N agents"
-        // and gains real shape as the ring fills with subsequent samples. The
-        // ring buffer itself is untouched -- this is a render-time fallback
-        // scoped strictly to this case.
+        // until the second poll arrived. Fix: when ring.length < 2 AND we have
+        // a real FSB headline, synthesize a 2-point flat-line dataset at the
+        // current `active_agents_now` value so the chart immediately reads as
+        // "currently N agents" and gains real shape as the ring fills.
+        //
+        // Gate on `headline` (per Codex P2 review): GitHub datasets can flip
+        // viewState to 'ready' before the FSB headline endpoint resolves (or
+        // when it errors). Without this gate, the fallback would draw a
+        // misleading [0, 0] flat-zero line during that window -- as if there
+        // were genuinely zero active agents. Better to render an empty canvas
+        // (honest "no data yet") until at least one real FSB sample arrives.
+        // Note: onFsbHeadlineUpdate assigns `latestFsbHeadline` and pushes onto
+        // the ring atomically, so `headline !== null` implies `ring.length >= 1`.
         const headline = this.latestFsbHeadline;
         const bucket = headline?.active_agents_bucket ?? '0';
         const ring = this.agentHistoryRing.slice();
         const live = headline?.active_agents_now ?? 0;
-        const data = ring.length >= 2 ? ring : [live, live];
+        const data = !headline
+          ? []
+          : ring.length >= 2 ? ring : [live, live];
         return {
           type: 'line',
           data: {
