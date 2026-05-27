@@ -92,7 +92,7 @@ FSB shows a trusted client badge and an orange element targeting overlay on the 
 Three rules govern the bundle:
 
 - **`visual_reason`** -- short human-readable string shown in the overlay (for example, `"Completing checkout"`). Required on every action tool call.
-- **`client`** -- allowlisted badge label. Required on every action tool call. The shared v0.9.36 allowlist accepts: `Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Windsurf`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`. Freeform strings reject with `BADGE_NOT_ALLOWED`. The skill ships as part of OpenClaw, so the canonical `client` value for this surface is `OpenClaw`.
+- **`client`** -- allowlisted badge label. Required on every action tool call. The shared v0.9.36 allowlist accepts: `Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`. Freeform strings reject with `BADGE_NOT_ALLOWED`. The skill ships as part of OpenClaw, so the canonical `client` value for this surface is `OpenClaw`.
 - **`is_final`** -- optional boolean. Set `true` on the LAST action of a task to clear the overlay immediately after that action's `change_report` resolves. Default `false`.
 
 Read-only tools (`read_page`, `get_dom_snapshot`, `get_text`, `get_attribute`, `read_sheet`, `get_page_snapshot`, `list_tabs`, `get_site_guide`, `search_memory`, `report_progress`, `complete_task`, `partial_task`, `fail_task`, `wait_for_element`, `wait_for_stable`) do NOT carry the bundle and do NOT re-arm the sliding window. Reads stay silent by design.

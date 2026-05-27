@@ -73,7 +73,7 @@ remains correct and is preferred.
 - Project Mariner
 - Safari
 - Vivaldi
-- Windsurf
+- Antigravity
 - xAI
 
 ## Code, CLI, and configuration identifiers

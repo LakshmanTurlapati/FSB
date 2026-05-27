@@ -30,7 +30,7 @@
 
 ## Overview
 
-FSB (Full Self Browsing) is an open source Chrome extension for AI powered browser automation. Describe a task in plain English and FSB reads the live DOM, builds a plan, executes browser actions, verifies results, and reports progress through the popup, side panel, or MCP.
+FSB (Full Self Browsing) is an open source Chrome extension for AI powered browser automation. Describe a task in plain English and FSB reads the live DOM, builds a plan, executes browser actions, verifies results, and reports progress through the side panel or MCP.
 
 > FSB v0.9.72 is functional and production ready for supervised automation. Browser automation can still behave unpredictably on complex or sensitive sites, so monitor actions and test on non critical pages first.
 
@@ -55,7 +55,7 @@ Project Mariner, Claude Computer Use, and OpenAI Operator rely heavily on visual
 | Claude Desktop | `npx -y fsb-mcp-server install --claude-desktop` |
 | Cursor | `npx -y fsb-mcp-server install --cursor` |
 | VS Code | `npx -y fsb-mcp-server install --vscode` |
-| Windsurf | `npx -y fsb-mcp-server install --windsurf` |
+| Antigravity | `npx -y fsb-mcp-server install --windsurf` |
 | Codex | `npx -y fsb-mcp-server install --codex` |
 | All at once | `npx -y fsb-mcp-server install --all` |
 
@@ -66,15 +66,15 @@ Preview before writing: append `--dry-run`. Sanity check with `npx -y fsb-mcp-se
 1. Get **FSB** from the [Chrome Web Store](https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk).
 2. From your MCP client, try: `Search for cats on Google` or `Read this page and summarize it`.
 
-Want to run FSB standalone from the extension popup or side panel? Open settings, paste an API key for xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or a custom endpoint, then start there. MCP is optional.
+Want to run FSB standalone from the extension side panel? Open settings, paste an API key for xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, or a custom endpoint, then start there. MCP is optional.
 
-**On OpenClaw?** Load the FSB skill from [`skills/fsb/`](./skills/fsb/SKILL.md). The skill runs the doctor flow, prints the canonical OpenClaw stdio config block, and offers consent gated install for any other MCP hosts on the same machine. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds. The skill prints the config and you paste it.
+**On OpenClaw?** Install FSB directly from [ClawHub](https://clawhub.ai/lakshmanturlapati/full-selfbrowsing). That is the fastest onboarding route. If you need the manual fallback, the FSB skill in [`skills/fsb/`](./skills/fsb/SKILL.md) still prints the canonical OpenClaw stdio config block and runs the doctor flow. The bare `--openclaw` install flag stays manual because OpenClaw's MCP config schema is unstable across builds.
 
 **On Hermes?** Use the same skill at [`skills/fsb/`](./skills/fsb/SKILL.md). Run `node skills/fsb/scripts/print-hermes-yaml.mjs` to print the canonical `~/.hermes/config.yaml` `mcp_servers.fsb` block, or run `node skills/fsb/scripts/install-host.mjs` to detect a local Hermes config and gate the install on consent.
 
 ### What It Does
 
-- Runs natural language browser tasks from the popup or side panel.
+- Runs natural language browser tasks from the side panel.
 - Supports xAI, Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, and custom OpenAI compatible endpoints.
 - Discovers live provider model lists and falls back to bundled defaults.
 - Uses a 51 entry extension tool registry with 36 action tools and 15 read or lifecycle tools.
@@ -82,7 +82,7 @@ Want to run FSB standalone from the extension popup or side panel? Open settings
 - Provides DOM snapshots, action verification, smart waiting, stuck detection, visual feedback, and session logs.
 - Maintains long term memory for past sites, workflows, selectors, and task outcomes.
 - Includes secure credential and payment vault flows for supervised autofill.
-- Exposes a local MCP server so Claude Code, Codex, Cursor, VS Code, Windsurf, and other MCP clients can drive the browser.
+- Exposes a local MCP server so Claude Code, Codex, Cursor, VS Code, Antigravity, and other MCP clients can drive the browser.
 
 Background agents are retired. Existing `chrome.storage.local['bgAgents']` data is preserved for users who had old agents, but scheduled or recurring automation is no longer an active FSB feature.
 
@@ -105,7 +105,7 @@ FSB is most reliable when the task can be expressed as page structure and user a
 | DOM analysis | Captures visible and structural page data, element refs, selectors, forms, ARIA labels, and DOM deltas. |
 | Action execution | Supports clicks, typing, keys, scrolling, navigation, tabs, spreadsheet ranges, coordinate tools, and direct JavaScript. |
 | Verification | Checks post-action state, loading behavior, DOM stability, and stuck-action repetition. |
-| UI surfaces | Popup chat, persistent side panel, options/control panel, logs, analytics, memory, vault, and sync controls. |
+| UI surfaces | Persistent side panel, options/control panel, logs, analytics, memory, vault, and sync controls. |
 | Model support | Hosted providers, OpenRouter routing, LM Studio local models, custom endpoints, and live model discovery. |
 | Output rendering | Markdown, sanitized HTML, Mermaid diagrams, Chart.js charts, and task progress messages. |
 | Observability | Session history, action logs, token/cost accounting, diagnostics ring buffer, and MCP status probes. |
@@ -172,6 +172,17 @@ Top level deploy and validation files:
 
 </details>
 
+## Real Demos
+
+The showcase About page includes real videos of FSB doing browser work across direct automation and MCP driven agent loops.
+
+| Demo | What it shows |
+|------|---------------|
+| [FSB Ecommerce Autopilot by Grok 4.1](https://www.youtube.com/watch?v=_iQ4_LSXcTU) | A shopping workflow moving from instruction to browser actions. |
+| [Flight Booking Powered by Codex MCP](https://www.youtube.com/watch?v=WbpOrFwgGME) | Codex using FSB through MCP as the browser layer for a travel task. |
+| [OpenClaw Monitoring Doge Price](https://www.youtube.com/watch?v=PNTGCWGopf8) | OpenClaw providing the agent loop while FSB controls the live browser. |
+| [An Aha Moment by Claude Opus 4.7](https://www.youtube.com/watch?v=mD9oGB2JqVM) | Claude pairing reasoning with FSB browser execution and iteration. |
+
 ---
 
 ## Quick Start
@@ -190,6 +201,12 @@ Top level deploy and validation files:
 
 ### Install The Extension
 
+Use the [Chrome Web Store listing](https://chromewebstore.google.com/detail/badgafnfchcihdfnjneklogedcdkmjfk) for normal installs. This is the recommended path because Chrome handles release updates automatically.
+
+Use **Load unpacked** only for local development or when a breaking issue has been fixed in the repository and you need that fix before the Chrome Web Store listing updates. Loaded unpacked builds do not receive automatic release updates.
+
+For local development or an urgent unreleased fix:
+
 ```bash
 git clone https://github.com/lakshmanturlapati/FSB.git
 cd FSB
@@ -199,7 +216,7 @@ cd FSB
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
 4. Select the `extension/` directory.
-5. Click the FSB toolbar icon, open settings, configure a provider, and test the API connection.
+5. Open the FSB side panel, open settings, configure a provider, and test the API connection.
 
 Start with simple tasks such as:
 
@@ -226,7 +243,7 @@ If a site uses heavy client rendering, custom canvas controls, or unusual shadow
 
 | Problem | Check |
 |---------|-------|
-| Extension does not appear | Confirm Chrome loaded `extension/`, not the repo root. |
+| Extension does not appear | For Web Store installs, confirm FSB is enabled. For local development, confirm Chrome loaded `extension/`, not the repo root. |
 | API test fails | Confirm the selected provider, key, endpoint, and model belong together. |
 | Page reads fail | Move away from browser-internal pages such as `chrome://` or extension pages. |
 | Clicks miss targets | Refresh the DOM snapshot, scroll the target into view, or use coordinate tools. |
@@ -325,7 +342,7 @@ npx -y fsb-mcp-server wait-for-extension
 
 See [mcp/README.md](mcp/README.md) for the full tool reference and client-specific setup notes.
 
-OpenCode and OpenClaw are supported through manual or unsupported fallback setup paths; after editing host configuration, refresh or reload the client if FSB tools do not appear.
+OpenCode uses a manual setup path. OpenClaw users should start with the direct [ClawHub install](https://clawhub.ai/lakshmanturlapati/full-selfbrowsing), then use the manual stdio fallback only when needed.
 
 ### MCP Usage Guidance
 
@@ -349,7 +366,7 @@ Use `doctor` and `status --watch` before changing client configs. Most MCP failu
 
 ```mermaid
 graph TB
-    UI["Popup / Side Panel / Options"] --> BG["MV3 Background Worker"]
+    UI["Side Panel / Options"] --> BG["MV3 Background Worker"]
     BG --> AI["Universal Provider"]
     BG --> CS["Content Scripts"]
     BG --> MEM["Memory + Analytics"]

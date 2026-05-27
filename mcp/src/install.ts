@@ -44,8 +44,8 @@ export function getInstallNextStep(platformKey: string, variant: string | null =
       return 'Open the MCP view in VS Code, trust/start the server if prompted, then reload VS Code if it does not start automatically.';
     case 'windsurf':
       return variant === 'plugin'
-        ? 'In Windsurf or the JetBrains/Cascade plugin, refresh the MCP integration or reload the client after editing ~/.codeium/mcp_config.json.'
-        : 'In Windsurf, refresh the MCP integration or reload the app after editing ~/.codeium/windsurf/mcp_config.json.';
+        ? 'In Antigravity or the JetBrains/Cascade plugin, refresh the MCP integration or reload the client after editing ~/.codeium/mcp_config.json.'
+        : 'In Antigravity, refresh the MCP integration or reload the app after editing ~/.codeium/windsurf/mcp_config.json.';
     case 'codex':
       return 'Restart Codex or reload the MCP server list after editing ~/.codex/config.toml.';
     case 'cline':
@@ -229,7 +229,7 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
       ],
     },
     {
-      title: 'Windsurf',
+      title: 'Antigravity',
       lines: [
         'Supported config paths:',
         '  ~/.codeium/windsurf/mcp_config.json',
@@ -244,7 +244,7 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
         '    }',
         '  }',
         'Next step:',
-        '  Press refresh in Windsurf or reload the client after editing the matching config file.',
+        '  Press refresh in Antigravity or reload the client after editing the matching config file.',
       ],
     },
     // New platforms
@@ -412,13 +412,13 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
     {
       title: 'OpenClaw',
       lines: [
-        'Canonical install: load the FSB skill from skills/fsb/ in this repo.',
-        '  The skill runs the doctor flow, prints the OpenClaw stdio config block,',
-        '  and offers consent gated install for other detected MCP hosts.',
+        'Canonical install: install directly from ClawHub:',
+        '  https://clawhub.ai/lakshmanturlapati/full-selfbrowsing',
+        'Manual fallback: load the FSB skill from skills/fsb/ in this repo.',
+        '  The skill prints the OpenClaw stdio config block and runs the doctor flow.',
         'Status of the --openclaw install flag: still manual. Automatic writes are unsupported.',
         'Why:',
-        '  OpenClaw MCP config schema is unstable across builds. The skill prints',
-        '  the config and asks the user to paste it.',
+        '  OpenClaw MCP config schema is unstable across builds.',
         'Manual stdio fallback (if you cannot use the skill):',
         '  ' + STDIO_COMMAND,
       ],

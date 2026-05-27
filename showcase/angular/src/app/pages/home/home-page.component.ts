@@ -87,7 +87,7 @@ export class HomePageComponent implements OnInit {
       downloadUrl: 'https://github.com/lakshmanturlapati/FSB',
       sameAs: ['https://github.com/lakshmanturlapati/FSB', YOUTUBE_CHANNEL],
       featureList: [
-        'MCP server for Claude Code, Codex, Cursor, Windsurf, and OpenClaw',
+        'MCP server for Claude Code, Codex, Cursor, Antigravity, and OpenClaw',
         'Real browser automation through a local Chrome extension',
         'Autonomous app testing loop with observation and verification',
         'DOM-based page understanding, browser actions, visual feedback, and local memory',

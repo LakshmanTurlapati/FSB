@@ -11,7 +11,7 @@ Passwords, CVVs, and saved payment methods never cross into chat or tool argumen
 
 ## Where vault values live
 
-Users configure vault entries from the FSB Chrome extension surface (popup or sidepanel options page). Each entry is keyed by a label and stored encrypted. When the model invokes `fill_credential({ label, selector })` or `use_payment_method({ label, ... })`, the extension reads the encrypted value, fills the target DOM element via typed events, and never echoes the value back to the MCP server or the host. The full lifecycle of a vault value is: user types it once into the extension UI -> encrypted storage -> typed events into a target form. It never leaves the user's browser process.
+Users configure vault entries from the FSB Chrome extension side panel or options page. Each entry is keyed by a label and stored encrypted. When the model invokes `fill_credential({ label, selector })` or `use_payment_method({ label, ... })`, the extension reads the encrypted value, fills the target DOM element via typed events, and never echoes the value back to the MCP server or the host. The full lifecycle of a vault value is: user types it once into the extension UI -> encrypted storage -> typed events into a target form. It never leaves the user's browser process.
 
 ## Anti-patterns
 

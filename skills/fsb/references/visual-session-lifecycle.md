@@ -14,7 +14,7 @@ Every MCP action tool accepts and requires the following fields on every call:
 | `client`        | string  | required | Allowlisted client label. Validated against the v0.9.36 shared badge allowlist (see below).          |
 | `is_final`      | boolean | optional | When `true`, the overlay clears immediately after the tool's `change_report` resolves. Default `false`. |
 
-Allowlisted `client` values (v0.9.36 shared allowlist): `Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Windsurf`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`. The skill ships as part of OpenClaw, so the canonical `client` value for this surface is `OpenClaw`. Freeform strings reject with `BADGE_NOT_ALLOWED`.
+Allowlisted `client` values (v0.9.36 shared allowlist): `Claude`, `Codex`, `ChatGPT`, `Perplexity`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, `Gemini`. The skill ships as part of OpenClaw, so the canonical `client` value for this surface is `OpenClaw`. Freeform strings reject with `BADGE_NOT_ALLOWED`.
 
 The canonical 36-tool action list lives in `.planning/v0.9.62-CONTRACT.md` (Action Tools section). The 15-tool read-only list lives in the same file (Read-Only Tools section). Do not re-derive either list from memory.
 

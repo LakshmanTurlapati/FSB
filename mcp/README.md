@@ -25,7 +25,7 @@
 
 ## What It Is
 
-`fsb-mcp-server` connects MCP clients such as Claude Desktop, Claude Code, Codex, Cursor, VS Code, Windsurf, Zed, Cline, Gemini CLI, Continue, and others to the FSB Chrome extension.
+`fsb-mcp-server` connects MCP clients such as Claude Desktop, Claude Code, Codex, Cursor, VS Code, Antigravity, Zed, Cline, Gemini CLI, Continue, and others to the FSB Chrome extension.
 
 The server supports two operating styles:
 
@@ -61,7 +61,7 @@ Common file or CLI targets:
 | `--claude-code` | Claude Code |
 | `--cursor` | Cursor |
 | `--vscode` | VS Code |
-| `--windsurf` | Windsurf |
+| `--windsurf` | Antigravity |
 | `--cline` | Cline |
 | `--zed` | Zed |
 | `--codex` | Codex CLI / Codex IDE |
@@ -79,7 +79,7 @@ Instruction-only or UI-driven targets include JetBrains, ChatGPT, Claude.ai, and
 
 ### OpenClaw
 
-The canonical OpenClaw onboarding path is the FSB skill at `skills/fsb/` in the repo root. Loading the skill into a fresh OpenClaw runs the doctor flow, prints the canonical OpenClaw stdio config block for the user to paste into OpenClaw's MCP config, and offers consent gated install for any other MCP hosts detected on the same machine. The bare `--openclaw` install flag in this CLI stays manual because OpenClaw's MCP config schema is still unstable across builds. Automatic config writes are unsupported. The skill prints the config and the user pastes it.
+The fastest OpenClaw onboarding path is the direct ClawHub install at [clawhub.ai/lakshmanturlapati/full-selfbrowsing](https://clawhub.ai/lakshmanturlapati/full-selfbrowsing). If you need the manual fallback, the FSB skill in `skills/fsb/` still prints the canonical OpenClaw stdio config block and runs the doctor flow. The bare `--openclaw` install flag in this CLI stays manual because OpenClaw's MCP config schema is still unstable across builds. Automatic config writes are unsupported.
 
 To build a reproducible publish artifact for ClawHub, run `npm run package:skill` from the repo root. It zips `skills/fsb/` into `dist/skill/FSB-Skill-<version>.zip` (version stamped from `SKILL.md` frontmatter; the zip filename is kept as `FSB-Skill-<version>.zip` for backwards compatibility with existing ClawHub publish consumers). Publishing is user-gated: `clawhub login` and then `clawhub publish "skills/fsb"`. See `.planning/v0.9.61-CLAWHUB-PUBLISH-QA.md` for the pre-publish QA checklist.
 
@@ -184,7 +184,7 @@ VS Code uses the `servers` root key and requires `type: "stdio"`:
 }
 ```
 
-After editing config files, restart or reload the host client if tools do not appear. Claude Code is usually active immediately after `claude mcp add`; Cursor, Claude Desktop, VS Code, and Windsurf often need a restart, refresh, or trust/start action in their MCP UI.
+After editing config files, restart or reload the host client if tools do not appear. Claude Code is usually active immediately after `claude mcp add`; Cursor, Claude Desktop, VS Code, and Antigravity often need a restart, refresh, or trust/start action in their MCP UI.
 
 ### Local Streamable HTTP
 
@@ -264,7 +264,7 @@ Move to a normal `http` or `https` page before calling DOM tools such as `read_p
 
 Use the implicit visual session when your MCP client controls the browser and you still want FSB's visible trusted overlay. The session is per-tab and per-agent; the v0.9.60 ownership gate (`TAB_NOT_OWNED`) fires before any session state is touched.
 
-1. Call any action tool (`click`, `type_text`, `navigate`, ...) with the required field bundle: `visual_reason` (short human-readable string for the overlay) and `client` (allowlisted badge label such as `Codex`, `Claude`, `ChatGPT`, `Gemini`, `Cursor`, `Windsurf`, `OpenCode`, `OpenClaw`, `Grok`, `Perplexity`, or `Antigravity`).
+1. Call any action tool (`click`, `type_text`, `navigate`, ...) with the required field bundle: `visual_reason` (short human-readable string for the overlay) and `client` (allowlisted badge label such as `Codex`, `Claude`, `ChatGPT`, `Gemini`, `Cursor`, `Antigravity`, `OpenCode`, `OpenClaw`, `Grok`, or `Perplexity`).
 2. Drive the page with subsequent action tools. Each call re-arms the 60-second sliding window so the overlay stays alive as long as actions keep arriving.
 3. On the last action of the task, set `is_final: true`. The overlay clears immediately after the action's `change_report` resolves, with no 60 second wait.
 
