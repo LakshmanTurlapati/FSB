@@ -74,7 +74,7 @@ export const PLATFORMS = {
         mergeStrategy: 'object-map',
     },
     'windsurf': {
-        displayName: 'Antigravity',
+        displayName: 'Windsurf',
         flag: 'windsurf',
         format: 'json',
         serverMapKey: 'mcpServers',

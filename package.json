@@ -1,7 +1,7 @@
 {
   "name": "fsb-full-self-browsing",
   "version": "0.9.72",
-  "description": "FSB Full Self Browsing is an intelligent open source Chrome extension for AI powered browser automation using natural language instructions",
+  "description": "FSB - Full Self-Browsing: An intelligent, open-source Chrome extension for AI-powered browser automation using natural language instructions",
   "main": "background.js",
   "homepage": "https://github.com/lakshmanturlapati/FSB",
   "repository": {
@@ -114,12 +114,12 @@
     {
       "description": "Version",
       "href": "https://github.com/lakshmanturlapati/FSB/releases",
-      "url": "https://img.shields.io/badge/version-0.9.72-blue.svg"
+      "url": "https://img.shields.io/badge/version-0.9.67-blue.svg"
     },
     {
       "description": "License",
       "href": "LICENSE",
-      "url": "https://img.shields.io/badge/license-BUSL_1.1-green.svg"
+      "url": "https://img.shields.io/badge/license-MIT-green.svg"
     },
     {
       "description": "Chrome Extension",
@@ -152,7 +152,7 @@
     "Modern chat-based user interfaces",
     "Analytics and usage tracking",
     "Secure configuration management",
-    "Side panel and MCP driven workflows",
+    "Multi-UI support (popup + side panel)",
     "CAPTCHA solving framework",
     "Extensive debugging and logging"
   ],

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.70
 milestone_name: Showcase Dashboard Reliability (Streaming + Sync + Viewport)
 status: in_progress
-last_updated: "2026-05-27T17:31:00.000Z"
-last_activity: "2026-05-27 -- completed quick task 260527-gue: docs branch CI i18n and crawler metadata fix"
+last_updated: "2026-05-18T00:00:00.000Z"
+last_activity: "2026-05-18 -- streaming and viewport slices marked complete after merged/deployed fixes; Sync-tab remote-control restoration is now active"
 progress:
   total_phases: 3
   completed_phases: 2
@@ -30,7 +30,7 @@ See: .planning/REQUIREMENTS.md (v0.9.70 active supplement added above archived v
 Phase: 279 -- Sync Tab Remote-Control Restoration
 Plan: 279-01 -- diagnose pairing + remote-command dispatch, then minimum patch
 Status: Investigating
-Last activity: 2026-05-27 -- Completed quick task 260527-gue: Fix docs branch CI failures from stale showcase i18n and stats crawler metadata
+Last activity: 2026-05-18 -- Streaming and viewport fixes closed; moving to Sync remote control
 
 ## Performance Metrics
 
@@ -84,7 +84,6 @@ Total: 11 items. Triage via `/gsd-debug` and `/gsd-cleanup` during a future mile
 | 260516-pr62 | Lower telemetry K_ANONYMITY_FLOOR 5 -> 2 so /stats surfaces real client labels at single-digit total installs | 2026-05-16 | (PR #62 merged) | merged | -- |
 | 260516-pr63 | MCP transport `z.coerce.number()` at jsonSchemaToZod translator + 7 hand-rolled sites so MCP clients can pass tabId/tab_id as either string or number | 2026-05-16 | (PR #63 merged) | merged | -- |
 | 260516-pr64 | Bump fsb-mcp-server 0.9.1 -> 0.9.2 to pick up the numeric coercion fix; auto-published to npm via mcp-v0.9.2 tag + chrome extension v0.9.67 zip released | 2026-05-16 | (PR #64 merged) | merged | -- |
-| 260527-gue | Fix docs branch CI failures from stale showcase i18n and stats crawler metadata | 2026-05-27 | 2c237df8 | verified | [260527-gue-fix-docs-branch-ci-failures-from-stale-s](./quick/260527-gue-fix-docs-branch-ci-failures-from-stale-s/) |
 
 ## Pending User-Gated Actions (carry-forward)
 

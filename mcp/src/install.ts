@@ -44,8 +44,8 @@ export function getInstallNextStep(platformKey: string, variant: string | null =
       return 'Open the MCP view in VS Code, trust/start the server if prompted, then reload VS Code if it does not start automatically.';
     case 'windsurf':
       return variant === 'plugin'
-        ? 'In Antigravity or the JetBrains/Cascade plugin, refresh the MCP integration or reload the client after editing ~/.codeium/mcp_config.json.'
-        : 'In Antigravity, refresh the MCP integration or reload the app after editing ~/.codeium/windsurf/mcp_config.json.';
+        ? 'In Windsurf or the JetBrains/Cascade plugin, refresh the MCP integration or reload the client after editing ~/.codeium/mcp_config.json.'
+        : 'In Windsurf, refresh the MCP integration or reload the app after editing ~/.codeium/windsurf/mcp_config.json.';
     case 'codex':
       return 'Restart Codex or reload the MCP server list after editing ~/.codex/config.toml.';
     case 'cline':
@@ -102,7 +102,7 @@ function printPlatformInstructions(platformKey: string): void {
       break;
     case 'chatgpt':
       console.log('');
-      console.log('ChatGPT (Streamable HTTP, remote only):');
+      console.log('ChatGPT (Streamable HTTP -- remote only):');
       console.log('  1. Start the FSB HTTP server:');
       console.log('     npx -y fsb-mcp-server serve');
       console.log('  2. In ChatGPT, go to Settings > Connections > MCP');
@@ -112,7 +112,7 @@ function printPlatformInstructions(platformKey: string): void {
       break;
     case 'claude-ai':
       console.log('');
-      console.log('Claude.ai (Streamable HTTP, remote only):');
+      console.log('Claude.ai (Streamable HTTP -- remote only):');
       console.log('  1. Start the FSB HTTP server:');
       console.log('     npx -y fsb-mcp-server serve');
       console.log('  2. In Claude.ai, open the integrations UI');
@@ -229,7 +229,7 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
       ],
     },
     {
-      title: 'Antigravity',
+      title: 'Windsurf',
       lines: [
         'Supported config paths:',
         '  ~/.codeium/windsurf/mcp_config.json',
@@ -244,7 +244,7 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
         '    }',
         '  }',
         'Next step:',
-        '  Press refresh in Antigravity or reload the client after editing the matching config file.',
+        '  Press refresh in Windsurf or reload the client after editing the matching config file.',
       ],
     },
     // New platforms
@@ -412,13 +412,13 @@ export function getSetupSections(httpEndpoint: string, cursorDeeplink: string): 
     {
       title: 'OpenClaw',
       lines: [
-        'Canonical install: install directly from ClawHub:',
-        '  https://clawhub.ai/lakshmanturlapati/full-selfbrowsing',
-        'Manual fallback: load the FSB skill from skills/fsb/ in this repo.',
-        '  The skill prints the OpenClaw stdio config block and runs the doctor flow.',
-        'Status of the --openclaw install flag: still manual. Automatic writes are unsupported.',
+        'Canonical install: load the FSB skill from skills/fsb/ in this repo.',
+        '  The skill runs the doctor flow, prints the OpenClaw stdio config block,',
+        '  and offers consent-gated install for other detected MCP hosts.',
+        'Status of the --openclaw install flag: still manual / unsupported.',
         'Why:',
-        '  OpenClaw MCP config schema is unstable across builds.',
+        '  OpenClaw MCP config schema is unstable across builds; the skill prints',
+        '  and asks the user to paste, never auto-writes the OpenClaw config.',
         'Manual stdio fallback (if you cannot use the skill):',
         '  ' + STDIO_COMMAND,
       ],

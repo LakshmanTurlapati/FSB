@@ -10,7 +10,7 @@ FSB - Universal AI-powered browser automation assistant with multi-model support
 
 ## Description
 
-FSB is a Chrome extension for AI-assisted browser automation. Give it a natural-language task, connect your preferred model provider, and use it to inspect pages, plan actions, click, type, navigate, and summarize what happened from the side panel.
+FSB is a Chrome extension for AI-assisted browser automation. Give it a natural-language task, connect your preferred model provider, and use it to inspect pages, plan actions, click, type, navigate, and summarize what happened from the popup or side panel.
 
 FSB is built for developers, QA testers, researchers, and power users who want a transparent browser assistant they can configure, observe, and control.
 
@@ -18,7 +18,7 @@ What FSB does:
 
 - Runs browser tasks from natural-language instructions.
 - Supports multiple model providers, including xAI, OpenAI, Anthropic, Gemini, OpenRouter, LM Studio, and custom OpenAI-compatible endpoints.
-- Provides side panel workflows for running and monitoring tasks.
+- Provides popup and side-panel workflows for running and monitoring tasks.
 - Shows visible page progress with overlays, action feedback, and session status.
 - Includes developer-oriented diagnostics, action history, token/cost tracking, and analytics views.
 - Offers site memory and page-intelligence tools for understanding complex web pages.

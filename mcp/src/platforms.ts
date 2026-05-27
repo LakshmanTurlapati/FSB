@@ -131,7 +131,7 @@ export const PLATFORMS: PlatformRegistry = {
   },
 
   'windsurf': {
-    displayName: 'Antigravity',
+    displayName: 'Windsurf',
     flag: 'windsurf',
     format: 'json',
     serverMapKey: 'mcpServers',

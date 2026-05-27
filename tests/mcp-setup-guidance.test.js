@@ -48,7 +48,7 @@ const requiredSetupLines = [
     needles: ['~/.cursor/mcp.json', 'restart'],
   },
   {
-    label: 'Antigravity distinguishes app and plugin config surfaces and tells the user to refresh or reload',
+    label: 'Windsurf distinguishes app and plugin config surfaces and tells the user to refresh or reload',
     needles: ['~/.codeium/windsurf/mcp_config.json', '~/.codeium/mcp_config.json', 'reload'],
   },
   {
@@ -56,8 +56,8 @@ const requiredSetupLines = [
     needles: ['OpenCode', '"mcp"', '"type": "local"', '"command": ["npx", "-y", "fsb-mcp-server"]'],
   },
   {
-    label: 'OpenClaw points to ClawHub and keeps the manual fallback',
-    needles: ['OpenClaw', 'ClawHub', 'https://clawhub.ai/lakshmanturlapati/full-selfbrowsing', 'manual'],
+    label: 'OpenClaw is called out as a manual or unsupported fallback',
+    needles: ['OpenClaw', 'manual', 'unsupported'],
   },
   {
     label: 'Setup guidance routes broken installs to doctor and status --watch first',

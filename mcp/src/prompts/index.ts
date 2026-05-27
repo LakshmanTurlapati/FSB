@@ -7,12 +7,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
  * can use to accomplish common browser automation tasks.
  */
 export function registerPrompts(server: McpServer): void {
-  // Browser Automation Guide for the read then act workflow
+  // Browser Automation Guide -- teaches the read-then-act workflow
   server.registerPrompt(
     'browser-automation-guide',
     {
       title: 'Browser Automation Guide',
-      description: 'Learn the recommended workflow for browser automation with FSB tools. Covers the read then act pattern, tool selection, and common patterns.',
+      description: 'Learn the recommended workflow for browser automation with FSB tools. Covers the read-then-act pattern, tool selection, and common patterns.',
     },
     () => ({
       messages: [
@@ -39,32 +39,34 @@ Always follow this workflow:
 ## Tool Selection Guide
 
 **Reading the page:**
-* \`read_page\`: quick text content with automatic waits for JS heavy sites, about 8K chars max
-* \`get_dom_snapshot\`: structured elements with refs (e1, e2...), selectors, positions
-* \`get_page_snapshot\`: compact planning snapshot for agent reasoning
-* \`get_text\` / \`get_attribute\`: read a specific element's content
+- \`read_page\` -- quick text content, auto-waits for JS-heavy sites, ~8K chars max
+- \`get_dom_snapshot\` -- structured elements with refs (e1, e2...), selectors, positions
+- \`get_text\` / \`get_attribute\` -- read a specific element's content
 
 **Interacting with elements:**
-* \`click\`: buttons, links, controls (use selector or ref from get_dom_snapshot)
-* \`type_text\`: input fields, search boxes, text areas
-* \`press_enter\`: submit forms
-* \`select_option\`: native dropdowns
-* \`check_box\`: checkboxes
-* \`hover\`: reveal menus or tooltips before clicking
+- \`click\` -- buttons, links, controls (use selector or ref from get_dom_snapshot)
+- \`type_text\` -- input fields, search boxes, text areas
+- \`press_enter\` -- submit forms (auto-clicks submit button if Enter fails)
+- \`select_option\` -- dropdowns
+- \`check_box\` -- checkboxes
+- \`hover\` -- reveal menus/tooltips before clicking
 
 **When DOM tools fail (canvas, overlays, SVG):**
-* \`click_at\`: click at viewport coordinates
-* \`drag\`: drag between coordinates for canvas drawing or sliders
-* \`scroll_at\`: zoom at coordinates on maps or dense panes
-* \`click_and_hold\`: long press
+- \`click_at\` -- click at viewport coordinates
+- \`drag\` -- drag between coordinates (canvas drawing, sliders)
+- \`scroll_at\` -- zoom at coordinates (maps)
+- \`click_and_hold\` -- long press
 
 **Navigation:**
-* \`navigate\`: go to URL
-* \`search\`: search on current site or Google when no site search is found
-* \`go_back\` / \`go_forward\`: browser history
-* \`back\`: ownership gated single step history back with typed status
-* \`scroll\` / \`scroll_to_top\` / \`scroll_to_bottom\`: page scrolling
-* \`open_tab\` / \`switch_tab\` / \`close_tab\` / \`list_tabs\`: tab work
+- \`navigate\` -- go to URL
+- \`search\` -- search on current site (auto-detects site search bar) or Google
+- \`go_back\` / \`go_forward\` -- browser history
+- \`scroll\` / \`scroll_to_top\` / \`scroll_to_bottom\` -- page scrolling
+- \`open_tab\` / \`switch_tab\` / \`list_tabs\` -- multi-tab
+
+**Waiting:**
+- \`wait_for_element\` -- wait for element to appear after async load
+- \`wait_for_stable\` -- wait for all DOM mutations to settle
 
 ## Common Patterns
 
@@ -77,19 +79,19 @@ Always follow this workflow:
 
 If \`click\` fails: try \`get_dom_snapshot\` to refresh selectors, then retry. If still failing, use \`click_at\` with coordinates.
 If \`type_text\` fails: try \`clear_input\` first, then \`type_text\`. Check selector with \`get_dom_snapshot\`.
-If page is blank: call \`read_page\` again after navigation settles, then use \`get_dom_snapshot\` to confirm whether content scripts can see the page.`,
+If page is blank: call \`wait_for_stable\` then \`read_page\` again.`,
           },
         },
       ],
     }),
   );
 
-  // Tool Reference with categorized tool list and usage examples
+  // Tool Reference -- categorized tool list with usage examples
   server.registerPrompt(
     'tool-reference',
     {
       title: 'FSB Tool Reference',
-      description: 'Reference for the current FSB MCP browser automation surface with categories, examples, and visual session requirements.',
+      description: 'Complete reference of all 44 FSB browser automation tools organized by category with usage examples.',
     },
     () => ({
       messages: [
@@ -97,16 +99,9 @@ If page is blank: call \`read_page\` again after navigation settles, then use \`
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `# FSB Tool Reference (59 registered handlers)
+            text: `# FSB Tool Reference (44 tools)
 
-> **Default to manual tools for browser tasks.** Only use run_task if the user explicitly asks for autopilot or asks FSB to handle the task.
-
-Action tools require \`visual_reason\` and \`client\`. Set \`is_final: true\` on the last action when the visible overlay should clear immediately. Read tools do not carry those fields.
-
-## Power (1 tool)
-| Tool | Use For | Example |
-|------|---------|---------|
-| execute_js | Run JavaScript in the active page | execute_js(code="return document.title") |
+> **Default to manual tools for all browser tasks.** Only use run_task (autopilot) if the user explicitly requests it.
 
 ## Navigation (5 tools)
 | Tool | Use For | Example |
@@ -117,17 +112,14 @@ Action tools require \`visual_reason\` and \`client\`. Set \`is_final: true\` on
 | go_forward | Browser forward button | go_forward() |
 | refresh | Reload page | refresh() |
 
-## Reading (8 tools)
+## Reading (5 tools)
 | Tool | Use For | Example |
 |------|---------|---------|
 | read_page | Read page text content | read_page() or read_page(full=true) |
 | get_dom_snapshot | Get elements with selectors/refs | get_dom_snapshot() |
-| get_page_snapshot | Get a compact planning snapshot | get_page_snapshot() |
-| get_site_guide | Load known site guidance | get_site_guide(domain="github.com") |
 | get_text | Read specific element text | get_text(selector="#price") |
 | get_attribute | Read element attribute | get_attribute(selector="a.link", attribute="href") |
 | list_tabs | See all open tabs | list_tabs() |
-| read_sheet | Read cell range | read_sheet(range="A1:C5") |
 
 ## Interaction (14 tools)
 | Tool | Use For | Example |
@@ -147,15 +139,14 @@ Action tools require \`visual_reason\` and \`client\`. Set \`is_final: true\` on
 | drag_drop | Drag DOM element to another | drag_drop(sourceSelector="e5", targetSelector="e12") |
 | drop_file | Drop file on dropzone | drop_file(selector=".dropzone", fileName="test.pdf") |
 
-## Scrolling (4 tools)
+## Scrolling (3 tools)
 | Tool | Use For | Example |
 |------|---------|---------|
 | scroll | Scroll up/down | scroll(direction="down", amount=500) |
 | scroll_to_top | Jump to page top | scroll_to_top() |
 | scroll_to_bottom | Jump to page bottom | scroll_to_bottom() |
-| scroll_to_element | Scroll an element into view | scroll_to_element(selector="e5") |
 
-## CDP Coordinate Tools (7 tools)
+## CDP Coordinate Tools (6 tools) -- for canvas/overlays
 | Tool | Use For | Example |
 |------|---------|---------|
 | click_at | Click at coordinates | click_at(x=400, y=300) |
@@ -163,25 +154,24 @@ Action tools require \`visual_reason\` and \`client\`. Set \`is_final: true\` on
 | drag | Draw/slide at coordinates | drag(startX=100, startY=200, endX=400, endY=200) |
 | drag_variable_speed | Human-like drag (CAPTCHAs) | drag_variable_speed(startX=100, startY=300, endX=400, endY=300) |
 | scroll_at | Zoom at coordinates (maps) | scroll_at(x=500, y=400, deltaY=-120) |
-| insert_text | Insert text through keyboard compatible input | insert_text(text="hello") |
-| double_click_at | Double click at coordinates | double_click_at(x=400, y=300) |
+| wait_for_element | Wait for element to appear | wait_for_element(selector=".results") |
 
-## Tabs (3 tools)
+## Tabs (2 tools)
 | Tool | Use For | Example |
 |------|---------|---------|
 | open_tab | Open new tab | open_tab(url="https://google.com") |
 | switch_tab | Switch to tab | switch_tab(tabId=123) |
-| close_tab | Close a tab owned by this agent | close_tab(tab_id=123) |
 
-## Spreadsheets (1 action tool)
+## Spreadsheets (2 tools)
 | Tool | Use For | Example |
 |------|---------|---------|
 | fill_sheet | Write CSV data to cells | fill_sheet(startCell="A1", csvData="Name,Age\\nAlice,30") |
+| read_sheet | Read cell range | read_sheet(range="A1:C5") |
 
-## DOM Mutation (1 tool)
+## Waiting (1 tool)
 | Tool | Use For | Example |
 |------|---------|---------|
-| set_attribute | Set an attribute on an element | set_attribute(selector="#field", attribute="aria-label", value="Search") |
+| wait_for_stable | Wait for DOM to settle | wait_for_stable() |
 
 ## Observability (5 tools)
 | Tool | Use For | Example |
@@ -192,34 +182,14 @@ Action tools require \`visual_reason\` and \`client\`. Set \`is_final: true\` on
 | search_memory | Search learned patterns | search_memory(query="amazon checkout", domain="amazon.com") |
 | get_memory_stats | Memory system stats | get_memory_stats() |
 
-## Vault (4 tools)
-| Tool | Use For | Example |
-|------|---------|---------|
-| list_credentials | List saved credential metadata | list_credentials() |
-| fill_credential | Fill a login form from the unlocked vault | fill_credential(tab_id=123) |
-| list_payment_methods | List saved payment metadata | list_payment_methods() |
-| use_payment_method | Fill checkout data after confirmation | use_payment_method(payment_method_id="pm_123") |
-
-## Browser History Helper (1 tool)
-| Tool | Use For | Example |
-|------|---------|---------|
-| back | Single step browser history back | back() |
-
 ## Key Relationships
 - **get_dom_snapshot** returns element refs (e1, e2...) usable by click, type_text, hover, etc.
 - **read_page** is for text content; **get_dom_snapshot** is for finding interactive elements
 - **click** is for DOM elements; **click_at** is the fallback for canvas/overlays
 - **drag_drop** is for DOM-to-DOM drag; **drag** is for coordinate-based canvas drawing
 - **search** auto-uses site search bars; only falls back to Google when none exists
-- **start_visual_session** and **end_visual_session** are compatibility stubs that return TOOL_REMOVED
 
-## Visual Session Compatibility (2 tools)
-| Tool | Use For | Example |
-|------|---------|---------|
-| start_visual_session | Compatibility stub that returns TOOL_REMOVED | start_visual_session(client="Codex", task="Legacy call") |
-| end_visual_session | Compatibility stub that returns TOOL_REMOVED | end_visual_session(session_token="legacy") |
-
-## Autopilot (3 tools)
+## Autopilot (3 tools) -- only when user explicitly requests
 > Do NOT use run_task unless the user explicitly asks for autopilot mode. Use the manual tools above for all standard browser tasks.
 
 | Tool | Use For | Example |

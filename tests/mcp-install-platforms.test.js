@@ -88,7 +88,7 @@ function run() {
       'Claude Desktop',
       'Cursor',
       'VS Code',
-      'Antigravity',
+      'Windsurf',
       'Cline',
       'Zed',
       'Codex CLI',
@@ -112,7 +112,7 @@ function run() {
     assertIncludes(
       output,
       '.codeium/windsurf/mcp_config.json',
-      'dry-run shows the Antigravity app config path',
+      'dry-run shows the Windsurf app config path',
     );
   });
 
@@ -200,7 +200,7 @@ function run() {
     const config = readText(windsurfPath);
 
     assertEqual(result.status, 0, 'windsurf app-path install exits cleanly');
-    assertIncludes(output, 'Installed to Antigravity', 'windsurf app-path install reports success');
+    assertIncludes(output, 'Installed to Windsurf', 'windsurf app-path install reports success');
     assertIncludes(config, '"existing"', 'windsurf app-path install preserves existing entries');
     assertIncludes(config, '"fsb"', 'windsurf app-path install writes the fsb entry');
   });
@@ -238,7 +238,7 @@ function run() {
     assertIncludes(
       config,
       '"fsb"',
-      'windsurf plugin-path install updates the JetBrains/Cascade config when that is the only Antigravity config surface',
+      'windsurf plugin-path install updates the JetBrains/Cascade config when that is the only Windsurf config surface',
     );
   });
 
