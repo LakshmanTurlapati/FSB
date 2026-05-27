@@ -183,6 +183,8 @@ The showcase About page includes real videos of FSB doing browser work across di
 | [OpenClaw Monitoring Doge Price](https://www.youtube.com/watch?v=PNTGCWGopf8) | OpenClaw providing the agent loop while FSB controls the live browser. |
 | [An Aha Moment by Claude Opus 4.7](https://www.youtube.com/watch?v=mD9oGB2JqVM) | Claude pairing reasoning with FSB browser execution and iteration. |
 
+For stats nerds, the showcase also has [live project and usage charts](https://full-selfbrowsing.com/stats) with GitHub activity, active users, token flow, running agents, and popular MCP clients.
+
 ---
 
 ## Quick Start
